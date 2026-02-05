@@ -6,7 +6,7 @@
 
 - **Core System**: 오디오, 에셋, 입력 시스템을 중앙에서 관리합니다. (`src/core`)
 - **Game Modules**: 리듬, 런너, 퍼즐 등 다양한 게임 장르를 모듈화하여 관리합니다. (`src/games`)
-- **Shared Utilities**: 모든 게임과 포달에서 공통으로 사용되는 UI 및 유틸리티입니다. (`src/shared`)
+- **Shared Utilities**: 모든 게임과 포털에서 공통으로 사용되는 UI 및 유틸리티입니다. (`src/shared`)
 
 ## ⚖️ 개발 규범 (Governance)
 
@@ -19,7 +19,7 @@
 ## 📁 폴더 구조 (Structure)
 
 - `public/assets/`: 공통 이미지, MIDI, 사운드 폰트
-- `src/core/`: 포털 핵심 엔진 (Audio, Asset, Input)
+- `src/core/`: 포럴 핵심 엔진 (Audio, Asset, Input)
 - `src/games/`: 개별 게임 장르 (rhythm, runner, puzzle 등)
 - `src/portal/`: 포털 UI 및 게임 선택 로직
 - `src/shared/`: 공통 컴포넌트 및 유틸 라이브러리
