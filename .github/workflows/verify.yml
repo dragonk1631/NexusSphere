@@ -11,18 +11,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
       with:
-        lfs: true # LFS 파일 포함 로드
+        lfs: true
 
-    - name: Use Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
+        # 캐시는 최초 성공 이후에 활성화하는 것이 안전하므로 일단 주석 처리하거나 명시적 확인
+        # cache: 'npm'
 
-    - name: Install dependencies
-      run: npm install
+    - name: Install Dependencies
+      run: |
+        npm ci || npm install
+      
+    - name: Type Check
+      run: npx tsc --noEmit
 
-    - name: Production Build Check
+    - name: Production Build
       run: npm run build
