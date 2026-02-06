@@ -1,15 +1,18 @@
 import './style.css';
 import { PongGame } from './games/puzzle/PongGame';
 import { RhythmGame } from './games/rhythm/RhythmGame';
+import { EditorGame } from './games/editor/EditorGame';
+import { LayoutEditor } from './games/editor/LayoutEditor';
+import { MainMenu } from './ui/MainMenu';
+import { UIManager } from './core/ui/UIManager';
 
-const portalUI = document.getElementById('portal-ui')!;
-const gameContainer = document.getElementById('game-container')!;
+// Initialize UI Manager
+UIManager.getInstance();
+
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-const startPongBtn = document.getElementById('start-pong')!;
-const startRhythmBtn = document.getElementById('start-rhythm')!;
-
 let currentGame: any = null;
 let lastTime = 0;
+let mainMenu: MainMenu;
 
 function gameLoop(timestamp: number) {
   if (!currentGame) return;
@@ -22,15 +25,16 @@ function gameLoop(timestamp: number) {
 }
 
 async function launchGame(GameClass: any) {
-  portalUI.style.display = 'none';
-  gameContainer.style.display = 'block';
+  // Clear ALL UI before switching
+  UIManager.getInstance().clear();
 
-  // 캔버스 크기 설정
-  canvas.width = 800;
-  canvas.height = 600;
+  // Reset Canvas State
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 
   if (currentGame) {
     currentGame.destroy();
+    currentGame = null;
   }
 
   currentGame = new GameClass(canvas);
@@ -49,15 +53,46 @@ async function launchGame(GameClass: any) {
     requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error("Game launch failed:", error);
-    portalUI.style.display = 'block';
-    gameContainer.style.display = 'none';
+    returnToMenu();
   }
 }
 
-startPongBtn.addEventListener('click', () => {
-  launchGame(PongGame);
+function returnToMenu(): void {
+  if (currentGame) {
+    currentGame.destroy();
+    currentGame = null;
+  }
+  UIManager.getInstance().clear();
+  mainMenu = new MainMenu(handleGameStart);
+  mainMenu.show();
+}
+
+function handleGameStart(mode: string) {
+  if (mode === 'rhythm') {
+    launchGame(RhythmGame);
+  } else if (mode === 'pong') {
+    launchGame(PongGame);
+  } else if (mode === 'editor') {
+    launchGame(EditorGame);
+  } else if (mode === 'layout_editor') {
+    launchGame(LayoutEditor);
+  }
+}
+
+// Listen for Layout Editor exit event
+window.addEventListener('layout-exit', () => {
+  returnToMenu();
 });
 
-startRhythmBtn.addEventListener('click', () => {
-  launchGame(RhythmGame);
+// Start with Main Menu
+mainMenu = new MainMenu(handleGameStart);
+mainMenu.show();
+
+// Handle Window Resize
+window.addEventListener('resize', () => {
+  if (currentGame) {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    currentGame.resize?.(window.innerWidth, window.innerHeight);
+  }
 });

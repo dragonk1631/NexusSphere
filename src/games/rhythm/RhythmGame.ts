@@ -1,9 +1,10 @@
 import { BaseGame } from '../../core/BaseGame';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { MidiParser } from '../../core/audio/MidiParser';
-import type { ParsedMidi } from '../../core/audio/MidiParser';
+import type { ParsedMidi, GameTrack } from '../../core/audio/MidiParser';
 import { NoteFactory } from './NoteFactory';
 import type { VisualNote } from './NoteFactory';
+import { ScoreManager } from '../../core/score/ScoreManager';
 
 export class RhythmGame extends BaseGame {
     private midiData: ParsedMidi | null = null;
@@ -13,64 +14,66 @@ export class RhythmGame extends BaseGame {
     private laneWidth = 80;
     private laneCount = 4;
     private isPlaying = false;
+    private selectedTrack: GameTrack | null = null;
+    private scoreManager: ScoreManager | null = null;
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
+        // Removed Mixer/Editor toggles
     }
 
     public async init(): Promise<void> {
         console.log("[RhythmGame] Initializing...");
-        this.laneWidth = this.canvas.width / this.laneCount;
+        this.laneWidth = Math.min(100, this.canvas.width / this.laneCount);
+        this.scoreManager = ScoreManager.getInstance();
     }
 
     public async load(): Promise<void> {
         console.log("[RhythmGame] Loading assets...");
-
-        // 1. 사운드폰트 로드
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
-        // 2. MIDI 파일 로드
+        // Load Default Song
         const midiRes = await fetch(ASSET_PATHS.AUDIO.MIDI.TEST);
         const midiBuffer = await midiRes.arrayBuffer();
 
-        // 3. MIDI 파싱 (인스턴스 생성 필)
         const parser = new MidiParser();
         this.midiData = await parser.parse(midiBuffer);
-
-        // 4. 비주얼 노트 생성
-        this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount);
-
-        // 5. 오디오 엔진에 MIDI 로드
         await this.audioEngine.loadMidi(midiBuffer);
     }
 
     public create(): void {
-        console.log("[RhythmGame] Ready! Click to start.");
-        this.renderStartScreen();
+        console.log("[RhythmGame] Ready!");
 
-        const startHandler = () => {
-            this.start();
-            this.canvas.removeEventListener('click', startHandler);
-        };
-        this.canvas.addEventListener('click', startHandler);
+        if (this.midiData) {
+            // Auto-select the track with most notes for gameplay demo
+            // In future, this would come from a "Level Selection" screen config
+            const sortedTracks = [...this.midiData.tracks].sort((a, b) => b.noteCount - a.noteCount);
+            if (sortedTracks.length > 0) {
+                this.onTrackSelected(sortedTracks[0]);
+            }
+        }
+    }
+
+    private onTrackSelected(track: GameTrack): void {
+        console.log("[RhythmGame] Auto-Selected Track:", track.name);
+        this.selectedTrack = track;
+        this.visualNotes = NoteFactory.createNotes(this.midiData!, this.laneCount, this.selectedTrack);
+        this.start();
     }
 
     private async start() {
+        // Add a small delay/countdown here in real game
         await this.audioEngine.resume();
         this.audioEngine.play();
         this.isPlaying = true;
-        console.log("[RhythmGame] Started playback.");
     }
 
     public update(_delta: number): void {
         if (!this.isPlaying) return;
+        const currentTime = this.audioEngine.currentTime * 1000;
 
-        const currentTime = this.audioEngine.currentTime * 1000; // ms
-
-        // 1. 렌더링
         this.render(currentTime);
 
-        // 2. 종료 체크
         if (this.midiData && currentTime > this.midiData.duration * 1000 + 2000) {
             this.isPlaying = false;
             console.log("[RhythmGame] Finished.");
@@ -81,6 +84,7 @@ export class RhythmGame extends BaseGame {
         this.ctx.fillStyle = '#111';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Lanes
         this.ctx.strokeStyle = '#333';
         this.ctx.setLineDash([]);
         for (let i = 1; i < this.laneCount; i++) {
@@ -90,6 +94,7 @@ export class RhythmGame extends BaseGame {
             this.ctx.stroke();
         }
 
+        // Hit Line
         this.ctx.strokeStyle = '#00ffcc';
         this.ctx.lineWidth = 4;
         this.ctx.beginPath();
@@ -98,6 +103,7 @@ export class RhythmGame extends BaseGame {
         this.ctx.stroke();
         this.ctx.lineWidth = 1;
 
+        // Notes
         this.ctx.fillStyle = '#ff3366';
         this.visualNotes.forEach(note => {
             const timeDiff = note.time * 1000 - currentTime;
@@ -105,33 +111,41 @@ export class RhythmGame extends BaseGame {
             if (timeDiff > -500 && timeDiff < 2000) {
                 const x = note.lane * this.laneWidth + 10;
                 const y = this.hitLineY - (timeDiff * this.scrollSpeed);
-                const width = this.laneWidth - 20;
-                const height = 20;
 
-                this.ctx.fillRect(x, y - height, width, height);
+                this.ctx.fillRect(x, y - 20, this.laneWidth - 20, 20);
 
                 if (note.duration > 0) {
                     const tailHeight = note.duration * 1000 * this.scrollSpeed;
                     this.ctx.globalAlpha = 0.5;
-                    this.ctx.fillRect(x, y - height - tailHeight, width, tailHeight);
+                    this.ctx.fillRect(x, y - 20 - tailHeight, this.laneWidth - 20, tailHeight);
                     this.ctx.globalAlpha = 1.0;
+                }
+
+                // Auto-Play
+                if (y > this.hitLineY && !note.isProcessed) {
+                    if (y < this.hitLineY + 50) {
+                        this.scoreManager?.addHit();
+                        note.isProcessed = true;
+                    }
                 }
             }
         });
+
+        this.renderHUD();
     }
 
-    private renderStartScreen(): void {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    private renderHUD(): void {
+        if (!this.scoreManager) return;
         this.ctx.fillStyle = '#fff';
-        this.ctx.font = '30px Inter';
+        this.ctx.font = '20px Inter';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(`Score: ${Math.floor(this.scoreManager.getScore())}`, 20, 40);
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Click to Start Rhythm Game', this.canvas.width / 2, this.canvas.height / 2);
+        this.ctx.fillText(`${this.scoreManager.getCombo()} COMBO`, this.canvas.width / 2, 100);
     }
 
     public destroy(): void {
         this.audioEngine.stop();
         this.isPlaying = false;
-        console.log("[RhythmGame] Destroyed.");
     }
 }

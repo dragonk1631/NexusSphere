@@ -13,7 +13,10 @@ export interface GameNote {
 export interface GameTrack {
     name: string;
     channel: number;
+    originalIndex: number; // SMF 원본 트랙 인덱스
     isDrum: boolean;
+    instrumentFamily: string;
+    noteCount: number;
     notes: GameNote[];
 }
 
@@ -41,6 +44,14 @@ export class MidiParser {
                 track.name.toLowerCase().includes('drum') ||
                 track.name.toLowerCase().includes('percussion');
 
+            // Instrument Family Analysis (based on Program Change events)
+            let instrumentFamily = 'Unknown';
+            if (isDrum) {
+                instrumentFamily = 'Drums';
+            } else if (track.instrument.family) {
+                instrumentFamily = track.instrument.family;
+            }
+
             const notes: GameNote[] = track.notes.map((note, noteIndex) => {
                 // Simple importance calculation based on velocity and beat alignment
                 const beats = note.time * (bpm / 60);
@@ -64,7 +75,10 @@ export class MidiParser {
             return {
                 name: track.name || (isDrum ? 'Drums' : `Track ${trackIndex}`),
                 channel: track.channel,
+                originalIndex: trackIndex,
                 isDrum,
+                instrumentFamily,
+                noteCount: notes.length,
                 notes: notes.sort((a, b) => a.time - b.time)
             };
         });

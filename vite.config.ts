@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite';
 
 // https://vitejs.dev/config/
-export default defineConfig({
-    // GitHub Pages 배포 시 저장소 이름을 base 경로로 설정합니다.
-    base: '/NexusSphere/',
+export default defineConfig(({ command }) => ({
+    // 개발 모드에서는 루트(/), 빌드(배포) 시에는 저장소 이름을 base 경로로 설정합니다.
+    base: command === 'serve' ? '/' : '/NexusSphere/',
     build: {
         outDir: 'dist',
     }
-});
+}));
