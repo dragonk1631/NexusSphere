@@ -4,11 +4,14 @@
   --ui-font: 'Inter', sans-serif;
 
   /* DAW Colors */
-  --daw-bg: #1e1e1e;
-  --daw-panel: #2d2d2d;
-  --daw-border: #3d3d3d;
-  --daw-text: #ccc;
+  --daw-bg: #111111;
+  --daw-panel: #222222;
+  --daw-border: #333333;
+  --daw-text: #eeeeee;
   --daw-accent: #00aaff;
+  --daw-vibrant-red: #ff3b30;
+  --daw-vibrant-green: #4cd964;
+  --daw-vibrant-yellow: #ffcc00;
 }
 
 body {
@@ -263,19 +266,86 @@ canvas {
 }
 
 .track-btn-m {
-  background: #500;
+  background: #331111;
+  border: 1px solid #442222;
+  border-radius: 2px;
 }
 
 .track-btn-m.active {
-  background: #f00;
+  background: var(--daw-vibrant-red);
+  color: #fff;
+  border-color: #ff5e57;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.4);
 }
 
 .track-btn-s {
-  background: #550;
+  background: #112211;
+  border: 1px solid #223322;
+  border-radius: 2px;
 }
 
 .track-btn-s.active {
-  background: #ff0;
+  background: var(--daw-vibrant-green);
+  color: #000;
+  border-color: #58cc71;
+  box-shadow: 0 0 8px rgba(76, 217, 100, 0.4);
+}
+
+.track-number {
+  color: #666;
+  font-family: monospace;
+  font-size: 10px;
+  width: 20px;
+  text-align: right;
+  margin-right: 10px;
+}
+
+/* Custom Volume Slider */
+.track-volume-slider {
+  -webkit-appearance: none;
+  width: 100px;
+  height: 6px;
+  background: #111;
+  border-radius: 3px;
+  outline: none;
+  border: 1px solid #333;
+}
+
+.track-volume-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  background: linear-gradient(to right, #007aff 0%, #007aff var(--value, 50%), #111 var(--value, 50%), #111 100%);
+  border-radius: 3px;
+}
+
+/* Slider Track fallback when CSS variable value is not easily set via JS for webkit */
+.slider-container {
+  position: relative;
+  width: 100px;
+  height: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.track-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 14px;
+  width: 8px;
+  border-radius: 2px;
+  background: #bbb;
+  cursor: pointer;
+  margin-top: -5px;
+  border: 1px solid #999;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.track-header.zebra-1 {
+  background-color: #2a2a2a;
+}
+
+.track-header.zebra-2 {
+  background-color: #262626;
 }
 
 /* 3. Timeline Canvas Area */

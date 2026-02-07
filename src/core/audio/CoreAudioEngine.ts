@@ -40,7 +40,9 @@ export class CoreAudioEngine {
                 sampleRate: this.ctx.sampleRate
             });
 
-            this.synth.connect(this.ctx.destination);
+            // Phase 3: EQ Filter Chain (Low, Mid, High)
+            this.setupEQChain();
+
             await this.synth.isReady;
 
             try {
@@ -111,9 +113,18 @@ export class CoreAudioEngine {
     public stopAllNotes(): void {
         if (!this.synth || !this.isReady) return;
         for (let i = 0; i < 16; i++) {
-            this.synth.controllerChange(i, 120, 0); // All Sound Off
-            this.synth.controllerChange(i, 123, 0); // All Notes Off
+            this.stopChannelNotes(i);
         }
+    }
+
+    /**
+     * 특정 채널의 소리를 즉시 차단합니다.
+     * @param channel 0-15
+     */
+    public stopChannelNotes(channel: number): void {
+        if (!this.synth || !this.isReady) return;
+        this.synth.controllerChange(channel, 120, 0); // All Sound Off
+        this.synth.controllerChange(channel, 123, 0); // All Notes Off
     }
 
     public seek(time: number): void {
@@ -188,24 +199,47 @@ export class CoreAudioEngine {
     public setTrackMute(trackIndex: number, mute: boolean): void {
         if (!this.sequencer) return;
 
-        const tracks = this.sequencer.tracks || (this.sequencer.song && this.sequencer.song.tracks);
+        const tracks = this.getSequencerTracks();
         if (tracks && tracks[trackIndex]) {
             const track = tracks[trackIndex];
 
-            // 1. SpessaSynth 공식 및 잠재적 속성 전수 적용
+            // 1. 시퀀서 레벨 트랙 차단 (신규 이벤트 발생 방지)
             track.userMute = mute;
             track.disabled = mute;
             track.enabled = !mute;
-            track.muted = mute;
 
-            // 2. 만약 함수형 API가 제공된다면 호출
-            if (typeof track.setMute === 'function') track.setMute(mute);
-
+            // 2. 신속한 정적 확보를 위한 미디 패닉
             if (mute) {
-                console.log(`[CoreAudioEngine] FORCE MUTED Track ${trackIndex}: ${track.name}`);
+                this.stopChannelNotes(track.channel);
             }
+
+            // 3. 채널 공유 상태 체크: 만약 해당 채널을 쓰는 모든 트랙이 뮤트 상태라면 채널 자체를 뮤트
+            this.updateChannelMuteState(track.channel);
+
+            console.log(`[CoreAudioEngine] ${mute ? 'MUTED' : 'UNMUTED'} Track ${trackIndex}: Ch ${track.channel}`);
         }
     }
+
+    /**
+     * 특정 채널을 사용하는 모든 트랙의 상태를 확인하여 채널 뮤트 여부를 결정합니다.
+     */
+    private updateChannelMuteState(channel: number): void {
+        if (!this.sequencer || !this.synth) return;
+        const tracks = this.getSequencerTracks();
+
+        // 해당 채널을 사용하는 모든 활성 트랙 검색
+        const channelTracks = tracks.filter((t: any) => t.channel === channel);
+        const allMuted = channelTracks.every((t: any) => t.userMute || t.disabled);
+
+        // 신디사이저 레벨에서 해당 채널 차단 (가장 강력함)
+        if (typeof this.synth.setChannelMute === 'function') {
+            this.synth.setChannelMute(channel, allMuted);
+        } else {
+            // Fallback: CC 7 Volume 0
+            this.setChannelVolume(channel, allMuted ? 0 : 100);
+        }
+    }
+
 
     /**
      * 특정 트랙의 MIDI 채널을 동적으로 재할당합니다. (채널 샌드박싱용)
@@ -270,6 +304,59 @@ export class CoreAudioEngine {
         for (let i = 0; i < 16; i++) {
             this.setChannelVolume(i, 100);
         }
+    }
+
+    private lowFilter: BiquadFilterNode | null = null;
+    private midFilter: BiquadFilterNode | null = null;
+    private highFilter: BiquadFilterNode | null = null;
+
+    private setupEQChain(): void {
+        if (!this.synth) return;
+
+        this.lowFilter = this.ctx.createBiquadFilter();
+        this.lowFilter.type = 'lowshelf';
+        this.lowFilter.frequency.value = 200;
+
+        this.midFilter = this.ctx.createBiquadFilter();
+        this.midFilter.type = 'peaking';
+        this.midFilter.frequency.value = 1000;
+        this.midFilter.Q.value = 1.0;
+
+        this.highFilter = this.ctx.createBiquadFilter();
+        this.highFilter.type = 'highshelf';
+        this.highFilter.frequency.value = 5000;
+
+        // Chain: Synth -> Low -> Mid -> High -> Out
+        this.synth.connect(this.lowFilter);
+        this.lowFilter.connect(this.midFilter);
+        this.midFilter.connect(this.highFilter);
+        this.highFilter.connect(this.ctx.destination);
+    }
+
+    /**
+     * EQ 게인 조절 (dB)
+     * @param type 'low' | 'mid' | 'high'
+     * @param gain -12 ~ 12 dB
+     */
+    public setEQ(type: 'low' | 'mid' | 'high', gain: number): void {
+        const filter = type === 'low' ? this.lowFilter : type === 'mid' ? this.midFilter : this.highFilter;
+        if (filter) {
+            filter.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.1);
+        }
+    }
+
+    /**
+     * 리버브 깊이 조절 (0.0 ~ 1.0)
+     */
+    public setReverbDepth(depth: number): void {
+        if (this.synth) this.synth.reverbGain = depth;
+    }
+
+    /**
+     * 코러스 깊이 조절 (0.0 ~ 1.0)
+     */
+    public setChorusDepth(depth: number): void {
+        if (this.synth) this.synth.chorusGain = depth;
     }
 
     public getAudioContext(): AudioContext {

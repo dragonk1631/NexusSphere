@@ -5,7 +5,117 @@ import type { ParsedMidi, GameTrack } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
 
 const MIDI_FILES = [
+    'assets/audio/midi/BL_popntwin_level7.mid',
+    'assets/audio/midi/Bloody_Tears.mid',
+    'assets/audio/midi/BublBobl_RK.mid',
+    'assets/audio/midi/CV1-_Vampire_Killer.mid',
+    'assets/audio/midi/Cammy_s.mid',
+    "assets/audio/midi/DOOM - Robert C. Prince - E1M1 - At Doom's Gate.mid",
+    'assets/audio/midi/DanceofGold.mid',
+    'assets/audio/midi/DarkWoods.mid',
+    'assets/audio/midi/ENIX_-_Dragon_Warrior_3_(_Overworld_BGM_).mid',
+    'assets/audio/midi/FF6_The_Fierce_Battle_Xg.mid',
+    'assets/audio/midi/Fighting.mid',
+    'assets/audio/midi/GM01.mid',
+    'assets/audio/midi/GM02.mid',
+    'assets/audio/midi/GM03.mid',
+    'assets/audio/midi/GM04.mid',
+    'assets/audio/midi/GM05.mid',
+    'assets/audio/midi/GM06.mid',
+    'assets/audio/midi/GM07.mid',
+    'assets/audio/midi/GM08.mid',
+    'assets/audio/midi/GM09.mid',
+    'assets/audio/midi/GM10.mid',
+    'assets/audio/midi/GM11.mid',
+    'assets/audio/midi/GokujyoParodius_Stage1.mid',
+    'assets/audio/midi/GokujyoParodius_Stage2.mid',
+    'assets/audio/midi/GokujyoParodius_Stage4.mid',
+    'assets/audio/midi/GokujyoParodius_StageSpecial.mid',
+    'assets/audio/midi/Human1gm.mid',
+    'assets/audio/midi/Human2gm.mid',
+    'assets/audio/midi/HyruleCastlePunkRockRemix.mid',
+    'assets/audio/midi/IoGtown.mid',
+    'assets/audio/midi/Ken2.mid',
+    'assets/audio/midi/One-Winged_Angel.mid',
+    'assets/audio/midi/PNTB_l41.mid',
+    'assets/audio/midi/Parodius_-_Twinbees_Theme.mid',
+    "assets/audio/midi/Pirates of the Caribbean - He's a Pirate (1).mid",
+    'assets/audio/midi/Rage Against the Machine - Killing in the Name Of.mid',
+    'assets/audio/midi/SMWTHEME.mid',
+    'assets/audio/midi/Save_Them.mid',
+    'assets/audio/midi/Stage00000.mid',
+    'assets/audio/midi/Stage00001.mid',
+    'assets/audio/midi/Stage00002.mid',
+    'assets/audio/midi/Stage00003.mid',
+    'assets/audio/midi/Stage00004.mid',
+    'assets/audio/midi/Stage00005.mid',
+    'assets/audio/midi/Stage00006.mid',
+    'assets/audio/midi/Stage00007.mid',
+    'assets/audio/midi/Stage00008.mid',
+    'assets/audio/midi/Stage00009.mid',
+    'assets/audio/midi/Stage00010.mid',
+    'assets/audio/midi/Stage00011.mid',
+    'assets/audio/midi/Stage00012.mid',
+    'assets/audio/midi/Starcraft - Terran Theme 03 MIDI.mid',
+    'assets/audio/midi/Still_More_Fighting.mid',
+    'assets/audio/midi/Terranigma_-_Terranigma_-_Underworld.mid',
+    'assets/audio/midi/Theme_of_Simon.mid',
+    'assets/audio/midi/Trisection-1.mid',
+    'assets/audio/midi/VP_BTL1.mid',
+    'assets/audio/midi/Videogame_Tune_-_Ghouls_and_Ghosts_-_Level_1.mid',
+    'assets/audio/midi/Wicked_Child_1.mid',
+    'assets/audio/midi/Wicked_Child_DMC.mid',
+    'assets/audio/midi/World1-1_Allstars.mid',
+    'assets/audio/midi/Z3LightWorldDungeon_RockRemix.mid',
+    'assets/audio/midi/Zenkusa_-_PopnTwinbee_Level2.mid',
+    'assets/audio/midi/Zenkusa_-_PopnTwinbee_Level5.mid',
+    'assets/audio/midi/ballade-pour-adeline.mid',
+    'assets/audio/midi/begining.mid',
+    'assets/audio/midi/ccoverworld2.mid',
+    'assets/audio/midi/corazonazul_ff6boss.mid',
+    'assets/audio/midi/cv5stg7c.mid',
+    'assets/audio/midi/dw3_bt1.mid',
+    'assets/audio/midi/dw5_town.mid',
+    'assets/audio/midi/exryu.mid',
+    'assets/audio/midi/fe3_main.mid',
+    'assets/audio/midi/ff2bsbtl.mid',
+    'assets/audio/midi/ff6_zozo_v2.mid',
+    'assets/audio/midi/fft_211.mid',
+    'assets/audio/midi/fft_apoplexy.mid',
+    'assets/audio/midi/fftactics-midi_Chapel.mid',
+    'assets/audio/midi/gtgm.mid',
+    'assets/audio/midi/kefka.mid',
+    'assets/audio/midi/livealive-killingfield.mid',
+    'assets/audio/midi/melodies_of_life.mid',
+    'assets/audio/midi/olrox.mid',
+    'assets/audio/midi/overworld.mid',
+    'assets/audio/midi/popntwinbee-staffroll.mid',
+    'assets/audio/midi/popntwinbee-stage3.mid',
+    'assets/audio/midi/popntwinbee-stage6.mid',
+    'assets/audio/midi/requiem_02_[unknown].mid',
+    'assets/audio/midi/ryusfa2mix.MID',
+    'assets/audio/midi/sfa2ken.mid',
+    'assets/audio/midi/sfa2saku.mid',
+    'assets/audio/midi/sfa2zang.mid',
+    'assets/audio/midi/som_maintheme.mid',
+    'assets/audio/midi/stage00013.mid',
+    'assets/audio/midi/stage00014.mid',
+    'assets/audio/midi/stage00015.mid',
+    'assets/audio/midi/sti1.mid',
+    'assets/audio/midi/super_mario_world_pops_remix.mid',
+    'assets/audio/midi/supertwinbeestage1.mid',
+    'assets/audio/midi/t_ogre15.mid',
+    'assets/audio/midi/teso_01.mid',
+    'assets/audio/midi/teso_02.mid',
     'assets/audio/midi/test.mid',
+    'assets/audio/midi/waopen.mid',
+    'assets/audio/midi/wins1.mid',
+    'assets/audio/midi/z3boss.mid',
+    'assets/audio/midi/z3lightw.mid',
+    'assets/audio/midi/zb_smw_rockroll2.mid',
+    'assets/audio/midi/백조의호수.mid',
+    'assets/audio/midi/에어울프.mid',
+    'assets/audio/midi/터키행진곡.mid',
 ];
 
 export class EditorGame extends BaseGame {
@@ -28,6 +138,9 @@ export class EditorGame extends BaseGame {
     private mutedTrackIndices = new Set<number>();
     private originalBpm = 120;
     private trackVolumes = new Map<number, number>(); // uiIndex -> volume (0-127)
+    private isDraggingPlayhead = false;
+    private scrubTime = 0;
+    private lastSeekTime = 0;
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
@@ -35,31 +148,36 @@ export class EditorGame extends BaseGame {
 
     public async init(): Promise<void> {
         this.ui = new EditorUI(
-            (action) => this.handleTransport(action),
-            (idx, mute) => this.handleMute(idx, mute),
-            (idx, solo) => this.handleSolo(idx, solo),
-            (zoom) => { this.zoomX = zoom; },
-            (scrollXPercent) => {
+            (action: string) => this.handleTransport(action),
+            (idx: number, mute: boolean) => this.handleMute(idx, mute),
+            (idx: number, solo: boolean) => this.handleSolo(idx, solo),
+            (zoom: number) => { this.zoomX = zoom; },
+            (scrollXPercent: number) => {
                 if (this.midiData) {
                     const totalWidth = (this.midiData.duration * 1000) * this.zoomX;
                     this.scrollX = scrollXPercent * Math.max(0, totalWidth - this.canvas.width);
                 }
             },
-            (scrollYPercent) => {
+            (scrollYPercent: number) => {
                 const totalHeight = this.activeTracks.length * this.trackHeight;
                 this.scrollY = scrollYPercent * Math.max(0, totalHeight - this.canvas.height);
             },
-            (filename, file) => this.loadMidiFile(filename, file),
-            (files) => this.handleFolderSelect(files),
+            (filename: string, file?: File) => this.loadMidiFile(filename, file),
+            (files: FileList) => this.handleFolderSelect(files),
             () => this.handleRefresh(),
-            (bpm) => this.handleBpmChange(bpm),
-            (percent) => this.seekToPercent(percent),
-            (vol) => this.audioEngine.setMasterVolume(vol),
-            (setting, active) => {
+            (bpm: number) => this.handleBpmChange(bpm),
+            (percent: number) => this.seekToPercent(percent),
+            (vol: number) => this.audioEngine.setMasterVolume(vol),
+            (setting: string, active: boolean) => {
                 if (setting === 'loop') this.isLooping = active;
                 if (setting === 'metronome') this.metronomeEnabled = active;
             },
-            (idx, vol) => this.handleTrackVolume(idx, vol)
+            (idx: number, vol: number) => this.handleTrackVolume(idx, vol),
+            (type: 'low' | 'mid' | 'high', val: number) => this.audioEngine.setEQ(type, val),
+            (type: 'reverb' | 'chorus', val: number) => {
+                if (type === 'reverb') this.audioEngine.setReverbDepth(val);
+                if (type === 'chorus') this.audioEngine.setChorusDepth(val);
+            }
         );
         this.ui.init();
         this.ui.populateMidiSelector(MIDI_FILES);
@@ -82,6 +200,8 @@ export class EditorGame extends BaseGame {
 
         this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        window.addEventListener('mouseup', () => this.handleMouseUp());
         this.canvas.addEventListener('mouseenter', () => document.body.style.overflow = 'hidden');
         this.canvas.addEventListener('mouseleave', () => document.body.style.overflow = '');
     }
@@ -110,8 +230,6 @@ export class EditorGame extends BaseGame {
     }
 
     private handleRefresh(): void {
-        // Browser won't refresh FileList automatically.
-        // We must re-trigger the picker to get new files.
         this.ui?.triggerFolderPicker();
     }
 
@@ -129,19 +247,43 @@ export class EditorGame extends BaseGame {
             this.midiData = await parser.parse(buffer);
             await this.audioEngine.loadMidi(buffer);
 
-            this.activeTracks = this.midiData.tracks.filter(t => t.noteCount > 0);
+            // Phase 1: Sequencer-First Synchronization
+            // UI 트랙 리스트를 시퀀서의 실제 트랙 상태와 강제로 동기화합니다.
+            const seqTracks = this.audioEngine.getSequencerTracks();
+            if (seqTracks.length > 0) {
+                // 시퀀서 정보를 바탕으로 activeTracks 재구성
+                this.activeTracks = seqTracks.map((st: any, i: number) => {
+                    // 기존 파서 데이터에서 대응하는 트랙 정보 찾기 (이름이나 노트 수 기반)
+                    const parsedTrack = this.midiData?.tracks.find(t => t.channel === st.channel && t.name === st.name)
+                        || this.midiData?.tracks[i];
+
+                    return {
+                        name: st.name || parsedTrack?.name || `Track ${i}`,
+                        channel: st.channel,
+                        originalIndex: i, // 시퀀서 인덱스를 직접 사용
+                        isDrum: st.channel === 9 || (st.name && st.name.toLowerCase().includes('drum')),
+                        instrumentFamily: parsedTrack?.instrumentFamily || 'Unknown',
+                        noteCount: parsedTrack?.noteCount || 0,
+                        notes: parsedTrack?.notes || []
+                    };
+                });
+            } else {
+                this.activeTracks = this.midiData.tracks.filter(t => t.noteCount > 0);
+            }
+
             this.originalBpm = this.midiData.bpm;
             this.ui?.setSelectedMidi(name);
             this.ui?.setBpm(this.midiData.bpm);
             this.ui?.setMidiMeta({ name: this.midiData.name });
 
             this.updateTrackLayout();
-            this.syncAudioStates(); // Reset audio states for new file
+            this.syncAudioStates();
 
             this.scrollX = 0;
             this.scrollY = 0;
             this.isPlaying = false;
             this.soloTrackIndices.clear();
+            this.mutedTrackIndices.clear();
             this.audioEngine.stop();
             this.ui?.setPlayState(false);
         } catch (err) {
@@ -155,7 +297,6 @@ export class EditorGame extends BaseGame {
             const h = container.clientHeight - 16;
             this.trackHeight = Math.max(40, h / 10);
 
-            // Ensure volumes are initialized for current tracks
             this.activeTracks.forEach((_, i) => {
                 if (!this.trackVolumes.has(i)) this.trackVolumes.set(i, 100);
             });
@@ -169,34 +310,15 @@ export class EditorGame extends BaseGame {
             this.midiData.bpm = bpm;
             const rate = bpm / this.originalBpm;
             this.audioEngine.setPlaybackRate(rate);
-            console.log(`[EditorGame] BPM changed to: ${bpm} (Rate: ${rate.toFixed(2)})`);
         }
     }
 
     private syncAudioStates(): void {
-        if (!this.audioEngine) return;
+        if (!this.audioEngine || !this.midiData) return;
 
         const hasSolo = this.soloTrackIndices.size > 0;
-        const seqTracks = this.audioEngine.getSequencerTracks();
-        const SANDBOX_CHANNEL = 15;
 
-        // 1. UI 트랙(activeTracks)을 시퀀서 실제 트랙 인덱스에 매핑 (이름 기반 정밀 매핑)
-        const uiToSeqMap = new Map<number, number>(); // uiIndex -> seqIndex
-        this.activeTracks.forEach((uiTrack, uiIndex) => {
-            // 이름과 채널이 일치하는 시퀀서 트랙 탐색
-            const seqIndex = seqTracks.findIndex((st: any) =>
-                st.name === uiTrack.name && st.channel === uiTrack.channel
-            );
-
-            // 만약 이름 기반 탐색 실패시 originalIndex 사용 (정밀 매핑 실패 대비)
-            const finalSeqIndex = seqIndex !== -1 ? seqIndex : uiTrack.originalIndex;
-            uiToSeqMap.set(uiIndex, finalSeqIndex);
-        });
-
-        // 2. 가시성(Audibility) 판단 및 채널 상태 수집
-        const audibleTracks = new Set<number>(); // uiIndices
-        const channelsWithAudibleTracks = new Set<number>();
-
+        // Phase 1: Robust Muting with MIDI Panic
         this.activeTracks.forEach((track, uiIndex) => {
             let isAudible = false;
             if (hasSolo) {
@@ -205,54 +327,54 @@ export class EditorGame extends BaseGame {
                 if (!this.mutedTrackIndices.has(uiIndex)) isAudible = true;
             }
 
-            if (isAudible) {
-                audibleTracks.add(uiIndex);
-                channelsWithAudibleTracks.add(track.channel);
+            const wasAudible = !this.audioEngine.getSequencerTracks()[track.originalIndex]?.userMute;
+
+            // 만약 소리가 들리다가 꺼지는 경우, MIDI Panic을 즉시 호출하여 잔향 제거
+            if (wasAudible && !isAudible) {
+                this.audioEngine.stopChannelNotes(track.channel);
             }
-        });
 
-        // 3. 트랙별 물리적 처리 (뮤트 + 채널 샌드박싱)
-        this.activeTracks.forEach((uiTrack, uiIndex) => {
-            const seqIndex = uiToSeqMap.get(uiIndex)!;
-            const isAudible = audibleTracks.has(uiIndex);
+            this.audioEngine.setTrackMute(track.originalIndex, !isAudible);
 
             if (isAudible) {
-                // [Audible] 원본 채널 복구 및 뮤트 해제
-                this.audioEngine.reassignTrackChannel(seqIndex, uiTrack.channel);
-                this.audioEngine.setTrackMute(seqIndex, false);
-
-                // 트랙별 볼륨 설정
                 const vol = this.trackVolumes.get(uiIndex) ?? 100;
-                this.audioEngine.setChannelVolume(uiTrack.channel, vol);
-            } else {
-                // [Muted] 
-                // 만약 이 트랙이 현재 들려야 하는 트랙과 채널을 공유한다면 샌드박스로 격리
-                if (channelsWithAudibleTracks.has(uiTrack.channel)) {
-                    this.audioEngine.reassignTrackChannel(seqIndex, SANDBOX_CHANNEL);
-                } else {
-                    // 공유하지 않는다면 원본 채널 유지 (어차피 채널 자체가 뮤트될 것임)
-                    this.audioEngine.reassignTrackChannel(seqIndex, uiTrack.channel);
-                }
-
-                // 트랙 레벨 뮤트 적용
-                this.audioEngine.setTrackMute(seqIndex, true);
+                this.audioEngine.setChannelVolume(track.channel, vol);
             }
         });
 
-        // 4. 채널 레벨 방어막 (샌드박스 채널 포함)
+        // 채널 레벨에서도 이중으로 뮤트 확인 (안정성 강화)
+        const audibleChannels = new Set<number>();
+        this.activeTracks.forEach((track, uiIndex) => {
+            const isAudible = hasSolo ? this.soloTrackIndices.has(uiIndex) : !this.mutedTrackIndices.has(uiIndex);
+            if (isAudible) audibleChannels.add(track.channel);
+        });
+
         for (let ch = 0; ch < 16; ch++) {
-            const isChannelInAudibleSet = channelsWithAudibleTracks.has(ch);
-            const isSandbox = (ch === SANDBOX_CHANNEL);
-
-            // 들리는 트랙이 하나도 없는 채널이거나, 샌드박스 채널이면 완전 차단
-            const shouldMuteChannel = !isChannelInAudibleSet || isSandbox;
-            this.audioEngine.setChannelMute(ch, shouldMuteChannel);
-
-            // Note: Volume is already set per-track in Step 3 for audible tracks.
-            // If the channel is muted, it shouldn't produce sound regardless of CC7.
+            const shouldMute = !audibleChannels.has(ch);
+            this.audioEngine.setChannelMute(ch, shouldMute);
+            if (shouldMute) this.audioEngine.stopChannelNotes(ch);
         }
 
-        console.log(`[EditorGame] Sync Done. Solos: ${hasSolo}. Channels Active:`, Array.from(channelsWithAudibleTracks));
+        console.log(`[Phase 1] Sync Complete. Solos: ${hasSolo}, Mutes: ${this.mutedTrackIndices.size}`);
+    }
+
+    private syncViewport(time: number, forceCenter: boolean = false): void {
+        if (!this.midiData) return;
+        const playheadX = time * 1000 * this.zoomX;
+        const viewWidth = this.canvas.width;
+
+        if (forceCenter) {
+            this.scrollX = Math.max(0, playheadX - viewWidth * 0.5);
+        } else {
+            // Lazy Follow (Forward): Only shift if playhead is past 95% of screen
+            if (playheadX > this.scrollX + viewWidth * 0.95) {
+                this.scrollX = playheadX - viewWidth * 0.2;
+            }
+            // Lazy Follow (Backward): Only shift if playhead is off-screen to the left
+            else if (playheadX < this.scrollX) {
+                this.scrollX = Math.max(0, playheadX - viewWidth * 0.2);
+            }
+        }
     }
 
     public create(): void { }
@@ -279,12 +401,14 @@ export class EditorGame extends BaseGame {
             case 'start':
                 this.audioEngine.seek(0);
                 this.syncAudioStates();
-                this.scrollX = 0;
+                this.syncViewport(0, true);
                 break;
             case 'end':
                 if (this.midiData) {
-                    this.audioEngine.seek(this.midiData.duration - 0.1);
+                    const time = this.midiData.duration - 0.1;
+                    this.audioEngine.seek(time);
                     this.syncAudioStates();
+                    this.syncViewport(time, true);
                 }
                 break;
         }
@@ -292,8 +416,10 @@ export class EditorGame extends BaseGame {
 
     private seekToPercent(percent: number): void {
         if (this.midiData) {
-            this.audioEngine.seek(percent * this.midiData.duration);
+            const time = percent * this.midiData.duration;
+            this.audioEngine.seek(time);
             this.syncAudioStates();
+            this.syncViewport(time, true);
         }
     }
 
@@ -319,15 +445,14 @@ export class EditorGame extends BaseGame {
 
     private handleTrackVolume(index: number, volume: number): void {
         this.trackVolumes.set(index, volume);
-
-        // [Optimization] skip full sync and layout update for volume changes
         const track = this.activeTracks[index];
         if (track) {
             this.audioEngine.setChannelVolume(track.channel, volume);
         }
-
         this.ui?.updateTrackVolumeUI(index, volume);
     }
+
+
 
     private handleWheel(e: WheelEvent): void {
         e.preventDefault();
@@ -344,20 +469,68 @@ export class EditorGame extends BaseGame {
     }
 
     private handleMouseDown(e: MouseEvent): void {
-        const rect = this.canvas.getBoundingClientRect();
-        const time = (e.clientX - rect.left + this.scrollX) / this.zoomX / 1000;
-        if (time >= 0 && time <= (this.midiData?.duration || 0)) {
-            this.audioEngine.seek(time);
+        this.isDraggingPlayhead = true;
+
+        // 1. Pause on drag
+        this.audioEngine.pause();
+        this.ui?.setPlayState(false);
+        this.isPlaying = false; // Sync internal state
+
+        // Initialize scrubTime
+        this.scrubTime = this.audioEngine.currentTime;
+        this.seekAtMouse(e, false); // Lazy sync on initial click (don't jump view if in sight)
+    }
+
+    private handleMouseMove(e: MouseEvent): void {
+        if (this.isDraggingPlayhead) {
+            this.seekAtMouse(e);
+        }
+    }
+
+    private handleMouseUp(): void {
+        if (this.isDraggingPlayhead) {
+            this.isDraggingPlayhead = false;
+
+            // Final seek on release to ensure engine is exactly at scrubTime
+            this.audioEngine.seek(this.scrubTime);
             this.syncAudioStates();
+
+            // 2. Play on release as requested
+            this.audioEngine.resume().then(() => {
+                this.audioEngine.play();
+                this.isPlaying = true;
+                this.ui?.setPlayState(true);
+            });
+        }
+    }
+
+    private seekAtMouse(e: MouseEvent, forceSyncView: boolean = false): void {
+        if (!this.midiData) return;
+
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+
+        const time = (mouseX + this.scrollX) / this.zoomX / 1000;
+        this.scrubTime = Math.max(0, Math.min(this.midiData.duration, time));
+
+        // Unified Viewport Sync
+        this.syncViewport(this.scrubTime, forceSyncView);
+
+        // Throttled Audio Engine Seek (Performance Fix)
+        const now = performance.now();
+        if (now - this.lastSeekTime > 100) { // 10Hz limit
+            this.audioEngine.seek(this.scrubTime);
+            this.syncAudioStates();
+            this.lastSeekTime = now;
         }
     }
 
     public update(_delta: number): void {
         const duration = this.audioEngine.duration;
-        const currentTime = this.audioEngine.currentTime;
+        const currentTime = this.isDraggingPlayhead ? this.scrubTime : this.audioEngine.currentTime;
         this.ui?.updateProgress(currentTime, duration);
 
-        if (currentTime >= duration && this.isPlaying) {
+        if (!this.isDraggingPlayhead && currentTime >= duration && this.isPlaying) {
             if (this.isLooping) {
                 this.audioEngine.seek(0);
             } else {
@@ -376,10 +549,7 @@ export class EditorGame extends BaseGame {
         }
 
         if (this.isPlaying) {
-            const playheadX = currentTime * 1000 * this.zoomX;
-            if (playheadX > this.scrollX + this.canvas.width * 0.9) {
-                this.scrollX = playheadX - this.canvas.width * 0.2;
-            }
+            this.syncViewport(currentTime);
         }
 
         if (this.midiData && this.ui) {
@@ -394,7 +564,7 @@ export class EditorGame extends BaseGame {
     }
 
     private render(): void {
-        this.ctx.fillStyle = '#111';
+        this.ctx.fillStyle = '#0a0a0a';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         const trackCount = this.activeTracks.length;
@@ -402,67 +572,133 @@ export class EditorGame extends BaseGame {
         const startTrack = Math.max(0, Math.floor(this.scrollY / this.trackHeight));
         const endTrack = Math.min(displayTrackCount, startTrack + Math.ceil(this.canvas.height / this.trackHeight) + 1);
 
+        // Zebra Striping on Canvas
+        for (let i = startTrack; i < endTrack; i++) {
+            const trackTop = i * this.trackHeight - this.scrollY;
+            if (i % 2 === 1) {
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+                this.ctx.fillRect(0, trackTop, this.canvas.width, this.trackHeight);
+            }
+        }
+
         // Grid
-        const gridEndTrack = Math.max(displayTrackCount, endTrack);
-        this.ctx.strokeStyle = '#222';
+        const pixelsPerBeat = 500 * this.zoomX;
+        const startBeat = Math.floor(this.scrollX / pixelsPerBeat);
+        const endBeat = startBeat + Math.ceil(this.canvas.width / pixelsPerBeat) + 1;
+
         this.ctx.lineWidth = 1;
+        for (let b = startBeat; b <= endBeat; b++) {
+            const x = b * pixelsPerBeat - this.scrollX;
+            const isBar = b % 4 === 0;
+            this.ctx.strokeStyle = isBar ? '#444' : '#222';
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, 0);
+            this.ctx.lineTo(x, this.canvas.height);
+            this.ctx.stroke();
+
+            if (isBar) {
+                this.ctx.fillStyle = '#666';
+                this.ctx.font = '9px monospace';
+                this.ctx.fillText((b / 4 + 1).toString(), x + 4, 12);
+            }
+        }
+
+        // Horizontal Grid Lines
+        this.ctx.strokeStyle = '#1a1a1a';
         this.ctx.beginPath();
-        for (let i = startTrack; i <= gridEndTrack; i++) {
+        for (let i = startTrack; i <= endTrack; i++) {
             const y = i * this.trackHeight - this.scrollY;
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.canvas.width, y);
         }
-        const pixelsPerBeat = 500 * this.zoomX;
-        const startBeat = Math.floor(this.scrollX / pixelsPerBeat);
-        const endBeat = startBeat + Math.ceil(this.canvas.width / pixelsPerBeat) + 1;
-        for (let b = startBeat; b <= endBeat; b++) {
-            const x = b * pixelsPerBeat - this.scrollX;
-            this.ctx.strokeStyle = (b % 4 === 0) ? '#333' : '#222';
-            this.ctx.moveTo(x, 0);
-            this.ctx.lineTo(x, this.canvas.height);
-        }
         this.ctx.stroke();
 
-        // Notes
-        const trackColors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#a29bfe', '#fd79a8', '#55efc4', '#74b9ff', '#ffeaa7'];
+        // Notes & Solo Highlighting
+        const getTrackNoteColor = (track: GameTrack) => {
+            if (track.isDrum) return '#bdc3c7'; // Silver/Grey
+            const family = track.instrumentFamily.toLowerCase();
+            if (family.includes('piano')) return '#ffcc00'; // Yellow
+            if (family.includes('guitar') || family.includes('bass')) return '#3498db'; // Azure
+            if (family.includes('strings') || family.includes('ensemble')) return '#a29bfe'; // Purple
+            if (family.includes('brass') || family.includes('reed') || family.includes('pipe')) return '#e17055'; // Coral
+            if (family.includes('synth')) return '#55efc4'; // Mint
+            return '#00d1b2'; // Teal
+        };
+
         for (let i = startTrack; i < endTrack; i++) {
             const track = this.activeTracks[i];
             const trackTop = i * this.trackHeight - this.scrollY;
-            if (i % 2 === 1) {
-                this.ctx.fillStyle = 'rgba(255,255,255,0.03)';
+            const isSoloed = this.soloTrackIndices.has(i);
+
+            const hasAnySolo = this.soloTrackIndices.size > 0;
+
+            // Highlight Soloed Track Row
+            if (isSoloed) {
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
                 this.ctx.fillRect(0, trackTop, this.canvas.width, this.trackHeight);
+
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.lineWidth = 1;
+                this.ctx.strokeRect(0, trackTop, this.canvas.width, this.trackHeight);
             }
-            this.ctx.fillStyle = trackColors[i % trackColors.length];
-            if (this.soloTrackIndices.size > 0 && !this.soloTrackIndices.has(i)) this.ctx.globalAlpha = 0.2;
-            else this.ctx.globalAlpha = 1.0;
+
+            // Alpha logic: Solo takes priority
+            if (hasAnySolo && !isSoloed) {
+                this.ctx.globalAlpha = 0.15;
+            } else {
+                this.ctx.globalAlpha = 1.0;
+            }
 
             if (track) {
+                const noteColor = getTrackNoteColor(track);
+
                 track.notes.forEach(note => {
                     const x = (note.time * 1000) * this.zoomX - this.scrollX;
-                    const w = Math.max(3, (note.duration * 1000) * this.zoomX);
+                    const w = Math.max(4, (note.duration * 1000) * this.zoomX);
                     if (x + w < 0 || x > this.canvas.width) return;
-                    const pitchNorm = 1 - (Math.min(96, Math.max(36, note.midi)) - 36) / 60;
-                    this.ctx.fillRect(x, trackTop + 4 + pitchNorm * (this.trackHeight - 12), w, 6);
+
+                    // Visualization
+                    const effectiveMidi = Math.min(108, Math.max(21, note.midi));
+                    const pitchNorm = 1 - (Math.min(96, Math.max(36, effectiveMidi)) - 36) / 60;
+                    const y = trackTop + 6 + pitchNorm * (this.trackHeight - 16);
+                    const h = 5;
+
+                    this.ctx.fillStyle = noteColor;
+                    this.ctx.fillRect(x, y, w, h);
+
+                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    this.ctx.fillRect(x, y, w, 1);
                 });
             }
             this.ctx.globalAlpha = 1.0;
         }
 
         // Playhead
-        const playheadX = (this.audioEngine.currentTime * 1000) * this.zoomX - this.scrollX;
+        const displayTime = this.isDraggingPlayhead ? this.scrubTime : this.audioEngine.currentTime;
+        const playheadX = (displayTime * 1000) * this.zoomX - this.scrollX;
         if (playheadX >= 0 && playheadX <= this.canvas.width) {
-            this.ctx.strokeStyle = '#00ffcc';
-            this.ctx.lineWidth = 2;
+            if (this.isDraggingPlayhead) {
+                this.ctx.shadowBlur = 15;
+                this.ctx.shadowColor = '#00ffcc';
+                this.ctx.strokeStyle = '#00ffcc';
+                this.ctx.lineWidth = 6;
+            } else {
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 4;
+            }
             this.ctx.beginPath();
             this.ctx.moveTo(playheadX, 0);
             this.ctx.lineTo(playheadX, this.canvas.height);
             this.ctx.stroke();
-            this.ctx.fillStyle = '#00ffcc';
+
+            this.ctx.fillStyle = '#ffffff';
             this.ctx.beginPath();
-            this.ctx.moveTo(playheadX - 6, 0);
-            this.ctx.lineTo(playheadX + 6, 0);
+            this.ctx.moveTo(playheadX - 8, 0);
+            this.ctx.lineTo(playheadX + 8, 0);
             this.ctx.lineTo(playheadX, 10);
             this.ctx.fill();
+
+            this.ctx.shadowBlur = 0; // Reset
         }
     }
 

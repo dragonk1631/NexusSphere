@@ -20,6 +20,8 @@ export class EditorUI {
     private onMasterVolume: (val: number) => void;
     private onToggleSetting: (setting: string, active: boolean) => void;
     private onTrackVolume: (trackIndex: number, volume: number) => void;
+    private onEQChange: (type: 'low' | 'mid' | 'high', val: number) => void;
+    private onFXChange: (type: 'reverb' | 'chorus', val: number) => void;
 
     constructor(
         transportHandler: (action: string) => void,
@@ -35,7 +37,9 @@ export class EditorUI {
         seekPercentHandler: (percent: number) => void,
         volumeHandler: (val: number) => void,
         toggleHandler: (setting: string, active: boolean) => void,
-        trackVolumeHandler: (idx: number, vol: number) => void
+        trackVolumeHandler: (idx: number, vol: number) => void,
+        eqHandler: (type: 'low' | 'mid' | 'high', val: number) => void,
+        fxHandler: (type: 'reverb' | 'chorus', val: number) => void
     ) {
         this.uiManager = UIManager.getInstance();
         this.onTransportClick = transportHandler;
@@ -52,6 +56,8 @@ export class EditorUI {
         this.onMasterVolume = volumeHandler;
         this.onToggleSetting = toggleHandler;
         this.onTrackVolume = trackVolumeHandler;
+        this.onEQChange = eqHandler;
+        this.onFXChange = fxHandler;
     }
 
     public init(): void {
@@ -122,6 +128,71 @@ export class EditorUI {
                     <div class="volume-tool" style="display:flex; align-items:center; gap:10px; margin-left:auto;">
                         <span style="font-size:9px; color:#666; font-weight:bold;">VOL</span>
                         <input type="range" id="master-volume" min="0" max="100" value="80" style="width: 70px;">
+                    </div>
+                </div>
+
+                <!-- Premium FX Dashboard (Floating Glassmorphism) -->
+                <div class="fx-dashboard premium-glass" style="
+                    position: absolute; 
+                    right: 25px; 
+                    top: 70px; 
+                    width: 200px;
+                    background: rgba(20, 20, 20, 0.7); 
+                    border: 1px solid rgba(255, 255, 255, 0.1); 
+                    border-radius: 12px; 
+                    padding: 16px; 
+                    display: flex; 
+                    flex-direction: column; 
+                    gap: 12px; 
+                    z-index: 100; 
+                    backdrop-filter: blur(12px);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+                    color: #eee;
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                        <span style="font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--daw-accent); text-transform: uppercase;">Master FX & EQ</span>
+                        <div style="width: 6px; height: 6px; border-radius: 50%; background: #00ffcc; box-shadow: 0 0 8px #00ffcc;"></div>
+                    </div>
+                    
+                    <div class="eq-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
+                                <span>LOW</span>
+                                <span id="eq-val-low">0dB</span>
+                            </div>
+                            <input type="range" class="eq-slider" data-type="low" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
+                                <span>MID</span>
+                                <span id="eq-val-mid">0dB</span>
+                            </div>
+                            <input type="range" class="eq-slider" data-type="mid" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
+                                <span>HIGH</span>
+                                <span id="eq-val-high">0dB</span>
+                            </div>
+                            <input type="range" class="eq-slider" data-type="high" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
+                        </div>
+                    </div>
+
+                    <div class="fx-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);">
+                         <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 9px; color: #a29bfe;">
+                                <span>REVERB</span>
+                                <span id="fx-val-reverb">30%</span>
+                            </div>
+                            <input type="range" class="fx-slider" data-type="reverb" min="0" max="100" value="30" style="width: 100%; height: 4px; border-radius: 2px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 9px; color: #55efc4;">
+                                <span>CHORUS</span>
+                                <span id="fx-val-chorus">20%</span>
+                            </div>
+                            <input type="range" class="fx-slider" data-type="chorus" min="0" max="100" value="20" style="width: 100%; height: 4px; border-radius: 2px;">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -199,6 +270,28 @@ export class EditorUI {
 
         q('#scroll-y')?.addEventListener('input', (e) => {
             this.onScrollYChange(parseInt((e.target as HTMLInputElement).value) / 1000);
+        });
+
+        this.container?.querySelectorAll('.eq-slider').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const el = e.target as HTMLInputElement;
+                const type = el.dataset.type;
+                const val = parseFloat(el.value);
+                const display = document.getElementById(`eq-val-${type}`);
+                if (display) display.textContent = `${val > 0 ? '+' : ''}${val}dB`;
+                this.onEQChange(type as any, val);
+            });
+        });
+
+        this.container?.querySelectorAll('.fx-slider').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const el = e.target as HTMLInputElement;
+                const type = el.dataset.type;
+                const val = parseFloat(el.value);
+                const display = document.getElementById(`fx-val-${type}`);
+                if (display) display.textContent = `${Math.round(val)}%`;
+                this.onFXChange(type as any, val / 100);
+            });
         });
     }
 
@@ -311,11 +404,9 @@ export class EditorUI {
         for (let index = 0; index < displayCount; index++) {
             const track = tracks[index];
             const div = document.createElement('div');
-            div.className = 'track-header';
+            div.className = `track-header zebra-${(index % 2) + 1}`;
 
-            // Zebra striping
-            const bgColor = (index % 2 === 1) ? 'rgba(255,255,255,0.03)' : 'transparent';
-            div.style.cssText = `height: ${trackHeight}px; min-height: ${trackHeight}px; max-height: ${trackHeight}px; box-sizing: border-box; background-color: ${bgColor};`;
+            div.style.cssText = `height: ${trackHeight}px; min-height: ${trackHeight}px; max-height: ${trackHeight}px; box-sizing: border-box;`;
 
             if (track) {
                 if (soloIndices.has(index)) div.classList.add('solo-active');
@@ -324,7 +415,7 @@ export class EditorUI {
                 // Track Solo Click Listener (restored)
                 div.addEventListener('click', (e) => {
                     const target = e.target as HTMLElement;
-                    if (target.closest('.track-btn-m') || target.closest('.track-btn-s') || target.closest('.knob-container')) return;
+                    if (target.closest('.track-btn-m') || target.closest('.track-btn-s') || target.closest('.track-volume-slider')) return;
                     this.onTrackSolo(index, !soloIndices.has(index));
                 });
 
@@ -332,47 +423,43 @@ export class EditorUI {
                 div.dataset.index = index.toString();
 
                 div.innerHTML = `
-                    <div class="track-info-container" style="flex:1; pointer-events:none; display:flex; flex-direction:column; justify-content:center; gap:2px; overflow:hidden;">
-                        <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:12px;">
-                            ${getIcon(track)} ${track.name}
+                    <div style="display:flex; align-items:center; width:100%; height:100%; padding: 0 5px; gap:8px; overflow:hidden;">
+                        <span class="track-number">${index + 1}</span>
+                        
+                        <div class="track-icon-badge" style="width:30px; height:30px; display:flex; align-items:center; justify-content:center; background:#111; border:1px solid #333; border-radius:4px; font-size:16px;">
+                            ${getIcon(track)}
                         </div>
-                        <div class="track-meta" style="font-size:10px; color:#00ffcc; white-space:nowrap; opacity:0.8; font-family:monospace;">
-                            Ch ${track.channel + 1} • ${track.instrumentFamily}
-                        </div>
-                    </div>
-                    <div class="track-controls" style="display:flex; align-items:center;">
-                        <button class="track-btn-m" title="Mute">M</button>
-                        <button class="track-btn-s ${soloIndices.has(index) ? 'active' : ''}" title="Solo">S</button>
-                        <div class="knob-container" style="display:flex; flex-direction:column; align-items:center; gap:2px; margin-left:12px; cursor:ns-resize;" title="Drag Up/Down to change volume">
-                            <div class="knob" data-index="${index}" style="width:24px; height:24px; border-radius:50%; background:#111; border:2px solid #444; position:relative; overflow:hidden;">
-                                <div class="knob-indicator" style="position:absolute; top:2px; left:50%; width:2px; height:8px; background:#00ffcc; transform-origin:bottom center; transform: translateX(-50%) rotate(${(trackVolume / 127) * 270 - 135}deg);"></div>
+
+                        <div class="track-info-container" style="flex:1; pointer-events:none; display:flex; flex-direction:column; justify-content:center; overflow:hidden;">
+                            <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:11px; margin-bottom:0px;">
+                                ${track.name || 'Unnamed Track'}
                             </div>
-                            <span style="font-size:8px; color:#fff; font-weight:bold;">${Math.round(trackVolume)}</span>
+                            <div class="track-meta" style="font-size:9px; color:#00ffcc; white-space:nowrap; opacity:0.6; font-family:monospace;">
+                                CH ${track.channel + 1} • ${track.instrumentFamily}
+                            </div>
+                        </div>
+
+
+                            <button class="track-btn-m" title="Mute">M</button>
+                            <button class="track-btn-s ${soloIndices.has(index) ? 'active' : ''}" title="Solo">S</button>
+                            
+                            <div class="slider-container" style="flex: 1; min-width: 80px; margin-left: 10px;">
+                                <input type="range" class="track-volume-slider" min="0" max="127" value="${trackVolume}" data-index="${index}" style="width: 100%; --value: ${(trackVolume / 127) * 100}%">
+                            </div>
                         </div>
                     </div>
                 `;
 
-                const knob = div.querySelector('.knob') as HTMLElement;
-                knob?.addEventListener('mousedown', (e) => {
+                const slider = div.querySelector('.track-volume-slider') as HTMLInputElement;
+                slider?.addEventListener('input', (e) => {
                     e.stopPropagation();
-                    const startY = e.clientY;
-                    const startVol = trackVolumes.get(index) || 100;
-
-                    const onMove = (moveEvent: MouseEvent) => {
-                        const deltaY = startY - moveEvent.clientY;
-                        const newVol = Math.max(0, Math.min(127, startVol + deltaY));
-                        this.onTrackVolume(index, newVol);
-                        this.updateTrackVolumeUI(index, newVol); // Smooth visual feedback
-                    };
-
-                    const onUp = () => {
-                        window.removeEventListener('mousemove', onMove);
-                        window.removeEventListener('mouseup', onUp);
-                    };
-
-                    window.addEventListener('mousemove', onMove);
-                    window.addEventListener('mouseup', onUp);
+                    const val = parseInt((e.target as HTMLInputElement).value);
+                    (e.target as HTMLElement).style.setProperty('--value', `${(val / 127) * 100}%`);
+                    this.onTrackVolume(index, val);
                 });
+
+                slider?.addEventListener('mousedown', (e) => e.stopPropagation());
+
 
                 div.querySelector('.track-btn-m')?.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -387,7 +474,12 @@ export class EditorUI {
                 });
             } else {
                 div.classList.add('empty');
-                div.innerHTML = `<div class="track-name" style="color:#333; font-style:italic; padding-left:10px;">Empty Track</div>`;
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; padding:0 15px; color:#333; height:100%;">
+                        <span class="track-number">${index + 1}</span>
+                        <span style="font-style:italic; font-size:10px;">Empty Track</span>
+                    </div>
+                `;
             }
             this.trackListPanel.appendChild(div);
         }
@@ -398,15 +490,14 @@ export class EditorUI {
         const targetHeader = Array.from(headers || []).find(h => (h as HTMLElement).dataset.index === index.toString()) as HTMLElement;
 
         if (targetHeader) {
-            const label = targetHeader.querySelector('span');
-            if (label) label.textContent = Math.round(volume).toString();
-
-            const indicator = targetHeader.querySelector('.knob-indicator') as HTMLElement;
-            if (indicator) {
-                indicator.style.transform = `translateX(-50%) rotate(${(volume / 127) * 270 - 135}deg)`;
+            const slider = targetHeader.querySelector('.track-volume-slider') as HTMLInputElement;
+            if (slider) {
+                slider.value = volume.toString();
+                slider.style.setProperty('--value', `${(volume / 127) * 100}%`);
             }
         }
     }
+
 
     public updateSoloUI(soloIndices: Set<number>): void {
         const headers = this.trackListPanel?.querySelectorAll('.track-header');
