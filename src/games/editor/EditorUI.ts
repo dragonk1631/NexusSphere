@@ -10,7 +10,6 @@ export class EditorUI {
     private onTrackMute: (trackIndex: number, muted: boolean) => void;
     private onTrackSolo: (trackIndex: number, soloed: boolean) => void;
     private onZoomChange: (level: number) => void;
-    private onScrollXChange: (percent: number) => void;
     private onScrollYChange: (percent: number) => void;
     private onFileSelect: (filename: string, file?: File) => void;
     private onFolderSelect: (files: FileList) => void;
@@ -28,7 +27,6 @@ export class EditorUI {
         muteHandler: (idx: number, m: boolean) => void,
         soloHandler: (idx: number, s: boolean) => void,
         zoomHandler: (level: number) => void,
-        scrollXHandler: (percent: number) => void,
         scrollYHandler: (percent: number) => void,
         fileSelectHandler: (filename: string, file?: File) => void,
         folderSelectHandler: (files: FileList) => void,
@@ -46,7 +44,6 @@ export class EditorUI {
         this.onTrackMute = muteHandler;
         this.onTrackSolo = soloHandler;
         this.onZoomChange = zoomHandler;
-        this.onScrollXChange = scrollXHandler;
         this.onScrollYChange = scrollYHandler;
         this.onFileSelect = fileSelectHandler;
         this.onFolderSelect = folderSelectHandler;
@@ -65,7 +62,7 @@ export class EditorUI {
             <div class="daw-container">
                 <!-- Top Control Bar (File & Progress) -->
                 <div class="transport-bar">
-                    <div class="file-tools" style="display:flex; align-items:center; gap:8px;">
+                    <div class="file-tools" style="display:flex; align-items:center; gap:8px; margin-right: auto;">
                         <label class="folder-btn" title="Open MIDI Folder">
                             📂
                             <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none;">
@@ -76,16 +73,7 @@ export class EditorUI {
                         </select>
                     </div>
 
-                    <div class="player-center" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding: 0 20px;">
-                        <!-- Progress Bar Moved Here -->
-                        <div class="top-progress-container" style="width:100%; height:12px; display:flex; align-items:center;">
-                            <input type="range" id="progress-bar" min="0" max="1000" value="0" 
-                                   style="width:100%; cursor:pointer; height:4px; margin:0;">
-                        </div>
-                        <div class="time-display" id="time-display" style="font-size:11px; margin-top:-2px;">00:00.00 / 00:00.00</div>
-                    </div>
-
-                    <div class="extra-tools" style="display: flex; gap: 12px; align-items: center;">
+                    <div class="extra-tools" style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
                         <div class="bpm-tool" style="display:flex; align-items:center; gap:5px; background:#000; padding:2px 8px; border-radius:4px; border:1px solid #333;">
                             <span style="font-size:9px; color:#666; font-weight:bold;">BPM</span>
                             <input type="number" id="bpm-input" value="120" step="0.1" style="width:45px; background:transparent; color:var(--daw-accent); border:none; outline:none; font-family:monospace; font-size:12px; text-align:right;">
@@ -102,98 +90,89 @@ export class EditorUI {
 
                 <!-- Timeline Area (Center) -->
                 <div class="timeline-area" id="timeline-area">
-                    <div class="scrollbar-h" style="position: absolute; bottom: 0; left: 0; width: calc(100% - 16px); height: 16px; background: #000; z-index: 20; border-top:1px solid #111;">
-                        <input type="range" id="scroll-x" min="0" max="1000" value="0" style="width: 100%; margin: 0; height:100%;">
-                    </div>
-                    <div class="scrollbar-v" style="position: absolute; top: 0; right: 0; width: 16px; height: calc(100% - 16px); background: #000; z-index: 20; border-left:1px solid #111;">
+                    <div class="scrollbar-v" style="position: absolute; top: 0; right: 0; width: 16px; height: 100%; background: #000; z-index: 20; border-left:1px solid #111;">
                         <input type="range" id="scroll-y" min="0" max="1000" value="0" style="height: 100%; width: 100%; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: ns-resize;">
                     </div>
 
                     <button class="sidebar-toggle" id="btn-sidebar-toggle" title="Toggle Tracks">☰</button>
                 </div>
 
-                <!-- Bottom Transport Bar (Consolidated) -->
+                <!-- Bottom Player Bar (Consolidated) -->
+                <!-- Bottom Player Bar (Consolidated Navigation) -->
                 <div class="player-bar">
-                    <div class="player-tools-left" style="display:flex; gap:10px; margin-right:auto;">
+                    <!-- Progress Bar (Acts as Main Navigation/Scroll) -->
+                    <div class="bottom-progress-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 24px; background: #000; border-bottom: 1px solid #222; display: flex; align-items: center; padding: 0;">
+                        <input type="range" id="progress-bar" min="0" max="1000" value="0" style="width: 100%; height: 100%; cursor: pointer; margin: 0; background: transparent;">
+                    </div>
+
+                    <div class="player-tools-left" style="display:flex; gap:10px; margin-right:auto; margin-top: 20px;">
                         <button class="toggle-btn" id="btn-loop" title="Loop Toggle">Loop</button>
                         <button class="toggle-btn" id="btn-metronome" title="Metronome Toggle">Metro</button>
                     </div>
 
-                    <div class="transport-buttons" style="display:flex; gap:15px; align-items:center;">
+                    <div class="transport-buttons" style="display:flex; gap:15px; align-items:center; margin-top: 20px; position: relative;">
                         <button class="transport-btn small" id="btn-start" title="Go to Start" style="font-size:14px;">⏮</button>
-                        <!-- Merged Play/Pause Button -->
                         <button class="transport-btn main" id="btn-play-pause" title="Play/Pause" style="width:40px; height:40px; font-size:20px;">▶</button>
                         <button class="transport-btn small" id="btn-stop" title="Stop" style="font-size:14px;">⏹</button>
                         <button class="transport-btn small" id="btn-end" title="Go to End" style="font-size:14px;">⏭</button>
+                        
+                        <!-- Time Display nested here for clean layout -->
+                        <div class="time-display" id="time-display" style="position: absolute; left: 50%; bottom: -18px; transform: translateX(-50%); font-size: 10px; color: #888; font-family: monospace; white-space: nowrap;">00:00.00 / 00:00.00</div>
                     </div>
 
-                    <div class="volume-tool" style="display:flex; align-items:center; gap:10px; margin-left:auto;">
+                    <div class="volume-tool" style="display:flex; align-items:center; gap:10px; margin-left:auto; margin-top: 20px;">
                         <span style="font-size:9px; color:#666; font-weight:bold;">VOL</span>
                         <input type="range" id="master-volume" min="0" max="100" value="80" style="width: 70px;">
                     </div>
                 </div>
 
                 <!-- Premium FX Dashboard (Floating Glassmorphism) -->
-                <div class="fx-dashboard premium-glass" style="
-                    position: absolute; 
-                    right: 25px; 
-                    top: 70px; 
-                    width: 200px;
-                    background: rgba(20, 20, 20, 0.7); 
-                    border: 1px solid rgba(255, 255, 255, 0.1); 
-                    border-radius: 12px; 
-                    padding: 16px; 
-                    display: flex; 
-                    flex-direction: column; 
-                    gap: 12px; 
-                    z-index: 100; 
-                    backdrop-filter: blur(12px);
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-                    color: #eee;
-                ">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                <div class="fx-dashboard premium-glass" id="fx-dashboard">
+                    <div class="fx-header" id="fx-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding-bottom: 8px;">
                         <span style="font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--daw-accent); text-transform: uppercase;">Master FX & EQ</span>
-                        <div style="width: 6px; height: 6px; border-radius: 50%; background: #00ffcc; box-shadow: 0 0 8px #00ffcc;"></div>
+                        <div id="fx-toggle-icon" style="transition: transform 0.2s;">▾</div>
                     </div>
                     
-                    <div class="eq-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px;">
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
-                                <span>LOW</span>
-                                <span id="eq-val-low">0dB</span>
+                    <div class="fx-body" id="fx-body" style="display: flex; flex-direction: column; gap: 12px; overflow: hidden; transition: max-height 0.3s ease-out;">
+                        <div class="eq-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
+                                    <span>LOW</span>
+                                    <span id="eq-val-low">0dB</span>
+                                </div>
+                                <input type="range" class="eq-slider" data-type="low" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
                             </div>
-                            <input type="range" class="eq-slider" data-type="low" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
-                        </div>
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
-                                <span>MID</span>
-                                <span id="eq-val-mid">0dB</span>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
+                                    <span>MID</span>
+                                    <span id="eq-val-mid">0dB</span>
+                                </div>
+                                <input type="range" class="eq-slider" data-type="mid" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
                             </div>
-                            <input type="range" class="eq-slider" data-type="mid" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
-                        </div>
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
-                                <span>HIGH</span>
-                                <span id="eq-val-high">0dB</span>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
+                                    <span>HIGH</span>
+                                    <span id="eq-val-high">0dB</span>
+                                </div>
+                                <input type="range" class="eq-slider" data-type="high" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
                             </div>
-                            <input type="range" class="eq-slider" data-type="high" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
                         </div>
-                    </div>
 
-                    <div class="fx-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);">
-                         <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 9px; color: #a29bfe;">
-                                <span>REVERB</span>
-                                <span id="fx-val-reverb">30%</span>
+                        <div class="fx-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);">
+                             <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 9px; color: #a29bfe;">
+                                    <span>REVERB</span>
+                                    <span id="fx-val-reverb">30%</span>
+                                </div>
+                                <input type="range" class="fx-slider" data-type="reverb" min="0" max="100" value="30" style="width: 100%; height: 4px; border-radius: 2px;">
                             </div>
-                            <input type="range" class="fx-slider" data-type="reverb" min="0" max="100" value="30" style="width: 100%; height: 4px; border-radius: 2px;">
-                        </div>
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 9px; color: #55efc4;">
-                                <span>CHORUS</span>
-                                <span id="fx-val-chorus">20%</span>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 9px; color: #55efc4;">
+                                    <span>CHORUS</span>
+                                    <span id="fx-val-chorus">20%</span>
+                                </div>
+                                <input type="range" class="fx-slider" data-type="chorus" min="0" max="100" value="20" style="width: 100%; height: 4px; border-radius: 2px;">
                             </div>
-                            <input type="range" class="fx-slider" data-type="chorus" min="0" max="100" value="20" style="width: 100%; height: 4px; border-radius: 2px;">
                         </div>
                     </div>
                 </div>
@@ -266,10 +245,6 @@ export class EditorUI {
             this.onZoomChange(parseInt((e.target as HTMLInputElement).value) / 100);
         });
 
-        q('#scroll-x')?.addEventListener('input', (e) => {
-            this.onScrollXChange(parseInt((e.target as HTMLInputElement).value) / 1000);
-        });
-
         q('#scroll-y')?.addEventListener('input', (e) => {
             this.onScrollYChange(parseInt((e.target as HTMLInputElement).value) / 1000);
         });
@@ -277,6 +252,22 @@ export class EditorUI {
         q('#btn-sidebar-toggle')?.addEventListener('click', () => {
             const container = q('.daw-container');
             container?.classList.toggle('sidebar-open');
+        });
+
+        q('#fx-header')?.addEventListener('click', () => {
+            const dashboard = q('#fx-dashboard');
+            const body = q('#fx-body') as HTMLElement;
+            const icon = q('#fx-toggle-icon') as HTMLElement;
+
+            const isCollapsed = dashboard?.classList.toggle('collapsed');
+
+            if (isCollapsed) {
+                if (body) body.style.maxHeight = '0px';
+                if (icon) icon.style.transform = 'rotate(-90deg)';
+            } else {
+                if (body) body.style.maxHeight = '500px';
+                if (icon) icon.style.transform = 'rotate(0deg)';
+            }
         });
 
         this.container?.querySelectorAll('.eq-slider').forEach(slider => {
@@ -339,12 +330,9 @@ export class EditorUI {
         if (selector) selector.value = filename;
     }
 
-    public syncControls(zoom: number, scrollXPercent: number, scrollYPercent: number): void {
+    public syncControls(zoom: number, scrollYPercent: number): void {
         const zoomS = document.getElementById('zoom-slider') as HTMLInputElement;
         if (zoomS && document.activeElement !== zoomS) zoomS.value = (zoom * 100).toString();
-
-        const scrollXS = document.getElementById('scroll-x') as HTMLInputElement;
-        if (scrollXS && document.activeElement !== scrollXS) scrollXS.value = (scrollXPercent * 1000).toString();
 
         const scrollYS = document.getElementById('scroll-y') as HTMLInputElement;
         if (scrollYS && document.activeElement !== scrollYS) scrollYS.value = (scrollYPercent * 1000).toString();

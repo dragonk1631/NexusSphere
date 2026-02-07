@@ -148,33 +148,27 @@ export class EditorGame extends BaseGame {
 
     public async init(): Promise<void> {
         this.ui = new EditorUI(
-            (action: string) => this.handleTransport(action),
-            (idx: number, mute: boolean) => this.handleMute(idx, mute),
-            (idx: number, solo: boolean) => this.handleSolo(idx, solo),
-            (zoom: number) => { this.zoomX = zoom; },
-            (scrollXPercent: number) => {
-                if (this.midiData) {
-                    const totalWidth = (this.midiData.duration * 1000) * this.zoomX;
-                    this.scrollX = scrollXPercent * Math.max(0, totalWidth - this.canvas.width);
-                }
-            },
-            (scrollYPercent: number) => {
+            (action) => this.handleTransport(action),
+            (idx, muted) => this.handleMute(idx, muted),
+            (idx, soloed) => this.handleSolo(idx, soloed),
+            (level) => { this.zoomX = level; },
+            (percent) => {
                 const totalHeight = this.activeTracks.length * this.trackHeight;
-                this.scrollY = scrollYPercent * Math.max(0, totalHeight - this.canvas.height);
+                this.scrollY = percent * Math.max(0, totalHeight - this.canvas.height);
             },
-            (filename: string, file?: File) => this.loadMidiFile(filename, file),
-            (files: FileList) => this.handleFolderSelect(files),
+            (filename, file) => this.loadMidiFile(filename, file),
+            (files) => this.handleFolderSelect(files),
             () => this.handleRefresh(),
-            (bpm: number) => this.handleBpmChange(bpm),
-            (percent: number) => this.seekToPercent(percent),
-            (vol: number) => this.audioEngine.setMasterVolume(vol),
-            (setting: string, active: boolean) => {
+            (bpm) => this.handleBpmChange(bpm),
+            (percent) => this.seekToPercent(percent),
+            (vol) => this.audioEngine.setMasterVolume(vol),
+            (setting, active) => {
                 if (setting === 'loop') this.isLooping = active;
                 if (setting === 'metronome') this.metronomeEnabled = active;
             },
-            (idx: number, vol: number) => this.handleTrackVolume(idx, vol),
-            (type: 'low' | 'mid' | 'high', val: number) => this.audioEngine.setEQ(type, val),
-            (type: 'reverb' | 'chorus', val: number) => {
+            (idx, vol) => this.handleTrackVolume(idx, vol),
+            (type, val) => this.audioEngine.setEQ(type, val),
+            (type, val) => {
                 if (type === 'reverb') this.audioEngine.setReverbDepth(val);
                 if (type === 'chorus') this.audioEngine.setChorusDepth(val);
             }
@@ -459,7 +453,7 @@ export class EditorGame extends BaseGame {
         if (e.ctrlKey) {
             this.zoomX = Math.max(0.02, Math.min(2.0, this.zoomX - e.deltaY * 0.0003));
         } else if (e.shiftKey) {
-            this.scrollX = Math.max(0, Math.min(Math.max(0, (this.midiData?.duration || 0) * 1000 * this.zoomX - this.canvas.width), this.scrollX + e.deltaY * 2));
+            // Removed scrollX handler
         } else {
             const trackCount = Math.max(10, this.activeTracks.length);
             const totalHeight = trackCount * this.trackHeight;
@@ -552,12 +546,11 @@ export class EditorGame extends BaseGame {
             this.syncViewport(currentTime);
         }
 
-        if (this.midiData && this.ui) {
-            const totalWidth = (this.midiData.duration * 1000) * this.zoomX;
-            const maxScrollX = Math.max(1, totalWidth - this.canvas.width);
-            const totalH = Math.max(10, this.activeTracks.length) * this.trackHeight;
-            const maxScrollY = Math.max(1, totalH - this.canvas.height);
-            this.ui.syncControls(this.zoomX, this.scrollX / maxScrollX, this.scrollY / maxScrollY);
+        if (this.ui && this.midiData) {
+            this.ui.syncControls(
+                this.zoomX,
+                this.scrollY / (Math.max(1, this.midiData.tracks.length) * 60)
+            );
         }
 
         this.render();
