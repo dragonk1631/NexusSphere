@@ -27,6 +27,7 @@ export class EditorGame extends BaseGame {
     private soloTrackIndices = new Set<number>();
     private mutedTrackIndices = new Set<number>();
     private originalBpm = 120;
+    private trackVolumes = new Map<number, number>(); // uiIndex -> volume (0-127)
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
@@ -57,7 +58,8 @@ export class EditorGame extends BaseGame {
             (setting, active) => {
                 if (setting === 'loop') this.isLooping = active;
                 if (setting === 'metronome') this.metronomeEnabled = active;
-            }
+            },
+            (idx, vol) => this.handleTrackVolume(idx, vol)
         );
         this.ui.init();
         this.ui.populateMidiSelector(MIDI_FILES);
@@ -86,6 +88,14 @@ export class EditorGame extends BaseGame {
 
     public async load(): Promise<void> {
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
+
+        // Disable manual scroll on track list panel to ensure sync
+        const trackPanel = document.getElementById('track-list-panel');
+        if (trackPanel) {
+            trackPanel.style.overflowY = 'hidden';
+            trackPanel.style.pointerEvents = 'auto';
+        }
+
         if (MIDI_FILES.length > 0) {
             await this.loadMidiFile(MIDI_FILES[0]);
         }
@@ -144,7 +154,13 @@ export class EditorGame extends BaseGame {
         if (container) {
             const h = container.clientHeight - 16;
             this.trackHeight = Math.max(40, h / 10);
-            this.ui?.renderTrackHeaders(this.activeTracks, this.trackHeight, this.soloTrackIndices);
+
+            // Ensure volumes are initialized for current tracks
+            this.activeTracks.forEach((_, i) => {
+                if (!this.trackVolumes.has(i)) this.trackVolumes.set(i, 100);
+            });
+
+            this.ui?.renderTrackHeaders(this.activeTracks, this.trackHeight, this.soloTrackIndices, this.trackVolumes);
         }
     }
 
@@ -160,12 +176,9 @@ export class EditorGame extends BaseGame {
     private syncAudioStates(): void {
         if (!this.audioEngine) return;
 
-        // [Nuclear Step] 상태 변경 전 모든 현재 소리 강제 차단 (잔향 및 새는 노트 방지)
-        this.audioEngine.stopAllNotes();
-
         const hasSolo = this.soloTrackIndices.size > 0;
         const seqTracks = this.audioEngine.getSequencerTracks();
-        const SANDBOX_CHANNEL = 15; // 격리용 샌드박스 채널
+        const SANDBOX_CHANNEL = 15;
 
         // 1. UI 트랙(activeTracks)을 시퀀서 실제 트랙 인덱스에 매핑 (이름 기반 정밀 매핑)
         const uiToSeqMap = new Map<number, number>(); // uiIndex -> seqIndex
@@ -207,6 +220,10 @@ export class EditorGame extends BaseGame {
                 // [Audible] 원본 채널 복구 및 뮤트 해제
                 this.audioEngine.reassignTrackChannel(seqIndex, uiTrack.channel);
                 this.audioEngine.setTrackMute(seqIndex, false);
+
+                // 트랙별 볼륨 설정
+                const vol = this.trackVolumes.get(uiIndex) ?? 100;
+                this.audioEngine.setChannelVolume(uiTrack.channel, vol);
             } else {
                 // [Muted] 
                 // 만약 이 트랙이 현재 들려야 하는 트랙과 채널을 공유한다면 샌드박스로 격리
@@ -229,9 +246,10 @@ export class EditorGame extends BaseGame {
 
             // 들리는 트랙이 하나도 없는 채널이거나, 샌드박스 채널이면 완전 차단
             const shouldMuteChannel = !isChannelInAudibleSet || isSandbox;
-
             this.audioEngine.setChannelMute(ch, shouldMuteChannel);
-            this.audioEngine.setChannelVolume(ch, shouldMuteChannel ? 0 : 100);
+
+            // Note: Volume is already set per-track in Step 3 for audible tracks.
+            // If the channel is muted, it shouldn't produce sound regardless of CC7.
         }
 
         console.log(`[EditorGame] Sync Done. Solos: ${hasSolo}. Channels Active:`, Array.from(channelsWithAudibleTracks));
@@ -299,6 +317,18 @@ export class EditorGame extends BaseGame {
         this.ui?.updateSoloUI(this.soloTrackIndices);
     }
 
+    private handleTrackVolume(index: number, volume: number): void {
+        this.trackVolumes.set(index, volume);
+
+        // [Optimization] skip full sync and layout update for volume changes
+        const track = this.activeTracks[index];
+        if (track) {
+            this.audioEngine.setChannelVolume(track.channel, volume);
+        }
+
+        this.ui?.updateTrackVolumeUI(index, volume);
+    }
+
     private handleWheel(e: WheelEvent): void {
         e.preventDefault();
         if (e.ctrlKey) {
@@ -306,7 +336,9 @@ export class EditorGame extends BaseGame {
         } else if (e.shiftKey) {
             this.scrollX = Math.max(0, Math.min(Math.max(0, (this.midiData?.duration || 0) * 1000 * this.zoomX - this.canvas.width), this.scrollX + e.deltaY * 2));
         } else {
-            this.scrollY = Math.max(0, Math.min(Math.max(0, this.activeTracks.length * this.trackHeight - this.canvas.height), this.scrollY + e.deltaY));
+            const trackCount = Math.max(10, this.activeTracks.length);
+            const totalHeight = trackCount * this.trackHeight;
+            this.scrollY = Math.max(0, Math.min(Math.max(0, totalHeight - this.canvas.height), this.scrollY + e.deltaY));
             this.ui?.syncTrackScroll(this.scrollY);
         }
     }
@@ -396,8 +428,8 @@ export class EditorGame extends BaseGame {
         for (let i = startTrack; i < endTrack; i++) {
             const track = this.activeTracks[i];
             const trackTop = i * this.trackHeight - this.scrollY;
-            if (i % 2 === 0) {
-                this.ctx.fillStyle = 'rgba(255,255,255,0.02)';
+            if (i % 2 === 1) {
+                this.ctx.fillStyle = 'rgba(255,255,255,0.03)';
                 this.ctx.fillRect(0, trackTop, this.canvas.width, this.trackHeight);
             }
             this.ctx.fillStyle = trackColors[i % trackColors.length];

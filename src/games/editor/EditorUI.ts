@@ -19,6 +19,7 @@ export class EditorUI {
     private onSeekPercent: (percent: number) => void;
     private onMasterVolume: (val: number) => void;
     private onToggleSetting: (setting: string, active: boolean) => void;
+    private onTrackVolume: (trackIndex: number, volume: number) => void;
 
     constructor(
         transportHandler: (action: string) => void,
@@ -33,7 +34,8 @@ export class EditorUI {
         bpmHandler: (bpm: number) => void,
         seekPercentHandler: (percent: number) => void,
         volumeHandler: (val: number) => void,
-        toggleHandler: (setting: string, active: boolean) => void
+        toggleHandler: (setting: string, active: boolean) => void,
+        trackVolumeHandler: (idx: number, vol: number) => void
     ) {
         this.uiManager = UIManager.getInstance();
         this.onTransportClick = transportHandler;
@@ -49,6 +51,7 @@ export class EditorUI {
         this.onSeekPercent = seekPercentHandler;
         this.onMasterVolume = volumeHandler;
         this.onToggleSetting = toggleHandler;
+        this.onTrackVolume = trackVolumeHandler;
     }
 
     public init(): void {
@@ -286,7 +289,7 @@ export class EditorUI {
         }
     }
 
-    public renderTrackHeaders(tracks: GameTrack[], trackHeight: number, soloIndices: Set<number>): void {
+    public renderTrackHeaders(tracks: GameTrack[], trackHeight: number, soloIndices: Set<number>, trackVolumes: Map<number, number>): void {
         if (!this.trackListPanel) return;
         this.trackListPanel.innerHTML = '';
 
@@ -309,30 +312,67 @@ export class EditorUI {
             const track = tracks[index];
             const div = document.createElement('div');
             div.className = 'track-header';
-            div.style.cssText = `height: ${trackHeight}px; min-height: ${trackHeight}px; max-height: ${trackHeight}px; box-sizing: border-box;`;
+
+            // Zebra striping
+            const bgColor = (index % 2 === 1) ? 'rgba(255,255,255,0.03)' : 'transparent';
+            div.style.cssText = `height: ${trackHeight}px; min-height: ${trackHeight}px; max-height: ${trackHeight}px; box-sizing: border-box; background-color: ${bgColor};`;
 
             if (track) {
                 if (soloIndices.has(index)) div.classList.add('solo-active');
                 div.style.cursor = 'pointer';
-                div.onclick = (e) => {
-                    if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+
+                // Track Solo Click Listener (restored)
+                div.addEventListener('click', (e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.closest('.track-btn-m') || target.closest('.track-btn-s') || target.closest('.knob-container')) return;
                     this.onTrackSolo(index, !soloIndices.has(index));
-                };
+                });
+
+                const trackVolume = trackVolumes.get(index) || 100;
+                div.dataset.index = index.toString();
 
                 div.innerHTML = `
                     <div class="track-info-container" style="flex:1; pointer-events:none; display:flex; flex-direction:column; justify-content:center; gap:2px; overflow:hidden;">
-                        <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:12px;">
                             ${getIcon(track)} ${track.name}
                         </div>
-                        <div class="track-meta" style="font-size:9px; color:#666; white-space:nowrap;">
+                        <div class="track-meta" style="font-size:10px; color:#00ffcc; white-space:nowrap; opacity:0.8; font-family:monospace;">
                             Ch ${track.channel + 1} • ${track.instrumentFamily}
                         </div>
                     </div>
-                    <div class="track-controls">
+                    <div class="track-controls" style="display:flex; align-items:center;">
                         <button class="track-btn-m" title="Mute">M</button>
                         <button class="track-btn-s ${soloIndices.has(index) ? 'active' : ''}" title="Solo">S</button>
+                        <div class="knob-container" style="display:flex; flex-direction:column; align-items:center; gap:2px; margin-left:12px; cursor:ns-resize;" title="Drag Up/Down to change volume">
+                            <div class="knob" data-index="${index}" style="width:24px; height:24px; border-radius:50%; background:#111; border:2px solid #444; position:relative; overflow:hidden;">
+                                <div class="knob-indicator" style="position:absolute; top:2px; left:50%; width:2px; height:8px; background:#00ffcc; transform-origin:bottom center; transform: translateX(-50%) rotate(${(trackVolume / 127) * 270 - 135}deg);"></div>
+                            </div>
+                            <span style="font-size:8px; color:#fff; font-weight:bold;">${Math.round(trackVolume)}</span>
+                        </div>
                     </div>
                 `;
+
+                const knob = div.querySelector('.knob') as HTMLElement;
+                knob?.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    const startY = e.clientY;
+                    const startVol = trackVolumes.get(index) || 100;
+
+                    const onMove = (moveEvent: MouseEvent) => {
+                        const deltaY = startY - moveEvent.clientY;
+                        const newVol = Math.max(0, Math.min(127, startVol + deltaY));
+                        this.onTrackVolume(index, newVol);
+                        this.updateTrackVolumeUI(index, newVol); // Smooth visual feedback
+                    };
+
+                    const onUp = () => {
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                    };
+
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
+                });
 
                 div.querySelector('.track-btn-m')?.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -350,6 +390,21 @@ export class EditorUI {
                 div.innerHTML = `<div class="track-name" style="color:#333; font-style:italic; padding-left:10px;">Empty Track</div>`;
             }
             this.trackListPanel.appendChild(div);
+        }
+    }
+
+    public updateTrackVolumeUI(index: number, volume: number): void {
+        const headers = this.trackListPanel?.querySelectorAll('.track-header');
+        const targetHeader = Array.from(headers || []).find(h => (h as HTMLElement).dataset.index === index.toString()) as HTMLElement;
+
+        if (targetHeader) {
+            const label = targetHeader.querySelector('span');
+            if (label) label.textContent = Math.round(volume).toString();
+
+            const indicator = targetHeader.querySelector('.knob-indicator') as HTMLElement;
+            if (indicator) {
+                indicator.style.transform = `translateX(-50%) rotate(${(volume / 127) * 270 - 135}deg)`;
+            }
         }
     }
 
