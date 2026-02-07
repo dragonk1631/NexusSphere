@@ -108,6 +108,8 @@ export class EditorUI {
                     <div class="scrollbar-v" style="position: absolute; top: 0; right: 0; width: 16px; height: calc(100% - 16px); background: #000; z-index: 20; border-left:1px solid #111;">
                         <input type="range" id="scroll-y" min="0" max="1000" value="0" style="height: 100%; width: 100%; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: ns-resize;">
                     </div>
+
+                    <button class="sidebar-toggle" id="btn-sidebar-toggle" title="Toggle Tracks">☰</button>
                 </div>
 
                 <!-- Bottom Transport Bar (Consolidated) -->
@@ -270,6 +272,11 @@ export class EditorUI {
 
         q('#scroll-y')?.addEventListener('input', (e) => {
             this.onScrollYChange(parseInt((e.target as HTMLInputElement).value) / 1000);
+        });
+
+        q('#btn-sidebar-toggle')?.addEventListener('click', () => {
+            const container = q('.daw-container');
+            container?.classList.toggle('sidebar-open');
         });
 
         this.container?.querySelectorAll('.eq-slider').forEach(slider => {

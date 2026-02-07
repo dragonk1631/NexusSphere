@@ -84,9 +84,29 @@ window.addEventListener('layout-exit', () => {
   returnToMenu();
 });
 
+// --- Mobile Orientation Enforcement ---
+async function enforceLandscape() {
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+      if (screen.orientation && (screen.orientation as any).lock) {
+        await (screen.orientation as any).lock('landscape');
+      }
+    } catch (e) {
+      console.warn("Orientation lock failed (User interaction might be required or unsupported):", e);
+    }
+  }
+}
+
 // Start with Main Menu
 mainMenu = new MainMenu(handleGameStart);
 mainMenu.show();
+
+// Trigger Lock on first Interaction
+window.addEventListener('click', () => enforceLandscape(), { once: true });
+window.addEventListener('touchstart', () => enforceLandscape(), { once: true });
 
 // Handle Window Resize
 window.addEventListener('resize', () => {
