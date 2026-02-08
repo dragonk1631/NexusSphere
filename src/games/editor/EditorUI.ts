@@ -77,7 +77,7 @@ export class EditorUI {
                         </div>
                         <div style="display:flex; align-items:center; gap:5px;">
                             <span style="color:#666; font-weight:bold; font-size:9px; text-transform:uppercase;">Zoom</span>
-                            <input type="range" id="zoom-slider" min="2" max="200" value="10" style="width: 50px;">
+                            <input type="range" id="zoom-slider" min="10" max="190" value="100" style="width: 50px;">
                         </div>
                     </div>
                 </div>
@@ -220,7 +220,7 @@ export class EditorUI {
         });
 
         q('#zoom-slider')?.addEventListener('input', (e) => {
-            this.onZoomChange(parseInt((e.target as HTMLInputElement).value) / 100);
+            this.onZoomChange(parseInt((e.target as HTMLInputElement).value) / 1000);
         });
 
         q('#scroll-y')?.addEventListener('input', (e) => {
@@ -299,7 +299,7 @@ export class EditorUI {
     public syncControls(zoom: number, scrollYPercent: number): void {
         const zoomS = document.getElementById('zoom-slider') as HTMLInputElement;
         if (zoomS && document.activeElement !== zoomS) {
-            const targetVal = (zoom * 100).toString();
+            const targetVal = Math.round(zoom * 1000).toString();
             if (zoomS.value !== targetVal) zoomS.value = targetVal;
         }
 

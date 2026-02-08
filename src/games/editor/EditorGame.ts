@@ -475,7 +475,7 @@ export class EditorGame extends BaseGame {
     private handleWheel(e: WheelEvent): void {
         e.preventDefault();
         if (e.ctrlKey) {
-            this.zoomX = Math.max(0.02, Math.min(2.0, this.zoomX - e.deltaY * 0.0003));
+            this.zoomX = Math.max(0.01, Math.min(0.19, this.zoomX - e.deltaY * 0.0001));
         } else if (e.shiftKey) {
             // Horizontal scroll via shift+wheel could be added here
         } else {
