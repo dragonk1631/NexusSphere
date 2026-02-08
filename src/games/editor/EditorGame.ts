@@ -155,6 +155,7 @@ export class EditorGame extends BaseGame {
             (percent) => {
                 const totalHeight = this.activeTracks.length * this.trackHeight;
                 this.scrollY = percent * Math.max(0, totalHeight - this.canvas.height);
+                this.ui?.syncTrackScroll(this.scrollY); // Fixed: Sync track view immediately
             },
             (filename, file) => this.loadMidiFile(filename, file),
             (files) => this.handleFolderSelect(files),
@@ -162,10 +163,6 @@ export class EditorGame extends BaseGame {
             (bpm) => this.handleBpmChange(bpm),
             (percent) => this.seekToPercent(percent),
             (vol) => this.audioEngine.setMasterVolume(vol),
-            (setting, active) => {
-                if (setting === 'loop') this.isLooping = active;
-                if (setting === 'metronome') this.metronomeEnabled = active;
-            },
             (idx, vol) => this.handleTrackVolume(idx, vol),
             (type, val) => this.audioEngine.setEQ(type, val),
             (type, val) => {
@@ -547,10 +544,13 @@ export class EditorGame extends BaseGame {
         }
 
         if (this.ui && this.midiData) {
-            this.ui.syncControls(
-                this.zoomX,
-                this.scrollY / (Math.max(1, this.midiData.tracks.length) * 60)
-            );
+            // Optimization: Throttled sync (only if playing or dragging)
+            if (this.isPlaying || this.isDraggingPlayhead) {
+                this.ui.syncControls(
+                    this.zoomX,
+                    this.scrollY / (Math.max(1, this.activeTracks.length) * this.trackHeight)
+                );
+            }
         }
 
         this.render();

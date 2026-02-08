@@ -17,7 +17,6 @@ export class EditorUI {
     private onBpmChange: (bpm: number) => void;
     private onSeekPercent: (percent: number) => void;
     private onMasterVolume: (val: number) => void;
-    private onToggleSetting: (setting: string, active: boolean) => void;
     private onTrackVolume: (trackIndex: number, volume: number) => void;
     private onEQChange: (type: 'low' | 'mid' | 'high', val: number) => void;
     private onFXChange: (type: 'reverb' | 'chorus', val: number) => void;
@@ -34,7 +33,6 @@ export class EditorUI {
         bpmHandler: (bpm: number) => void,
         seekPercentHandler: (percent: number) => void,
         volumeHandler: (val: number) => void,
-        toggleHandler: (setting: string, active: boolean) => void,
         trackVolumeHandler: (idx: number, vol: number) => void,
         eqHandler: (type: 'low' | 'mid' | 'high', val: number) => void,
         fxHandler: (type: 'reverb' | 'chorus', val: number) => void
@@ -51,7 +49,6 @@ export class EditorUI {
         this.onBpmChange = bpmHandler;
         this.onSeekPercent = seekPercentHandler;
         this.onMasterVolume = volumeHandler;
-        this.onToggleSetting = toggleHandler;
         this.onTrackVolume = trackVolumeHandler;
         this.onEQChange = eqHandler;
         this.onFXChange = fxHandler;
@@ -105,9 +102,44 @@ export class EditorUI {
                         <input type="range" id="progress-bar" min="0" max="1000" value="0" style="width: 100%; height: 100%; cursor: pointer; margin: 0; background: transparent;">
                     </div>
 
-                    <div class="player-tools-left" style="display:flex; gap:10px; margin-right:auto; margin-top: 20px;">
-                        <button class="toggle-btn" id="btn-loop" title="Loop Toggle">Loop</button>
-                        <button class="toggle-btn" id="btn-metronome" title="Metronome Toggle">Metro</button>
+                    <div class="player-tools-left" style="display:flex; gap:10px; margin-right:auto; margin-top: 20px; position: relative;">
+                        <button class="toggle-btn" id="btn-fx-eq-toggle" title="Toggle FX & EQ">Master FX & EQ</button>
+                        
+                        <!-- Consolidated FX & EQ Popover -->
+                        <div class="eq-popover-menu collapsed" id="fx-eq-popover">
+                            <div class="eq-popover-header">Master Equalizer</div>
+                            <div class="eq-grid-vertical" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                <div class="eq-item">
+                                    <span class="eq-label">LOW</span>
+                                    <input type="range" class="eq-slider-v eq-shared" data-type="low" min="-12" max="12" value="0">
+                                    <span class="eq-value" id="eq-pop-val-low">0dB</span>
+                                </div>
+                                <div class="eq-item">
+                                    <span class="eq-label">MID</span>
+                                    <input type="range" class="eq-slider-v eq-shared" data-type="mid" min="-12" max="12" value="0">
+                                    <span class="eq-value" id="eq-pop-val-mid">0dB</span>
+                                </div>
+                                <div class="eq-item">
+                                    <span class="eq-label">HIGH</span>
+                                    <input type="range" class="eq-slider-v eq-shared" data-type="high" min="-12" max="12" value="0">
+                                    <span class="eq-value" id="eq-pop-val-high">0dB</span>
+                                </div>
+                            </div>
+
+                            <div class="eq-popover-header">Master Effects</div>
+                            <div class="eq-grid-vertical">
+                                <div class="eq-item">
+                                    <span class="eq-label" style="color:#a29bfe;">REV</span>
+                                    <input type="range" class="eq-slider-v fx-shared" data-type="reverb" min="0" max="100" value="30">
+                                    <span class="eq-value" id="fx-pop-val-reverb" style="color:#a29bfe;">30%</span>
+                                </div>
+                                <div class="eq-item">
+                                    <span class="eq-label" style="color:#55efc4;">CHO</span>
+                                    <input type="range" class="eq-slider-v fx-shared" data-type="chorus" min="0" max="100" value="20">
+                                    <span class="eq-value" id="fx-pop-val-chorus" style="color:#55efc4;">20%</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="transport-buttons" style="display:flex; gap:15px; align-items:center; margin-top: 20px; position: relative;">
@@ -126,56 +158,7 @@ export class EditorUI {
                     </div>
                 </div>
 
-                <!-- Premium FX Dashboard (Floating Glassmorphism) -->
-                <div class="fx-dashboard premium-glass" id="fx-dashboard">
-                    <div class="fx-header" id="fx-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding-bottom: 8px;">
-                        <span style="font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--daw-accent); text-transform: uppercase;">Master FX & EQ</span>
-                        <div id="fx-toggle-icon" style="transition: transform 0.2s;">▾</div>
-                    </div>
-                    
-                    <div class="fx-body" id="fx-body" style="display: flex; flex-direction: column; gap: 12px; overflow: hidden; transition: max-height 0.3s ease-out;">
-                        <div class="eq-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px;">
-                            <div style="display: flex; flex-direction: column; gap: 4px;">
-                                <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
-                                    <span>LOW</span>
-                                    <span id="eq-val-low">0dB</span>
-                                </div>
-                                <input type="range" class="eq-slider" data-type="low" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
-                            </div>
-                            <div style="display: flex; flex-direction: column; gap: 4px;">
-                                <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
-                                    <span>MID</span>
-                                    <span id="eq-val-mid">0dB</span>
-                                </div>
-                                <input type="range" class="eq-slider" data-type="mid" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
-                            </div>
-                            <div style="display: flex; flex-direction: column; gap: 4px;">
-                                <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.8;">
-                                    <span>HIGH</span>
-                                    <span id="eq-val-high">0dB</span>
-                                </div>
-                                <input type="range" class="eq-slider" data-type="high" min="-12" max="12" value="0" style="width: 100%; height: 4px; border-radius: 2px;">
-                            </div>
-                        </div>
-
-                        <div class="fx-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);">
-                             <div style="display: flex; flex-direction: column; gap: 4px;">
-                                <div style="display: flex; justify-content: space-between; font-size: 9px; color: #a29bfe;">
-                                    <span>REVERB</span>
-                                    <span id="fx-val-reverb">30%</span>
-                                </div>
-                                <input type="range" class="fx-slider" data-type="reverb" min="0" max="100" value="30" style="width: 100%; height: 4px; border-radius: 2px;">
-                            </div>
-                            <div style="display: flex; flex-direction: column; gap: 4px;">
-                                <div style="display: flex; justify-content: space-between; font-size: 9px; color: #55efc4;">
-                                    <span>CHORUS</span>
-                                    <span id="fx-val-chorus">20%</span>
-                                </div>
-                                <input type="range" class="fx-slider" data-type="chorus" min="0" max="100" value="20" style="width: 100%; height: 4px; border-radius: 2px;">
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Floating dashboard removed: consolidated to bottom-left -->
             </div>
         `;
 
@@ -193,16 +176,11 @@ export class EditorUI {
         q('#btn-stop')?.addEventListener('click', () => this.onTransportClick('stop'));
         q('#btn-end')?.addEventListener('click', () => this.onTransportClick('end'));
 
-        q('#btn-loop')?.addEventListener('click', (e) => {
+        q('#btn-fx-eq-toggle')?.addEventListener('click', (e) => {
             const btn = e.currentTarget as HTMLElement;
-            const active = btn.classList.toggle('active');
-            this.onToggleSetting('loop', active);
-        });
-
-        q('#btn-metronome')?.addEventListener('click', (e) => {
-            const btn = e.currentTarget as HTMLElement;
-            const active = btn.classList.toggle('active');
-            this.onToggleSetting('metronome', active);
+            const popover = q('#fx-eq-popover');
+            const isActive = btn.classList.toggle('active');
+            popover?.classList.toggle('collapsed', !isActive);
         });
 
         q('#master-volume')?.addEventListener('input', (e) => {
@@ -254,40 +232,28 @@ export class EditorUI {
             container?.classList.toggle('sidebar-open');
         });
 
-        q('#fx-header')?.addEventListener('click', () => {
-            const dashboard = q('#fx-dashboard');
-            const body = q('#fx-body') as HTMLElement;
-            const icon = q('#fx-toggle-icon') as HTMLElement;
 
-            const isCollapsed = dashboard?.classList.toggle('collapsed');
-
-            if (isCollapsed) {
-                if (body) body.style.maxHeight = '0px';
-                if (icon) icon.style.transform = 'rotate(-90deg)';
-            } else {
-                if (body) body.style.maxHeight = '500px';
-                if (icon) icon.style.transform = 'rotate(0deg)';
-            }
-        });
-
-        this.container?.querySelectorAll('.eq-slider').forEach(slider => {
+        this.container?.querySelectorAll('.eq-shared').forEach(slider => {
             slider.addEventListener('input', (e) => {
                 const el = e.target as HTMLInputElement;
                 const type = el.dataset.type;
                 const val = parseFloat(el.value);
-                const display = document.getElementById(`eq-val-${type}`);
-                if (display) display.textContent = `${val > 0 ? '+' : ''}${val}dB`;
+
+                // Update both displays (if they exist)
+                const displayPop = document.getElementById(`eq-pop-val-${type}`);
+                if (displayPop) displayPop.textContent = `${val > 0 ? '+' : ''}${val}dB`;
+
                 this.onEQChange(type as any, val);
             });
         });
 
-        this.container?.querySelectorAll('.fx-slider').forEach(slider => {
+        this.container?.querySelectorAll('.fx-shared').forEach(slider => {
             slider.addEventListener('input', (e) => {
                 const el = e.target as HTMLInputElement;
                 const type = el.dataset.type;
                 const val = parseFloat(el.value);
-                const display = document.getElementById(`fx-val-${type}`);
-                if (display) display.textContent = `${Math.round(val)}%`;
+                const displayPop = document.getElementById(`fx-pop-val-${type}`);
+                if (displayPop) displayPop.textContent = `${Math.round(val)}%`;
                 this.onFXChange(type as any, val / 100);
             });
         });
@@ -332,10 +298,16 @@ export class EditorUI {
 
     public syncControls(zoom: number, scrollYPercent: number): void {
         const zoomS = document.getElementById('zoom-slider') as HTMLInputElement;
-        if (zoomS && document.activeElement !== zoomS) zoomS.value = (zoom * 100).toString();
+        if (zoomS && document.activeElement !== zoomS) {
+            const targetVal = (zoom * 100).toString();
+            if (zoomS.value !== targetVal) zoomS.value = targetVal;
+        }
 
         const scrollYS = document.getElementById('scroll-y') as HTMLInputElement;
-        if (scrollYS && document.activeElement !== scrollYS) scrollYS.value = (scrollYPercent * 1000).toString();
+        if (scrollYS && document.activeElement !== scrollYS) {
+            const targetVal = (scrollYPercent * 1000).toString();
+            if (scrollYS.value !== targetVal) scrollYS.value = targetVal;
+        }
     }
 
     public updateProgress(currentTime: number, duration: number): void {
@@ -344,15 +316,20 @@ export class EditorUI {
             const formatTime = (t: number) => {
                 const m = Math.floor(t / 60).toString().padStart(2, '0');
                 const s = Math.floor(t % 60).toString().padStart(2, '0');
-                const ms = Math.floor((t % 1) * 100).toString().padStart(2, '0');
-                return `${m}:${s}.${ms}`;
+                return `${m}:${s}`;
             };
-            display.innerText = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+            const newText = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+            if (display.innerText !== newText) {
+                display.innerText = newText;
+            }
         }
 
         const progressBar = document.getElementById('progress-bar') as HTMLInputElement;
         if (progressBar && document.activeElement !== progressBar && duration > 0) {
-            progressBar.value = ((currentTime / duration) * 1000).toString();
+            const newVal = Math.floor((currentTime / duration) * 1000).toString();
+            if (progressBar.value !== newVal) {
+                progressBar.value = newVal;
+            }
         }
     }
 
