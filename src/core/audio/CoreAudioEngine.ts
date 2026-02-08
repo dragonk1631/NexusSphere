@@ -75,6 +75,11 @@ export class CoreAudioEngine {
             }
         } catch (e) {
             console.error("[CoreAudioEngine] Critical Init failed:", e);
+            if (!window.isSecureContext) {
+                const errorMsg = "[CoreAudioEngine] This is a non-secure context (HTTP). AudioWorklets REQUIRE HTTPS or localhost to function on mobile.";
+                console.error(errorMsg);
+                throw new Error(errorMsg);
+            }
             throw e;
         }
     }

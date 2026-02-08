@@ -190,9 +190,28 @@ export class EditorGame extends BaseGame {
         }
 
         this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+
+        // Mouse Events
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         window.addEventListener('mouseup', () => this.handleMouseUp());
+
+        // Touch Events (Fixed: Mobile support)
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling
+            this.handleMouseDown(e);
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (this.isDraggingPlayhead) {
+                e.preventDefault();
+                this.handleMouseMove(e);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => this.handleMouseUp());
+        window.addEventListener('touchcancel', () => this.handleMouseUp());
+
         this.canvas.addEventListener('mouseenter', () => document.body.style.overflow = 'hidden');
         this.canvas.addEventListener('mouseleave', () => document.body.style.overflow = '');
     }
@@ -200,7 +219,6 @@ export class EditorGame extends BaseGame {
     public async load(): Promise<void> {
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
-        // Disable manual scroll on track list panel to ensure sync
         const trackPanel = document.getElementById('track-list-panel');
         if (trackPanel) {
             trackPanel.style.overflowY = 'hidden';
@@ -459,20 +477,16 @@ export class EditorGame extends BaseGame {
         }
     }
 
-    private handleMouseDown(e: MouseEvent): void {
+    private handleMouseDown(e: MouseEvent | TouchEvent): void {
         this.isDraggingPlayhead = true;
-
-        // 1. Pause on drag
         this.audioEngine.pause();
         this.ui?.setPlayState(false);
-        this.isPlaying = false; // Sync internal state
-
-        // Initialize scrubTime
+        this.isPlaying = false;
         this.scrubTime = this.audioEngine.currentTime;
-        this.seekAtMouse(e, false); // Lazy sync on initial click (don't jump view if in sight)
+        this.seekAtMouse(e, false);
     }
 
-    private handleMouseMove(e: MouseEvent): void {
+    private handleMouseMove(e: MouseEvent | TouchEvent): void {
         if (this.isDraggingPlayhead) {
             this.seekAtMouse(e);
         }
@@ -495,12 +509,23 @@ export class EditorGame extends BaseGame {
         }
     }
 
-    private seekAtMouse(e: MouseEvent, forceSyncView: boolean = false): void {
+    private seekAtMouse(e: MouseEvent | TouchEvent, forceSyncView: boolean = false): void {
         if (!this.midiData) return;
 
         const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
+        let clientX = 0;
 
+        if (e instanceof MouseEvent) {
+            clientX = e.clientX;
+        } else if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+        } else {
+            return;
+        }
+
+        const mouseX = clientX - rect.left;
         const time = (mouseX + this.scrollX) / this.zoomX / 1000;
         this.scrubTime = Math.max(0, Math.min(this.midiData.duration, time));
 
