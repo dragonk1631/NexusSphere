@@ -378,7 +378,9 @@ export class EditorUI {
             const div = document.createElement('div');
             div.className = `track-header zebra-${(index % 2) + 1}`;
 
-            div.style.cssText = `height: ${trackHeight}px; min-height: ${trackHeight}px; max-height: ${trackHeight}px; box-sizing: border-box;`;
+            // Ensure height is an exact integer to prevent sub-pixel desync with canvas
+            const h = Math.floor(trackHeight);
+            div.style.cssText = `height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden;`;
 
             if (track) {
                 if (soloIndices.has(index)) div.classList.add('solo-active');

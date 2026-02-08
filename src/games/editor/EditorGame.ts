@@ -138,9 +138,10 @@ export class EditorGame extends BaseGame {
     private mutedTrackIndices = new Set<number>();
     private originalBpm = 120;
     private trackVolumes = new Map<number, number>(); // uiIndex -> volume (0-127)
-    private isDraggingPlayhead = false;
-    private scrubTime = 0;
-    private lastSeekTime = 0;
+    private isDraggingPlayhead: boolean = false;
+    private scrubTime: number = 0;
+    private lastSeekTime: number = 0;
+    private wakeLock: any = null;
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
@@ -214,6 +215,14 @@ export class EditorGame extends BaseGame {
 
         this.canvas.addEventListener('mouseenter', () => document.body.style.overflow = 'hidden');
         this.canvas.addEventListener('mouseleave', () => document.body.style.overflow = '');
+
+        // Prevent sleep on mobile
+        this.requestWakeLock();
+        document.addEventListener('visibilitychange', () => {
+            if (this.wakeLock !== null && document.visibilityState === 'visible') {
+                this.requestWakeLock();
+            }
+        });
     }
 
     public async load(): Promise<void> {
@@ -468,11 +477,12 @@ export class EditorGame extends BaseGame {
         if (e.ctrlKey) {
             this.zoomX = Math.max(0.02, Math.min(2.0, this.zoomX - e.deltaY * 0.0003));
         } else if (e.shiftKey) {
-            // Removed scrollX handler
+            // Horizontal scroll via shift+wheel could be added here
         } else {
-            const trackCount = Math.max(10, this.activeTracks.length);
+            const trackCount = this.activeTracks.length;
             const totalHeight = trackCount * this.trackHeight;
-            this.scrollY = Math.max(0, Math.min(Math.max(0, totalHeight - this.canvas.height), this.scrollY + e.deltaY));
+            const maxScroll = Math.max(0, totalHeight - this.canvas.height);
+            this.scrollY = Math.max(0, Math.min(maxScroll, this.scrollY + e.deltaY));
             this.ui?.syncTrackScroll(this.scrollY);
         }
     }
@@ -720,7 +730,28 @@ export class EditorGame extends BaseGame {
         }
     }
 
+    private async requestWakeLock(): Promise<void> {
+        if ('wakeLock' in navigator) {
+            try {
+                this.wakeLock = await (navigator as any).wakeLock.request('screen');
+                console.log('[EditorGame] Screen Wake Lock is active.');
+            } catch (err) {
+                console.warn(`[EditorGame] Wake Lock failed: ${err}`);
+            }
+        }
+    }
+
+    private releaseWakeLock(): void {
+        if (this.wakeLock) {
+            this.wakeLock.release().then(() => {
+                this.wakeLock = null;
+                console.log('[EditorGame] Screen Wake Lock released.');
+            });
+        }
+    }
+
     public destroy(): void {
+        this.releaseWakeLock();
         this.audioEngine.stop();
         this.isPlaying = false;
         this.ui?.destroy();

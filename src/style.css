@@ -320,8 +320,8 @@ canvas {
   grid-column: 1;
   background-color: var(--daw-panel);
   border-right: 1px solid var(--daw-border);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  /* Prevent manual scroll desync */
   display: flex;
   flex-direction: column;
 }
