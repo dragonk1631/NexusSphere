@@ -7,6 +7,8 @@ export interface GameNote {
     name: string;
     velocity: number;
     duration: number;
+    ticks: number;       // Absolute tick position
+    durationTicks: number; // Duration in ticks
     importance: number;
     channel: number; // MIDI channel (0-15)
 }
@@ -25,6 +27,9 @@ export interface ParsedMidi {
     name: string;
     bpm: number;
     duration: number;
+    ppq: number; // Pulses Per Quarter note
+    tempos: { bpm: number, time: number, ticks: number }[]; // Tempo map
+    timeSignatures: { ticks: number, timeSignature: number[] }[]; // Time Signature map
     tracks: GameTrack[];
 }
 
@@ -69,6 +74,8 @@ export class MidiParser {
                     name: note.name,
                     velocity: note.velocity,
                     duration: note.duration,
+                    ticks: note.ticks,
+                    durationTicks: note.durationTicks,
                     importance,
                     channel: track.channel // Add channel information
                 };
@@ -89,6 +96,9 @@ export class MidiParser {
             name: midi.name || 'Untitled',
             bpm,
             duration: midi.duration,
+            ppq: midi.header.ppq || 480,
+            tempos: midi.header.tempos.map(t => ({ bpm: t.bpm, time: t.time || 0, ticks: t.ticks || 0 })),
+            timeSignatures: midi.header.timeSignatures.map(ts => ({ ticks: ts.ticks || 0, timeSignature: ts.timeSignature })),
             tracks
         };
     }

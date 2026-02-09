@@ -329,6 +329,54 @@ export class EditorGame extends BaseGame {
     }
 
     /**
+     * Convert Audio Time (Seconds) to MIDI Tick using Tempo Map
+     */
+    private getTickFromTime(time: number): number {
+        if (!this.midiData || !this.midiData.tempos || this.midiData.tempos.length === 0) {
+            return time * (this.midiData?.bpm || 120) / 60 * (this.midiData?.ppq || 480);
+        }
+
+        const tempos = this.midiData.tempos;
+        // Find the latest tempo change before 'time'
+        let lastTempo = tempos[0];
+        for (let i = 0; i < tempos.length; i++) {
+            if (time >= tempos[i].time) {
+                lastTempo = tempos[i];
+            } else {
+                break;
+            }
+        }
+
+        const timeSinceTempo = time - lastTempo.time;
+        const ticksSinceTempo = timeSinceTempo * (lastTempo.bpm / 60) * (this.midiData.ppq || 480);
+        return lastTempo.ticks + ticksSinceTempo;
+    }
+
+    /**
+     * Convert MIDI Tick to Audio Time (Seconds) using Tempo Map
+     */
+    private getTimeFromTick(tick: number): number {
+        if (!this.midiData || !this.midiData.tempos || this.midiData.tempos.length === 0) {
+            return tick / (this.midiData?.ppq || 480) * 60 / (this.midiData?.bpm || 120);
+        }
+
+        const tempos = this.midiData.tempos;
+        // Find the latest tempo change before 'tick'
+        let lastTempo = tempos[0];
+        for (let i = 0; i < tempos.length; i++) {
+            if (tick >= tempos[i].ticks) {
+                lastTempo = tempos[i];
+            } else {
+                break;
+            }
+        }
+
+        const ticksSinceTempo = tick - lastTempo.ticks;
+        const timeSinceTempo = ticksSinceTempo / (this.midiData.ppq || 480) * 60 / lastTempo.bpm;
+        return lastTempo.time + timeSinceTempo;
+    }
+
+    /**
      * Aggregate all notes by MIDI channel (0-15)
      * Creates 16 fixed channel data structures
      */
@@ -440,7 +488,8 @@ export class EditorGame extends BaseGame {
 
     private syncViewport(time: number, forceCenter: boolean = false): void {
         if (!this.midiData) return;
-        const playheadX = time * 1000 * this.zoomX;
+        const currentTick = this.getTickFromTime(time);
+        const playheadX = currentTick * this.zoomX;
         const viewWidth = this.canvas.width;
 
         if (forceCenter) {
@@ -601,7 +650,8 @@ export class EditorGame extends BaseGame {
         }
 
         const mouseX = clientX - rect.left;
-        const time = (mouseX + this.scrollX) / this.zoomX / 1000;
+        const tick = (mouseX + this.scrollX) / this.zoomX; // X to Tick
+        const time = this.getTimeFromTick(tick); // Tick to Time
         this.scrubTime = Math.max(0, Math.min(this.midiData.duration, time));
 
         // Unified Viewport Sync
@@ -676,14 +726,20 @@ export class EditorGame extends BaseGame {
         }
 
         // Grid
-        const pixelsPerBeat = 500 * this.zoomX;
-        const startBeat = Math.floor(this.scrollX / pixelsPerBeat);
-        const endBeat = startBeat + Math.ceil(this.canvas.width / pixelsPerBeat) + 1;
+        // Grid (Tick-based)
+        const ppq = this.midiData?.ppq || 480;
+        const pixelsPerProcessedTick = this.zoomX;
+        const startTick = Math.floor(this.scrollX / pixelsPerProcessedTick);
+        const endTick = startTick + Math.ceil(this.canvas.width / pixelsPerProcessedTick) + 1;
+
+        // Snap startTick to nearest beat (assuming 4/4)
+        const tickStep = ppq; // 1 beat
+        const alignedStartTick = Math.floor(startTick / tickStep) * tickStep;
 
         this.ctx.lineWidth = 1;
-        for (let b = startBeat; b <= endBeat; b++) {
-            const x = b * pixelsPerBeat - this.scrollX;
-            const isBar = b % 4 === 0;
+        for (let t = alignedStartTick; t <= endTick; t += tickStep) {
+            const x = t * pixelsPerProcessedTick - this.scrollX;
+            const isBar = (t / ppq) % 4 === 0; // Assuming 4/4
             this.ctx.strokeStyle = isBar ? '#444' : '#222';
             this.ctx.beginPath();
             this.ctx.moveTo(x, 0);
@@ -693,7 +749,8 @@ export class EditorGame extends BaseGame {
             if (isBar) {
                 this.ctx.fillStyle = '#666';
                 this.ctx.font = '9px monospace';
-                this.ctx.fillText((b / 4 + 1).toString(), x + 4, 12);
+                const barNum = Math.round(t / (ppq * 4)) + 1;
+                this.ctx.fillText(barNum.toString(), x + 4, 12);
             }
         }
 
@@ -749,8 +806,8 @@ export class EditorGame extends BaseGame {
                 const noteColor = getChannelNoteColor(channelInfo);
 
                 channelInfo.notes.forEach((note: GameNote) => {
-                    const x = (note.time * 1000) * this.zoomX - this.scrollX;
-                    const w = Math.max(4, (note.duration * 1000) * this.zoomX);
+                    const x = note.ticks * this.zoomX - this.scrollX;
+                    const w = Math.max(4, note.durationTicks * this.zoomX);
                     if (x + w < 0 || x > this.canvas.width) return;
 
                     // Visualization
@@ -769,9 +826,10 @@ export class EditorGame extends BaseGame {
             this.ctx.globalAlpha = 1.0;
         }
 
-        // Playhead
+        // Playhead (Tick-based)
         const displayTime = this.isDraggingPlayhead ? this.scrubTime : this.audioEngine.currentTime;
-        const playheadX = (displayTime * 1000) * this.zoomX - this.scrollX;
+        const currentTick = this.getTickFromTime(displayTime);
+        const playheadX = currentTick * this.zoomX - this.scrollX;
         if (playheadX >= 0 && playheadX <= this.canvas.width) {
             if (this.isDraggingPlayhead) {
                 this.ctx.shadowBlur = 15;
