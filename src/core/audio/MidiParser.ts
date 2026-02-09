@@ -8,6 +8,7 @@ export interface GameNote {
     velocity: number;
     duration: number;
     importance: number;
+    channel: number; // MIDI channel (0-15)
 }
 
 export interface GameTrack {
@@ -68,7 +69,8 @@ export class MidiParser {
                     name: note.name,
                     velocity: note.velocity,
                     duration: note.duration,
-                    importance
+                    importance,
+                    channel: track.channel // Add channel information
                 };
             });
 

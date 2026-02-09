@@ -1,5 +1,4 @@
 import { UIManager } from '../../core/ui/UIManager';
-import type { GameTrack } from '../../core/audio/MidiParser';
 
 export class EditorUI {
     private uiManager: UIManager;
@@ -83,12 +82,12 @@ export class EditorUI {
                 </div>
 
                 <!-- Track List (Left) -->
-                <div class="track-list-panel" id="track-list-panel"></div>
+                <div class="track-list-panel" id="track-list-panel" style="height: calc(100% - 16px);"></div>
 
                 <!-- Timeline Area (Center) -->
                 <div class="timeline-area" id="timeline-area">
                     <div class="scrollbar-v" style="position: absolute; top: 0; right: 0; width: 16px; height: 100%; background: #000; z-index: 20; border-left:1px solid #111;">
-                        <input type="range" id="scroll-y" min="0" max="1000" value="0" style="height: 100%; width: 100%; writing-mode: vertical-lr; direction: rtl; margin: 0; cursor: ns-resize;">
+                        <input type="range" id="scroll-y" min="0" max="1000" value="0" style="height: 100%; width: 100%; writing-mode: vertical-lr; margin: 0; cursor: ns-resize;">
                     </div>
 
                     <button class="sidebar-toggle" id="btn-sidebar-toggle" title="Toggle Tracks">☰</button>
@@ -224,7 +223,11 @@ export class EditorUI {
         });
 
         q('#scroll-y')?.addEventListener('input', (e) => {
-            this.onScrollYChange(parseInt((e.target as HTMLInputElement).value) / 1000);
+            // Standard behavior: Top is 0 (Min), Bottom is Max
+            const target = e.target as HTMLInputElement;
+            const max = parseInt(target.max) || 1000; // Fallback to 1000 if invalid
+            const val = parseInt(target.value);
+            this.onScrollYChange(val / max);
         });
 
         q('#btn-sidebar-toggle')?.addEventListener('click', () => {
@@ -305,7 +308,9 @@ export class EditorUI {
 
         const scrollYS = document.getElementById('scroll-y') as HTMLInputElement;
         if (scrollYS && document.activeElement !== scrollYS) {
-            const targetVal = (scrollYPercent * 1000).toString();
+            // Standard behavior: 0% at Top (0), 100% at Bottom (Max)
+            const max = parseInt(scrollYS.max) || 1000;
+            const targetVal = Math.round(scrollYPercent * max).toString();
             if (scrollYS.value !== targetVal) scrollYS.value = targetVal;
         }
     }
@@ -354,13 +359,13 @@ export class EditorUI {
         }
     }
 
-    public renderTrackHeaders(tracks: GameTrack[], trackHeight: number, soloIndices: Set<number>, trackVolumes: Map<number, number>): void {
+    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>): void {
         if (!this.trackListPanel) return;
         this.trackListPanel.innerHTML = '';
 
-        const getIcon = (track: GameTrack) => {
-            if (track.isDrum) return '🥁';
-            const family = track.instrumentFamily.toLowerCase();
+        const getIcon = (channel: any) => {
+            if (channel.isDrum) return '🥁';
+            const family = channel.instrumentFamily.toLowerCase();
             if (family.includes('piano')) return '🎹';
             if (family.includes('guitar')) return '🎸';
             if (family.includes('bass')) return '🎸';
@@ -371,54 +376,57 @@ export class EditorUI {
             return '🎵';
         };
 
-        const displayCount = Math.max(10, tracks.length);
-
-        for (let index = 0; index < displayCount; index++) {
-            const track = tracks[index];
+        // Always render 16 channels (0-15)
+        for (let ch = 0; ch < 16; ch++) {
+            const channelInfo = channelData[ch];
             const div = document.createElement('div');
-            div.className = `track-header zebra-${(index % 2) + 1}`;
+            div.className = `track-header zebra-${(ch % 2) + 1}`;
 
             // Ensure height is an exact integer to prevent sub-pixel desync with canvas
-            const h = Math.floor(trackHeight);
+            const h = Math.floor(channelHeight);
             div.style.cssText = `height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden;`;
 
-            if (track) {
-                if (soloIndices.has(index)) div.classList.add('solo-active');
+            if (channelInfo && channelInfo.notes.length > 0) {
+                if (soloIndices.has(ch)) div.classList.add('solo-active');
                 div.style.cursor = 'pointer';
 
-                // Track Solo Click Listener (restored)
+                // Channel Solo Click Listener
                 div.addEventListener('click', (e) => {
                     const target = e.target as HTMLElement;
                     if (target.closest('.track-btn-m') || target.closest('.track-btn-s') || target.closest('.track-volume-slider')) return;
-                    this.onTrackSolo(index, !soloIndices.has(index));
+                    this.onTrackSolo(ch, !soloIndices.has(ch));
                 });
 
-                const trackVolume = trackVolumes.get(index) || 100;
-                div.dataset.index = index.toString();
+                const channelVolume = channelVolumes.get(ch) || 100;
+                div.dataset.index = ch.toString();
+
+                const trackNamesStr = channelInfo.trackNames.length > 0
+                    ? channelInfo.trackNames.join(', ')
+                    : `Channel ${ch + 1}`;
 
                 div.innerHTML = `
                     <div style="display:flex; align-items:center; width:100%; height:100%; padding: 0 5px; gap:8px; overflow:hidden;">
-                        <span class="track-number">${index + 1}</span>
+                        <span class="track-number">${ch + 1}</span>
                         
                         <div class="track-icon-badge" style="width:30px; height:30px; display:flex; align-items:center; justify-content:center; background:#111; border:1px solid #333; border-radius:4px; font-size:16px;">
-                            ${getIcon(track)}
+                            ${getIcon(channelInfo)}
                         </div>
 
                         <div class="track-info-container" style="flex:1; pointer-events:none; display:flex; flex-direction:column; justify-content:center; overflow:hidden;">
                             <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:11px; margin-bottom:0px;">
-                                ${track.name || 'Unnamed Track'}
+                                ${trackNamesStr}
                             </div>
                             <div class="track-meta" style="font-size:9px; color:#00ffcc; white-space:nowrap; opacity:0.6; font-family:monospace;">
-                                CH ${track.channel + 1} • ${track.instrumentFamily}
+                                CH ${ch + 1} • ${channelInfo.instrumentFamily} • ${channelInfo.notes.length} notes
                             </div>
                         </div>
 
 
                             <button class="track-btn-m" title="Mute">M</button>
-                            <button class="track-btn-s ${soloIndices.has(index) ? 'active' : ''}" title="Solo">S</button>
+                            <button class="track-btn-s ${soloIndices.has(ch) ? 'active' : ''}" title="Solo">S</button>
                             
                             <div class="slider-container" style="flex: 1; min-width: 80px; margin-left: 10px;">
-                                <input type="range" class="track-volume-slider" min="0" max="127" value="${trackVolume}" data-index="${index}" style="width: 100%; --value: ${(trackVolume / 127) * 100}%">
+                                <input type="range" class="track-volume-slider" min="0" max="127" value="${channelVolume}" data-index="${ch}" style="width: 100%; --value: ${(channelVolume / 127) * 100}%">
                             </div>
                         </div>
                     </div>
@@ -429,7 +437,7 @@ export class EditorUI {
                     e.stopPropagation();
                     const val = parseInt((e.target as HTMLInputElement).value);
                     (e.target as HTMLElement).style.setProperty('--value', `${(val / 127) * 100}%`);
-                    this.onTrackVolume(index, val);
+                    this.onTrackVolume(ch, val);
                 });
 
                 slider?.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -439,19 +447,19 @@ export class EditorUI {
                     e.stopPropagation();
                     const btn = e.currentTarget as HTMLElement;
                     btn.classList.toggle('active');
-                    this.onTrackMute(index, btn.classList.contains('active'));
+                    this.onTrackMute(ch, btn.classList.contains('active'));
                 });
 
                 div.querySelector('.track-btn-s')?.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    this.onTrackSolo(index, !soloIndices.has(index));
+                    this.onTrackSolo(ch, !soloIndices.has(ch));
                 });
             } else {
                 div.classList.add('empty');
                 div.innerHTML = `
                     <div style="display:flex; align-items:center; padding:0 15px; color:#333; height:100%;">
-                        <span class="track-number">${index + 1}</span>
-                        <span style="font-style:italic; font-size:10px;">Empty Track</span>
+                        <span class="track-number">${ch + 1}</span>
+                        <span style="font-style:italic; font-size:10px;">Empty Channel</span>
                     </div>
                 `;
             }

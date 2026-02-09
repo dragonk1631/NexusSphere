@@ -1,7 +1,7 @@
 import { BaseGame } from '../../core/BaseGame';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { MidiParser } from '../../core/audio/MidiParser';
-import type { ParsedMidi, GameTrack } from '../../core/audio/MidiParser';
+import type { ParsedMidi, GameTrack, GameNote } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
 
 const MIDI_FILES = [
@@ -118,10 +118,21 @@ const MIDI_FILES = [
     'assets/audio/midi/터키행진곡.mid',
 ];
 
+interface ChannelData {
+    channel: number;
+    notes: GameNote[];
+    trackNames: string[];
+    instrumentFamily: string;
+    isDrum: boolean;
+}
+
 export class EditorGame extends BaseGame {
     private midiData: ParsedMidi | null = null;
     private ui: EditorUI | null = null;
     private activeTracks: GameTrack[] = [];
+
+    // Channel-Based Data Structure (16 MIDI Channels)
+    private channelData: ChannelData[] = [];
 
     // Viewport State
     private scrollX = 0;
@@ -154,7 +165,7 @@ export class EditorGame extends BaseGame {
             (idx, soloed) => this.handleSolo(idx, soloed),
             (level) => { this.zoomX = level; },
             (percent) => {
-                const totalHeight = this.activeTracks.length * this.trackHeight;
+                const totalHeight = 16 * this.trackHeight; // Fixed 16 channels
                 this.scrollY = percent * Math.max(0, totalHeight - this.canvas.height);
                 this.ui?.syncTrackScroll(this.scrollY); // Fixed: Sync track view immediately
             },
@@ -187,6 +198,11 @@ export class EditorGame extends BaseGame {
                 this.canvas.width = container.clientWidth - 16;
                 this.canvas.height = container.clientHeight - 16;
                 this.updateTrackLayout();
+
+                // Clamp scrollY after resize to prevent out-of-bounds
+                const totalHeight = 16 * this.trackHeight;
+                const maxScroll = Math.max(0, totalHeight - this.canvas.height);
+                this.scrollY = Math.max(0, Math.min(maxScroll, this.scrollY));
             }).observe(container);
         }
 
@@ -294,6 +310,9 @@ export class EditorGame extends BaseGame {
             this.ui?.setBpm(this.midiData.bpm);
             this.ui?.setMidiMeta({ name: this.midiData.name });
 
+            // Channel-Based Data Aggregation
+            this.aggregateChannelData();
+
             this.updateTrackLayout();
             this.syncAudioStates();
 
@@ -309,17 +328,70 @@ export class EditorGame extends BaseGame {
         }
     }
 
+    /**
+     * Aggregate all notes by MIDI channel (0-15)
+     * Creates 16 fixed channel data structures
+     */
+    private aggregateChannelData(): void {
+        if (!this.midiData) return;
+
+        // Initialize 16 channels
+        this.channelData = Array.from({ length: 16 }, (_, i) => ({
+            channel: i,
+            notes: [],
+            trackNames: [],
+            instrumentFamily: i === 9 ? 'Drums' : 'Unknown',
+            isDrum: i === 9
+        }));
+
+        // Aggregate notes from all tracks by channel
+        this.midiData.tracks.forEach(track => {
+            const ch = track.channel;
+            if (ch >= 0 && ch < 16) {
+                // Add all notes from this track to the channel
+                this.channelData[ch].notes.push(...track.notes);
+
+                // Track which track names contribute to this channel
+                if (track.name && !this.channelData[ch].trackNames.includes(track.name)) {
+                    this.channelData[ch].trackNames.push(track.name);
+                }
+
+                // Update instrument family (prefer non-drum instruments for non-channel-9)
+                if (track.noteCount > 0) {
+                    if (ch === 9) {
+                        this.channelData[ch].instrumentFamily = 'Drums';
+                        this.channelData[ch].isDrum = true;
+                    } else if (this.channelData[ch].instrumentFamily === 'Unknown' ||
+                        this.channelData[ch].notes.length < track.notes.length) {
+                        this.channelData[ch].instrumentFamily = track.instrumentFamily;
+                    }
+                }
+            }
+        });
+
+        // Sort notes by time for each channel
+        this.channelData.forEach(ch => {
+            ch.notes.sort((a, b) => a.time - b.time);
+        });
+
+        console.log('[EditorGame] Channel data aggregated:', this.channelData.map(ch =>
+            `Ch${ch.channel}: ${ch.notes.length} notes, ${ch.trackNames.join(', ')}`
+        ));
+    }
+
     private updateTrackLayout(): void {
         const container = this.ui?.getTimelineContainer();
         if (container) {
             const h = container.clientHeight - 16;
-            this.trackHeight = Math.max(40, h / 10);
+            this.trackHeight = Math.floor(Math.max(40, h / 16)); // Fixed: Integer pixels to align with DOM
 
-            this.activeTracks.forEach((_, i) => {
-                if (!this.trackVolumes.has(i)) this.trackVolumes.set(i, 100);
-            });
+            // Initialize volumes for all 16 channels
+            for (let ch = 0; ch < 16; ch++) {
+                if (!this.trackVolumes.has(ch)) this.trackVolumes.set(ch, 100);
+            }
 
-            this.ui?.renderTrackHeaders(this.activeTracks, this.trackHeight, this.soloTrackIndices, this.trackVolumes);
+            // Render 16 fixed channel headers
+            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes);
         }
     }
 
@@ -336,44 +408,34 @@ export class EditorGame extends BaseGame {
 
         const hasSolo = this.soloTrackIndices.size > 0;
 
-        // Phase 1: Robust Muting with MIDI Panic
-        this.activeTracks.forEach((track, uiIndex) => {
-            let isAudible = false;
-            if (hasSolo) {
-                if (this.soloTrackIndices.has(uiIndex)) isAudible = true;
-            } else {
-                if (!this.mutedTrackIndices.has(uiIndex)) isAudible = true;
-            }
-
-            const wasAudible = !this.audioEngine.getSequencerTracks()[track.originalIndex]?.userMute;
-
-            // 만약 소리가 들리다가 꺼지는 경우, MIDI Panic을 즉시 호출하여 잔향 제거
-            if (wasAudible && !isAudible) {
-                this.audioEngine.stopChannelNotes(track.channel);
-            }
-
-            this.audioEngine.setTrackMute(track.originalIndex, !isAudible);
-
-            if (isAudible) {
-                const vol = this.trackVolumes.get(uiIndex) ?? 100;
-                this.audioEngine.setChannelVolume(track.channel, vol);
-            }
-        });
-
-        // 채널 레벨에서도 이중으로 뮤트 확인 (안정성 강화)
-        const audibleChannels = new Set<number>();
-        this.activeTracks.forEach((track, uiIndex) => {
-            const isAudible = hasSolo ? this.soloTrackIndices.has(uiIndex) : !this.mutedTrackIndices.has(uiIndex);
-            if (isAudible) audibleChannels.add(track.channel);
-        });
-
+        // Channel-Based Audio Control (Direct MIDI Channel Mute/Solo)
         for (let ch = 0; ch < 16; ch++) {
-            const shouldMute = !audibleChannels.has(ch);
-            this.audioEngine.setChannelMute(ch, shouldMute);
-            if (shouldMute) this.audioEngine.stopChannelNotes(ch);
+            let isAudible = false;
+
+            if (hasSolo) {
+                // Solo mode: only soloed channels are audible
+                isAudible = this.soloTrackIndices.has(ch);
+            } else {
+                // Normal mode: all non-muted channels are audible
+                isAudible = !this.mutedTrackIndices.has(ch);
+            }
+
+            // Apply channel mute
+            this.audioEngine.setChannelMute(ch, !isAudible);
+
+            // MIDI Panic on mute to prevent hanging notes
+            if (!isAudible) {
+                this.audioEngine.stopChannelNotes(ch);
+            }
+
+            // Apply channel volume if audible
+            if (isAudible) {
+                const vol = this.trackVolumes.get(ch) ?? 100;
+                this.audioEngine.setChannelVolume(ch, vol);
+            }
         }
 
-        console.log(`[Phase 1] Sync Complete. Solos: ${hasSolo}, Mutes: ${this.mutedTrackIndices.size}`);
+        console.log(`[Channel-Based Sync] Solos: ${hasSolo}, Active Channels: ${Array.from({ length: 16 }, (_, i) => i).filter(ch => hasSolo ? this.soloTrackIndices.has(ch) : !this.mutedTrackIndices.has(ch))}`);
     }
 
     private syncViewport(time: number, forceCenter: boolean = false): void {
@@ -461,13 +523,11 @@ export class EditorGame extends BaseGame {
         this.ui?.updateSoloUI(this.soloTrackIndices);
     }
 
-    private handleTrackVolume(index: number, volume: number): void {
-        this.trackVolumes.set(index, volume);
-        const track = this.activeTracks[index];
-        if (track) {
-            this.audioEngine.setChannelVolume(track.channel, volume);
-        }
-        this.ui?.updateTrackVolumeUI(index, volume);
+    private handleTrackVolume(channelIndex: number, volume: number): void {
+        this.trackVolumes.set(channelIndex, volume);
+        // Channel index IS the MIDI channel (0-15)
+        this.audioEngine.setChannelVolume(channelIndex, volume);
+        this.ui?.updateTrackVolumeUI(channelIndex, volume);
     }
 
 
@@ -479,11 +539,16 @@ export class EditorGame extends BaseGame {
         } else if (e.shiftKey) {
             // Horizontal scroll via shift+wheel could be added here
         } else {
-            const trackCount = this.activeTracks.length;
-            const totalHeight = trackCount * this.trackHeight;
+            // Fixed 16 channels for scroll calculation
+            const totalHeight = 16 * this.trackHeight;
             const maxScroll = Math.max(0, totalHeight - this.canvas.height);
             this.scrollY = Math.max(0, Math.min(maxScroll, this.scrollY + e.deltaY));
             this.ui?.syncTrackScroll(this.scrollY);
+
+            // Fixed: Sync scrollbar UI when scrolling with wheel
+            if (maxScroll > 1) {
+                this.ui?.syncControls(this.zoomX, this.scrollY / maxScroll);
+            }
         }
     }
 
@@ -581,10 +646,11 @@ export class EditorGame extends BaseGame {
         if (this.ui && this.midiData) {
             // Optimization: Throttled sync (only if playing or dragging)
             if (this.isPlaying || this.isDraggingPlayhead) {
-                this.ui.syncControls(
-                    this.zoomX,
-                    this.scrollY / (Math.max(1, this.activeTracks.length) * this.trackHeight)
-                );
+                const totalHeight = 16 * this.trackHeight;
+                const maxScroll = Math.max(1, totalHeight - this.canvas.height);
+                // Correct percentage: scrollY relative to scrollable range, not total height
+                const scrollPercent = this.scrollY / maxScroll;
+                this.ui.syncControls(this.zoomX, scrollPercent);
             }
         }
 
@@ -595,17 +661,17 @@ export class EditorGame extends BaseGame {
         this.ctx.fillStyle = '#0a0a0a';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        const trackCount = this.activeTracks.length;
-        const displayTrackCount = Math.max(10, trackCount);
-        const startTrack = Math.max(0, Math.floor(this.scrollY / this.trackHeight));
-        const endTrack = Math.min(displayTrackCount, startTrack + Math.ceil(this.canvas.height / this.trackHeight) + 1);
+        // Fixed 16 channels (0-15)
+        const channelCount = 16;
+        const startChannel = Math.max(0, Math.floor(this.scrollY / this.trackHeight));
+        const endChannel = Math.min(channelCount, startChannel + Math.ceil(this.canvas.height / this.trackHeight) + 1);
 
         // Zebra Striping on Canvas
-        for (let i = startTrack; i < endTrack; i++) {
-            const trackTop = i * this.trackHeight - this.scrollY;
+        for (let i = startChannel; i < endChannel; i++) {
+            const channelTop = i * this.trackHeight - this.scrollY;
             if (i % 2 === 1) {
                 this.ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-                this.ctx.fillRect(0, trackTop, this.canvas.width, this.trackHeight);
+                this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
             }
         }
 
@@ -634,17 +700,17 @@ export class EditorGame extends BaseGame {
         // Horizontal Grid Lines
         this.ctx.strokeStyle = '#1a1a1a';
         this.ctx.beginPath();
-        for (let i = startTrack; i <= endTrack; i++) {
+        for (let i = startChannel; i <= endChannel; i++) {
             const y = i * this.trackHeight - this.scrollY;
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.canvas.width, y);
         }
         this.ctx.stroke();
 
-        // Notes & Solo Highlighting
-        const getTrackNoteColor = (track: GameTrack) => {
-            if (track.isDrum) return '#bdc3c7'; // Silver/Grey
-            const family = track.instrumentFamily.toLowerCase();
+        // Notes & Solo Highlighting (Channel-Based)
+        const getChannelNoteColor = (channel: any) => {
+            if (channel.isDrum) return '#bdc3c7'; // Silver/Grey
+            const family = channel.instrumentFamily.toLowerCase();
             if (family.includes('piano')) return '#ffcc00'; // Yellow
             if (family.includes('guitar') || family.includes('bass')) return '#3498db'; // Azure
             if (family.includes('strings') || family.includes('ensemble')) return '#a29bfe'; // Purple
@@ -653,21 +719,23 @@ export class EditorGame extends BaseGame {
             return '#00d1b2'; // Teal
         };
 
-        for (let i = startTrack; i < endTrack; i++) {
-            const track = this.activeTracks[i];
-            const trackTop = i * this.trackHeight - this.scrollY;
-            const isSoloed = this.soloTrackIndices.has(i);
+        for (let ch = startChannel; ch < endChannel; ch++) {
+            const channelInfo = this.channelData[ch];
+            if (!channelInfo) continue;
+
+            const channelTop = ch * this.trackHeight - this.scrollY;
+            const isSoloed = this.soloTrackIndices.has(ch);
 
             const hasAnySolo = this.soloTrackIndices.size > 0;
 
-            // Highlight Soloed Track Row
+            // Highlight Soloed Channel Row
             if (isSoloed) {
                 this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-                this.ctx.fillRect(0, trackTop, this.canvas.width, this.trackHeight);
+                this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
 
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                 this.ctx.lineWidth = 1;
-                this.ctx.strokeRect(0, trackTop, this.canvas.width, this.trackHeight);
+                this.ctx.strokeRect(0, channelTop, this.canvas.width, this.trackHeight);
             }
 
             // Alpha logic: Solo takes priority
@@ -677,10 +745,10 @@ export class EditorGame extends BaseGame {
                 this.ctx.globalAlpha = 1.0;
             }
 
-            if (track) {
-                const noteColor = getTrackNoteColor(track);
+            if (channelInfo.notes.length > 0) {
+                const noteColor = getChannelNoteColor(channelInfo);
 
-                track.notes.forEach(note => {
+                channelInfo.notes.forEach((note: GameNote) => {
                     const x = (note.time * 1000) * this.zoomX - this.scrollX;
                     const w = Math.max(4, (note.duration * 1000) * this.zoomX);
                     if (x + w < 0 || x > this.canvas.width) return;
@@ -688,7 +756,7 @@ export class EditorGame extends BaseGame {
                     // Visualization
                     const effectiveMidi = Math.min(108, Math.max(21, note.midi));
                     const pitchNorm = 1 - (Math.min(96, Math.max(36, effectiveMidi)) - 36) / 60;
-                    const y = trackTop + 6 + pitchNorm * (this.trackHeight - 16);
+                    const y = channelTop + 6 + pitchNorm * (this.trackHeight - 16);
                     const h = 5;
 
                     this.ctx.fillStyle = noteColor;
