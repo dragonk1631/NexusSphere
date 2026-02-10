@@ -1,7 +1,7 @@
 import { BaseGame } from '../../core/BaseGame';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { MidiParser } from '../../core/audio/MidiParser';
-import type { ParsedMidi, GameTrack, GameNote } from '../../core/audio/MidiParser';
+import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
 
 const MIDI_FILES = [
@@ -129,7 +129,6 @@ interface ChannelData {
 export class EditorGame extends BaseGame {
     private midiData: ParsedMidi | null = null;
     private ui: EditorUI | null = null;
-    private activeTracks: GameTrack[] = [];
 
     // Channel-Based Data Structure (16 MIDI Channels)
     private channelData: ChannelData[] = [];
@@ -281,29 +280,8 @@ export class EditorGame extends BaseGame {
             this.midiData = await parser.parse(buffer);
             await this.audioEngine.loadMidi(buffer);
 
-            // Phase 1: Sequencer-First Synchronization
-            // UI 트랙 리스트를 시퀀서의 실제 트랙 상태와 강제로 동기화합니다.
-            const seqTracks = this.audioEngine.getSequencerTracks();
-            if (seqTracks.length > 0) {
-                // 시퀀서 정보를 바탕으로 activeTracks 재구성
-                this.activeTracks = seqTracks.map((st: any, i: number) => {
-                    // 기존 파서 데이터에서 대응하는 트랙 정보 찾기 (이름이나 노트 수 기반)
-                    const parsedTrack = this.midiData?.tracks.find(t => t.channel === st.channel && t.name === st.name)
-                        || this.midiData?.tracks[i];
-
-                    return {
-                        name: st.name || parsedTrack?.name || `Track ${i}`,
-                        channel: st.channel,
-                        originalIndex: i, // 시퀀서 인덱스를 직접 사용
-                        isDrum: st.channel === 9 || (st.name && st.name.toLowerCase().includes('drum')),
-                        instrumentFamily: parsedTrack?.instrumentFamily || 'Unknown',
-                        noteCount: parsedTrack?.noteCount || 0,
-                        notes: parsedTrack?.notes || []
-                    };
-                });
-            } else {
-                this.activeTracks = this.midiData.tracks.filter(t => t.noteCount > 0);
-            }
+            // Phase 1: Sequencer-First Synchronization - (REMOVED: activeTracks unused)
+            // The sequencer logic is now handled via channelData aggregation below.
 
             this.originalBpm = this.midiData.bpm;
             this.ui?.setSelectedMidi(name);
