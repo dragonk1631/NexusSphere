@@ -15,12 +15,12 @@ export class ScoreManager {
         return ScoreManager.instance;
     }
 
-    public addHit(): void {
+    public addHit(baseScore: number = 100): void {
         this.currentCombo++;
         if (this.currentCombo > this.maxCombo) {
             this.maxCombo = this.currentCombo;
         }
-        this.score += 100 * (1 + Math.floor(this.currentCombo / 10) * 0.1);
+        this.score += baseScore * (1 + Math.min(this.currentCombo, 50) * 0.1);
         this.save();
     }
 
