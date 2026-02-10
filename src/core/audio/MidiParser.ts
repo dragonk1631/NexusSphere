@@ -20,6 +20,7 @@ export interface GameTrack {
     isDrum: boolean;
     instrumentFamily: string;
     noteCount: number;
+    hasAutomation: boolean;
     notes: GameNote[];
 }
 
@@ -49,6 +50,10 @@ export class MidiParser {
             const isDrum = track.channel === 9 ||
                 track.name.toLowerCase().includes('drum') ||
                 track.name.toLowerCase().includes('percussion');
+
+            // check for Automation (Control Changes)
+            // If a track has CC events, it controls audio parameters.
+            const hasAutomation = Object.keys(track.controlChanges).length > 0;
 
             // Instrument Family Analysis (based on Program Change events)
             let instrumentFamily = 'Unknown';
@@ -88,6 +93,7 @@ export class MidiParser {
                 isDrum,
                 instrumentFamily,
                 noteCount: notes.length,
+                hasAutomation, // New Flag
                 notes: notes.sort((a, b) => a.time - b.time)
             };
         });

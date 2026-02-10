@@ -299,6 +299,23 @@ export class EditorGame extends BaseGame {
             this.midiData = await parser.parse(buffer);
             await this.audioEngine.loadMidi(buffer);
 
+            // DEBUG: Analyze Track Structure for "Pollution"
+            console.groupCollapsed(`[MIDI Analysis] ${name}`);
+            this.midiData.tracks.forEach((t, i) => {
+                const isConductor = i === 0;
+                const hasNotes = t.noteCount > 0;
+                const hasAuto = t.hasAutomation;
+
+                // Check if Track 0 has Channel Events (Pollution)
+                let status = 'Normal';
+                if (isConductor && (hasNotes || hasAuto)) status = 'POLLUTED CONDUCTOR (Leak Risk!)';
+                else if (!hasNotes && hasAuto) status = 'Automation Only';
+                else if (!hasNotes && !hasAuto) status = 'Empty/Meta';
+
+                console.log(`Track ${i} [Ch ${t.channel}]: ${t.name} | Notes: ${t.noteCount} | Auto: ${hasAuto} | Status: ${status}`);
+            });
+            console.groupEnd();
+
             // Reset ALL Audio & View Settings ON LOAD
             this.soloTrackIndices.clear();
             this.mutedTrackIndices.clear();
@@ -475,42 +492,67 @@ export class EditorGame extends BaseGame {
         const hasSolo = this.soloTrackIndices.size > 0;
         const visualMutedIndices = new Set<number>();
 
-        // Channel-Based Audio Control (Direct MIDI Channel Mute/Solo)
+        // 1. Channel-Based Audio Control
         for (let ch = 0; ch < 16; ch++) {
             let isAudible = false;
 
             if (hasSolo) {
-                // Solo mode: only soloed channels are audible
                 isAudible = this.soloTrackIndices.has(ch);
             } else {
-                // Normal mode: all non-muted channels are audible
                 isAudible = !this.mutedTrackIndices.has(ch);
             }
 
-            // Determine effective mute state for UI
             if (!isAudible) {
                 visualMutedIndices.add(ch);
             }
 
-            // Apply channel mute
+            // Still keep channel mute as a backup/reinforcement
             this.audioEngine.setChannelMute(ch, !isAudible);
 
-            // MIDI Panic on mute to prevent hanging notes
             if (!isAudible) {
                 this.audioEngine.stopChannelNotes(ch);
             }
 
-            // Apply channel volume if audible
             if (isAudible) {
                 const vol = this.trackVolumes.get(ch) ?? 100;
                 this.audioEngine.setChannelVolume(ch, vol);
             }
         }
 
+        // 2. Track-Level Muting (The Robust Fix)
+        // We iterate through ALL tracks and "Disable" them if they belong to a muted channel.
+        // This stops the sequencer from processing events -> No more volume automation leaks.
+        this.midiData.tracks.forEach((track, trackIndex) => {
+            // CRITICAL: Protection for Conductor/Meta Tracks
+            // 1. ALWAYS protect Track 0 (Standard Conductor Track with Tempo/TimeSig).
+            //    Muting Track 0 usually kills the Tempo Map.
+            // 2. Protect tracks with 0 notes AND NO AUTOMATION (Pure Meta Tracks).
+            //    If a track has 0 notes BUT has Automation (CC), it is an "Automation Track".
+            //    We MUST allow invalidating it to prevent volume leakage.
+            const isConductorTrack = (trackIndex === 0) || (track.noteCount === 0 && !track.hasAutomation);
+
+            if (isConductorTrack) {
+                // Always Enable Conductor
+                this.audioEngine.setTrackMute(trackIndex, false);
+                return;
+            }
+
+            // Normal Logic for Note Tracks & Automation Tracks
+            let isTrackAudible = false;
+            if (hasSolo) {
+                isTrackAudible = this.soloTrackIndices.has(track.channel);
+            } else {
+                isTrackAudible = !this.mutedTrackIndices.has(track.channel);
+            }
+
+            // "Mute" here means "Disable Track in Sequencer"
+            this.audioEngine.setTrackMute(trackIndex, !isTrackAudible);
+        });
+
         // Update UI Mute Buttons based on effective state
         this.ui?.updateMuteUI(visualMutedIndices);
 
-        console.log(`[Channel-Based Sync] Solos: ${hasSolo}, Visual Mutes: ${visualMutedIndices.size}`);
+        console.log(`[Audio Sync] Solos: ${hasSolo}, Mutes: ${visualMutedIndices.size}, Tracks Updated: ${this.midiData.tracks.length}`);
     }
 
     private syncViewport(time: number, forceCenter: boolean = false): void {
@@ -708,10 +750,15 @@ export class EditorGame extends BaseGame {
         this.ui?.updateProgress(currentTime, duration);
 
         // Fix: Force sync audio states for the first few frames of playback
-        // This ensures that any MIDI "Reset All Controllers" or initial CC events at Tick 0
-        // do not override our mute/solo settings.
         if (this.isPlaying && performance.now() - this.playStartTime < 200) {
             this.syncAudioStates();
+        }
+
+        // BRUTE FORCE PROTECTION: Enforce Mute State Check Every Frame
+        // This fights against "Polluted Conductor Tracks" that send Volume Automation (CC7)
+        // even when we think the channel should be muted.
+        if (this.isPlaying) {
+            this.enforceMuteCompliance();
         }
 
         if (!this.isDraggingPlayhead && currentTime >= duration && this.isPlaying) {
@@ -748,6 +795,32 @@ export class EditorGame extends BaseGame {
         }
 
         this.render();
+    }
+
+    /**
+     * Emnforce Mute Compliance (The "Hammer" Fix)
+     * Checks all channels every frame. If a channel is supposed to be muted,
+     * absolutely FORCE it to be silent, overriding any leaked MIDI events.
+     */
+    private enforceMuteCompliance(): void {
+        const hasSolo = this.soloTrackIndices.size > 0;
+
+        for (let ch = 0; ch < 16; ch++) {
+            let isAudible = false;
+
+            if (hasSolo) {
+                isAudible = this.soloTrackIndices.has(ch);
+            } else {
+                isAudible = !this.mutedTrackIndices.has(ch);
+            }
+
+            if (!isAudible) {
+                // FORCE SILENCE (Optimized)
+                // Use overrideChannelVolume to only send CC7=0, identifying the intent as "Maintenance"
+                // rather than "Panic". This avoids sending CC 120/123 every frame.
+                this.audioEngine.overrideChannelVolume(ch, 0);
+            }
+        }
     }
 
     private render(): void {

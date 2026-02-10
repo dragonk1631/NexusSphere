@@ -188,6 +188,15 @@ export class CoreAudioEngine {
     }
 
     /**
+     * 경량화된 볼륨 강제 설정 (매 프레임 호출용)
+     * MIDI Panic(CC 120/123)을 호출하지 않고 오직 트랙 볼륨(CC 7)만 덮어씌웁니다.
+     */
+    public overrideChannelVolume(channel: number, volume: number): void {
+        if (!this.synth || !this.isReady) return;
+        this.synth.controllerChange(channel, 7, volume);
+    }
+
+    /**
      * 시퀀서 레벨에서 채널을 완전 차단하거나 해제합니다.
      * MIDI 볼륨(CC 7) 이벤트에 영향을 받지 않는 가장 강력한 차단 방식입니다.
      */
