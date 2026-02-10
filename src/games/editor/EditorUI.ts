@@ -299,6 +299,37 @@ export class EditorUI {
         if (selector) selector.value = filename;
     }
 
+    public resetControls(): void {
+        const setVal = (id: string, val: number) => {
+            const el = document.getElementById(id) as HTMLInputElement;
+            if (el) el.value = val.toString();
+        };
+
+        const setText = (id: string, text: string) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
+
+        // Master Volume (Default 80)
+        setVal('master-volume', 80);
+
+        // EQ (Default 0)
+        this.container?.querySelectorAll('.eq-shared').forEach(el => (el as HTMLInputElement).value = '0');
+        setText('eq-pop-val-low', '0dB');
+        setText('eq-pop-val-mid', '0dB');
+        setText('eq-pop-val-high', '0dB');
+
+        // FX (Default 30/20)
+        this.container?.querySelectorAll('.fx-shared[data-type="reverb"]').forEach(el => (el as HTMLInputElement).value = '30');
+        setText('fx-pop-val-reverb', '30%');
+
+        this.container?.querySelectorAll('.fx-shared[data-type="chorus"]').forEach(el => (el as HTMLInputElement).value = '20');
+        setText('fx-pop-val-chorus', '20%');
+
+        // Reset scroll/zoom
+        this.syncControls(0.1, 0);
+    }
+
     public syncControls(zoom: number, scrollYPercent: number): void {
         const zoomS = document.getElementById('zoom-slider') as HTMLInputElement;
         if (zoomS && document.activeElement !== zoomS) {
@@ -359,7 +390,7 @@ export class EditorUI {
         }
     }
 
-    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>): void {
+    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>, mutedIndices: Set<number>, channelColors: string[]): void {
         if (!this.trackListPanel) return;
         this.trackListPanel.innerHTML = '';
 
@@ -382,9 +413,11 @@ export class EditorUI {
             const div = document.createElement('div');
             div.className = `track-header zebra-${(ch % 2) + 1}`;
 
+            const color = channelColors[ch] || '#888';
+
             // Ensure height is an exact integer to prevent sub-pixel desync with canvas
             const h = Math.floor(channelHeight);
-            div.style.cssText = `height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden;`;
+            div.style.cssText = `height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden; border-left: 4px solid ${color};`;
 
             if (channelInfo && channelInfo.notes.length > 0) {
                 if (soloIndices.has(ch)) div.classList.add('solo-active');
@@ -406,9 +439,9 @@ export class EditorUI {
 
                 div.innerHTML = `
                     <div style="display:flex; align-items:center; width:100%; height:100%; padding: 0 5px; gap:8px; overflow:hidden;">
-                        <span class="track-number">${ch + 1}</span>
+                        <span class="track-number" style="color:${color}; font-weight:bold;">${ch + 1}</span>
                         
-                        <div class="track-icon-badge" style="width:30px; height:30px; display:flex; align-items:center; justify-content:center; background:#111; border:1px solid #333; border-radius:4px; font-size:16px;">
+                        <div class="track-icon-badge" style="width:30px; height:30px; display:flex; align-items:center; justify-content:center; background:${color}22; border:1px solid ${color}44; border-radius:4px; font-size:16px;">
                             ${getIcon(channelInfo)}
                         </div>
 
@@ -416,17 +449,17 @@ export class EditorUI {
                             <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:11px; margin-bottom:0px;">
                                 ${trackNamesStr}
                             </div>
-                            <div class="track-meta" style="font-size:9px; color:#00ffcc; white-space:nowrap; opacity:0.6; font-family:monospace;">
+                            <div class="track-meta" style="font-size:9px; color:${color}; white-space:nowrap; opacity:0.8; font-family:monospace;">
                                 CH ${ch + 1} • ${channelInfo.instrumentFamily} • ${channelInfo.notes.length} notes
                             </div>
                         </div>
 
 
-                            <button class="track-btn-m" title="Mute">M</button>
+                            <button class="track-btn-m ${mutedIndices.has(ch) ? 'active' : ''}" title="Mute">M</button>
                             <button class="track-btn-s ${soloIndices.has(ch) ? 'active' : ''}" title="Solo">S</button>
                             
                             <div class="slider-container" style="flex: 1; min-width: 80px; margin-left: 10px;">
-                                <input type="range" class="track-volume-slider" min="0" max="127" value="${channelVolume}" data-index="${ch}" style="width: 100%; --value: ${(channelVolume / 127) * 100}%">
+                                <input type="range" class="track-volume-slider" min="0" max="127" value="${channelVolume}" data-index="${ch}" style="width: 100%; --value: ${(channelVolume / 127) * 100}%; --thumb-color: ${color}">
                             </div>
                         </div>
                     </div>
@@ -488,6 +521,15 @@ export class EditorUI {
             h.classList.toggle('solo-active', isActive);
             const sBtn = h.querySelector('.track-btn-s');
             sBtn?.classList.toggle('active', isActive);
+        });
+    }
+
+    public updateMuteUI(mutedIndices: Set<number>): void {
+        const headers = this.trackListPanel?.querySelectorAll('.track-header');
+        headers?.forEach((h, i) => {
+            const isActive = mutedIndices.has(i);
+            const mBtn = h.querySelector('.track-btn-m');
+            mBtn?.classList.toggle('active', isActive);
         });
     }
 

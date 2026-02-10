@@ -193,11 +193,17 @@ export class CoreAudioEngine {
      */
     public setChannelMute(channel: number, mute: boolean): void {
         if (!this.sequencer) return;
-        // SpessaSynth Sequencer API check: muteChannel handles playback isolation
+
+        // 1. Try Synth-level mute (strongest, blocks audio generation)
+        if (this.synth && typeof this.synth.setChannelMute === 'function') {
+            this.synth.setChannelMute(channel, mute);
+        }
+
+        // 2. Try Sequencer-level mute (blocks event sending)
         if (typeof this.sequencer.muteChannel === 'function') {
             this.sequencer.muteChannel(channel, mute);
         } else {
-            // Fallback: CC 7 Volume 0 if muteChannel is unavailable
+            // 3. Fallback: CC 7 Volume 0 if muteChannel is unavailable
             this.setChannelVolume(channel, mute ? 0 : 100);
         }
     }
@@ -242,11 +248,10 @@ export class CoreAudioEngine {
         const allMuted = channelTracks.every((t: any) => t.userMute || t.disabled);
 
         // 신디사이저 레벨에서 해당 채널 차단 (가장 강력함)
-        if (typeof this.synth.setChannelMute === 'function') {
+        if (this.synth && typeof this.synth.setChannelMute === 'function') {
             this.synth.setChannelMute(channel, allMuted);
         } else {
-            // Fallback: CC 7 Volume 0
-            this.setChannelVolume(channel, allMuted ? 0 : 100);
+            this.setChannelMute(channel, allMuted); // Re-use robust method
         }
     }
 

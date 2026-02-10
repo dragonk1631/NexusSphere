@@ -126,6 +126,25 @@ interface ChannelData {
     isDrum: boolean;
 }
 
+const CHANNEL_COLORS = [
+    '#FF5252', // Ch 1 Red
+    '#FF4081', // Ch 2 Pink
+    '#E040FB', // Ch 3 Purple
+    '#7C4DFF', // Ch 4 Deep Purple
+    '#536DFE', // Ch 5 Indigo
+    '#448AFF', // Ch 6 Blue
+    '#40C4FF', // Ch 7 Light Blue
+    '#18FFFF', // Ch 8 Cyan
+    '#64FFDA', // Ch 9 Teal
+    '#69F0AE', // Ch 10 Green
+    '#B2FF59', // Ch 11 Light Green
+    '#EEFF41', // Ch 12 Lime
+    '#FFFF00', // Ch 13 Yellow
+    '#FFD740', // Ch 14 Amber
+    '#FFAB40', // Ch 15 Orange
+    '#FF6E40'  // Ch 16 Deep Orange
+];
+
 export class EditorGame extends BaseGame {
     private midiData: ParsedMidi | null = null;
     private ui: EditorUI | null = null;
@@ -280,8 +299,27 @@ export class EditorGame extends BaseGame {
             this.midiData = await parser.parse(buffer);
             await this.audioEngine.loadMidi(buffer);
 
-            // Phase 1: Sequencer-First Synchronization - (REMOVED: activeTracks unused)
-            // The sequencer logic is now handled via channelData aggregation below.
+            // Reset ALL Audio & View Settings ON LOAD
+            this.soloTrackIndices.clear();
+            this.mutedTrackIndices.clear();
+            this.trackVolumes.clear();
+            this.scrollX = 0;
+            this.scrollY = 0;
+            this.isPlaying = false;
+
+            // Reset EQ & FX to Defaults
+            this.audioEngine.setEQ('low', 0);
+            this.audioEngine.setEQ('mid', 0);
+            this.audioEngine.setEQ('high', 0);
+            this.audioEngine.setReverbDepth(0.3);
+            this.audioEngine.setChorusDepth(0.2);
+            this.audioEngine.setMasterVolume(80);
+
+            // Reset UI
+            this.ui?.setPlayState(false);
+            this.ui?.resetControls();
+
+            this.audioEngine.stop(); // Ensure engine is stopped
 
             this.originalBpm = this.midiData.bpm;
             this.ui?.setSelectedMidi(name);
@@ -291,16 +329,10 @@ export class EditorGame extends BaseGame {
             // Channel-Based Data Aggregation
             this.aggregateChannelData();
 
+            // Render Layout with RESET state
             this.updateTrackLayout();
             this.syncAudioStates();
 
-            this.scrollX = 0;
-            this.scrollY = 0;
-            this.isPlaying = false;
-            this.soloTrackIndices.clear();
-            this.mutedTrackIndices.clear();
-            this.audioEngine.stop();
-            this.ui?.setPlayState(false);
         } catch (err) {
             console.error(`[EditorGame] Failed to load MIDI: ${err}`);
         }
@@ -409,15 +441,23 @@ export class EditorGame extends BaseGame {
         const container = this.ui?.getTimelineContainer();
         if (container) {
             const h = container.clientHeight - 16;
-            this.trackHeight = Math.floor(Math.max(40, h / 16)); // Fixed: Integer pixels to align with DOM
+            this.trackHeight = Math.floor(Math.max(40, h / 16));
 
             // Initialize volumes for all 16 channels
             for (let ch = 0; ch < 16; ch++) {
                 if (!this.trackVolumes.has(ch)) this.trackVolumes.set(ch, 100);
             }
 
-            // Render 16 fixed channel headers
-            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes);
+            // Calculate effective mutes for initial render
+            const hasSolo = this.soloTrackIndices.size > 0;
+            const effectiveMutes = new Set<number>();
+            for (let ch = 0; ch < 16; ch++) {
+                const isAudible = hasSolo ? this.soloTrackIndices.has(ch) : !this.mutedTrackIndices.has(ch);
+                if (!isAudible) effectiveMutes.add(ch);
+            }
+
+            // Render 16 fixed channel headers with COLORS
+            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes, effectiveMutes, CHANNEL_COLORS);
         }
     }
 
@@ -433,6 +473,7 @@ export class EditorGame extends BaseGame {
         if (!this.audioEngine || !this.midiData) return;
 
         const hasSolo = this.soloTrackIndices.size > 0;
+        const visualMutedIndices = new Set<number>();
 
         // Channel-Based Audio Control (Direct MIDI Channel Mute/Solo)
         for (let ch = 0; ch < 16; ch++) {
@@ -444,6 +485,11 @@ export class EditorGame extends BaseGame {
             } else {
                 // Normal mode: all non-muted channels are audible
                 isAudible = !this.mutedTrackIndices.has(ch);
+            }
+
+            // Determine effective mute state for UI
+            if (!isAudible) {
+                visualMutedIndices.add(ch);
             }
 
             // Apply channel mute
@@ -461,7 +507,10 @@ export class EditorGame extends BaseGame {
             }
         }
 
-        console.log(`[Channel-Based Sync] Solos: ${hasSolo}, Active Channels: ${Array.from({ length: 16 }, (_, i) => i).filter(ch => hasSolo ? this.soloTrackIndices.has(ch) : !this.mutedTrackIndices.has(ch))}`);
+        // Update UI Mute Buttons based on effective state
+        this.ui?.updateMuteUI(visualMutedIndices);
+
+        console.log(`[Channel-Based Sync] Solos: ${hasSolo}, Visual Mutes: ${visualMutedIndices.size}`);
     }
 
     private syncViewport(time: number, forceCenter: boolean = false): void {
@@ -496,6 +545,9 @@ export class EditorGame extends BaseGame {
                     this.audioEngine.resume();
                     this.audioEngine.play();
                     this.isPlaying = true;
+                    this.playStartTime = performance.now(); // Start sync window
+                    // Fix: Re-apply Solo/Mute states after starting playback
+                    this.syncAudioStates();
                 }
                 this.ui?.setPlayState(this.isPlaying);
                 break;
@@ -557,8 +609,6 @@ export class EditorGame extends BaseGame {
         this.ui?.updateTrackVolumeUI(channelIndex, volume);
     }
 
-
-
     private handleWheel(e: WheelEvent): void {
         e.preventDefault();
         if (e.ctrlKey) {
@@ -579,8 +629,11 @@ export class EditorGame extends BaseGame {
         }
     }
 
+    private wasPlaying = false; // Add state to track playback before drag
+
     private handleMouseDown(e: MouseEvent | TouchEvent): void {
         this.isDraggingPlayhead = true;
+        this.wasPlaying = this.isPlaying; // Store previous state
         this.audioEngine.pause();
         this.ui?.setPlayState(false);
         this.isPlaying = false;
@@ -602,12 +655,15 @@ export class EditorGame extends BaseGame {
             this.audioEngine.seek(this.scrubTime);
             this.syncAudioStates();
 
-            // 2. Play on release as requested
-            this.audioEngine.resume().then(() => {
-                this.audioEngine.play();
-                this.isPlaying = true;
-                this.ui?.setPlayState(true);
-            });
+            // Fix: Only resume if it was playing before drag
+            if (this.wasPlaying) {
+                this.audioEngine.resume().then(() => {
+                    this.audioEngine.play();
+                    this.isPlaying = true;
+                    this.playStartTime = performance.now(); // Start sync window
+                    this.ui?.setPlayState(true);
+                });
+            }
         }
     }
 
@@ -644,10 +700,19 @@ export class EditorGame extends BaseGame {
         }
     }
 
+    private playStartTime: number = 0;
+
     public update(_delta: number): void {
         const duration = this.audioEngine.duration;
         const currentTime = this.isDraggingPlayhead ? this.scrubTime : this.audioEngine.currentTime;
         this.ui?.updateProgress(currentTime, duration);
+
+        // Fix: Force sync audio states for the first few frames of playback
+        // This ensures that any MIDI "Reset All Controllers" or initial CC events at Tick 0
+        // do not override our mute/solo settings.
+        if (this.isPlaying && performance.now() - this.playStartTime < 200) {
+            this.syncAudioStates();
+        }
 
         if (!this.isDraggingPlayhead && currentTime >= duration && this.isPlaying) {
             if (this.isLooping) {
@@ -694,16 +759,23 @@ export class EditorGame extends BaseGame {
         const startChannel = Math.max(0, Math.floor(this.scrollY / this.trackHeight));
         const endChannel = Math.min(channelCount, startChannel + Math.ceil(this.canvas.height / this.trackHeight) + 1);
 
-        // Zebra Striping on Canvas
+        // Colored Striping on Canvas
         for (let i = startChannel; i < endChannel; i++) {
             const channelTop = i * this.trackHeight - this.scrollY;
+
+            // Channel Background Tint
+            this.ctx.fillStyle = CHANNEL_COLORS[i];
+            this.ctx.globalAlpha = 0.05; // Faint tint
+            this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
+            this.ctx.globalAlpha = 1.0;
+
+            // Zebra slightly darkens/lightens
             if (i % 2 === 1) {
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
                 this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
             }
         }
 
-        // Grid
         // Grid (Tick-based)
         const ppq = this.midiData?.ppq || 480;
         const pixelsPerProcessedTick = this.zoomX;
@@ -742,33 +814,22 @@ export class EditorGame extends BaseGame {
         }
         this.ctx.stroke();
 
-        // Notes & Solo Highlighting (Channel-Based)
-        const getChannelNoteColor = (channel: any) => {
-            if (channel.isDrum) return '#bdc3c7'; // Silver/Grey
-            const family = channel.instrumentFamily.toLowerCase();
-            if (family.includes('piano')) return '#ffcc00'; // Yellow
-            if (family.includes('guitar') || family.includes('bass')) return '#3498db'; // Azure
-            if (family.includes('strings') || family.includes('ensemble')) return '#a29bfe'; // Purple
-            if (family.includes('brass') || family.includes('reed') || family.includes('pipe')) return '#e17055'; // Coral
-            if (family.includes('synth')) return '#55efc4'; // Mint
-            return '#00d1b2'; // Teal
-        };
-
         for (let ch = startChannel; ch < endChannel; ch++) {
             const channelInfo = this.channelData[ch];
             if (!channelInfo) continue;
 
             const channelTop = ch * this.trackHeight - this.scrollY;
             const isSoloed = this.soloTrackIndices.has(ch);
-
             const hasAnySolo = this.soloTrackIndices.size > 0;
 
             // Highlight Soloed Channel Row
             if (isSoloed) {
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                this.ctx.fillStyle = CHANNEL_COLORS[ch];
+                this.ctx.globalAlpha = 0.1;
                 this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
+                this.ctx.globalAlpha = 1.0;
 
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.strokeStyle = CHANNEL_COLORS[ch];
                 this.ctx.lineWidth = 1;
                 this.ctx.strokeRect(0, channelTop, this.canvas.width, this.trackHeight);
             }
@@ -781,7 +842,8 @@ export class EditorGame extends BaseGame {
             }
 
             if (channelInfo.notes.length > 0) {
-                const noteColor = getChannelNoteColor(channelInfo);
+                // Use Channel Color
+                const noteColor = CHANNEL_COLORS[ch];
 
                 channelInfo.notes.forEach((note: GameNote) => {
                     const x = note.ticks * this.zoomX - this.scrollX;
@@ -797,6 +859,7 @@ export class EditorGame extends BaseGame {
                     this.ctx.fillStyle = noteColor;
                     this.ctx.fillRect(x, y, w, h);
 
+                    // Lighter top edge for 3D effect
                     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                     this.ctx.fillRect(x, y, w, 1);
                 });
