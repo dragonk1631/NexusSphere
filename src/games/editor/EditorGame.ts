@@ -763,15 +763,18 @@ export class EditorGame extends BaseGame {
         for (let i = startChannel; i < endChannel; i++) {
             const channelTop = i * this.trackHeight - this.scrollY;
 
-            // Channel Background Tint
+            // Channel Background Tint - FAINT
             this.ctx.fillStyle = CHANNEL_COLORS[i];
-            this.ctx.globalAlpha = 0.05; // Faint tint
+            this.ctx.globalAlpha = 0.03;
             this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
             this.ctx.globalAlpha = 1.0;
 
-            // Zebra slightly darkens/lightens
+            // Zebra: High Contrast Grayscale
             if (i % 2 === 1) {
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)'; // More visible light
+                this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
+            } else {
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Much darker even rows
                 this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
             }
         }
@@ -804,8 +807,9 @@ export class EditorGame extends BaseGame {
             }
         }
 
-        // Horizontal Grid Lines
-        this.ctx.strokeStyle = '#1a1a1a';
+        // Horizontal Separator Lines (High Contrast)
+        this.ctx.strokeStyle = '#555'; // Brighter
+        this.ctx.lineWidth = 2;        // Thicker
         this.ctx.beginPath();
         for (let i = startChannel; i <= endChannel; i++) {
             const y = i * this.trackHeight - this.scrollY;

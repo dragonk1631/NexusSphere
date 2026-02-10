@@ -417,7 +417,11 @@ export class EditorUI {
 
             // Ensure height is an exact integer to prevent sub-pixel desync with canvas
             const h = Math.floor(channelHeight);
-            div.style.cssText = `height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden; border-left: 4px solid ${color};`;
+
+            // Match Canvas Zebra (High Contrast)
+            const bg = (ch % 2 === 1) ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.5)';
+
+            div.style.cssText = `height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden; border-left: 4px solid ${color}; border-bottom: 2px solid #555; background: ${bg};`;
 
             if (channelInfo && channelInfo.notes.length > 0) {
                 if (soloIndices.has(ch)) div.classList.add('solo-active');
