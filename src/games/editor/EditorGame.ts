@@ -771,7 +771,7 @@ export class EditorGame extends BaseGame {
 
             // Zebra: High Contrast Grayscale
             if (i % 2 === 1) {
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)'; // More visible light
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; // Increased to 0.1
                 this.ctx.fillRect(0, channelTop, this.canvas.width, this.trackHeight);
             } else {
                 this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Much darker even rows
@@ -809,7 +809,7 @@ export class EditorGame extends BaseGame {
 
         // Horizontal Separator Lines (High Contrast)
         this.ctx.strokeStyle = '#555'; // Brighter
-        this.ctx.lineWidth = 2;        // Thicker
+        this.ctx.lineWidth = 1.2;      // Adjusted to 1.2
         this.ctx.beginPath();
         for (let i = startChannel; i <= endChannel; i++) {
             const y = i * this.trackHeight - this.scrollY;
