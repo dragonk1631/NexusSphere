@@ -22,6 +22,9 @@ export const ASSET_PATHS = {
         SOUNDFONTS: {
             DEFAULT: 'assets/audio/soundfonts/default.sf2',
         }
+    },
+    DATA: {
+        BEATMAPS: 'assets/data/beatmaps/',
     }
 } as const;
 
