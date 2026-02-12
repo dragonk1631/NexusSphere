@@ -4,6 +4,10 @@ export class ScoreManager {
     private maxCombo: number = 0;
     private score: number = 0;
 
+    // Health System
+    private health: number = 100;
+    private maxHealth: number = 100;
+
     private constructor() {
         this.load();
     }
@@ -21,7 +25,30 @@ export class ScoreManager {
             this.maxCombo = this.currentCombo;
         }
         this.score += baseScore * (1 + Math.min(this.currentCombo, 50) * 0.1);
+        this.heal(2); // Heal slightly on hit
         this.save();
+    }
+
+    public damage(amount: number): void {
+        this.health = Math.max(0, this.health - amount);
+        this.save();
+    }
+
+    public heal(amount: number): void {
+        this.health = Math.min(this.maxHealth, this.health + amount);
+        this.save();
+    }
+
+    public isDead(): boolean {
+        return this.health <= 0;
+    }
+
+    public getHealth(): number {
+        return this.health;
+    }
+
+    public getMaxHealth(): number {
+        return this.maxHealth;
     }
 
     public resetCombo(): void {
@@ -29,8 +56,20 @@ export class ScoreManager {
         this.save();
     }
 
+    public reset(): void {
+        this.score = 0;
+        this.currentCombo = 0;
+        this.maxCombo = 0;
+        this.health = this.maxHealth;
+        this.save();
+    }
+
     public getCombo(): number {
         return this.currentCombo;
+    }
+
+    public getMaxCombo(): number {
+        return this.maxCombo;
     }
 
     public getScore(): number {
@@ -51,5 +90,7 @@ export class ScoreManager {
         if (combo) this.currentCombo = parseInt(combo);
         if (score) this.score = parseFloat(score);
         if (maxCombo) this.maxCombo = parseInt(maxCombo);
+        this.health = this.maxHealth; // Always reset health on load/init for now
     }
 }
+

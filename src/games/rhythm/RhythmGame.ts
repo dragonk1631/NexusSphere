@@ -16,6 +16,14 @@ const GameState = {
 } as const;
 type GameState = typeof GameState[keyof typeof GameState];
 
+interface Explosion {
+    x: number;
+    y: number;
+    radius: number;
+    alpha: number;
+    color: string;
+}
+
 interface SongEntry {
     name: string;
     url: string;
@@ -42,10 +50,16 @@ export class RhythmGame extends BaseGame {
     private previewTimeout: ReturnType<typeof setTimeout> | null = null;
     private speedOptions = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
     private selectedSpeedIndex = 3; // Default 2.0x
+    private touchStartY = 0;
+    private menuAnimationTimer = 0;
+    private particles: { x: number, y: number, speed: number, alpha: number, size: number }[] = [];
+    private explosions: Explosion[] = [];
+
 
     // Settings
     private scrollSpeed = 2.0; // Controlled by Menu
     private laneCount = 6;
+    private endGameTimer = 0;
 
     // Perspective Configuration
     private readonly horizonYRatio = 0.0; // Horizon at top (Maximize Highway)
@@ -75,6 +89,9 @@ export class RhythmGame extends BaseGame {
         // Bind input methods properly
         this.handleKeyDown = this.handleKeyDown.bind(this);
         this.handleKeyUp = this.handleKeyUp.bind(this);
+        this.handleTouchStart = this.handleTouchStart.bind(this);
+        this.handleTouchMove = this.handleTouchMove.bind(this);
+        this.handleTouchEnd = this.handleTouchEnd.bind(this);
 
         // Load Sci-Fi Font
         const fontLink = document.createElement('link');
@@ -92,7 +109,8 @@ export class RhythmGame extends BaseGame {
         this.hitLineY = height * this.hitLineYRatio;
 
         // Calculate lane widths based on screen width
-        const totalHighwayWidthBottom = Math.min(800, width * 1.0);
+        // Mobile Optimization: Use up to 95% of width on small screens, max 800px
+        const totalHighwayWidthBottom = Math.min(800, width * 0.95);
         const totalHighwayWidthTop = totalHighwayWidthBottom * 0.2;
 
         this.laneBottomWidth = totalHighwayWidthBottom / this.laneCount;
@@ -106,14 +124,38 @@ export class RhythmGame extends BaseGame {
         this.resize(this.canvas.width, this.canvas.height);
 
         this.scoreManager = ScoreManager.getInstance();
+        this.scoreManager.reset(); // Reset score/health on game start attempt (though init is called once, we might need to call reset on start)
 
         // Input Handling
         window.addEventListener('keydown', this.handleKeyDown);
         window.addEventListener('keyup', this.handleKeyUp);
 
         // Mobile Touch Support
-        this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-        this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+        this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+        this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+        this.canvas.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+
+        // Create Initial Particles
+        for (let i = 0; i < 30; i++) {
+            this.particles.push({
+                x: Math.random() * this.canvas.width,
+                y: Math.random() * this.canvas.height,
+                speed: 0.2 + Math.random() * 0.5,
+                alpha: Math.random(),
+                size: Math.random() * 2
+            });
+        }
+
+        // Start Menu Animation Loop
+
+        const menuLoop = () => {
+            if (this.currentState === GameState.MENU) {
+                this.menuAnimationTimer += 0.01;
+                this.render(0);
+                requestAnimationFrame(menuLoop);
+            }
+        };
+        requestAnimationFrame(menuLoop);
 
 
 
@@ -136,10 +178,20 @@ export class RhythmGame extends BaseGame {
     }
 
     // Touch Handling
+    // Touch Handling
     private handleTouchStart(e: TouchEvent): void {
         e.preventDefault();
-        // Touch logic not implemented for menu yet, just valid for game
-        if (this.currentState === GameState.MENU) return;
+
+        if (this.currentState === GameState.MENU) {
+            this.handleMenuTouch(e);
+            return;
+        }
+
+        if (this.currentState === GameState.RESULT) {
+            this.currentState = GameState.MENU;
+            this.scoreManager?.reset();
+            return;
+        }
 
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
@@ -148,6 +200,103 @@ export class RhythmGame extends BaseGame {
             if (lane !== -1 && !this.keyState[lane]) {
                 this.keyState[lane] = true;
                 this.checkHit(lane);
+            }
+        }
+    }
+
+    private handleMenuTouch(e: TouchEvent): void {
+        const touch = e.changedTouches[0]; // Handle single touch for menu
+        this.touchStartY = touch.clientY;
+        const x = touch.clientX;
+        const y = touch.clientY;
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+
+        // Layout Config (Must match renderMenu)
+        const padding = 20;
+        const leftPanelWidth = width * 0.45;
+        const rightPanelX = width * 0.5;
+
+        // Panel 2: Info & Speed
+        const visPanelH = height * 0.55;
+        const visY = padding;
+        const infoY = visY + visPanelH + padding;
+        const infoH = height - infoY - padding;
+        const speedControlY = infoY + infoH - 50;
+
+        // 1. Check Start Button (Bottom Left Corner of Left Panel in new design)
+        // Let's make the start button a large area at the bottom right of the screen
+        // In new design: "START SYSTEM" is bottom right
+        if (x > width * 0.7 && y > height * 0.85) {
+            // Stop preview before starting
+            if (this.previewTimeout) clearTimeout(this.previewTimeout);
+            this.audioEngine.stop();
+
+            this.currentState = GameState.PLAYING;
+            this.scoreManager?.reset(); // Reset score for new game
+            this.load().then(() => this.create());
+            return;
+        }
+
+        // 2. Check Speed Controls (Bottom Left Panel)
+        // Hitbox around the "SPEED" text and arrows
+        if (x < leftPanelWidth && y > speedControlY - 20 && y < speedControlY + 60) {
+            const centerX = padding + (leftPanelWidth - 2 * padding) * 0.5;
+            if (x < centerX) {
+                // Slower
+                this.selectedSpeedIndex = Math.max(0, this.selectedSpeedIndex - 1);
+            } else {
+                // Faster
+                this.selectedSpeedIndex = Math.min(this.speedOptions.length - 1, this.selectedSpeedIndex + 1);
+            }
+            this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
+            return;
+        }
+
+        // 3. Check Song List (Right Panel)
+        const listY = padding;
+        const listH = height - 2 * padding;
+        const listInnerY = listY + 10;
+        const itemHeight = (listH - 20) / 7;
+        const visibleCount = 7;
+
+        if (x > rightPanelX + 10 && x < width - padding - 10 && y > listInnerY && y < listInnerY + (itemHeight * visibleCount)) {
+
+            const relativeY = y - listInnerY;
+            const clickedIndexOffset = Math.floor(relativeY / itemHeight);
+
+            // Determine start index based on scroll (centering selected but clamped)
+            let startIndex = this.selectedSongIndex - Math.floor(visibleCount / 2);
+            if (startIndex < 0) startIndex = 0;
+            if (startIndex > this.songList.length - visibleCount) startIndex = Math.max(0, this.songList.length - visibleCount);
+
+            if (clickedIndexOffset >= 0 && clickedIndexOffset < visibleCount) {
+                const targetIndex = startIndex + clickedIndexOffset;
+                if (targetIndex >= 0 && targetIndex < this.songList.length) {
+                    this.selectedSongIndex = targetIndex;
+                    this.playPreview();
+                }
+            }
+        }
+    }
+
+    private handleTouchMove(e: TouchEvent): void {
+        e.preventDefault();
+        if (this.currentState === GameState.MENU) {
+            const touch = e.changedTouches[0];
+            const diffY = touch.clientY - this.touchStartY;
+            const threshold = 50; // Pixel threshold for swipe action
+
+            if (Math.abs(diffY) > threshold) {
+                if (diffY > 0) {
+                    // Swipe Down -> List moves down (Selection Up)
+                    this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
+                } else {
+                    // Swipe Up -> List moves up (Selection Down)
+                    this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+                }
+                this.touchStartY = touch.clientY; // Reset start to allow continuous scrolling
+                this.playPreview();
             }
         }
     }
@@ -164,11 +313,18 @@ export class RhythmGame extends BaseGame {
     }
 
     private getLaneFromTouch(x: number, y: number): number {
-        // Simple Touch Zones: Bottom 30% of screen, divided horizontally
-        if (y < this.canvas.height * 0.7) return -1;
+        // Perspective-based Touch Zones
+        // We match visual lanes at the bottom (hit line) area
+        const totalWidthBottom = this.laneBottomWidth * this.laneCount;
+        const startX = (this.canvas.width - totalWidthBottom) / 2;
 
-        const zoneWidth = this.canvas.width / this.laneCount;
-        const lane = Math.floor(x / zoneWidth);
+        if (y < this.canvas.height * 0.5) return -1; // Ignore top half
+
+        // Map x to lane index based on bottom width (widest point)
+        // This is a simplification but works well for the "near hit line" interaction
+        if (x < startX || x > startX + totalWidthBottom) return -1;
+
+        const lane = Math.floor((x - startX) / this.laneBottomWidth);
         return Math.max(0, Math.min(lane, this.laneCount - 1));
     }
 
@@ -178,6 +334,14 @@ export class RhythmGame extends BaseGame {
     private handleKeyDown(e: KeyboardEvent): void {
         if (this.currentState === GameState.MENU) {
             this.handleMenuInput(e);
+            return;
+        }
+
+        if (this.currentState === GameState.RESULT) {
+            if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+                this.currentState = GameState.MENU;
+                this.scoreManager?.reset();
+            }
             return;
         }
 
@@ -236,9 +400,11 @@ export class RhythmGame extends BaseGame {
             console.log(`Hit Lane ${lane}: ${judgment} (${Math.round(diff)}ms)`);
             targetNote.isProcessed = true;
 
-            // TODO: Trigger Visual Feedback (Explosion/Text)
+            // Explosion Effect
+            this.triggerExplosion(targetNote.lane, targetNote.time * 1000);
+
         } else {
-            // Miss logic
+            // Miss logic (Clicked but no note - valid to ignore or punish? Usually ignore in mobile rhythm games unless strict)
         }
     }
 
@@ -326,6 +492,7 @@ export class RhythmGame extends BaseGame {
         await this.audioEngine.resume();
         this.audioEngine.play();
         this.isPlaying = true;
+        this.endGameTimer = 0;
     }
 
     public update(_delta: number): void {
@@ -334,17 +501,76 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
+        if (this.currentState === GameState.RESULT) {
+            this.render(0);
+            // Handle Result Input elsewhere
+            return;
+        }
+
         if (!this.isPlaying) return;
         const currentTime = this.audioEngine.currentTime * 1000;
 
+        // Check for Missed Notes
+
+        this.visualNotes.forEach(note => {
+            if (!note.isProcessed && note.time * 1000 < currentTime - 200) {
+                // Note passed hit window
+                this.onMiss(note);
+            }
+        });
+
+        // Update Explosions
+        this.explosions.forEach(exp => {
+            exp.radius += 2;
+            exp.alpha -= 0.05;
+        });
+        this.explosions = this.explosions.filter(exp => exp.alpha > 0);
+
         this.render(currentTime);
 
-        if (this.midiData && currentTime > this.midiData.duration * 1000 + 2000) {
-            this.isPlaying = false;
-            // Transition to RESULT state in future
-            this.currentState = GameState.MENU; // Reset to Menu for now
-            console.log("[RhythmGame] Finished.");
+        // Check Game Over
+        if (this.scoreManager?.isDead()) {
+            this.finishGame();
+            return;
         }
+
+        if (this.midiData) {
+            const durationMs = this.midiData.duration * 1000;
+            if (currentTime >= durationMs - 100) {
+                this.endGameTimer += _delta;
+            }
+
+            if (this.endGameTimer > 2000) {
+                this.finishGame();
+            }
+        }
+    }
+
+    private onMiss(note: VisualNote): void {
+        note.isProcessed = true;
+        this.scoreManager?.resetCombo();
+        this.scoreManager?.damage(10); // Damage on miss
+        console.log("MISS!");
+    }
+
+    private triggerExplosion(lane: number, _time: number): void {
+        const x = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
+        const colorSet = (lane === 1 || lane === 4) ? this.COLORS.NOTE_Right : this.COLORS.NOTE_Left;
+
+        this.explosions.push({
+            x: x,
+            y: this.hitLineY,
+            radius: 20,
+            alpha: 1.0,
+            color: colorSet[1]
+        });
+    }
+
+    private finishGame(): void {
+        this.isPlaying = false;
+        this.currentState = GameState.RESULT;
+        this.audioEngine.stop();
+        console.log("[RhythmGame] Finished. Showing Results.");
     }
 
     private render(currentTime: number): void {
@@ -352,6 +578,23 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState === GameState.MENU) {
             this.renderMenu();
+            return;
+        }
+
+        if (this.currentState === GameState.RESULT) {
+            this.renderResult();
+            return;
+        }
+
+        // 0. Mobile Orientation Check
+        if (this.canvas.height > this.canvas.width) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("Please Rotate Device ⟳", this.canvas.width / 2, this.canvas.height / 2);
             return;
         }
 
@@ -390,7 +633,10 @@ export class RhythmGame extends BaseGame {
         // 4. Render Notes
         this.renderNotes(currentTime);
 
-        // 5. HUD
+        // 5. Explosions
+        this.renderExplosions();
+
+        // 6. HUD
         this.renderHUD();
     }
 
@@ -470,6 +716,96 @@ export class RhythmGame extends BaseGame {
                 ctx.fill();
             }
         }
+    }
+
+    private renderResult(): void {
+        const ctx = this.ctx;
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        const score = this.scoreManager?.getScore() || 0;
+        const maxCombo = this.scoreManager?.getMaxCombo() || 0;
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(0, 0, width, height);
+
+        // Title
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 60px "Orbitron"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#00ffff';
+        ctx.fillText("RESULTS", width / 2, height * 0.15);
+        ctx.shadowBlur = 0;
+
+        // Panel
+        const panelW = Math.min(600, width * 0.8);
+        const panelH = height * 0.5;
+        const panelX = (width - panelW) / 2;
+        const panelY = height * 0.25;
+
+        this.drawHolographicRect(panelX, panelY, panelW, panelH, '#00ffff');
+
+        // Stats
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+
+        ctx.font = '30px "Orbitron"';
+        ctx.fillText("SCORE", width / 2, panelY + 60);
+        ctx.font = 'bold 50px "Orbitron"';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#fff';
+        ctx.fillText(Math.floor(score).toLocaleString(), width / 2, panelY + 110);
+        ctx.shadowBlur = 0;
+
+        ctx.font = '30px "Orbitron"';
+        ctx.fillText("MAX COMBO", width / 2, panelY + 180);
+        ctx.font = 'bold 50px "Orbitron"';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#00ff00';
+        ctx.fillText(maxCombo.toString(), width / 2, panelY + 230);
+        ctx.shadowBlur = 0;
+
+        // Grade
+        let grade = 'F';
+        if (score > 100000) grade = 'S';
+        else if (score > 80000) grade = 'A';
+        else if (score > 50000) grade = 'B';
+        else if (score > 10000) grade = 'C';
+
+        ctx.font = 'bold 100px "Orbitron"';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = grade === 'F' ? '#ff0000' : (grade === 'S' ? '#00ffff' : '#00ff00');
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fillText(grade, width / 2, panelY + 350);
+        ctx.shadowBlur = 0;
+
+        // Prompt
+        const pulse = 0.5 + Math.sin(Date.now() * 0.005) * 0.5;
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.7})`;
+        ctx.font = '20px "Orbitron"';
+        ctx.fillText("TAP OR PRESS ENTER TO CONTINUE", width / 2, height * 0.85);
+    }
+
+    private renderExplosions(): void {
+        const ctx = this.ctx;
+        this.explosions.forEach(exp => {
+            ctx.save();
+            ctx.globalAlpha = exp.alpha;
+            ctx.fillStyle = exp.color;
+            ctx.beginPath();
+            ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Outer ring
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(exp.x, exp.y, exp.radius * 1.2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        });
     }
 
     private renderHitZone(): void {
@@ -583,14 +919,24 @@ export class RhythmGame extends BaseGame {
         ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 
-        const hpPercent = 1.0;
+        const maxHp = this.scoreManager.getMaxHealth();
+        const currentHp = this.scoreManager.getHealth();
+        const hpPercent = currentHp / maxHp;
+
         const fillW = (hpWidth - 20) * hpPercent;
-        const hpGrad = ctx.createLinearGradient(hpX, hpY, hpX + hpWidth, hpY);
-        hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(0.5, '#ffff00'); hpGrad.addColorStop(1, '#00ff00');
-        ctx.fillStyle = hpGrad;
-        ctx.beginPath();
-        ctx.moveTo(hpX + 2, hpY + 2); ctx.lineTo(hpX + fillW, hpY + 2); ctx.lineTo(hpX + fillW - 20 * hpPercent, hpY + hpHeight - 2); ctx.lineTo(hpX + 2, hpY + hpHeight - 2);
-        ctx.fill();
+        if (fillW > 0) {
+            const hpGrad = ctx.createLinearGradient(hpX, hpY, hpX + hpWidth, hpY);
+            if (hpPercent < 0.3) {
+                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(1, '#880000');
+            } else {
+                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(0.5, '#ffff00'); hpGrad.addColorStop(1, '#00ff00');
+            }
+
+            ctx.fillStyle = hpGrad;
+            ctx.beginPath();
+            ctx.moveTo(hpX + 2, hpY + 2); ctx.lineTo(hpX + fillW, hpY + 2); ctx.lineTo(hpX + fillW - 20 * hpPercent, hpY + hpHeight - 2); ctx.lineTo(hpX + 2, hpY + hpHeight - 2);
+            ctx.fill();
+        }
         ctx.fillStyle = '#fff'; ctx.font = 'italic bold 20px "Orbitron"'; ctx.fillText("HP", hpX + 5, hpY + 40);
 
         // Score
@@ -614,154 +960,218 @@ export class RhythmGame extends BaseGame {
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;
+        const time = this.menuAnimationTimer;
 
-        // 1. Background (Darker, High-Tech)
-        ctx.fillStyle = '#0a0a10'; // Very dark blue-gray
-        ctx.fillRect(0, 0, width, height);
+        // 1. Atmosphere & Background
+        this.drawAtmosphere(width, height);
 
-        // Grid overlay
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.05)';
+        // Digital Grid Floor (Subtle)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.08)';
         ctx.lineWidth = 1;
-        const gridSize = 50;
         ctx.beginPath();
-        for (let x = 0; x < width; x += gridSize) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
-        for (let y = 0; y < height; y += gridSize) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+        const horizon = height * 0.4;
+        const gridSize = 100;
+
+        // Vertical lines
+        for (let x = 0; x <= width; x += gridSize) {
+            ctx.moveTo(x, horizon);
+            ctx.lineTo((x - width / 2) * 4 + width / 2, height);
+        }
+        // Horizontal lines (moving)
+        for (let y = horizon; y < height; y += gridSize * 0.5) {
+            const progress = (y - horizon) / (height - horizon);
+            const yPos = horizon + Math.pow(progress, 2) * (height - horizon);
+            ctx.moveTo(0, yPos);
+            ctx.lineTo(width, yPos);
+        }
         ctx.stroke();
+        ctx.restore();
 
-        // Layout Constants
-        const splitX = width * 0.4;
 
-        // --- LEFT PANEL (Info) ---
-        // Album Art Box
-        const artSize = 300;
-        const artX = (splitX - artSize) / 2;
-        const artY = 100;
-
-        // Procedural Album Art (Gradient based on name)
+        // Current Song Info
         const currentSong = this.songList[this.selectedSongIndex];
-        const artColor = this.getSeededColor(currentSong.name);
+        const seedColor = this.getSeededColor(currentSong.name);
+        const bpm = currentSong.bpm || 120;
 
-        const artGrad = ctx.createLinearGradient(artX, artY, artX + artSize, artY + artSize);
-        artGrad.addColorStop(0, artColor);
-        artGrad.addColorStop(1, '#000');
+        // Layout Config
+        const padding = 20;
+        const leftPanelWidth = width * 0.45;
+        const rightPanelX = width * 0.5;
 
-        ctx.fillStyle = artGrad;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = artColor;
-        ctx.fillRect(artX, artY, artSize, artSize);
-        ctx.shadowBlur = 0;
+        // Panel 1: Visualizer (Top-Left)
+        const visPanelH = height * 0.55;
+        const visY = padding;
 
-        // Art Border
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(artX, artY, artSize, artSize);
+        // Panel 2: Info & Speed (Bottom-Left)
+        const infoY = visY + visPanelH + padding;
+        const infoH = height - infoY - padding;
 
-        // Title Info
+        // Panel 3: Song List (Right)
+        const listY = padding;
+        const listH = height - 2 * padding;
+
+        // Draw Holographic Panels
+        this.drawHolographicRect(padding, visY, leftPanelWidth - 2 * padding, visPanelH, '#00ffff'); // Cyan
+        this.drawHolographicRect(padding, infoY, leftPanelWidth - 2 * padding, infoH, '#ff00ff');   // Magenta
+        this.drawHolographicRect(rightPanelX, listY, width - rightPanelX - padding, listH, '#ffffff'); // White
+
+        // Tech Labels
+        this.drawTechLabel("VISUAL_CORE.SYS", padding + 10, visY + 15);
+        this.drawTechLabel("DATA_STREAM.LOG", rightPanelX + 10, listY + 15);
+        this.drawTechLabel("SYS.CONFIG", padding + 10, infoY + 15);
+
+        // --- CONTENT: VISUALIZER ---
+        const cx = padding + (leftPanelWidth - 2 * padding) * 0.5;
+        const cy = visY + visPanelH * 0.5;
+        const radius = Math.min(leftPanelWidth, visPanelH) * 0.35;
+
+        // 1. Data Ring Visualizer
+        this.drawVisualizer(cx, cy, radius, time, seedColor, bpm);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // Kinetic Typography: Title
+        ctx.rotate(-0.05 * Math.sin(time * 0.5)); // Gentle sway
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#fff';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = seedColor;
 
-        // Title
+        // Main Title
+        const titleSize = Math.min(40, radius * 0.5);
+        ctx.fillStyle = '#fff';
+        ctx.font = `900 ${titleSize}px "Orbitron"`;
+        ctx.fillText(currentSong.name.toUpperCase(), 0, 0);
+
+        // Glitch Effect Layer
+        if (Math.random() > 0.95) {
+            ctx.fillStyle = '#0ff';
+            ctx.fillText(currentSong.name.toUpperCase(), 2, 0);
+            ctx.fillStyle = '#f0f';
+            ctx.fillText(currentSong.name.toUpperCase(), -2, 0);
+        }
+
+        ctx.restore();
+
+
+        // --- CONTENT: INFO & SPEED ---
+        const statsCenterX = padding + (leftPanelWidth - 2 * padding) * 0.5;
+        const statsTopY = infoY + 40;
+
+        ctx.textAlign = 'center';
+
+        // BPM Display
+        this.drawTechLabel("BEATS_PER_MINUTE", statsCenterX, statsTopY - 25, 'center');
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 32px "Orbitron"';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#0ff';
+        ctx.fillText(`${bpm}`, statsCenterX, statsTopY + 5);
+
+        // Duration Display
+        this.drawTechLabel("TRACK_DURATION", statsCenterX, statsTopY + 35, 'center');
+        ctx.fillStyle = '#ccc';
+        ctx.font = '20px "Orbitron"';
+        ctx.shadowBlur = 0;
+        const durMin = Math.floor((currentSong.duration || 120) / 60);
+        const durSec = ((currentSong.duration || 120) % 60).toString().padStart(2, '0');
+        ctx.fillText(`${durMin}:${durSec}`, statsCenterX, statsTopY + 60);
+
+        // Speed Control
+        const speedControlY = infoY + infoH - 40;
+
+        ctx.fillStyle = '#ff00ff';
+        ctx.font = 'bold 40px "Orbitron"';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#f0f';
+        ctx.fillText(`x${this.scrollSpeed.toFixed(1)}`, statsCenterX, speedControlY);
+
+        this.drawTechLabel("SCROLL_SPEED_MOD", statsCenterX, speedControlY - 35, 'center');
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '14px "Orbitron"';
+        ctx.shadowBlur = 0;
+        ctx.fillText("◀  ADJUST  ▶", statsCenterX, speedControlY + 25);
+
+
+        // --- CONTENT: DATA LIST ---
+        const listInnerX = rightPanelX + 10; // Padding inside panel
+        const listInnerY = listY + 10;
+        const listInnerW = width - rightPanelX - padding - 20;
+        const itemHeight = (listH - 20) / 7; // Exact fit for 7 items
+        const visibleCount = 7;
+
+        ctx.save();
+        ctx.translate(listInnerX, listInnerY);
+
+        // Clamp start index to always show full list if possible
+        let visibleStartIndex = this.selectedSongIndex - Math.floor(visibleCount / 2);
+        if (visibleStartIndex < 0) visibleStartIndex = 0;
+        if (visibleStartIndex > this.songList.length - visibleCount) visibleStartIndex = Math.max(0, this.songList.length - visibleCount);
+
+        for (let i = 0; i < visibleCount; i++) {
+            const index = visibleStartIndex + i;
+            // Ensure we render empty slots if songList is smaller than visibleCount (optional, or just stop)
+            if (index >= this.songList.length) break;
+
+            const song = this.songList[index];
+            const y = i * itemHeight;
+            const isSelected = (index === this.selectedSongIndex);
+
+            // Table Row Panel
+            ctx.save();
+            ctx.translate(0, y);
+
+            if (isSelected) {
+                // Active Holographic Highlight
+                this.drawHolographicRect(0, 0, listInnerW, itemHeight - 2, '#00ffff', true);
+            } else {
+                // Inactive Glass Row
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(0, 0, listInnerW, itemHeight - 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(0, 0, listInnerW, itemHeight - 2);
+            }
+
+            // Index Number
+            ctx.save();
+            ctx.fillStyle = isSelected ? '#00ffff' : '#444';
+            ctx.font = 'bold 16px "Orbitron"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText((index + 1).toString().padStart(2, '0'), 30, (itemHeight - 2) / 2);
+            ctx.restore();
+
+            // Title
+            ctx.save();
+            ctx.fillStyle = isSelected ? '#ffffff' : '#888';
+            ctx.font = isSelected ? 'bold 20px "Orbitron"' : '18px "Orbitron"';
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = isSelected ? 10 : 0;
+            ctx.shadowColor = '#00ffff';
+            ctx.fillText(song.name, 60, (itemHeight - 2) / 2 + 5);
+            ctx.restore();
+
+            if (isSelected) {
+                this.drawTechLabel("<< ACTIVE", listInnerW - 20, (itemHeight - 2) / 2 + 3, 'right');
+            }
+            ctx.restore();
+        }
+        ctx.restore();
+
+        // Footer Prompts
+        const footerY = height - 30;
+        ctx.textAlign = 'right';
+        // Pulse between Cyan and White
+        const pulse = 0.5 + Math.sin(time * 5) * 0.5;
+        ctx.fillStyle = `rgba(${255 * (1 - pulse)}, 255, 255, ${0.5 + pulse * 0.5})`;
         ctx.font = 'bold 28px "Orbitron"';
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#00ffff';
-        ctx.fillText(currentSong.name, splitX / 2, artY + artSize + 50);
-        ctx.shadowBlur = 0;
-
-        // BPM / Difficulty (Real)
-        const bpm = currentSong.bpm || 120;
-        const noteCount = currentSong.noteCount || 0;
-        const duration = currentSong.duration || 60; // Avoid division by zero
-
-        const nps = noteCount / duration;
-        // Map NPS to 1-5 Stars (Adjusted for total MIDI notes, divisor 4)
-        const difficulty = Math.min(5, Math.max(1, Math.floor(nps / 4) + 1));
-        const stars = '★'.repeat(difficulty) + '☆'.repeat(5 - difficulty);
-
-        ctx.fillStyle = '#aaa';
-        ctx.font = '20px "Orbitron"';
-        // Display NPS with 1 decimal place
-        ctx.fillText(`BPM: ${bpm}   NPS: ${nps.toFixed(1)}   DIFF: ${stars}`, splitX / 2, artY + artSize + 85);
-
-        // Speed Setting
-        const speedY = artY + artSize + 140;
-        ctx.fillStyle = '#ff0099'; // Pink Highlight
-        ctx.font = 'bold 36px "Orbitron"';
-        ctx.fillText(`SPEED ${this.scrollSpeed.toFixed(1)}`, splitX / 2, speedY);
-
-        // Navigation Hints
-        ctx.fillStyle = '#666';
-        ctx.font = '14px "Orbitron"';
-        ctx.fillText("◀ SPEED ▶", splitX / 2, speedY + 25);
-
-
-        // --- RIGHT PANEL (Song List) ---
-        // Panel Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(splitX, 0, width - splitX, height);
-
-        // List Logic
-        const listX = splitX + 50;
-        const itemHeight = 80;
-        const visibleCount = 7;
-        const halfVisible = Math.floor(visibleCount / 2);
-
-        let startIndex = this.selectedSongIndex - halfVisible;
-        if (startIndex < 0) startIndex = 0;
-        if (startIndex > this.songList.length - visibleCount) startIndex = Math.max(0, this.songList.length - visibleCount);
-        const endIndex = Math.min(this.songList.length, startIndex + visibleCount);
-
-        ctx.textAlign = 'left';
-
-        for (let i = startIndex; i < endIndex; i++) {
-            const song = this.songList[i];
-            const relativeIndex = i - startIndex;
-            const y = 100 + relativeIndex * itemHeight; // Start Y at 100
-
-            // Selection Highlight
-            if (i === this.selectedSongIndex) {
-                // Gradient Bar
-                const barGrad = ctx.createLinearGradient(splitX, y, width, y);
-                barGrad.addColorStop(0, 'rgba(0, 255, 255, 0.5)'); // Cyan
-                barGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
-                ctx.fillStyle = barGrad;
-                ctx.fillRect(splitX, y, width - splitX, itemHeight);
-
-                // Active Text
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 24px "Orbitron"';
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#00ffff';
-                ctx.fillText(song.name, listX + 20, y + itemHeight / 2 + 8); // +20 indent
-                ctx.shadowBlur = 0;
-
-                // Indicator
-                ctx.fillStyle = '#00ffff';
-                ctx.fillRect(splitX, y, 5, itemHeight);
-            } else {
-                // Inactive Text
-                ctx.fillStyle = '#666';
-                ctx.font = '20px "Orbitron"';
-                ctx.fillText(song.name, listX, y + itemHeight / 2 + 8);
-            }
-        }
-
-        // Scroll Bar (Simple)
-        const scrollBarX = width - 10;
-        const scrollBarHeight = (visibleCount / this.songList.length) * (height - 200);
-        const scrollBarY = 100 + (startIndex / this.songList.length) * (height - 200);
-
-        ctx.fillStyle = '#333';
-        ctx.fillRect(scrollBarX, 100, 5, height - 200); // Track
-        ctx.fillStyle = '#00ffff';
-        ctx.fillRect(scrollBarX, scrollBarY, 5, scrollBarHeight); // Thumb
-
-        // Start Prompt (Bottom Right)
-        if (Math.floor(Date.now() / 500) % 2 === 0) {
-            ctx.textAlign = 'right';
-            ctx.fillStyle = '#ffff00';
-            ctx.font = 'bold 24px "Orbitron"';
-            ctx.fillText("[ENTER] START", width - 50, height - 50);
-        }
+        ctx.fillText("INITIALIZE SYSTEM [START]", width - 40, footerY);
     }
 
     private handleMenuInput(e: KeyboardEvent): void {
@@ -824,8 +1234,150 @@ export class RhythmGame extends BaseGame {
         for (let i = 0; i < str.length; i++) {
             hash = str.charCodeAt(i) + ((hash << 5) - hash);
         }
-        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-        return '#' + '00000'.substring(0, 6 - c.length) + c;
+        // HSL Color Generaton for "Cool Sci-Fi" Theme
+        // Hue: 160 (Cyan) to 320 (Magenta) -> Avoids Yellow/Orange/Brown
+        const hue = 160 + Math.abs(hash % 160);
+        const saturation = 80 + Math.abs(hash % 20); // 80-100%
+        const lightness = 60 + Math.abs(hash % 20);  // 60-80%
+        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+
+    // --- High-Fidelity Rendering Helpers ---
+
+    private drawAtmosphere(width: number, height: number): void {
+        const ctx = this.ctx;
+
+        // 1. Deep Vignette Background
+        const grad = ctx.createRadialGradient(width / 2, height / 2, height * 0.2, width / 2, height / 2, height * 0.8);
+        grad.addColorStop(0, '#0a0a1a'); // Deep Blue-Black center
+        grad.addColorStop(1, '#000000'); // Pure Black edges
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+
+        // 2. Floating Particles
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        this.particles.forEach(p => {
+            p.y -= p.speed;
+            p.x += Math.sin(this.menuAnimationTimer * 0.5 + p.y * 0.01) * 0.2;
+
+            if (p.y < 0) {
+                p.y = height;
+                p.x = Math.random() * width;
+            }
+
+            const flicker = Math.random() > 0.95 ? 0 : p.alpha;
+            ctx.globalAlpha = flicker;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.globalAlpha = 1.0;
+    }
+
+    private drawHolographicRect(x: number, y: number, w: number, h: number, color: string, isActive: boolean = false): void {
+        const ctx = this.ctx;
+        ctx.save();
+
+        // Glass Background (Gradient)
+        const grad = ctx.createLinearGradient(x, y, x, y + h);
+        grad.addColorStop(0, isActive ? 'rgba(0, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)');
+        grad.addColorStop(1, isActive ? 'rgba(0, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.4)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, w, h);
+
+        // Scanline Texture Overlay
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        for (let i = y; i < y + h; i += 4) {
+            ctx.fillRect(x, i, w, 1);
+        }
+
+        // Glow Border
+        ctx.strokeStyle = isActive ? '#00ffff' : color;
+        ctx.lineWidth = isActive ? 2 : 1;
+        ctx.shadowBlur = isActive ? 15 : 5;
+        ctx.shadowColor = isActive ? '#00ffff' : color;
+        ctx.strokeRect(x, y, w, h);
+
+        // Tech Corners (Accents)
+        const cornerSize = 10;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fff';
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        // Top-Left
+        ctx.moveTo(x, y + cornerSize); ctx.lineTo(x, y); ctx.lineTo(x + cornerSize, y);
+        // Bottom-Right
+        ctx.moveTo(x + w, y + h - cornerSize); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - cornerSize, y + h);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    private drawTechLabel(text: string, x: number, y: number, align: CanvasTextAlign = 'left'): void {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '10px "Orbitron"';
+        ctx.textAlign = align;
+        ctx.fillText(text, x, y);
+        ctx.restore();
+    }
+
+    private drawVisualizer(cx: number, cy: number, radius: number, time: number, color: string, bpm: number): void {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // Layer 1: Base Ring (Counter-Rotating)
+        ctx.rotate(time * -0.2);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([10, 20]);
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 1.2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Layer 2: Main Data Ring (Pulsing)
+        const pulse = Math.sin(time * (bpm / 60) * Math.PI);
+        ctx.rotate(time * 0.4);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius + pulse * 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Layer 3: Reactive Bars
+        const bars = 32;
+        for (let i = 0; i < bars; i++) {
+            const angle = (Math.PI * 2 / bars) * i;
+            const barLen = 10 + Math.abs(Math.sin(time * 4 + i)) * 40 * (pulse + 1);
+
+            ctx.save();
+            ctx.rotate(angle);
+            ctx.fillStyle = color;
+            ctx.fillRect(radius + 10, -2, barLen, 2); // Thinner bars
+            ctx.restore();
+        }
+
+        // Layer 4: Inner Core Hexagon
+        ctx.rotate(time * 0.1);
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.05 + pulse * 0.1})`;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI * 2 / 6) * i;
+            const hx = Math.cos(angle) * (radius * 0.4);
+            const hy = Math.sin(angle) * (radius * 0.4);
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
     }
 
     public destroy(): void {
@@ -834,6 +1386,7 @@ export class RhythmGame extends BaseGame {
         window.removeEventListener('keydown', this.handleKeyDown);
         window.removeEventListener('keyup', this.handleKeyUp);
         this.canvas.removeEventListener('touchstart', this.handleTouchStart);
+        this.canvas.removeEventListener('touchmove', this.handleTouchMove);
         this.canvas.removeEventListener('touchend', this.handleTouchEnd);
     }
 }
