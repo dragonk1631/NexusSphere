@@ -6,6 +6,7 @@ import { NoteFactory } from './NoteFactory';
 import type { VisualNote } from './NoteFactory';
 import { ScoreManager } from '../../core/score/ScoreManager';
 import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
+import { RenderCache } from './graphics/RenderCache';
 
 // Game States
 // Game States
@@ -61,6 +62,11 @@ export class RhythmGame extends BaseGame {
     private laneCount = 6;
     private endGameTimer = 0;
 
+    // FPS Counter
+    private lastFpsTime = 0;
+    private frameCount = 0;
+    private currentFps = 0;
+
     // Perspective Configuration
     private readonly horizonYRatio = 0.0; // Horizon at top (Maximize Highway)
     private readonly bottomYRatio = 1.0;  // Highway ends at bottom
@@ -73,6 +79,8 @@ export class RhythmGame extends BaseGame {
     // Highway Widths
     private laneBottomWidth = 100; // Calculated in init
     private laneTopWidth = 10;     // Narrow at horizon
+
+    private renderCache: RenderCache | null = null;
 
     // Visual Assets / Constants
     private readonly COLORS = {
@@ -115,6 +123,16 @@ export class RhythmGame extends BaseGame {
 
         this.laneBottomWidth = totalHighwayWidthBottom / this.laneCount;
         this.laneTopWidth = totalHighwayWidthTop / this.laneCount;
+
+        // Re-generate Highway Cache on resize
+        if (this.renderCache) {
+            this.renderCache.renderHighwayToCache(
+                width, height,
+                this.horizonY, this.bottomY,
+                this.laneCount,
+                this.getPerspectiveX.bind(this)
+            );
+        }
     }
 
     public async init(): Promise<void> {
@@ -125,6 +143,10 @@ export class RhythmGame extends BaseGame {
 
         this.scoreManager = ScoreManager.getInstance();
         this.scoreManager.reset(); // Reset score/health on game start attempt (though init is called once, we might need to call reset on start)
+
+        // Initialize RenderCache
+        this.renderCache = RenderCache.getInstance();
+        this.renderCache.init();
 
         // Input Handling
         window.addEventListener('keydown', this.handleKeyDown);
@@ -146,16 +168,9 @@ export class RhythmGame extends BaseGame {
             });
         }
 
-        // Start Menu Animation Loop
+        // Start Menu Animation Loop - REMOVED (Handled by Main Loop)
+        // ensure main loop handles calculation
 
-        const menuLoop = () => {
-            if (this.currentState === GameState.MENU) {
-                this.menuAnimationTimer += 0.01;
-                this.render(0);
-                requestAnimationFrame(menuLoop);
-            }
-        };
-        requestAnimationFrame(menuLoop);
 
 
 
@@ -495,8 +510,18 @@ export class RhythmGame extends BaseGame {
         this.endGameTimer = 0;
     }
 
-    public update(_delta: number): void {
+    public update(delta: number): void {
+        // FPS Calculation
+        const now = performance.now();
+        if (now - this.lastFpsTime >= 1000) {
+            this.currentFps = this.frameCount;
+            this.frameCount = 0;
+            this.lastFpsTime = now;
+        }
+        this.frameCount++;
+
         if (this.currentState === GameState.MENU) {
+            this.menuAnimationTimer += delta * 0.001; // Use delta for smooth animation
             this.render(0);
             return;
         }
@@ -537,7 +562,7 @@ export class RhythmGame extends BaseGame {
         if (this.midiData) {
             const durationMs = this.midiData.duration * 1000;
             if (currentTime >= durationMs - 100) {
-                this.endGameTimer += _delta;
+                this.endGameTimer += delta;
             }
 
             if (this.endGameTimer > 2000) {
@@ -637,7 +662,18 @@ export class RhythmGame extends BaseGame {
         this.renderExplosions();
 
         // 6. HUD
+        // 6. HUD
         this.renderHUD();
+
+        // 7. FPS Counter (Always visible for verification)
+        ctx.save();
+        ctx.fillStyle = this.currentFps >= 55 ? '#00ff00' : '#ff0000';
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.shadowBlur = 0;
+        ctx.fillText(`FPS: ${this.currentFps}`, 10, 10);
+        ctx.restore();
     }
 
     private getPerspectiveX(laneIndex: number, y: number): number {
@@ -657,50 +693,66 @@ export class RhythmGame extends BaseGame {
 
     private renderHighway(): void {
         const ctx = this.ctx;
-        // Highway rendering logic (Same as before)
-        const tl = { x: this.getPerspectiveX(0, this.horizonY), y: this.horizonY };
-        const tr = { x: this.getPerspectiveX(this.laneCount, this.horizonY), y: this.horizonY };
-        const bl = { x: this.getPerspectiveX(0, this.bottomY), y: this.bottomY };
-        const br = { x: this.getPerspectiveX(this.laneCount, this.bottomY), y: this.bottomY };
 
-        // Side Rails
-        const railWidth = 20;
-        const outerGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-        outerGrad.addColorStop(0, '#555');
-        outerGrad.addColorStop(1, '#aaa');
-        ctx.fillStyle = outerGrad;
-        ctx.beginPath();
-        ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 3, bl.y);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 3, br.y); ctx.lineTo(br.x, br.y);
-        ctx.fill();
+        // 1. Draw Static Highway from Cache
+        if (this.renderCache && this.renderCache.highwayBackground) {
+            ctx.drawImage(this.renderCache.highwayBackground, 0, 0);
+        } else {
+            // Fallback: Dynamic Rendering (if cache is missing)
+            const tl = { x: this.getPerspectiveX(0, this.horizonY), y: this.horizonY };
+            const tr = { x: this.getPerspectiveX(this.laneCount, this.horizonY), y: this.horizonY };
+            const bl = { x: this.getPerspectiveX(0, this.bottomY), y: this.bottomY };
+            const br = { x: this.getPerspectiveX(this.laneCount, this.bottomY), y: this.bottomY };
 
-        // Road
-        const roadGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-        roadGrad.addColorStop(0, 'rgba(0,0,0,0.8)');
-        roadGrad.addColorStop(1, 'rgba(20,20,40, 0.9)');
-        ctx.fillStyle = roadGrad;
-        ctx.beginPath();
-        ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
-        ctx.fill();
-
-        // Dividers
-        ctx.lineWidth = 2;
-        for (let i = 1; i < this.laneCount; i++) {
-            const topX = this.getPerspectiveX(i, this.horizonY);
-            const botX = this.getPerspectiveX(i, this.bottomY);
-            const divGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-            divGrad.addColorStop(0, 'rgba(0, 255, 255, 0)');
-            divGrad.addColorStop(0.5, 'rgba(0, 255, 255, 0.5)');
-            divGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
-            ctx.strokeStyle = divGrad;
+            // Side Rails
+            const railWidth = 20;
+            const outerGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
+            outerGrad.addColorStop(0, '#555');
+            outerGrad.addColorStop(1, '#aaa');
+            ctx.fillStyle = outerGrad;
             ctx.beginPath();
-            ctx.moveTo(topX, this.horizonY); ctx.lineTo(botX, this.bottomY);
-            ctx.stroke();
+            ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 3, bl.y);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 3, br.y); ctx.lineTo(br.x, br.y);
+            ctx.fill();
+
+            // Road
+            const roadGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
+            roadGrad.addColorStop(0, 'rgba(0,0,0,0.8)');
+            roadGrad.addColorStop(1, 'rgba(20,20,40, 0.9)');
+            ctx.fillStyle = roadGrad;
+            ctx.beginPath();
+            ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+            ctx.fill();
+
+            // Dividers
+            ctx.lineWidth = 2;
+            for (let i = 1; i < this.laneCount; i++) {
+                const topX = this.getPerspectiveX(i, this.horizonY);
+                const botX = this.getPerspectiveX(i, this.bottomY);
+                const divGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
+                divGrad.addColorStop(0, 'rgba(0, 255, 255, 0)');
+                divGrad.addColorStop(0.5, 'rgba(0, 255, 255, 0.5)');
+                divGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                ctx.strokeStyle = divGrad;
+                ctx.beginPath();
+                ctx.moveTo(topX, this.horizonY); ctx.lineTo(botX, this.bottomY);
+                ctx.stroke();
+            }
+
+            // Try to force cache generation for next frame
+            if (this.renderCache && this.laneBottomWidth > 0) {
+                this.renderCache.renderHighwayToCache(
+                    this.canvas.width, this.canvas.height,
+                    this.horizonY, this.bottomY,
+                    this.laneCount,
+                    this.getPerspectiveX.bind(this)
+                );
+            }
         }
 
-        // Active Lane
+        // Active Lane (Dynamic - must be drawn each frame)
         for (let i = 0; i < this.laneCount; i++) {
             if (this.keyState[i]) {
                 const lX1 = this.getPerspectiveX(i, this.horizonY);
@@ -790,20 +842,17 @@ export class RhythmGame extends BaseGame {
 
     private renderExplosions(): void {
         const ctx = this.ctx;
+        const particleImg = this.renderCache?.particleGlow;
+
+        if (!particleImg) return;
+
         this.explosions.forEach(exp => {
             ctx.save();
             ctx.globalAlpha = exp.alpha;
-            ctx.fillStyle = exp.color;
-            ctx.beginPath();
-            ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Outer ring
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(exp.x, exp.y, exp.radius * 1.2, 0, Math.PI * 2);
-            ctx.stroke();
+            // Draw cached glow particle
+            const size = exp.radius * 4;
+            ctx.translate(exp.x, exp.y);
+            ctx.drawImage(particleImg, -size / 2, -size / 2, size, size);
             ctx.restore();
         });
     }
@@ -872,33 +921,13 @@ export class RhythmGame extends BaseGame {
     }
 
     private drawGelNote(x: number, y: number, w: number, h: number, lane: number): void {
-        const ctx = this.ctx;
-        const colorSet = (lane === 1 || lane === 4) ? this.COLORS.NOTE_Right : this.COLORS.NOTE_Left;
-        const baseColor = colorSet[1];
-        const darkColor = colorSet[0];
+        // High-Performance Cache Rendering
+        if (!this.renderCache) return;
 
-        ctx.save();
-        const grad = ctx.createLinearGradient(x, y, x, y + h);
-        grad.addColorStop(0, baseColor);
-        grad.addColorStop(1, darkColor);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, h / 3);
-        ctx.fill();
-
-        const innerGrad = ctx.createLinearGradient(x, y, x, y + h / 2);
-        innerGrad.addColorStop(0, 'rgba(255,255,255,0.8)');
-        innerGrad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = innerGrad;
-        ctx.beginPath();
-        ctx.roundRect(x + 2, y + 2, w - 4, h / 2 - 2, h / 3);
-        ctx.fill();
-
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.beginPath();
-        ctx.ellipse(x + w / 2, y + h * 0.3, w * 0.3, h * 0.15, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        const noteImg = (lane === 1 || lane === 4) ? this.renderCache.noteRight : this.renderCache.noteLeft;
+        if (noteImg) {
+            this.ctx.drawImage(noteImg, x, y, w, h);
+        }
     }
 
     private renderHUD(): void {
