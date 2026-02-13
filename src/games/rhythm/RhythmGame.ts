@@ -732,6 +732,20 @@ export class RhythmGame extends BaseGame {
 
     private render(currentTime: number): void {
         const ctx = this.ctx;
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+
+        // 0. Mobile Orientation Check (Global)
+        if (height > width) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 24px "Orbitron"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("PLEASE ROTATE YOUR DEVICE", width / 2, height / 2);
+            return;
+        }
 
         if (this.currentState === GameState.MENU) {
             this.renderMenu();
@@ -740,18 +754,6 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState === GameState.RESULT) {
             this.renderResult();
-            return;
-        }
-
-        // 0. Mobile Orientation Check
-        if (this.canvas.height > this.canvas.width) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 24px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText("Please Rotate Device ⟳", this.canvas.width / 2, this.canvas.height / 2);
             return;
         }
 
@@ -1195,14 +1197,12 @@ export class RhythmGame extends BaseGame {
         ctx.lineWidth = 1;
         ctx.beginPath();
         const horizon = height * 0.4;
-        const gridSize = 100;
+        const gridSize = Math.max(width, height) * 0.08;
 
-        // Vertical lines
         for (let x = 0; x <= width; x += gridSize) {
             ctx.moveTo(x, horizon);
             ctx.lineTo((x - width / 2) * 4 + width / 2, height);
         }
-        // Horizontal lines (moving)
         for (let y = horizon; y < height; y += gridSize * 0.5) {
             const progress = (y - horizon) / (height - horizon);
             const yPos = horizon + Math.pow(progress, 2) * (height - horizon);
@@ -1212,214 +1212,156 @@ export class RhythmGame extends BaseGame {
         ctx.stroke();
         ctx.restore();
 
-
-        // Current Song Info
         const currentSong = this.songList[this.selectedSongIndex];
         const seedColor = this.getSeededColor(currentSong.name);
         const bpm = currentSong.bpm || 120;
 
-        // Layout Config
-        const padding = 20;
-        const leftPanelWidth = width * 0.45;
+        // Layout Config (Responsive)
+        const padding = width * 0.02;
+        const leftPanelWidth = width * 0.46;
         const rightPanelX = width * 0.5;
 
-        // Panel 1: Visualizer (Top-Left)
-        const visPanelH = height * 0.55;
-        const visY = padding;
-
-        // Panel 2: Info & Speed (Bottom-Left)
-        const infoY = visY + visPanelH + padding;
-        const infoH = height - infoY - padding;
-
-        // Panel 3: Song List (Right)
-        const listY = padding;
-        const listH = height - 2 * padding;
+        // Panel Sizes
+        const visPanelH = height * 0.52;
+        const listH = height - 2.5 * padding - 40; // Leave room for footer
+        const infoY = visPanelH + 2 * padding;
+        const infoH = height - infoY - 2.5 * padding - 40;
 
         // Draw Holographic Panels
-        this.drawHolographicRect(padding, visY, leftPanelWidth - 2 * padding, visPanelH, '#00ffff'); // Cyan
-        this.drawHolographicRect(padding, infoY, leftPanelWidth - 2 * padding, infoH, '#ff00ff');   // Magenta
-        this.drawHolographicRect(rightPanelX, listY, width - rightPanelX - padding, listH, '#ffffff'); // White
+        this.drawHolographicRect(padding, padding, leftPanelWidth - padding, visPanelH, '#00ffff');
+        this.drawHolographicRect(padding, infoY, leftPanelWidth - padding, infoH, '#ff00ff');
+        this.drawHolographicRect(rightPanelX, padding, width - rightPanelX - padding, listH, '#ffffff');
 
         // Tech Labels
-        this.drawTechLabel("VISUAL_CORE.SYS", padding + 10, visY + 15);
-        this.drawTechLabel("DATA_STREAM.LOG", rightPanelX + 10, listY + 15);
+        this.drawTechLabel("VISUAL_CORE.SYS", padding + 10, padding + 15);
+        this.drawTechLabel("DATA_STREAM.LOG", rightPanelX + 10, padding + 15);
         this.drawTechLabel("SYS.CONFIG", padding + 10, infoY + 15);
 
         // --- CONTENT: VISUALIZER ---
-        const cx = padding + (leftPanelWidth - 2 * padding) * 0.5;
-        const cy = visY + visPanelH * 0.5;
-        const radius = Math.min(leftPanelWidth, visPanelH) * 0.35;
+        const cx = padding + (leftPanelWidth - padding) * 0.5;
+        const cy = padding + visPanelH * 0.5;
+        const radius = Math.min(leftPanelWidth * 0.4, visPanelH * 0.35);
 
-        // 1. Data Ring Visualizer
         this.drawVisualizer(cx, cy, radius, time, seedColor, bpm);
 
         ctx.save();
         ctx.translate(cx, cy);
-
-        // Kinetic Typography: Title
-        ctx.rotate(-0.05 * Math.sin(time * 0.5)); // Gentle sway
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = seedColor;
 
-        // Main Title
-        const titleSize = Math.min(40, radius * 0.5);
+        const titleSize = Math.min(width * 0.035, radius * 0.6);
         ctx.fillStyle = '#fff';
         ctx.font = `900 ${titleSize}px "Orbitron"`;
-        ctx.fillText(currentSong.name.toUpperCase(), 0, 0);
 
-        // Glitch Effect Layer
-        if (Math.random() > 0.95) {
-            ctx.fillStyle = '#0ff';
-            ctx.fillText(currentSong.name.toUpperCase(), 2, 0);
-            ctx.fillStyle = '#f0f';
-            ctx.fillText(currentSong.name.toUpperCase(), -2, 0);
+        // Truncate title if it's too long for the circle
+        let title = currentSong.name.toUpperCase();
+        if (ctx.measureText(title).width > radius * 1.8) {
+            title = title.substring(0, 15) + "...";
         }
-
+        ctx.fillText(title, 0, 0);
         ctx.restore();
 
-
         // --- CONTENT: INFO & SPEED ---
-        const statsCenterX = padding + (leftPanelWidth - 2 * padding) * 0.5;
-        const statsTopY = infoY + 40;
+        const statsCenterX = padding + (leftPanelWidth - padding) * 0.5;
+        const statsTopY = infoY + infoH * 0.25;
+
+        // BPM & Duration (Horizontal on thin panels)
+        const valueSize = Math.max(16, height * 0.04);
 
         ctx.textAlign = 'center';
-
-        // BPM Display
-        this.drawTechLabel("BEATS_PER_MINUTE", statsCenterX, statsTopY - 25, 'center');
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 32px "Orbitron"';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#0ff';
-        ctx.fillText(`${bpm}`, statsCenterX, statsTopY + 5);
+        ctx.font = `bold ${valueSize}px "Orbitron"`;
+        ctx.fillText(`${bpm}`, statsCenterX - leftPanelWidth * 0.2, statsTopY);
+        this.drawTechLabel("BPM", statsCenterX - leftPanelWidth * 0.2, statsTopY - valueSize * 0.8, 'center');
 
-        // Duration Display
-        this.drawTechLabel("TRACK_DURATION", statsCenterX, statsTopY + 25, 'center');
-        ctx.fillStyle = '#ccc';
-        ctx.font = '20px "Orbitron"';
-        ctx.shadowBlur = 0;
         const durMin = Math.floor((currentSong.duration || 120) / 60);
         const durSec = ((currentSong.duration || 120) % 60).toString().padStart(2, '0');
-        ctx.fillText(`${durMin}:${durSec}`, statsCenterX, statsTopY + 45);
+        ctx.fillText(`${durMin}:${durSec}`, statsCenterX + leftPanelWidth * 0.2, statsTopY);
+        this.drawTechLabel("DUR", statsCenterX + leftPanelWidth * 0.2, statsTopY - valueSize * 0.8, 'center');
 
-        // Difficulty Control
-        const difficultyY = infoY + 160;
+        // Difficulty
+        const difficultyY = infoY + infoH * 0.55;
         const currentDiff = this.difficultyOptions[this.selectedDifficultyIndex];
-
-        let diffColor = '#ffffff';
-        if (currentDiff === 'EASY') diffColor = '#00ff00';      // Green
-        else if (currentDiff === 'NORMAL') diffColor = '#ffff00'; // Yellow
-        else if (currentDiff === 'HARD') diffColor = '#ff3333';   // Red
+        let diffColor = (currentDiff === 'HARD') ? '#ff3333' : (currentDiff === 'EASY' ? '#00ff00' : '#ffff00');
 
         ctx.fillStyle = diffColor;
-        ctx.font = 'bold 32px "Orbitron"';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = diffColor;
+        ctx.font = `bold ${valueSize}px "Orbitron"`;
         ctx.fillText(currentDiff, statsCenterX, difficultyY);
+        this.drawTechLabel("DIFFICULTY_LV", statsCenterX, difficultyY - valueSize * 0.8, 'center');
 
-        this.drawTechLabel("DIFFICULTY_LEVEL", statsCenterX, difficultyY - 35, 'center');
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = '12px "Orbitron"';
-        ctx.shadowBlur = 0;
-        ctx.fillText("Q  SELECT  E", statsCenterX, difficultyY + 25);
-
-        // Speed Control
-        const speedControlY = infoY + infoH - 35;
-
+        // Speed
+        const speedY = infoY + infoH * 0.85;
         ctx.fillStyle = '#ff00ff';
-        ctx.font = 'bold 40px "Orbitron"';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#f0f';
-        ctx.fillText(`x${this.scrollSpeed.toFixed(1)}`, statsCenterX, speedControlY);
-
-        this.drawTechLabel("SCROLL_SPEED_MOD", statsCenterX, speedControlY - 35, 'center');
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = '14px "Orbitron"';
-        ctx.shadowBlur = 0;
-        ctx.fillText("◀  ADJUST  ▶", statsCenterX, speedControlY + 25);
-
+        ctx.font = `bold ${valueSize}px "Orbitron"`;
+        ctx.fillText(`x${this.scrollSpeed.toFixed(1)}`, statsCenterX, speedY);
+        this.drawTechLabel("SCROLL_SPD", statsCenterX, speedY - valueSize * 0.8, 'center');
 
         // --- CONTENT: DATA LIST ---
-        const listInnerX = rightPanelX + 10; // Padding inside panel
-        const listInnerY = listY + 10;
-        const listInnerW = width - rightPanelX - padding - 20;
-        const itemHeight = (listH - 20) / 7; // Exact fit for 7 items
-        const visibleCount = 7;
+        const listInnerX = rightPanelX + 10;
+        const listInnerY = padding + 10;
+        const listInnerW = width - rightPanelX - 2 * padding - 10;
+        const visibleCount = Math.floor(listH / (height * 0.08)); // Dynamic item count
+        const itemHeight = (listH - 20) / visibleCount;
 
         ctx.save();
         ctx.translate(listInnerX, listInnerY);
 
-        // Clamp start index to always show full list if possible
         let visibleStartIndex = this.selectedSongIndex - Math.floor(visibleCount / 2);
         if (visibleStartIndex < 0) visibleStartIndex = 0;
         if (visibleStartIndex > this.songList.length - visibleCount) visibleStartIndex = Math.max(0, this.songList.length - visibleCount);
 
         for (let i = 0; i < visibleCount; i++) {
             const index = visibleStartIndex + i;
-            // Ensure we render empty slots if songList is smaller than visibleCount (optional, or just stop)
             if (index >= this.songList.length) break;
 
             const song = this.songList[index];
             const y = i * itemHeight;
             const isSelected = (index === this.selectedSongIndex);
 
-            // Table Row Panel
             ctx.save();
             ctx.translate(0, y);
 
             if (isSelected) {
-                // Active Holographic Highlight
                 this.drawHolographicRect(0, 0, listInnerW, itemHeight - 2, '#00ffff', true);
             } else {
-                // Inactive Glass Row
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
                 ctx.fillRect(0, 0, listInnerW, itemHeight - 2);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(0, 0, listInnerW, itemHeight - 2);
             }
 
-            // Index Number
-            ctx.save();
-            ctx.fillStyle = isSelected ? '#00ffff' : '#444';
-            ctx.font = 'bold 16px "Orbitron"';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText((index + 1).toString().padStart(2, '0'), 30, (itemHeight - 2) / 2);
-            ctx.restore();
-
-            // Title
-            ctx.save();
-            ctx.fillStyle = isSelected ? '#ffffff' : '#888';
-            ctx.font = isSelected ? 'bold 20px "Orbitron"' : '18px "Orbitron"';
+            // Index
+            ctx.fillStyle = isSelected ? '#00ffff' : '#666';
+            ctx.font = `bold ${itemHeight * 0.3}px "Orbitron"`;
             ctx.textAlign = 'left';
-            ctx.shadowBlur = isSelected ? 10 : 0;
-            ctx.shadowColor = '#00ffff';
-            ctx.fillText(song.name, 60, (itemHeight - 2) / 2 + 5);
-            ctx.restore();
+            ctx.fillText((index + 1).toString().padStart(2, '0'), 10, itemHeight * 0.6);
+
+            // Title (Truncated)
+            ctx.fillStyle = isSelected ? '#fff' : '#aaa';
+            ctx.font = `${isSelected ? 'bold' : ''} ${itemHeight * 0.35}px "Orbitron"`;
+            let songTitle = song.name;
+            const maxTitleW = listInnerW * (isSelected ? 0.6 : 0.8);
+            if (ctx.measureText(songTitle).width > maxTitleW) {
+                while (ctx.measureText(songTitle + "...").width > maxTitleW && songTitle.length > 0) {
+                    songTitle = songTitle.substring(0, songTitle.length - 1);
+                }
+                songTitle += "...";
+            }
+            ctx.fillText(songTitle, 50, itemHeight * 0.6);
 
             if (isSelected) {
-                this.drawTechLabel("<< ACTIVE", listInnerW - 20, (itemHeight - 2) / 2 + 3, 'right');
+                this.drawTechLabel("<< ACTIVE", listInnerW - 10, itemHeight * 0.6, 'right');
             }
             ctx.restore();
         }
         ctx.restore();
 
         // Footer Prompts
-        const footerY = height - 30;
+        const footerY = height - 15;
         ctx.textAlign = 'right';
-        // Pulse between Cyan and White
         const pulse = 0.5 + Math.sin(time * 5) * 0.5;
         ctx.fillStyle = `rgba(${255 * (1 - pulse)}, 255, 255, ${0.5 + pulse * 0.5})`;
-        ctx.font = 'bold 28px "Orbitron"';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#00ffff';
-        ctx.fillText("INITIALIZE SYSTEM [START]", width - 40, footerY);
+        ctx.font = `bold ${Math.max(12, height * 0.035)}px "Orbitron"`;
+        ctx.fillText("READY TO SYNC // [START]", width - padding, footerY);
     }
-
     private handleMenuInput(e: KeyboardEvent): void {
         let selectionChanged = false;
         if (e.code === 'ArrowUp') {
