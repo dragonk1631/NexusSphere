@@ -14,6 +14,11 @@ export class LaneAllocator {
         let lastRightLane = 4; // Middle of right group
         const maxChordSize = (difficulty === 'HARD') ? 2 : 1;
 
+        // Hand Tracking State
+        let lastHand: 'left' | 'right' | null = null;
+        let consecutiveSameHand = 0;
+        const FATIGUE_THRESHOLD = 3; // Max consecutive notes per hand for single notes
+
         segments.forEach(segment => {
             const { type, notes } = segment;
 
@@ -33,11 +38,10 @@ export class LaneAllocator {
                 const activeNotes = groupNotes.slice(0, count);
 
                 if (activeNotes.length === 2) {
-                    // CHORDS: Enforce Symmetrical / Opposite side play for thumbs
-                    // Avoid single-hand double taps (e.g., [0,1]) which are hard for thumbs
+                    // CHORDS: Enforce Symmetrical / Opposite side play
                     const options = [
-                        [1, 4], [0, 5], [2, 3], // Wide/Center pairs
-                        [0, 4], [1, 5], [2, 4], // Cross-hand mix
+                        [1, 4], [0, 5], [2, 3],
+                        [0, 4], [1, 5], [2, 4],
                     ];
                     const chosenPair = options[Math.floor(Math.random() * options.length)];
 
@@ -47,38 +51,48 @@ export class LaneAllocator {
                         if (lane <= 2) lastLeftLane = lane;
                         else lastRightLane = lane;
                     });
+                    lastHand = null; // Reset fatigue after chord
+                    consecutiveSameHand = 0;
                 } else if (activeNotes.length === 1) {
                     const note = activeNotes[0];
-                    let lane;
+                    let useLeftHand = true;
 
-                    // Alternating Hands or Flow-based? 
-                    // Use MIDI pitch hints to decide which hand (lower = left, higher = right)
-                    // But also consider lane balance.
-                    const isLeftHand = note.midi % 2 === 0;
-
-                    if (isLeftHand) {
-                        // Left Hand Area (0, 1, 2)
-                        if (type === 'stream' || type === 'burst') {
-                            // Adjacent movement only
-                            const move = (Math.random() > 0.5) ? 1 : -1;
-                            lane = lastLeftLane + move;
-                            if (lane < 0) lane = 1;
-                            if (lane > 2) lane = 1;
-                        } else {
-                            lane = Math.floor(Math.random() * 3);
-                        }
-                        lastLeftLane = lane;
+                    // Decision Logic for Hand Assignment
+                    if (type === 'stream' || type === 'burst') {
+                        // FORCE ALTERNATION for rhythm
+                        useLeftHand = (lastHand !== 'left');
                     } else {
-                        // Right Hand Area (3, 4, 5)
-                        if (type === 'stream' || type === 'burst') {
-                            const move = (Math.random() > 0.5) ? 1 : -1;
-                            lane = lastRightLane + move;
-                            if (lane < 3) lane = 4;
-                            if (lane > 5) lane = 4;
+                        // FATIGUE BIAS + MIDI PITCH HINT
+                        const pitchHint = note.midi % 2 === 0; // Even midi = Left preference
+
+                        if (consecutiveSameHand >= FATIGUE_THRESHOLD) {
+                            useLeftHand = (lastHand !== 'left'); // Force swap
+                        } else if (lastHand === null) {
+                            useLeftHand = pitchHint;
                         } else {
-                            lane = 3 + Math.floor(Math.random() * 3);
+                            // High chance to keep pitch hint, but slightly bias towards alternation
+                            useLeftHand = (Math.random() > 0.7) ? !lastHand : pitchHint;
                         }
+                    }
+
+                    // Assign Lane within hand area
+                    let lane;
+                    if (useLeftHand) {
+                        const move = (Math.random() > 0.5) ? 1 : -1;
+                        lane = lastLeftLane + move;
+                        if (lane < 0 || lane > 2) lane = (lastLeftLane === 1) ? (Math.random() > 0.5 ? 0 : 2) : 1;
+                        lastLeftLane = lane;
+
+                        if (lastHand === 'left') consecutiveSameHand++;
+                        else { lastHand = 'left'; consecutiveSameHand = 1; }
+                    } else {
+                        const move = (Math.random() > 0.5) ? 1 : -1;
+                        lane = lastRightLane + move;
+                        if (lane < 3 || lane > 5) lane = (lastRightLane === 4) ? (Math.random() > 0.5 ? 3 : 5) : 4;
                         lastRightLane = lane;
+
+                        if (lastHand === 'right') consecutiveSameHand++;
+                        else { lastHand = 'right'; consecutiveSameHand = 1; }
                     }
 
                     result.push({ ...note, lane, isProcessed: false } as VisualNote);
