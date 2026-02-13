@@ -966,26 +966,28 @@ export class RhythmGame extends BaseGame {
         ctx.fillText("SYNCHRONIZATION RATE", leftAreaX, panelY + panelH * 0.76);
 
         // 5. Right Section: Detailed Judgments
-        const rightAreaX = panelX + panelW * 0.55;
+        const rightAreaX = panelX + panelW * 0.52; // Moved slightly left from 0.55
         const startY = panelY + panelH * 0.18;
         const rowHeight = 45;
 
         const renderStatRow = (label: string, value: number | string, color: string, y: number, isLarge = false) => {
             ctx.textAlign = 'left';
-            ctx.font = `bold ${isLarge ? '20' : '18'}px "Orbitron"`; // Reduced large label font to prevent overlap
+            ctx.font = `bold ${isLarge ? '20' : '18'}px "Orbitron"`;
             ctx.fillStyle = color;
             ctx.fillText(label, rightAreaX, y);
 
             ctx.textAlign = 'right';
             ctx.font = `bold ${isLarge ? '36' : '22'}px "Orbitron"`;
             ctx.fillStyle = '#ffffff';
-            ctx.fillText(value.toString(), rightAreaX + panelW * 0.38, y); // Increased offset to 0.38
+            // Increased offset to 0.41 to maximize space 
+            const valueX = rightAreaX + panelW * 0.41;
+            ctx.fillText(value.toString(), valueX, y);
 
             // Subtle Divider
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.beginPath();
             ctx.moveTo(rightAreaX, y + 12);
-            ctx.lineTo(rightAreaX + panelW * 0.38, y + 12);
+            ctx.lineTo(valueX, y + 12);
             ctx.stroke();
         };
 
