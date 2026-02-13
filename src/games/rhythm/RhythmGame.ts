@@ -9,7 +9,6 @@ import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
 import { RenderCache } from './graphics/RenderCache';
 
 // Game States
-// Game States
 const GameState = {
     MENU: 0,
     PLAYING: 1,
@@ -38,9 +37,8 @@ export class RhythmGame extends BaseGame {
     private beatmapData: any | null = null;
     private visualNotes: VisualNote[] = [];
 
-    // Game State
     private currentState: GameState = GameState.MENU;
-    private isPlaying = false;
+    private shouldAutoStart = false; // Prevents auto-start on boot
     private scoreManager: ScoreManager | null = null;
 
     // Menu State
@@ -50,7 +48,9 @@ export class RhythmGame extends BaseGame {
     private selectedSongIndex = 0;
     private previewTimeout: ReturnType<typeof setTimeout> | null = null;
     private speedOptions = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
-    private selectedSpeedIndex = 3; // Default 2.0x
+    private selectedSpeedIndex = 1; // Default 1.0x
+    private difficultyOptions = ['EASY', 'NORMAL', 'HARD'];
+    private selectedDifficultyIndex = 1; // Default NORMAL
     private touchStartY = 0;
     private menuAnimationTimer = 0;
     private particles: { x: number, y: number, speed: number, alpha: number, size: number }[] = [];
@@ -58,9 +58,13 @@ export class RhythmGame extends BaseGame {
 
 
     // Settings
-    private scrollSpeed = 2.0; // Controlled by Menu
+    private scrollSpeed = 1.0; // Default 1.0x
     private laneCount = 6;
     private endGameTimer = 0;
+    private lastCombo = 0;
+    private comboAnim = 0; // 0 to 1 anim factor
+    private preGameTimer = 0;
+    private isAudioStarted = false;
 
     // FPS Counter
     private lastFpsTime = 0;
@@ -84,8 +88,14 @@ export class RhythmGame extends BaseGame {
 
     // Visual Assets / Constants
     private readonly COLORS = {
-        NOTE_Left: ['#ff0099', '#ff66cc'], // Pink
-        NOTE_Right: ['#00ccff', '#66e0ff'], // Cyan
+        LANES: [
+            ['#ff0099', '#ff66cc'], // Lane 0: Pink
+            ['#ff9900', '#ffcc00'], // Lane 1: Orange/Yellow
+            ['#00ff00', '#66ff66'], // Lane 2: Green
+            ['#00ffff', '#66ffff'], // Lane 3: Cyan
+            ['#0066ff', '#66a3ff'], // Lane 4: Blue
+            ['#cc00ff', '#e666ff'], // Lane 5: Purple
+        ],
         LANE_BORDER: '#444444',
         HIT_LINE_GLOW: '#00ffff',
         HUD_BG: 'rgba(0, 0, 0, 0.7)',
@@ -193,7 +203,6 @@ export class RhythmGame extends BaseGame {
     }
 
     // Touch Handling
-    // Touch Handling
     private handleTouchStart(e: TouchEvent): void {
         e.preventDefault();
 
@@ -239,16 +248,12 @@ export class RhythmGame extends BaseGame {
         const infoH = height - infoY - padding;
         const speedControlY = infoY + infoH - 50;
 
-        // 1. Check Start Button (Bottom Left Corner of Left Panel in new design)
-        // Let's make the start button a large area at the bottom right of the screen
-        // In new design: "START SYSTEM" is bottom right
         if (x > width * 0.7 && y > height * 0.85) {
             // Stop preview before starting
             if (this.previewTimeout) clearTimeout(this.previewTimeout);
             this.audioEngine.stop();
 
-            this.currentState = GameState.PLAYING;
-            this.scoreManager?.reset(); // Reset score for new game
+            this.shouldAutoStart = true;
             this.load().then(() => this.create());
             return;
         }
@@ -384,44 +389,126 @@ export class RhythmGame extends BaseGame {
         return keyMap.hasOwnProperty(code) ? keyMap[code] : -1;
     }
 
+    // Judgement State
+    private lastJudgment: { text: string, color: string, time: number } | null = null;
+    private readonly JUDGMENT_DURATION = 500; // ms
+
     private checkHit(lane: number): void {
         const currentTime = this.audioEngine.currentTime * 1000;
+        const hitWindow = 200; // ms
 
-        // Find the closest note in this lane that hasn't been hit yet
-        // We only check notes that are close to the hit line (within +/- 200ms)
-        const hitWindow = 200;
-
-        const targetNote = this.visualNotes.find(n =>
+        const candidates = this.visualNotes.filter(n =>
             n.lane === lane &&
             !n.isProcessed &&
             Math.abs(n.time * 1000 - currentTime) < hitWindow
         );
 
-        if (targetNote) {
-            const diff = Math.abs(targetNote.time * 1000 - currentTime);
-            let judgment = '';
+        if (candidates.length > 0) {
+            // Find closest note (accuracy)
+            candidates.sort((a, b) => Math.abs(a.time * 1000 - currentTime) - Math.abs(b.time * 1000 - currentTime));
+            const targetNote = candidates[0];
 
-            if (diff < 50) {
-                judgment = 'PERFECT';
-                this.scoreManager?.addHit(100);
+            const diff = Math.abs(targetNote.time * 1000 - currentTime);
+            let judgmentText = '';
+            let judgmentColor = '';
+            let score = 0;
+
+            if (diff < 40) {
+                judgmentText = 'PERFECT';
+                judgmentColor = '#00ffff'; // Cyan
+                score = 100;
             } else if (diff < 100) {
-                judgment = 'GREAT';
-                this.scoreManager?.addHit(80);
+                judgmentText = 'GREAT';
+                judgmentColor = '#00ff00'; // Green
+                score = 80;
             } else {
-                judgment = 'GOOD';
-                this.scoreManager?.addHit(50);
+                judgmentText = 'GOOD';
+                judgmentColor = '#ffff00'; // Yellow
+                score = 50;
             }
 
-            console.log(`Hit Lane ${lane}: ${judgment} (${Math.round(diff)}ms)`);
-            targetNote.isProcessed = true;
+            // Apply Score & Effects
+            if (this.scoreManager) this.scoreManager.addHit(score, judgmentText as any);
+            this.showJudgment(judgmentText, judgmentColor);
 
-            // Explosion Effect
-            this.triggerExplosion(targetNote.lane, targetNote.time * 1000);
+            targetNote.isProcessed = true;
+            this.triggerExplosion(targetNote.lane, currentTime);
+            console.log(`Hit Lane ${lane}: ${judgmentText} (${Math.round(diff)}ms)`);
 
         } else {
-            // Miss logic (Clicked but no note - valid to ignore or punish? Usually ignore in mobile rhythm games unless strict)
+            // Empty Hit (Ghost Tap) - Optional: Decrease health or just ignore
+            // For this style of game, often ignored or treated as a slight penalty logic, keeping simple for now.
         }
     }
+
+    private triggerMiss(note: VisualNote): void {
+        note.isProcessed = true;
+        if (this.scoreManager) {
+            this.scoreManager.addHit(0, 'MISS');
+        }
+        this.showJudgment('MISS', '#ff0000');
+    }
+
+    private showJudgment(text: string, color: string): void {
+        this.lastJudgment = {
+            text: text,
+            color: color,
+            time: performance.now()
+        };
+    }
+
+    // --- In Update Loop ---
+    // We need to check for missed notes
+    private updateMissedNotes(currentTime: number): void {
+        const missThreshold = 200; // If note passes by 200ms, it's a miss
+
+        this.visualNotes.forEach(note => {
+            if (!note.isProcessed) {
+                const noteTimeMs = note.time * 1000;
+                if (currentTime > noteTimeMs + missThreshold) {
+                    this.triggerMiss(note);
+                }
+            }
+        });
+    }
+
+    // --- In Render Method ---
+    private renderJudgment(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+        if (!this.lastJudgment) return;
+
+        const now = performance.now();
+        const age = now - this.lastJudgment.time;
+
+        if (age > this.JUDGMENT_DURATION) {
+            this.lastJudgment = null;
+            return;
+        }
+
+        const alpha = 1 - (age / this.JUDGMENT_DURATION);
+        const scale = 1 + (1 - alpha) * 0.5; // Pop out effect
+
+        ctx.save();
+        ctx.translate(width / 2, height * 0.45);
+        ctx.scale(scale, scale);
+        ctx.globalAlpha = alpha;
+
+        ctx.fillStyle = this.lastJudgment.color;
+        ctx.shadowColor = this.lastJudgment.color;
+        ctx.shadowBlur = 20;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Use a thick, cool font
+        ctx.font = 'italic 900 60px "Orbitron", sans-serif';
+        ctx.fillText(this.lastJudgment.text, 0, 0);
+
+        // Stroke for readability
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.strokeText(this.lastJudgment.text, 0, 0);
+
+        ctx.restore();
+    }
+
 
     public async load(): Promise<void> {
         console.log("[RhythmGame] Loading assets...");
@@ -443,15 +530,21 @@ export class RhythmGame extends BaseGame {
         try {
             console.log(`[RhythmGame] Checking for beatmap at: ${beatmapUrl}`);
             const res = await fetch(beatmapUrl);
-            if (res.ok) {
+
+            // Check for successful response AND correct content type
+            const contentType = res.headers.get("content-type");
+            if (res.ok && contentType && contentType.includes("application/json")) {
                 this.beatmapData = await res.json();
-                console.log("[RhythmGame] Beatmap loaded:", this.beatmapData);
+                console.log("[RhythmGame] Custom beatmap found and loaded.");
             } else {
-                console.warn("[RhythmGame] No beatmap found. Will use auto-generation.");
-                this.beatmapData = null; // Clear old data
+                // Soft 404 (Server returns 200 OK HTML for missing files) or actual 404
+                // This is EXPECTED behavior for auto-generated songs.
+                console.log(`[RhythmGame] No custom beatmap found (Server Status: ${res.status}, Type: ${contentType}). Proceeding with Smart Charting Engine.`);
+                this.beatmapData = null;
             }
         } catch (e) {
-            console.warn("[RhythmGame] Failed to load beatmap:", e);
+            console.warn("[RhythmGame] Error checking beatmap (Safe to ignore if using auto-gen):", e);
+            this.beatmapData = null;
         }
     }
 
@@ -467,47 +560,67 @@ export class RhythmGame extends BaseGame {
                 console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${targetChannels.join(', ')}`);
             }
 
-            // 2. Fallback: Auto-Detect Melody Channels
+            // 2. Fallback
             if (targetChannels.length === 0) {
                 console.log("[RhythmGame] Running Melody Analyzer (Channel-Based)...");
+                // ... rest of logic
                 const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
                 if (rankedChannels.length > 0) {
-                    targetChannels = rankedChannels.slice(0, 3); // Use top 3 channels
+                    targetChannels = rankedChannels.slice(0, 3);
                     console.log(`[RhythmGame] Auto-Selected Channels: ${targetChannels.join(', ')}`);
                 }
             }
 
-            // 3. Last Resort: Channel with most notes
+            // 3. Last Resort
             if (targetChannels.length === 0) {
+                // ... existing last resort logic
                 const channelCounts = new Array(16).fill(0);
                 this.midiData.tracks.forEach(t => {
                     if (!t.isDrum) channelCounts[t.channel] += t.noteCount;
                 });
-                let maxCh = 0;
-                let maxCount = -1;
+                // ... find max
+                let maxCh = 0; let maxCount = -1;
                 channelCounts.forEach((count, ch) => {
-                    if (count > maxCount) {
-                        maxCount = count;
-                        maxCh = ch;
-                    }
+                    if (count > maxCount) { maxCount = count; maxCh = ch; }
                 });
                 targetChannels = [maxCh];
-                console.log(`[RhythmGame] Fallback Selection (Most Notes): Channel ${maxCh}`);
             }
 
             // Generate Visual Notes
-            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, targetChannels);
-            console.log(`[RhythmGame] Created ${this.visualNotes.length} notes.`);
+            const difficulty = this.difficultyOptions[this.selectedDifficultyIndex];
+            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, targetChannels, difficulty);
 
-            this.start();
+            console.log(`[RhythmGame] Created ${this.visualNotes.length} notes.`);
+            if (this.scoreManager) {
+                this.scoreManager.setTotalNotes(this.visualNotes.length);
+            }
+
+            // Only start if explicitly requested (e.g. from Menu)
+            if (this.midiData && this.shouldAutoStart) {
+                this.shouldAutoStart = false; // Reset
+                this.start();
+            }
         }
     }
 
     private async start() {
+        // 1. Prepare Audio
+        this.audioEngine.stop(); // Stop any pending previews/remnants
+        this.audioEngine.seek(0);
         await this.audioEngine.resume();
-        this.audioEngine.play();
-        this.isPlaying = true;
+
+        // 2. Reset Game State
+        this.scoreManager?.reset();
+        this.lastCombo = 0;
+        this.comboAnim = 0;
         this.endGameTimer = 0;
+        this.preGameTimer = -2000; // Start with 2 seconds lead-in (negative time)
+        this.isAudioStarted = false;
+
+        // 3. Set state to PLAYING but don't call play() yet
+        // The update loop will handle the countdown
+        this.currentState = GameState.PLAYING;
+        console.log("[RhythmGame] Game Started with 2s lead-in.");
     }
 
     public update(delta: number): void {
@@ -532,17 +645,38 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
-        if (!this.isPlaying) return;
-        const currentTime = this.audioEngine.currentTime * 1000;
+        if (this.currentState !== GameState.PLAYING) return;
+
+        // Lead-In Logic
+        let currentTime = 0;
+        if (!this.isAudioStarted) {
+            this.preGameTimer += delta;
+            currentTime = this.preGameTimer;
+            if (this.preGameTimer >= 0) {
+                this.audioEngine.play();
+                this.isAudioStarted = true;
+                // Avoid tiny jump: currentTime remains 0 or slight positive
+            }
+        } else {
+            currentTime = this.audioEngine.currentTime * 1000;
+        }
+
+        // Combo Animation Decay
+        if (this.comboAnim > 0) {
+            this.comboAnim -= delta * 0.005; // Quick decay
+            if (this.comboAnim < 0) this.comboAnim = 0;
+        }
+
+        if (this.scoreManager) {
+            const currentCombo = this.scoreManager.getCombo();
+            if (currentCombo > this.lastCombo) {
+                this.comboAnim = 1.0; // Trigger Pop
+            }
+            this.lastCombo = currentCombo;
+        }
 
         // Check for Missed Notes
-
-        this.visualNotes.forEach(note => {
-            if (!note.isProcessed && note.time * 1000 < currentTime - 200) {
-                // Note passed hit window
-                this.onMiss(note);
-            }
-        });
+        this.updateMissedNotes(currentTime);
 
         // Update Explosions
         this.explosions.forEach(exp => {
@@ -553,10 +687,12 @@ export class RhythmGame extends BaseGame {
 
         this.render(currentTime);
 
-        // Check Game Over
+        // Check Game Over (with 2s protection + 2s lead-in = 4s total safety)
         if (this.scoreManager?.isDead()) {
-            this.finishGame();
-            return;
+            if (currentTime > 2000) {
+                this.finishGame("HP Depleted (Health <= 0)");
+                return;
+            }
         }
 
         if (this.midiData) {
@@ -566,36 +702,30 @@ export class RhythmGame extends BaseGame {
             }
 
             if (this.endGameTimer > 2000) {
-                this.finishGame();
+                this.finishGame("Song Completed Normally");
             }
         }
     }
 
-    private onMiss(note: VisualNote): void {
-        note.isProcessed = true;
-        this.scoreManager?.resetCombo();
-        this.scoreManager?.damage(10); // Damage on miss
-        console.log("MISS!");
-    }
+
 
     private triggerExplosion(lane: number, _time: number): void {
         const x = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
-        const colorSet = (lane === 1 || lane === 4) ? this.COLORS.NOTE_Right : this.COLORS.NOTE_Left;
+        const colorSet = this.COLORS.LANES[lane] || this.COLORS.LANES[0];
 
         this.explosions.push({
             x: x,
             y: this.hitLineY,
-            radius: 20,
+            radius: 25, // Slightly larger explosions
             alpha: 1.0,
             color: colorSet[1]
         });
     }
 
-    private finishGame(): void {
-        this.isPlaying = false;
+    private finishGame(reason: string = "Unknown"): void {
         this.currentState = GameState.RESULT;
         this.audioEngine.stop();
-        console.log("[RhythmGame] Finished. Showing Results.");
+        console.log(`[RhythmGame] Finished. Reason: ${reason}`);
     }
 
     private render(currentTime: number): void {
@@ -662,17 +792,16 @@ export class RhythmGame extends BaseGame {
         this.renderExplosions();
 
         // 6. HUD
-        // 6. HUD
         this.renderHUD();
 
-        // 7. FPS Counter (Always visible for verification)
+        // 7. FPS Counter (Top Right)
         ctx.save();
         ctx.fillStyle = this.currentFps >= 55 ? '#00ff00' : '#ff0000';
         ctx.font = 'bold 16px monospace';
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
         ctx.shadowBlur = 0;
-        ctx.fillText(`FPS: ${this.currentFps}`, 10, 10);
+        ctx.fillText(`FPS: ${this.currentFps}`, this.canvas.width - 10, 10);
         ctx.restore();
     }
 
@@ -776,68 +905,99 @@ export class RhythmGame extends BaseGame {
         const height = this.canvas.height;
         const score = this.scoreManager?.getScore() || 0;
         const maxCombo = this.scoreManager?.getMaxCombo() || 0;
+        const accuracy = this.scoreManager?.getAccuracy() || 0;
+        const stats = this.scoreManager?.getDetailedStats() || { perfect: 0, great: 0, good: 0, miss: 0, total: 0 };
 
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-        ctx.fillRect(0, 0, width, height);
+        // 1. Futuristic Background
+        this.drawAtmosphere(width, height);
 
-        // Title
+        // 2. Title Section
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 60px "Orbitron"';
+        ctx.font = 'bold 48px "Orbitron"';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = 25;
         ctx.shadowColor = '#00ffff';
-        ctx.fillText("RESULTS", width / 2, height * 0.15);
+        ctx.fillText("DATA RETRIEVAL COMPLETE", width / 2, height * 0.12);
         ctx.shadowBlur = 0;
 
-        // Panel
-        const panelW = Math.min(600, width * 0.8);
-        const panelH = height * 0.5;
+        // 3. Layout Constants (Responsive)
+        const panelW = Math.min(width * 0.9, 850);
+        const panelH = height * 0.65;
         const panelX = (width - panelW) / 2;
-        const panelY = height * 0.25;
+        const panelY = height * 0.22;
 
         this.drawHolographicRect(panelX, panelY, panelW, panelH, '#00ffff');
 
-        // Stats
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
+        // 4. Left Section: Rank and Accuracy
+        const leftAreaX = panelX + panelW * 0.3;
 
-        ctx.font = '30px "Orbitron"';
-        ctx.fillText("SCORE", width / 2, panelY + 60);
-        ctx.font = 'bold 50px "Orbitron"';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#fff';
-        ctx.fillText(Math.floor(score).toLocaleString(), width / 2, panelY + 110);
-        ctx.shadowBlur = 0;
-
-        ctx.font = '30px "Orbitron"';
-        ctx.fillText("MAX COMBO", width / 2, panelY + 180);
-        ctx.font = 'bold 50px "Orbitron"';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#00ff00';
-        ctx.fillText(maxCombo.toString(), width / 2, panelY + 230);
-        ctx.shadowBlur = 0;
-
-        // Grade
+        // Grade Letter (Animated Glow)
         let grade = 'F';
-        if (score > 100000) grade = 'S';
-        else if (score > 80000) grade = 'A';
-        else if (score > 50000) grade = 'B';
-        else if (score > 10000) grade = 'C';
+        if (accuracy >= 98) grade = 'S+';
+        else if (accuracy >= 95) grade = 'S';
+        else if (accuracy >= 90) grade = 'A';
+        else if (accuracy >= 80) grade = 'B';
+        else if (accuracy >= 70) grade = 'C';
+        else if (accuracy >= 50) grade = 'D';
 
-        ctx.font = 'bold 100px "Orbitron"';
-        ctx.shadowBlur = 20;
-        ctx.fillStyle = grade === 'F' ? '#ff0000' : (grade === 'S' ? '#00ffff' : '#00ff00');
-        ctx.shadowColor = ctx.fillStyle;
-        ctx.fillText(grade, width / 2, panelY + 350);
+        const gradeColor = (grade === 'F' || grade === 'D') ? '#ff3333' : (grade.includes('S') ? '#00ffff' : '#33ff33');
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 180px "Orbitron"';
+        ctx.fillStyle = gradeColor;
+        ctx.shadowBlur = 40 + Math.sin(Date.now() * 0.005) * 10;
+        ctx.shadowColor = gradeColor;
+        ctx.fillText(grade, leftAreaX, panelY + panelH * 0.4);
         ctx.shadowBlur = 0;
 
-        // Prompt
+        // Percent Accuracy
+        ctx.font = 'bold 42px "Orbitron"';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`${accuracy.toFixed(2)}%`, leftAreaX, panelY + panelH * 0.68);
+        ctx.font = '16px "Orbitron"';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText("SYNCHRONIZATION RATE", leftAreaX, panelY + panelH * 0.76);
+
+        // 5. Right Section: Detailed Judgments
+        const rightAreaX = panelX + panelW * 0.55;
+        const startY = panelY + panelH * 0.18;
+        const rowHeight = 45;
+
+        const renderStatRow = (label: string, value: number | string, color: string, y: number, isLarge = false) => {
+            ctx.textAlign = 'left';
+            ctx.font = `bold ${isLarge ? '20' : '18'}px "Orbitron"`; // Reduced large label font to prevent overlap
+            ctx.fillStyle = color;
+            ctx.fillText(label, rightAreaX, y);
+
+            ctx.textAlign = 'right';
+            ctx.font = `bold ${isLarge ? '36' : '22'}px "Orbitron"`;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(value.toString(), rightAreaX + panelW * 0.38, y); // Increased offset to 0.38
+
+            // Subtle Divider
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.beginPath();
+            ctx.moveTo(rightAreaX, y + 12);
+            ctx.lineTo(rightAreaX + panelW * 0.38, y + 12);
+            ctx.stroke();
+        };
+
+        renderStatRow("PERFECT", stats.perfect, '#00ffff', startY);
+        renderStatRow("GREAT", stats.great, '#33ff33', startY + rowHeight);
+        renderStatRow("GOOD", stats.good, '#ffff33', startY + rowHeight * 2);
+        renderStatRow("MISS", stats.miss, '#ff3333', startY + rowHeight * 3);
+
+        // Score & Max Combo
+        renderStatRow("TOTAL SCORE", Math.floor(score).toLocaleString(), '#ffffff', startY + rowHeight * 4.5, true);
+        renderStatRow("MAX COMBO", maxCombo, '#33ff33', startY + rowHeight * 6.2, true);
+
+        // 6. Footer Prompt
         const pulse = 0.5 + Math.sin(Date.now() * 0.005) * 0.5;
+        ctx.textAlign = 'center';
         ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.7})`;
-        ctx.font = '20px "Orbitron"';
-        ctx.fillText("TAP OR PRESS ENTER TO CONTINUE", width / 2, height * 0.85);
+        ctx.font = 'bold 22px "Orbitron"';
+        ctx.fillText("TAP OR PRESS ANY KEY TO DISCONNECT", width / 2, height * 0.93 + Math.sin(Date.now() * 0.003) * 5);
     }
 
     private renderExplosions(): void {
@@ -861,9 +1021,9 @@ export class RhythmGame extends BaseGame {
         const ctx = this.ctx;
         for (let i = 0; i < this.laneCount; i++) {
             const width = this.getPerspectiveWidth(this.hitLineY);
-            const height = 25;
+            const height = 35; // Increased from 25 for better visibility
             const x = this.getPerspectiveX(i, this.hitLineY);
-            const colorSet = (i === 1 || i === 4) ? this.COLORS.NOTE_Right : this.COLORS.NOTE_Left;
+            const colorSet = this.COLORS.LANES[i] || this.COLORS.LANES[0];
             const baseColor = colorSet[1];
 
             if (this.keyState[i]) {
@@ -897,6 +1057,8 @@ export class RhythmGame extends BaseGame {
         const timeToReachHitLine = 2000 / this.scrollSpeed;
 
         this.visualNotes.forEach(note => {
+            if (note.isProcessed) return; // Don't draw hit/missed notes
+
             const timeDiff = note.time * 1000 - currentTime;
             if (timeDiff > -200 && timeDiff < timeToReachHitLine) {
                 // Linear progress (0 to 1) based on time
@@ -924,7 +1086,7 @@ export class RhythmGame extends BaseGame {
         // High-Performance Cache Rendering
         if (!this.renderCache) return;
 
-        const noteImg = (lane === 1 || lane === 4) ? this.renderCache.noteRight : this.renderCache.noteLeft;
+        const noteImg = this.renderCache.notes[lane];
         if (noteImg) {
             this.ctx.drawImage(noteImg, x, y, w, h);
         }
@@ -977,11 +1139,28 @@ export class RhythmGame extends BaseGame {
         // Combo
         if (combo > 0) {
             ctx.textAlign = 'center';
-            ctx.shadowBlur = 20; ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 20 + this.comboAnim * 20;
+            ctx.shadowColor = '#00ffff';
             ctx.fillStyle = '#fff';
-            ctx.font = 'italic bold 60px "Orbitron"'; ctx.fillText(`${combo}`, this.canvas.width / 2, 150);
-            ctx.font = '20px "Orbitron"'; ctx.fillText("COMBO", this.canvas.width / 2, 210);
+
+            const scale = 1 + this.comboAnim * 0.4;
+            ctx.save();
+            ctx.translate(this.canvas.width / 2, this.canvas.height * 0.15);
+            ctx.scale(scale, scale);
+
+            // Combo Count
+            ctx.font = 'italic bold 70px "Orbitron"';
+            ctx.fillText(`${combo}`, 0, 0);
+
+            // "COMBO" Label
+            ctx.font = '20px "Orbitron"';
+            ctx.fillText("COMBO", 0, 65);
+            ctx.restore();
         }
+
+        // Render Judgement Text (Perfect/Good/Miss)
+        this.renderJudgment(ctx, this.canvas.width, this.canvas.height);
+
         ctx.restore();
     }
 
@@ -1100,16 +1279,38 @@ export class RhythmGame extends BaseGame {
         ctx.fillText(`${bpm}`, statsCenterX, statsTopY + 5);
 
         // Duration Display
-        this.drawTechLabel("TRACK_DURATION", statsCenterX, statsTopY + 35, 'center');
+        this.drawTechLabel("TRACK_DURATION", statsCenterX, statsTopY + 25, 'center');
         ctx.fillStyle = '#ccc';
         ctx.font = '20px "Orbitron"';
         ctx.shadowBlur = 0;
         const durMin = Math.floor((currentSong.duration || 120) / 60);
         const durSec = ((currentSong.duration || 120) % 60).toString().padStart(2, '0');
-        ctx.fillText(`${durMin}:${durSec}`, statsCenterX, statsTopY + 60);
+        ctx.fillText(`${durMin}:${durSec}`, statsCenterX, statsTopY + 45);
+
+        // Difficulty Control
+        const difficultyY = infoY + 160;
+        const currentDiff = this.difficultyOptions[this.selectedDifficultyIndex];
+
+        let diffColor = '#ffffff';
+        if (currentDiff === 'EASY') diffColor = '#00ff00';      // Green
+        else if (currentDiff === 'NORMAL') diffColor = '#ffff00'; // Yellow
+        else if (currentDiff === 'HARD') diffColor = '#ff3333';   // Red
+
+        ctx.fillStyle = diffColor;
+        ctx.font = 'bold 32px "Orbitron"';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = diffColor;
+        ctx.fillText(currentDiff, statsCenterX, difficultyY);
+
+        this.drawTechLabel("DIFFICULTY_LEVEL", statsCenterX, difficultyY - 35, 'center');
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '12px "Orbitron"';
+        ctx.shadowBlur = 0;
+        ctx.fillText("Q  SELECT  E", statsCenterX, difficultyY + 25);
 
         // Speed Control
-        const speedControlY = infoY + infoH - 40;
+        const speedControlY = infoY + infoH - 35;
 
         ctx.fillStyle = '#ff00ff';
         ctx.font = 'bold 40px "Orbitron"';
@@ -1217,12 +1418,16 @@ export class RhythmGame extends BaseGame {
         } else if (e.code === 'ArrowRight') {
             this.selectedSpeedIndex = Math.min(this.speedOptions.length - 1, this.selectedSpeedIndex + 1);
             this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
+        } else if (e.code === 'KeyQ') {
+            this.selectedDifficultyIndex = Math.max(0, this.selectedDifficultyIndex - 1);
+        } else if (e.code === 'KeyE') {
+            this.selectedDifficultyIndex = Math.min(this.difficultyOptions.length - 1, this.selectedDifficultyIndex + 1);
         } else if (e.code === 'Enter') {
             // Stop preview before starting
             if (this.previewTimeout) clearTimeout(this.previewTimeout);
             this.audioEngine.stop();
 
-            this.currentState = GameState.PLAYING;
+            this.shouldAutoStart = true; // Request start after load
             this.load().then(() => this.create());
         }
 
@@ -1411,7 +1616,7 @@ export class RhythmGame extends BaseGame {
 
     public destroy(): void {
         this.audioEngine.stop();
-        this.isPlaying = false;
+        this.currentState = GameState.MENU;
         window.removeEventListener('keydown', this.handleKeyDown);
         window.removeEventListener('keyup', this.handleKeyUp);
         this.canvas.removeEventListener('touchstart', this.handleTouchStart);

@@ -8,6 +8,13 @@ export class ScoreManager {
     private health: number = 100;
     private maxHealth: number = 100;
 
+    // Stats Tracking
+    private perfectCount: number = 0;
+    private greatCount: number = 0;
+    private goodCount: number = 0;
+    private missCount: number = 0;
+    private totalChartNotes: number = 0;
+
     private constructor() {
         this.load();
     }
@@ -19,14 +26,51 @@ export class ScoreManager {
         return ScoreManager.instance;
     }
 
-    public addHit(baseScore: number = 100): void {
+    public setTotalNotes(count: number): void {
+        this.totalChartNotes = count;
+    }
+
+    public addHit(baseScore: number = 100, judgment: 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS' = 'PERFECT'): void {
+        if (judgment === 'MISS') {
+            this.missCount++;
+            this.resetCombo();
+            this.damage(5);
+            return;
+        }
+
         this.currentCombo++;
         if (this.currentCombo > this.maxCombo) {
             this.maxCombo = this.currentCombo;
         }
+
+        // Detailed Counters
+        if (judgment === 'PERFECT') this.perfectCount++;
+        else if (judgment === 'GREAT') this.greatCount++;
+        else if (judgment === 'GOOD') this.goodCount++;
+
+        // Combo Multiplier for Score only
         this.score += baseScore * (1 + Math.min(this.currentCombo, 50) * 0.1);
         this.heal(2); // Heal slightly on hit
         this.save();
+    }
+
+    public getAccuracy(): number {
+        if (this.totalChartNotes === 0) return 0;
+
+        // ACCURACY CALCULATION (Non-Combo Based)
+        // Perfect = 1.0, Great = 0.75, Good = 0.5, Miss = 0
+        const points = (this.perfectCount * 1.0) + (this.greatCount * 0.75) + (this.goodCount * 0.5);
+        return (points / this.totalChartNotes) * 100;
+    }
+
+    public getDetailedStats() {
+        return {
+            perfect: this.perfectCount,
+            great: this.greatCount,
+            good: this.goodCount,
+            miss: this.missCount,
+            total: this.totalChartNotes
+        };
     }
 
     public damage(amount: number): void {
@@ -61,6 +105,10 @@ export class ScoreManager {
         this.currentCombo = 0;
         this.maxCombo = 0;
         this.health = this.maxHealth;
+        this.perfectCount = 0;
+        this.greatCount = 0;
+        this.goodCount = 0;
+        this.missCount = 0;
         this.save();
     }
 

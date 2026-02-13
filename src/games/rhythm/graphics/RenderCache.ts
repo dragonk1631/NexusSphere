@@ -4,20 +4,23 @@ export class RenderCache {
     private static instance: RenderCache;
 
     // Cached Canvases
-    public noteLeft: HTMLCanvasElement | null = null;
-    public noteRight: HTMLCanvasElement | null = null;
+    public notes: HTMLCanvasElement[] = []; // Expanded for per-lane coloring
     public particleGlow: HTMLCanvasElement | null = null;
     public highwayBackground: HTMLCanvasElement | null = null;
 
     // Constants (Must match Game Logic)
     private readonly NOTE_WIDTH = 100; // Max width reference
-    private readonly NOTE_HEIGHT = 40;
+    private readonly NOTE_HEIGHT = 50; // Increased from 40 for better visibility
     private readonly GLOW_RADIUS = 30;
 
-    private readonly COLORS = {
-        NOTE_Left: ['#ff0099', '#ff66cc'], // Pink
-        NOTE_Right: ['#00ccff', '#66e0ff'], // Cyan
-    };
+    private readonly COLORS = [
+        ['#ff0099', '#ff66cc'], // Lane 0: Pink
+        ['#ff9900', '#ffcc00'], // Lane 1: Orange/Yellow
+        ['#00ff00', '#66ff66'], // Lane 2: Green
+        ['#00ffff', '#66ffff'], // Lane 3: Cyan
+        ['#0066ff', '#66a3ff'], // Lane 4: Blue
+        ['#cc00ff', '#e666ff'], // Lane 5: Purple
+    ];
 
     private constructor() { }
 
@@ -31,9 +34,8 @@ export class RenderCache {
     public init(): void {
         console.log("[RenderCache] Generating static assets...");
 
-        // 1. Cache Notes
-        this.noteLeft = this.createCachedNote(this.COLORS.NOTE_Left);
-        this.noteRight = this.createCachedNote(this.COLORS.NOTE_Right);
+        // 1. Cache Notes for all 6 lanes
+        this.notes = this.COLORS.map(colors => this.createCachedNote(colors));
 
         // 2. Cache Particles (Generic White Glow)
         this.particleGlow = this.createGlowParticle();
