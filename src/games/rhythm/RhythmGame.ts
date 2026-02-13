@@ -65,6 +65,9 @@ export class RhythmGame extends BaseGame {
     private comboAnim = 0; // 0 to 1 anim factor
     private preGameTimer = 0;
     private isAudioStarted = false;
+    private lastAudioTime = 0;
+    private lastAudioUpdate = 0;
+    private bgGradient: CanvasGradient | null = null;
 
     // FPS Counter
     private lastFpsTime = 0;
@@ -658,7 +661,15 @@ export class RhythmGame extends BaseGame {
                 // Avoid tiny jump: currentTime remains 0 or slight positive
             }
         } else {
-            currentTime = this.audioEngine.currentTime * 1000;
+            const rawAudioTime = this.audioEngine.currentTime * 1000;
+            if (rawAudioTime !== this.lastAudioTime) {
+                this.lastAudioTime = rawAudioTime;
+                this.lastAudioUpdate = now;
+            }
+            // Interpolate between audio clock ticks for sub-frame precision
+            const drift = now - this.lastAudioUpdate;
+            // Cap drift at 100ms to prevent runaway time if audio hangs
+            currentTime = rawAudioTime + Math.min(drift, 100);
         }
 
         // Combo Animation Decay
@@ -754,28 +765,32 @@ export class RhythmGame extends BaseGame {
         }
 
         // 1. Warp Speed Background
-        const bgGrad = ctx.createRadialGradient(
-            this.canvas.width / 2, this.canvas.height / 2, 0,
-            this.canvas.width / 2, this.canvas.height / 2, this.canvas.height
-        );
-        bgGrad.addColorStop(0, '#1a0033'); // Deep Center
-        bgGrad.addColorStop(0.4, '#440066'); // Mid Purple
-        bgGrad.addColorStop(1, '#000000'); // Black edges
-        ctx.fillStyle = bgGrad;
+        if (!this.bgGradient) {
+            this.bgGradient = ctx.createRadialGradient(
+                this.canvas.width / 2, this.canvas.height / 2, 0,
+                this.canvas.width / 2, this.canvas.height / 2, this.canvas.height
+            );
+            this.bgGradient.addColorStop(0, '#1a0033'); // Deep Center
+            this.bgGradient.addColorStop(0.4, '#440066'); // Mid Purple
+            this.bgGradient.addColorStop(1, '#000000'); // Black edges
+        }
+        ctx.fillStyle = this.bgGradient;
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Speed Lines (Warp Effect)
+        // Speed Lines (Warp Effect) - Optimized
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        for (let i = 0; i < 20; i++) {
-            const angle = (Date.now() * 0.0005 + i * 0.5) % (Math.PI * 2);
-            const x1 = this.canvas.width / 2 + Math.cos(angle) * 50;
-            const y1 = this.canvas.height / 2 + Math.sin(angle) * 50;
-            const x2 = this.canvas.width / 2 + Math.cos(angle) * 800;
-            const y2 = this.canvas.height / 2 + Math.sin(angle) * 800;
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        const baseAngle = Date.now() * 0.0005;
+
+        for (let i = 0; i < 12; i++) { // Reduced count for mobile
+            const angle = baseAngle + i * 0.523; // Pre-calculated offset (Math.PI / 6)
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            ctx.moveTo(centerX + cos * 50, centerY + sin * 50);
+            ctx.lineTo(centerX + cos * 800, centerY + sin * 800);
         }
         ctx.stroke();
 
@@ -1029,7 +1044,7 @@ export class RhythmGame extends BaseGame {
             if (this.keyState[i]) {
                 ctx.fillStyle = baseColor;
                 ctx.strokeStyle = '#fff';
-                ctx.shadowBlur = 30;
+                ctx.shadowBlur = 10; // Reduced from 30 for mobile performance
                 ctx.shadowColor = baseColor;
                 ctx.beginPath();
                 ctx.roundRect(x, this.hitLineY, width, height, height / 3);
@@ -1055,31 +1070,39 @@ export class RhythmGame extends BaseGame {
 
     private renderNotes(currentTime: number): void {
         const timeToReachHitLine = 2000 / this.scrollSpeed;
+        const windowStart = currentTime - 200;
+        const windowEnd = currentTime + timeToReachHitLine;
 
-        this.visualNotes.forEach(note => {
-            if (note.isProcessed) return; // Don't draw hit/missed notes
+        // Optimization: Since visualNotes is already sorted by time (in NoteFactory), 
+        // we can find the start index and only iterate until we exceed the window.
+        for (let i = 0; i < this.visualNotes.length; i++) {
+            const note = this.visualNotes[i];
+            if (note.isProcessed) continue;
 
-            const timeDiff = note.time * 1000 - currentTime;
-            if (timeDiff > -200 && timeDiff < timeToReachHitLine) {
-                // Linear progress (0 to 1) based on time
-                const linearProgress = 1 - (timeDiff / timeToReachHitLine);
+            const noteTimeMs = note.time * 1000;
 
-                // Perspective Projection (Z-axis)
-                // Maps constant speed in 3D to accelerating 2D movement
-                const perspectiveDepth = 4; // Higher = stronger perspective acceleration
-                const projectedProgress = linearProgress / (perspectiveDepth - (perspectiveDepth - 1) * linearProgress);
+            // Skip notes that haven't entered the window yet (and stop loop since sorted)
+            if (noteTimeMs > windowEnd) break;
 
-                const noteY = this.horizonY + (this.hitLineY - this.horizonY) * projectedProgress;
-                if (noteY < this.horizonY) return;
+            // Skip notes that already passed
+            if (noteTimeMs < windowStart) continue;
 
-                const noteWidth = this.getPerspectiveWidth(noteY);
-                const noteX = this.getPerspectiveX(note.lane, noteY);
+            const timeDiff = noteTimeMs - currentTime;
+            // Linear progress (0 to 1) based on time
+            const linearProgress = 1 - (timeDiff / timeToReachHitLine);
 
-                // Height also scales with perspective (1/z)
-                const noteHeight = 25 * projectedProgress; // Height grows as it approaches
-                this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane);
-            }
-        });
+            const perspectiveDepth = 4;
+            const projectedProgress = linearProgress / (perspectiveDepth - (perspectiveDepth - 1) * linearProgress);
+
+            const noteY = this.horizonY + (this.hitLineY - this.horizonY) * projectedProgress;
+            if (noteY < this.horizonY) continue;
+
+            const noteWidth = this.getPerspectiveWidth(noteY);
+            const noteX = this.getPerspectiveX(note.lane, noteY);
+            const noteHeight = 25 * projectedProgress;
+
+            this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane);
+        }
     }
 
     private drawGelNote(x: number, y: number, w: number, h: number, lane: number): void {
