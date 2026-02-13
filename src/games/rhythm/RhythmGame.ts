@@ -93,12 +93,12 @@ export class RhythmGame extends BaseGame {
     // Visual Assets / Constants
     private readonly COLORS = {
         LANES: [
-            ['#ff0099', '#ff66cc'], // Lane 0: Pink
-            ['#ff9900', '#ffcc00'], // Lane 1: Orange/Yellow
-            ['#00ff00', '#66ff66'], // Lane 2: Green
-            ['#00ffff', '#66ffff'], // Lane 3: Cyan
-            ['#0066ff', '#66a3ff'], // Lane 4: Blue
-            ['#cc00ff', '#e666ff'], // Lane 5: Purple
+            ['#ff0066', '#ff3385'], // Lane 0: Neon Pink
+            ['#ffcc00', '#ffdb4d'], // Lane 1: Electric Gold
+            ['#00ff99', '#33ffad'], // Lane 2: Spring Green
+            ['#00e5ff', '#33ebff'], // Lane 3: Cyber Cyan
+            ['#2979ff', '#5393ff'], // Lane 4: Azure Blue
+            ['#aa00ff', '#bb33ff'], // Lane 5: Electric Purple
         ],
         LANE_BORDER: '#444444',
         HIT_LINE_GLOW: '#00ffff',
@@ -842,29 +842,30 @@ export class RhythmGame extends BaseGame {
             const br = { x: this.getPerspectiveX(this.laneCount, this.bottomY), y: this.bottomY };
 
             // Side Rails
-            const railWidth = 20;
+            const railWidth = 12; // Thinned from 20
             const outerGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-            outerGrad.addColorStop(0, '#555');
-            outerGrad.addColorStop(1, '#aaa');
+            outerGrad.addColorStop(0, '#606080'); // Slightly brighter rails
+            outerGrad.addColorStop(1, '#a0a0ff');
             ctx.fillStyle = outerGrad;
             ctx.beginPath();
-            ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 3, bl.y);
+            ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
             ctx.fill();
             ctx.beginPath();
-            ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 3, br.y); ctx.lineTo(br.x, br.y);
+            ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y); ctx.lineTo(br.x, br.y);
             ctx.fill();
 
-            // Road
+            // Road (Electric Cyber Mix)
             const roadGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-            roadGrad.addColorStop(0, 'rgba(0,0,0,0.8)');
-            roadGrad.addColorStop(1, 'rgba(20,20,40, 0.9)');
+            roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.9)');
+            roadGrad.addColorStop(0.5, 'rgba(30, 10, 60, 0.8)'); // Purple hint
+            roadGrad.addColorStop(1, 'rgba(20, 20, 80, 0.95)');  // Vibrant deep blue
             ctx.fillStyle = roadGrad;
             ctx.beginPath();
             ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
             ctx.fill();
 
             // Dividers
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1; // Thinned from 2
             for (let i = 1; i < this.laneCount; i++) {
                 const topX = this.getPerspectiveX(i, this.horizonY);
                 const botX = this.getPerspectiveX(i, this.bottomY);
@@ -1031,7 +1032,7 @@ export class RhythmGame extends BaseGame {
         const ctx = this.ctx;
         for (let i = 0; i < this.laneCount; i++) {
             const width = this.getPerspectiveWidth(this.hitLineY);
-            const height = 35; // Increased from 25 for better visibility
+            const height = 50; // Increased from 35 for better visibility
             const x = this.getPerspectiveX(i, this.hitLineY);
             const colorSet = this.COLORS.LANES[i] || this.COLORS.LANES[0];
             const baseColor = colorSet[1];
@@ -1094,7 +1095,7 @@ export class RhythmGame extends BaseGame {
 
             const noteWidth = this.getPerspectiveWidth(noteY);
             const noteX = this.getPerspectiveX(note.lane, noteY);
-            const noteHeight = 25 * projectedProgress;
+            const noteHeight = 40 * projectedProgress; // Increased from 25
 
             this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane);
         }
@@ -1450,10 +1451,10 @@ export class RhythmGame extends BaseGame {
     private drawAtmosphere(width: number, height: number): void {
         const ctx = this.ctx;
 
-        // 1. Deep Vignette Background
-        const grad = ctx.createRadialGradient(width / 2, height / 2, height * 0.2, width / 2, height / 2, height * 0.8);
-        grad.addColorStop(0, '#0a0a1a'); // Deep Blue-Black center
-        grad.addColorStop(1, '#000000'); // Pure Black edges
+        // 1. Vibrant Vignette Background
+        const grad = ctx.createRadialGradient(width / 2, height / 2, height * 0.1, width / 2, height / 2, height * 0.9);
+        grad.addColorStop(0, '#1a1a4a'); // Brighter electric center
+        grad.addColorStop(1, '#000000'); // Deep edges
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, width, height);
 

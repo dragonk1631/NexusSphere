@@ -14,12 +14,12 @@ export class RenderCache {
     private readonly GLOW_RADIUS = 30;
 
     private readonly COLORS = [
-        ['#ff0099', '#ff66cc'], // Lane 0: Pink
-        ['#ff9900', '#ffcc00'], // Lane 1: Orange/Yellow
-        ['#00ff00', '#66ff66'], // Lane 2: Green
-        ['#00ffff', '#66ffff'], // Lane 3: Cyan
-        ['#0066ff', '#66a3ff'], // Lane 4: Blue
-        ['#cc00ff', '#e666ff'], // Lane 5: Purple
+        ['#ff0066', '#ff3385'], // Lane 0: Neon Pink
+        ['#ffcc00', '#ffdb4d'], // Lane 1: Electric Gold
+        ['#00ff99', '#33ffad'], // Lane 2: Spring Green
+        ['#00e5ff', '#33ebff'], // Lane 3: Cyber Cyan
+        ['#2979ff', '#5393ff'], // Lane 4: Azure Blue
+        ['#aa00ff', '#bb33ff'], // Lane 5: Electric Purple
     ];
 
     private constructor() { }
@@ -139,29 +139,30 @@ export class RenderCache {
         const br = { x: getPerspectiveX(laneCount, bottomY), y: bottomY };
 
         // 1. Side Rails
-        const railWidth = 20;
+        const railWidth = 12; // Thinned from 20
         const outerGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        outerGrad.addColorStop(0, '#555');
-        outerGrad.addColorStop(1, '#aaa');
+        outerGrad.addColorStop(0, '#606080');
+        outerGrad.addColorStop(1, '#a0a0ff');
         ctx.fillStyle = outerGrad;
         ctx.beginPath();
-        ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 3, bl.y);
+        ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
         ctx.fill();
         ctx.beginPath();
-        ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 3, br.y); ctx.lineTo(br.x, br.y);
+        ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y); ctx.lineTo(br.x, br.y);
         ctx.fill();
 
-        // 2. Road Body
+        // 2. Road Body (Electric Cyber Mix)
         const roadGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        roadGrad.addColorStop(0, 'rgba(0,0,0,0.8)');
-        roadGrad.addColorStop(1, 'rgba(20,20,40, 0.9)');
+        roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.9)');
+        roadGrad.addColorStop(0.5, 'rgba(30, 10, 60, 0.8)');
+        roadGrad.addColorStop(1, 'rgba(20, 20, 80, 0.95)');
         ctx.fillStyle = roadGrad;
         ctx.beginPath();
         ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
         ctx.fill();
 
         // 3. Dividers
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1; // Thinned from 2
         for (let i = 1; i < laneCount; i++) {
             const topX = getPerspectiveX(i, horizonY);
             const botX = getPerspectiveX(i, bottomY);
