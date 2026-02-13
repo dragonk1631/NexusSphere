@@ -1274,8 +1274,9 @@ export class RhythmGame extends BaseGame {
         ctx.fillText(`${bpm}`, statsCenterX - leftPanelWidth * 0.2, statsTopY);
         this.drawTechLabel("BPM", statsCenterX - leftPanelWidth * 0.2, statsTopY - valueSize * 0.8, 'center');
 
-        const durMin = Math.floor((currentSong.duration || 120) / 60);
-        const durSec = ((currentSong.duration || 120) % 60).toString().padStart(2, '0');
+        const totalSeconds = Math.floor(currentSong.duration || 120);
+        const durMin = Math.floor(totalSeconds / 60);
+        const durSec = (totalSeconds % 60).toString().padStart(2, '0');
         ctx.fillText(`${durMin}:${durSec}`, statsCenterX + leftPanelWidth * 0.2, statsTopY);
         this.drawTechLabel("DUR", statsCenterX + leftPanelWidth * 0.2, statsTopY - valueSize * 0.8, 'center');
 
