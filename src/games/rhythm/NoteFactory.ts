@@ -15,12 +15,13 @@ export interface VisualNote extends GameNote {
 
 export class NoteFactory {
     public static createNotes(midi: ParsedMidi, laneCount: number = 4, forcedChannels: number[] | null = null, difficulty: string = 'NORMAL'): VisualNote[] {
-        const rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
         let targetChannels: number[] = [];
+        let rankedChannels: number[] | null = null; // Defer analysis
 
         if (forcedChannels && forcedChannels.length > 0) {
             targetChannels = forcedChannels;
         } else {
+            rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
             if (rankedChannels.length === 1) {
                 targetChannels = [rankedChannels[0]];
             } else {
@@ -54,13 +55,24 @@ export class NoteFactory {
         let notesToProcess = collectNotes(targetChannels);
 
         // EMERGENCY FALLBACK (Density Check)
-        if (notesToProcess.length < 150 && !forcedChannels && rankedChannels.length > targetChannels.length) {
-            console.warn(`[NoteFactory] Low note count (${notesToProcess.length}). Expanding channel pool...`);
-            targetChannels = rankedChannels.slice(0, Math.min(rankedChannels.length, 6));
-            notesToProcess = collectNotes(targetChannels);
+        // If current selection is too sparse, try to rescue it with top ranked channels
+        if (notesToProcess.length < 50) {
+            console.warn(`[NoteFactory] Target channels ${targetChannels} yielded only ${notesToProcess.length} notes. Attempting rescue...`);
+            if (!rankedChannels) rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
+
+            if (rankedChannels.length > 0) {
+                // If we were already using the top, expand to more
+                const nextPoolSize = targetChannels.length >= 3 ? 6 : 3;
+                targetChannels = rankedChannels.slice(0, Math.min(rankedChannels.length, nextPoolSize));
+                notesToProcess = collectNotes(targetChannels);
+                console.log(`[NoteFactory] Rescue operation expanded pool to ${targetChannels.length} channels. New count: ${notesToProcess.length}`);
+            }
         }
 
-        if (notesToProcess.length === 0) return [];
+        if (notesToProcess.length === 0) {
+            console.error("[NoteFactory] Failed to find any notes for charting. Returning empty list.");
+            return [];
+        }
 
         // Run Charting Pipeline (Quantize -> Pattern -> Lane) - Run ONLY ONCE
         const quantized = RhythmQuantizer.quantize(notesToProcess, midi.ppq);

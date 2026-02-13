@@ -165,7 +165,7 @@ export class MelodyAnalyzer {
         });
 
         // 3. Sort
-        const candidates = channelStats.filter(c => c.score > -5000).sort((a, b) => b.score - a.score);
+        const candidates = channelStats.filter(c => c.score !== 0 && c.score > -5000).sort((a, b) => b.score - a.score);
 
         // Debug Log
         const result = candidates.slice(0, 5).map(c => c.channel);
