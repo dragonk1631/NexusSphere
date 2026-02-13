@@ -14,72 +14,61 @@ export interface VisualNote extends GameNote {
 }
 
 export class NoteFactory {
-    /**
-     * Convert MIDI data to game visual notes using Smart Charting Engine.
-     * @param forcedChannels (Optional) Specific channels (0-15) to use.
-     */
     public static createNotes(midi: ParsedMidi, laneCount: number = 4, forcedChannels: number[] | null = null, difficulty: string = 'NORMAL'): VisualNote[] {
-        // 1. Determine Target Channels
-        let targetChannels: number[] = [];
         const rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
+        let targetChannels: number[] = [];
 
         if (forcedChannels && forcedChannels.length > 0) {
             targetChannels = forcedChannels;
         } else {
-            // Default to top 3
-            targetChannels = rankedChannels.slice(0, Math.min(rankedChannels.length, 3));
+            if (rankedChannels.length === 1) {
+                targetChannels = [rankedChannels[0]];
+            } else {
+                targetChannels = rankedChannels.slice(0, Math.min(rankedChannels.length, 3));
+            }
         }
 
-        const proceedWithChannels = (channels: number[]): VisualNote[] => {
-            let notesToProcess: GameNote[] = [];
-            let lastNoteTime = -1;
+        const collectNotes = (channels: number[]): GameNote[] => {
+            const collected: GameNote[] = [];
             const seenNoteKeys = new Set<string>();
-            const minGap = (difficulty === 'EASY') ? 0.15 : 0; // 150ms gap for EASY
+            const minGap = (difficulty === 'EASY') ? 0.15 : 0;
+            let lastNoteTime = -1;
 
             midi.tracks.forEach((track) => {
                 if (channels.includes(track.channel)) {
                     track.notes.forEach(note => {
-                        // 1. De-duplication
                         const key = `${note.midi}_${note.time.toFixed(4)}`;
                         if (seenNoteKeys.has(key)) return;
                         seenNoteKeys.add(key);
 
-                        // 2. Density Filtering (EASY mode)
-                        if (difficulty === 'EASY') {
-                            if (lastNoteTime !== -1 && note.time - lastNoteTime < minGap) {
-                                return;
-                            }
-                        }
+                        if (difficulty === 'EASY' && lastNoteTime !== -1 && note.time - lastNoteTime < minGap) return;
 
-                        notesToProcess.push(note);
+                        collected.push(note);
                         lastNoteTime = note.time;
                     });
                 }
             });
-
-            if (notesToProcess.length === 0) return [];
-
-            // Smart Charting Pipeline
-            const quantizedNotes = RhythmQuantizer.quantize(notesToProcess, midi.ppq);
-            RhythmQuantizer.applyTimeCorrection(quantizedNotes, midi);
-            const patterns = PatternAnalyzer.analyze(quantizedNotes);
-            return LaneAllocator.assignLanes(patterns, laneCount, difficulty);
+            return collected;
         };
 
-        let result = proceedWithChannels(targetChannels);
+        let notesToProcess = collectNotes(targetChannels);
 
-        // 2. EMERGENCY FALLBACK
-        // If note count is suspiciously low (< 150), switch to Smart Charting's best channels
-        if (result.length < 150 && rankedChannels.length > 0) {
-            console.warn(`[NoteFactory] Low note count (${result.length}). Switching to top ranked channels for better density...`);
+        // EMERGENCY FALLBACK (Density Check)
+        if (notesToProcess.length < 150 && !forcedChannels && rankedChannels.length > targetChannels.length) {
+            console.warn(`[NoteFactory] Low note count (${notesToProcess.length}). Expanding channel pool...`);
             targetChannels = rankedChannels.slice(0, Math.min(rankedChannels.length, 6));
-            const expandedResult = proceedWithChannels(targetChannels);
-            if (expandedResult.length > result.length) {
-                result = expandedResult;
-            }
+            notesToProcess = collectNotes(targetChannels);
         }
 
-        console.log(`[NoteFactory] Final Note Count: ${result.length}`);
+        if (notesToProcess.length === 0) return [];
+
+        // Run Charting Pipeline (Quantize -> Pattern -> Lane) - Run ONLY ONCE
+        const quantized = RhythmQuantizer.quantize(notesToProcess, midi.ppq);
+        RhythmQuantizer.applyTimeCorrection(quantized, midi);
+        const patterns = PatternAnalyzer.analyze(quantized);
+        const result = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
+
+        console.log(`[NoteFactory] Charted ${result.length} notes from ${targetChannels.length} channels.`);
         return result;
     }
 }

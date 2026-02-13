@@ -65,26 +65,51 @@ export class MelodyAnalyzer {
             if (stat.isDrum) return;
 
             // --- Heuristic 0: Density Filter ---
-            // If a channel has very few notes compared to the main track, it's likely FX or transition.
             if (stat.noteCount < densityThreshold) return;
 
             // --- Heuristic 1: Base Activity (Linear) ---
-            // Remove the cap. Melody is usually the busiest or second busiest.
             let score = stat.noteCount * 1.0;
 
-            // --- Heuristic 2: Pitch Range & Variance ---
+            // --- Heuristic 2: Pitch Range (Centroid) ---
             const avgPitch = stat.totalPitch / stat.noteCount;
-            if (avgPitch > 55 && avgPitch < 90) score += 500; // Wide valid range
 
-            // Variance (Standard Deviation)
-            if (stat.notes.length > 1) {
-                const variance = stat.notes.reduce((sum, p) => sum + Math.pow(p - avgPitch, 2), 0) / stat.noteCount;
-                const stdDev = Math.sqrt(variance);
-                if (stdDev > 5) score += 500; // Boost for moving melody
-                else score -= 500; // Penalty for flatline (drone/bass)
+            // LEAD RANGE (C4 - C6)
+            if (avgPitch >= 60 && avgPitch <= 84) score += 2000;
+            // HIGH LEAD (C6+)
+            else if (avgPitch > 84) score += 1000;
+            // BASS PENALTY (Below D3)
+            else if (avgPitch < 50) score -= 4000;
+            // LOW-MID RANGE (D3 - C4)
+            else if (avgPitch < 60) score -= 1000;
+
+            // --- Heuristic 3: Melodic Motion (Pitch Delta) ---
+            // Melodies move in varied intervals. Basslines often repeat or jump large and stay.
+            let pitchDeltaAvg = 0;
+            if (stat.notes.length > 2) {
+                let totalDelta = 0;
+                let repeats = 0;
+                for (let i = 1; i < stat.notes.length; i++) {
+                    const delta = Math.abs(stat.notes[i] - stat.notes[i - 1]);
+                    totalDelta += delta;
+                    if (delta === 0) repeats++;
+                }
+                pitchDeltaAvg = totalDelta / (stat.notes.length - 1);
+                const repeatRatio = repeats / stat.notes.length;
+
+                // Penalty for too many repeats (Bass/Drones)
+                if (repeatRatio > 0.4) score -= 1500;
+                // Bonus for active melodic motion (Steps/Leaps)
+                if (pitchDeltaAvg > 1.5 && pitchDeltaAvg < 7) score += 1500;
+                // Penalty for extreme chaotic jumps (FX/Percussion)
+                else if (pitchDeltaAvg > 12) score -= 2000;
             }
 
-            // --- Heuristic 3: Polyphony ---
+            // Variance (Standard Deviation)
+            const variance = stat.notes.reduce((sum, p) => sum + Math.pow(p - avgPitch, 2), 0) / stat.noteCount;
+            const stdDev = Math.sqrt(variance);
+            if (stdDev > 4) score += 1000;
+
+            // --- Heuristic 4: Polyphony & Legato ---
             stat.timestamps.sort((a, b) => a - b);
             let overlaps = 0;
             let intervals: number[] = [];
@@ -95,56 +120,47 @@ export class MelodyAnalyzer {
             }
             const polyphonyRatio = overlaps / stat.noteCount;
 
-            // NUANCED POLYPHONY PENALTY
-            const fam = stat.instrumentFamily; // Consolidated declaration
+            const fam = stat.instrumentFamily;
             const isPolyphonicInstrument = fam.includes('piano') || fam.includes('guitar') || fam.includes('chromatic') || fam.includes('organ');
-
             const maxAllowedPoly = isPolyphonicInstrument ? 0.6 : 0.3;
 
             if (polyphonyRatio > maxAllowedPoly + 0.2) score -= 3000;
             else if (polyphonyRatio > maxAllowedPoly) score -= 1000;
-            else score += 500;
+            else if (polyphonyRatio < 0.1) score += 1000; // Strong bonus for monophonic lead
 
-            // --- Heuristic 4: Rhythmic Entropy (Variety) ---
-            // Detect repetitive patterns (Bass/Accompaniment) vs Dynamic Melody
+            // --- Heuristic 5: Rhythmic Variety ---
             let entropyScore = 0;
             if (intervals.length > 10) {
                 const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
                 const intervalVar = intervals.reduce((s, x) => s + Math.pow(x - avgInterval, 2), 0) / intervals.length;
                 const intervalStdDev = Math.sqrt(intervalVar);
 
-                // High variation = Melody (approx > 0.1s std dev)
-                // Low variation = Machine-like beat (< 0.05s)
-                if (intervalStdDev > 0.1) {
-                    entropyScore = 500;
-                    score += 500;
-                } else if (intervalStdDev < 0.05) {
-                    entropyScore = -300;
-                    score -= 300;
+                if (intervalStdDev > 0.08) {
+                    entropyScore = 800;
+                    score += 800;
+                } else if (intervalStdDev < 0.03) {
+                    entropyScore = -1000;
+                    score -= 1000; // Heavy penalty for robotic static rhythm
                 }
             }
 
-            // --- Heuristic 5: Instrument Family ---
-            // fam is already defined above
-            // If High Polyphony, ignore instrument bonus for 'guitar' to prevent strumming tracks from winning
+            // --- Heuristic 6: Instrument Family ---
             const isHighPoly = polyphonyRatio > 0.4;
-
             if (fam.includes('piano') || fam.includes('chromatic')) score += 1000;
             else if (fam.includes('guitar')) {
-                if (!isHighPoly) score += 800; // Only bonus if it's a lead guitar (low poly)
-                else score -= 500; // Strumming guitar penalty
+                if (!isHighPoly) score += 1500; // Lead guitar bonus!
+                else score -= 1000;
             }
-            else if (fam.includes('string') || fam.includes('pad')) score -= 1000;
-            else if (fam.includes('brass') || fam.includes('reed')) score += 800;
+            else if (fam.includes('string') || fam.includes('pad')) score -= 2000;
+            else if (fam.includes('brass') || fam.includes('reed') || fam.includes('pipe')) score += 1500;
 
-            // --- Heuristic 6: Name Bonus ---
-            let balancedNameBonus = stat.nameBonus / 3;
-            score += balancedNameBonus;
+            // --- Heuristic 7: Name Bonus ---
+            score += stat.nameBonus;
 
             stat.score = score;
 
-            if (score > 0) {
-                console.log(`[MelodyAnalyzer] Ch ${stat.channel} (${fam || 'unknown'}): Score ${score.toFixed(0)} [N:${stat.noteCount}, Pitch:${avgPitch.toFixed(1)}, Poly:${polyphonyRatio.toFixed(2)}, Ent:${entropyScore}]`);
+            if (score > -2000) {
+                console.log(`[MelodyAnalyzer] Ch ${stat.channel} (${fam || 'unknown'}): Score ${score.toFixed(0)} [N:${stat.noteCount}, Pitch:${avgPitch.toFixed(1)}, Delta:${pitchDeltaAvg.toFixed(1)}, Poly:${polyphonyRatio.toFixed(2)}, Ent:${entropyScore}]`);
             }
         });
 

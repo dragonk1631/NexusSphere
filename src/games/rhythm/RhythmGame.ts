@@ -5,7 +5,6 @@ import type { ParsedMidi } from '../../core/audio/MidiParser';
 import { NoteFactory } from './NoteFactory';
 import type { VisualNote } from './NoteFactory';
 import { ScoreManager } from '../../core/score/ScoreManager';
-import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
 import { RenderCache } from './graphics/RenderCache';
 
 // Game States
@@ -36,6 +35,8 @@ export class RhythmGame extends BaseGame {
     private midiData: ParsedMidi | null = null;
     private beatmapData: any | null = null;
     private visualNotes: VisualNote[] = [];
+    private cachedMidi: { url: string, buffer: ArrayBuffer, parsed: ParsedMidi } | null = null;
+    private loadingPromise: Promise<void> | null = null; // Guard against concurrent loads
 
     private currentState: GameState = GameState.MENU;
     private shouldAutoStart = false; // Prevents auto-start on boot
@@ -514,40 +515,56 @@ export class RhythmGame extends BaseGame {
 
 
     public async load(): Promise<void> {
-        console.log("[RhythmGame] Loading assets...");
-        await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
+        // Prevent concurrent identical loads
+        if (this.loadingPromise) return this.loadingPromise;
 
-        // Load Default Song
-        const midiUrl = this.songList[this.selectedSongIndex].url; // Use selected song
-        const midiRes = await fetch(midiUrl);
-        const midiBuffer = await midiRes.arrayBuffer();
+        this.loadingPromise = (async () => {
+            console.log("[RhythmGame] Loading assets...");
+            await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
-        const parser = new MidiParser();
-        this.midiData = await parser.parse(midiBuffer);
-        await this.audioEngine.loadMidi(midiBuffer);
+            const midiUrl = this.songList[this.selectedSongIndex].url;
 
-        // Attempt to load Beatmap JSON
-        const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
-        const beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
-
-        try {
-            console.log(`[RhythmGame] Checking for beatmap at: ${beatmapUrl}`);
-            const res = await fetch(beatmapUrl);
-
-            // Check for successful response AND correct content type
-            const contentType = res.headers.get("content-type");
-            if (res.ok && contentType && contentType.includes("application/json")) {
-                this.beatmapData = await res.json();
-                console.log("[RhythmGame] Custom beatmap found and loaded.");
+            // 1. Check Cache for MIDI
+            if (this.cachedMidi && this.cachedMidi.url === midiUrl) {
+                console.log("[RhythmGame] Using cached MIDI data.");
+                this.midiData = this.cachedMidi.parsed;
+                await this.audioEngine.loadMidi(this.cachedMidi.buffer);
             } else {
-                // Soft 404 (Server returns 200 OK HTML for missing files) or actual 404
-                // This is EXPECTED behavior for auto-generated songs.
-                console.log(`[RhythmGame] No custom beatmap found (Server Status: ${res.status}, Type: ${contentType}). Proceeding with Smart Charting Engine.`);
+                const midiRes = await fetch(midiUrl);
+                const midiBuffer = await midiRes.arrayBuffer();
+
+                const parser = new MidiParser();
+                this.midiData = await parser.parse(midiBuffer);
+                await this.audioEngine.loadMidi(midiBuffer);
+
+                // Update Cache
+                this.cachedMidi = { url: midiUrl, buffer: midiBuffer, parsed: this.midiData };
+            }
+
+            // 2. Beatmap Check
+            const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+            const beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
+
+            try {
+                console.log(`[RhythmGame] Checking for beatmap at: ${beatmapUrl}`);
+                const res = await fetch(beatmapUrl);
+                const contentType = res.headers.get("content-type");
+
+                if (res.ok && contentType && contentType.includes("application/json")) {
+                    this.beatmapData = await res.json();
+                    console.log("[RhythmGame] Custom beatmap found and loaded.");
+                } else {
+                    this.beatmapData = null;
+                }
+            } catch (e) {
                 this.beatmapData = null;
             }
-        } catch (e) {
-            console.warn("[RhythmGame] Error checking beatmap (Safe to ignore if using auto-gen):", e);
-            this.beatmapData = null;
+        })();
+
+        try {
+            await this.loadingPromise;
+        } finally {
+            this.loadingPromise = null;
         }
     }
 
@@ -555,43 +572,17 @@ export class RhythmGame extends BaseGame {
         console.log("[RhythmGame] Creating Game Objects...");
 
         if (this.midiData) {
-            let targetChannels: number[] = [];
+            let forcedChannels: number[] | null = null;
 
-            // 1. Check Beatmap Data for Channel (User Input: 1-based -> Internal: 0-based)
+            // Use Beatmap Channels if available
             if (this.beatmapData && this.beatmapData.gameChannels && this.beatmapData.gameChannels.length > 0) {
-                targetChannels = this.beatmapData.gameChannels.map((ch: number) => ch - 1);
-                console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${targetChannels.join(', ')}`);
+                forcedChannels = this.beatmapData.gameChannels.map((ch: number) => ch - 1);
+                console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${forcedChannels?.join(', ')}`);
             }
 
-            // 2. Fallback
-            if (targetChannels.length === 0) {
-                console.log("[RhythmGame] Running Melody Analyzer (Channel-Based)...");
-                // ... rest of logic
-                const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
-                if (rankedChannels.length > 0) {
-                    targetChannels = rankedChannels.slice(0, 3);
-                    console.log(`[RhythmGame] Auto-Selected Channels: ${targetChannels.join(', ')}`);
-                }
-            }
-
-            // 3. Last Resort
-            if (targetChannels.length === 0) {
-                // ... existing last resort logic
-                const channelCounts = new Array(16).fill(0);
-                this.midiData.tracks.forEach(t => {
-                    if (!t.isDrum) channelCounts[t.channel] += t.noteCount;
-                });
-                // ... find max
-                let maxCh = 0; let maxCount = -1;
-                channelCounts.forEach((count, ch) => {
-                    if (count > maxCount) { maxCount = count; maxCh = ch; }
-                });
-                targetChannels = [maxCh];
-            }
-
-            // Generate Visual Notes
+            // Generate Visual Notes through NoteFactory (Smart Charting inside if forcedChannels is null)
             const difficulty = this.difficultyOptions[this.selectedDifficultyIndex];
-            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, targetChannels, difficulty);
+            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels as any, difficulty);
 
             console.log(`[RhythmGame] Created ${this.visualNotes.length} notes.`);
             if (this.scoreManager) {
@@ -1470,12 +1461,22 @@ export class RhythmGame extends BaseGame {
                 const song = this.songList[this.selectedSongIndex];
                 console.log(`[RhythmGame] Loading preview: ${song.name}`);
 
-                // Load MIDI for preview
-                const res = await fetch(song.url);
-                if (this.currentState !== GameState.MENU) return; // Double check after fetch
+                // 1. Check Cache
+                if (this.cachedMidi && this.cachedMidi.url === song.url) {
+                    console.log(`[RhythmGame] Preview using cache: ${song.name}`);
+                    await this.audioEngine.loadMidi(this.cachedMidi.buffer);
+                } else {
+                    const res = await fetch(song.url);
+                    if (this.currentState !== GameState.MENU) return;
 
-                const buffer = await res.arrayBuffer();
-                await this.audioEngine.loadMidi(buffer);
+                    const buffer = await res.arrayBuffer();
+                    await this.audioEngine.loadMidi(buffer);
+
+                    // Parse and Cache for subsequent Start
+                    const parser = new MidiParser();
+                    const parsed = await parser.parse(buffer);
+                    this.cachedMidi = { url: song.url, buffer: buffer, parsed: parsed };
+                }
 
                 if (this.currentState === GameState.MENU) {
                     this.audioEngine.play();
