@@ -54,8 +54,13 @@ export class RhythmGame extends BaseGame {
     private selectedDifficultyIndex = 1; // Default NORMAL
     private touchStartY = 0;
     private menuAnimationTimer = 0;
-    private particles: { x: number, y: number, speed: number, alpha: number, size: number }[] = [];
+    private particles: {
+        x: number, y: number, vx: number, vy: number,
+        alpha: number, size: number, color: string,
+        rotation: number, rotationSpeed: number
+    }[] = [];
     private explosions: Explosion[] = [];
+    private holdingLanes: (VisualNote | null)[] = [null, null, null, null, null, null];
 
 
     // Settings
@@ -170,13 +175,19 @@ export class RhythmGame extends BaseGame {
         this.canvas.addEventListener('touchend', this.handleTouchEnd, { passive: false });
 
         // Create Initial Particles
+        // Create Initial Particles
+        // Create Initial Particles
         for (let i = 0; i < 30; i++) {
             this.particles.push({
                 x: Math.random() * this.canvas.width,
                 y: Math.random() * this.canvas.height,
-                speed: 0.2 + Math.random() * 0.5,
+                vx: (Math.random() - 0.5) * 1,
+                vy: (Math.random() - 0.5) * 1,
                 alpha: Math.random(),
-                size: Math.random() * 2
+                size: Math.random() * 2,
+                color: '#ffffff',
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.1
             });
         }
 
@@ -353,33 +364,70 @@ export class RhythmGame extends BaseGame {
     // Input States
     private keyState: boolean[] = [false, false, false, false, false, false];
 
-    private handleKeyDown(e: KeyboardEvent): void {
+    private handleKeyDown(event: KeyboardEvent): void {
         if (this.currentState === GameState.MENU) {
-            this.handleMenuInput(e);
+            this.handleMenuInput(event);
             return;
         }
 
         if (this.currentState === GameState.RESULT) {
-            if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+            if (event.code === 'Enter' || event.code === 'Space' || event.code === 'Escape') {
                 this.currentState = GameState.MENU;
                 this.scoreManager?.reset();
             }
             return;
         }
 
-        if (e.repeat) return; // Prevent hold trigger
+        if (event.repeat) return; // Prevent hold trigger
 
-        const lane = this.getLaneFromKey(e.code);
-        if (lane !== -1 && !this.keyState[lane]) {
-            this.keyState[lane] = true;
-            this.checkHit(lane); // Trigger Hit Check
+        const lane = this.getLaneFromKey(event.code);
+        if (lane !== -1) {
+            this.keyState[lane] = true; // Mark key as pressed
+            // this.laneEffects[lane] = 1.0; // Assuming laneEffects is a property for visual feedback
+
+            const hitNote = this.checkHit(lane); // checkHit should now return the hit note if any
+
+            if (hitNote && hitNote.isHold) {
+                // Store active hold note
+                this.holdingLanes[lane] = hitNote;
+                hitNote.isHolding = true;
+            }
+
+            // this.playSound('tap'); // Assuming playSound exists for tap feedback
         }
     }
 
-    private handleKeyUp(e: KeyboardEvent): void {
-        const lane = this.getLaneFromKey(e.code);
-        if (lane !== -1) {
-            this.keyState[lane] = false;
+    private handleKeyUp(event: KeyboardEvent): void {
+        const lane = this.getLaneFromKey(event.code); // Assuming getLaneFromKey still returns number or -1
+        if (lane !== -1) { // Changed from !== undefined to !== -1 to match getLaneFromKey's return
+            this.keyState[lane] = false; // Changed from activeKeys to keyState
+
+            // Check Long Note Release
+            const heldNote = this.holdingLanes[lane];
+            if (heldNote) {
+                const currentTime = this.audioEngine.getPreciseTime() * 1000;
+                const endTime = heldNote.time * 1000 + heldNote.durationMs;
+                const diff = currentTime - endTime; // Positive = Late, Negative = Early
+
+                // Valid Release Window: +/- 200ms around End Time
+                if (Math.abs(diff) <= 200) {
+                    // Perfect Release
+                    this.triggerJudgment(lane, 'PERFECT', Math.abs(diff));
+                    this.scoreManager?.addScore(100); // Bonus
+                    heldNote.isProcessed = true;
+                } else if (diff < -200) {
+                    // Early Release -> MISS
+                    this.triggerJudgment(lane, 'MISS', Math.abs(diff));
+                    heldNote.isProcessed = true;
+                } else {
+                    // Late Release
+                    this.triggerJudgment(lane, 'MISS', Math.abs(diff));
+                    heldNote.isProcessed = true;
+                }
+
+                heldNote.isHolding = false;
+                this.holdingLanes[lane] = null;
+            }
         }
     }
 
@@ -395,7 +443,7 @@ export class RhythmGame extends BaseGame {
     private lastJudgment: { text: string, color: string, time: number } | null = null;
     private readonly JUDGMENT_DURATION = 500; // ms
 
-    private checkHit(lane: number): void {
+    private checkHit(lane: number): VisualNote | null {
         // High-Precision Sync for Hit Detection
         const currentTime = this.audioEngine.getPreciseTime() * 1000;
         const hitWindow = 200; // ms
@@ -403,6 +451,7 @@ export class RhythmGame extends BaseGame {
         const candidates = this.visualNotes.filter(n =>
             n.lane === lane &&
             !n.isProcessed &&
+            !n.isHolding &&
             Math.abs(n.time * 1000 - currentTime) < hitWindow
         );
 
@@ -431,16 +480,32 @@ export class RhythmGame extends BaseGame {
             }
 
             // Apply Score & Effects
-            if (this.scoreManager) this.scoreManager.addHit(score, judgmentText as any);
-            this.showJudgment(judgmentText, judgmentColor);
+            if (targetNote.isHold) {
+                // Long Note Head: Combo Only, No Stats
+                if (this.scoreManager) this.scoreManager.increaseCombo(1);
+                this.showJudgment(judgmentText, judgmentColor);
+                targetNote.isHolding = true;
+            } else {
+                // Single Note: Full Stats
+                if (this.scoreManager) this.scoreManager.addHit(score, judgmentText as any);
+                this.showJudgment(judgmentText, judgmentColor);
+                targetNote.isProcessed = true;
+            }
 
-            targetNote.isProcessed = true;
             this.triggerExplosion(targetNote.lane, currentTime);
+
+            // Shatter Effect (Use Note Color, not Judgment Color)
+            const laneColor = this.COLORS.LANES[targetNote.lane] ? this.COLORS.LANES[targetNote.lane][1] : '#ffffff';
+            this.createShatterEffect(
+                this.getPerspectiveX(targetNote.lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2,
+                this.hitLineY,
+                laneColor
+            );
             console.log(`Hit Lane ${lane}: ${judgmentText} (${Math.round(diff)}ms)`);
 
+            return targetNote;
         } else {
-            // Empty Hit (Ghost Tap) - Optional: Decrease health or just ignore
-            // For this style of game, often ignored or treated as a slight penalty logic, keeping simple for now.
+            return null;
         }
     }
 
@@ -460,13 +525,34 @@ export class RhythmGame extends BaseGame {
         };
     }
 
+    private triggerJudgment(lane: number, judgment: string, _diff: number): void {
+        let score = 0;
+        let color = '#fff';
+
+        switch (judgment) {
+            case 'PERFECT': score = 100; color = '#00ffff'; break;
+            case 'GREAT': score = 80; color = '#00ff00'; break;
+            case 'GOOD': score = 50; color = '#ffff00'; break;
+            case 'MISS': score = 0; color = '#ff0000'; break;
+        }
+
+        if (this.scoreManager) {
+            this.scoreManager.addHit(score, judgment as any);
+        }
+        this.showJudgment(judgment, color);
+
+        if (judgment !== 'MISS') {
+            this.triggerExplosion(lane, 0);
+        }
+    }
+
     // --- In Update Loop ---
     // We need to check for missed notes
     private updateMissedNotes(currentTime: number): void {
         const missThreshold = 200; // If note passes by 200ms, it's a miss
 
         this.visualNotes.forEach(note => {
-            if (!note.isProcessed) {
+            if (!note.isProcessed && !note.isHolding) {
                 const noteTimeMs = note.time * 1000;
                 if (currentTime > noteTimeMs + missThreshold) {
                     this.triggerMiss(note);
@@ -488,7 +574,11 @@ export class RhythmGame extends BaseGame {
         }
 
         const alpha = 1 - (age / this.JUDGMENT_DURATION);
-        const scale = 1 + (1 - alpha) * 0.5; // Pop out effect
+        // Pop effect: Start large (1.5x) and settle to 1.0x quickly
+        let scale = 1.0;
+        if (age < 100) {
+            scale = 1.0 + (100 - age) / 100 * 0.5; // 1.5 -> 1.0
+        }
 
         ctx.save();
         ctx.translate(width / 2, height * 0.45);
@@ -640,7 +730,7 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState !== GameState.PLAYING) return;
 
-        // Lead-In Logic
+        // Time Logic
         let currentTime = 0;
         if (!this.isAudioStarted) {
             this.preGameTimer += delta;
@@ -655,6 +745,49 @@ export class RhythmGame extends BaseGame {
             // note: getPreciseTime returns Seconds, convert to MS
             currentTime = this.audioEngine.getPreciseTime() * 1000;
         }
+
+        // Long Note Tick Scoring & Logic
+        this.holdingLanes.forEach((note, lane) => {
+            if (note) {
+                const endTime = note.time * 1000 + note.durationMs;
+
+                // 1. Check for Miss (Overholding / Late Release)
+                // If current time passes end time + window and still holding -> Miss
+                if (currentTime > endTime + 200) {
+                    this.triggerJudgment(lane, 'MISS', currentTime - endTime);
+                    note.isHolding = false;
+                    note.isProcessed = true;
+                    this.holdingLanes[lane] = null;
+                    return;
+                }
+
+                // 2. Visual Update
+                note.isHolding = true;
+
+                // 3. Tick Combo (4 Combo / Sec)
+                // Initialize accumulator if undefined
+                if (typeof note.accumulatedHoldTime === 'undefined') note.accumulatedHoldTime = 0;
+
+                note.accumulatedHoldTime += delta;
+                const tickInterval = 250; // 250ms = 4 combo/sec
+
+                if (note.accumulatedHoldTime >= tickInterval) {
+                    if (this.scoreManager) {
+                        this.scoreManager.increaseCombo(1);
+                        this.scoreManager.addScore(10);
+                    }
+                    note.accumulatedHoldTime -= tickInterval;
+                    this.comboAnim = 0.5;
+                }
+
+                if (this.frameCount % 4 === 0) { // Throttle
+                    const laneX = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
+                    // Use Lane Color
+                    const color = this.COLORS.LANES[lane] ? this.COLORS.LANES[lane][1] : '#ffffff';
+                    this.createShatterEffect(laneX, this.hitLineY, color, true);
+                }
+            }
+        });
 
         // Combo Animation Decay
         if (this.comboAnim > 0) {
@@ -679,6 +812,16 @@ export class RhythmGame extends BaseGame {
             exp.alpha -= 0.05;
         });
         this.explosions = this.explosions.filter(exp => exp.alpha > 0);
+
+        this.particles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vx *= 0.9; // Friction to reduce distance
+            p.rotation += p.rotationSpeed;
+            p.vy += 0.2; // Stronger Gravity
+            p.alpha -= 0.04; // Fast fade (Short distance)
+        });
+        this.particles = this.particles.filter(p => p.alpha > 0);
 
         this.render(currentTime);
 
@@ -711,7 +854,7 @@ export class RhythmGame extends BaseGame {
         this.explosions.push({
             x: x,
             y: this.hitLineY,
-            radius: 25, // Slightly larger explosions
+            radius: 50, // Larger explosions (was 25)
             alpha: 1.0,
             color: colorSet[1]
         });
@@ -783,6 +926,11 @@ export class RhythmGame extends BaseGame {
         // 2. Draw Perspective Highway
         this.renderHighway();
 
+        // 2.5 Draw Lane Beams (Hold Feedback)
+        this.holdingLanes.forEach((note, lane) => {
+            if (note) this.drawLaneBeam(lane);
+        });
+
         // 3. Draw Hit Zone (Glowing Pads)
         this.renderHitZone();
 
@@ -791,6 +939,9 @@ export class RhythmGame extends BaseGame {
 
         // 5. Explosions
         this.renderExplosions();
+
+        // 5.5 Draw Particles
+        this.renderParticles(ctx);
 
         // 6. HUD
         this.renderHUD();
@@ -1069,16 +1220,20 @@ export class RhythmGame extends BaseGame {
             if (note.isProcessed) continue;
 
             const noteTimeMs = note.time * 1000;
+            const noteEndMs = note.isHold ? noteTimeMs + note.durationMs : noteTimeMs;
 
             // Skip notes that haven't entered the window yet (and stop loop since sorted)
             if (noteTimeMs > windowEnd) break;
 
             // Skip notes that already passed
-            if (noteTimeMs < windowStart) continue;
+            if (noteEndMs < windowStart) continue;
 
             const timeDiff = noteTimeMs - currentTime;
             // Linear progress (0 to 1) based on time
-            const linearProgress = 1 - (timeDiff / timeToReachHitLine);
+            let linearProgress = 1 - (timeDiff / timeToReachHitLine);
+
+            // For Long Notes, clamp Head to Hit Line if it has passed
+            if (note.isHold && linearProgress > 1) linearProgress = 1;
 
             const perspectiveDepth = 4;
             const projectedProgress = linearProgress / (perspectiveDepth - (perspectiveDepth - 1) * linearProgress);
@@ -1090,8 +1245,133 @@ export class RhythmGame extends BaseGame {
             const noteX = this.getPerspectiveX(note.lane, noteY);
             const noteHeight = 40 * projectedProgress; // Increased from 25
 
-            this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane);
+            if (note.isHold) {
+                // Determine Tail Position
+                // Recalculate tail time based on simple duration addition for safety/speed
+                const tailTime = note.time + (note.durationMs / 1000);
+                const timeDiffTail = (tailTime * 1000) - currentTime;
+
+                let tailProgress = 1 - (timeDiffTail / timeToReachHitLine);
+                // Clamp tail to bottom (hit line) if it's passed
+                if (tailProgress > 1) tailProgress = 1;
+
+                // If tail is not yet visible (too far back), clamp to horizon? 
+                // No, projectedProgress handles the horizon. 
+
+                // Calculate Tail Y
+                const pTail = tailProgress / (perspectiveDepth - (perspectiveDepth - 1) * tailProgress);
+                const tailY = this.horizonY + (this.hitLineY - this.horizonY) * pTail;
+
+                this.drawLongNote(note.lane, noteX, noteY, noteWidth, noteHeight, tailY, note.isHolding);
+            } else {
+                this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane);
+            }
         }
+    }
+
+    private drawLongNote(lane: number, headX: number, headY: number, headW: number, headH: number, tailY: number, isHolding: boolean): void {
+        const ctx = this.ctx;
+        if (!this.renderCache) return;
+
+        // 1. Draw Body
+        // Perspective Polygon: We need widths at top (Head) and bottom (Tail)
+        // Actually, Head is 'Top' visually if note is approaching, BUT wait.
+        // Notes move  Horizon -> Bottom. 
+        // So Head is "Lower Y" (closer to bottom of screen) than Tail (closer to horizon).
+        // WAIT. 
+        // Note Y is calculated based on "Time Diff". 
+        // If Time Diff is small (close to 0), Progress is 1. Y is HitLine.
+        // Tail is "Later" in time. So Time Diff is larger. Progress is Smaller. Y is closer to Horizon.
+        // CORRECT: Head is at Higher Y value (Screen Bottom), Tail is Lower Y value (Screen Top).
+
+        // headY passed here is the "Start Time" Y. (The leading edge).
+        // tailY is the End Time Y. 
+
+        // Check Visibility
+        if (tailY > headY) return; // Should not happen in this perspective unless passed?
+        // logic check: Head is closer to hit line (larger Y). Tail is further back (smaller Y).
+        // So TailY < HeadY.
+
+        const tailW = this.getPerspectiveWidth(tailY);
+        const tailX = this.getPerspectiveX(lane, tailY);
+
+        const bodyImg = this.renderCache.longNoteBodies[lane];
+        if (bodyImg) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(headX, headY + headH * 0.5); // Center of head vertically?
+            ctx.lineTo(headX + headW, headY + headH * 0.5);
+            ctx.lineTo(tailX + tailW, tailY);
+            ctx.lineTo(tailX, tailY);
+            ctx.closePath();
+
+            // Clip to this shape and draw pattern
+            ctx.clip();
+
+            // Draw stretched texture or tiled
+            // Dynamic scrolling effects
+
+            let alpha = isHolding ? 0.8 : 0.5;
+            // Flash Effect if holding
+            if (isHolding) {
+                const flash = Math.sin(performance.now() * 0.02) * 0.2 + 0.8; // Oscillate 0.6 - 1.0
+                alpha = flash;
+                ctx.shadowColor = '#ffffff';
+                ctx.shadowBlur = 10 + (flash * 10); // Pulse blur
+            }
+
+            ctx.globalAlpha = alpha;
+            // Draw twice for scroll loop
+            ctx.drawImage(bodyImg, 0, 0, bodyImg.width, bodyImg.height, headX, tailY, Math.max(headW, tailW), headY - tailY);
+            // This texture mapping is crude. For true perspective texturing we need heavy math or WebGL.
+            // Fallback: Simple Gradient Fill if texture is weird, OR use the gradient we made in cache as a simple fill.
+
+            // Simple Fill for now to ensure cleanliness
+            const grad = ctx.createLinearGradient(0, tailY, 0, headY);
+            const color = this.COLORS.LANES[lane][1];
+            grad.addColorStop(0, this.hexToRgba(color, 0.0));
+            grad.addColorStop(0.2, this.hexToRgba(color, 0.4));
+
+            if (isHolding) {
+                grad.addColorStop(1, this.hexToRgba('#ffffff', 0.9)); // Bright core when holding
+            } else {
+                grad.addColorStop(1, this.hexToRgba(color, 0.6));
+            }
+
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // 3. Tail Cap (Diamond Shape for visibility)
+            const capSize = tailW * 0.8;
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(tailX + tailW / 2, tailY - capSize / 2); // Top
+            ctx.lineTo(tailX + tailW, tailY);                   // Right
+            ctx.lineTo(tailX + tailW / 2, tailY + capSize / 2); // Bottom
+            ctx.lineTo(tailX, tailY);                           // Left
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.shadowBlur = 0; // Reset
+            ctx.restore();
+        }
+
+        // 2. Draw Head (The standard note)
+        this.drawGelNote(headX, headY, headW, headH, lane);
+
+        // 3. Draw Tail Cap (Flat bar)
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(tailX, tailY - 2, tailW, 4);
+
+    }
+
+    private hexToRgba(hex: string, alpha: number): string {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
     private drawGelNote(x: number, y: number, w: number, h: number, lane: number): void {
@@ -1163,10 +1443,6 @@ export class RhythmGame extends BaseGame {
             // Combo Count
             ctx.font = 'italic bold 70px "Orbitron"';
             ctx.fillText(`${combo}`, 0, 0);
-
-            // "COMBO" Label
-            ctx.font = '20px "Orbitron"';
-            ctx.fillText("COMBO", 0, 65);
             ctx.restore();
         }
 
@@ -1174,6 +1450,66 @@ export class RhythmGame extends BaseGame {
         this.renderJudgment(ctx, this.canvas.width, this.canvas.height);
 
         ctx.restore();
+    }
+
+    // --- Visual Helpers ---
+
+    private createShatterEffect(x: number, y: number, color: string, isSmall: boolean = false): void {
+        const count = isSmall ? 6 : 15;
+        const speed = isSmall ? 15 : 25;
+
+        for (let i = 0; i < count; i++) {
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * speed * 0.5, // Reduced Horizontal Spread (HALF)
+                vy: (Math.random() * -0.3 - 0.1) * speed,
+                alpha: 1.0,
+                size: Math.random() * (isSmall ? 2 : 4) + 1, // Small shards
+                color: color,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 1.0 // Fast spin
+            });
+        }
+    }
+
+    private drawLaneBeam(lane: number): void {
+        const ctx = this.ctx;
+        const tl = { x: this.getPerspectiveX(lane, this.horizonY), y: this.horizonY };
+        const tr = { x: this.getPerspectiveX(lane + 1, this.horizonY), y: this.horizonY };
+        const bl = { x: this.getPerspectiveX(lane, this.hitLineY), y: this.hitLineY };
+        const br = { x: this.getPerspectiveX(lane + 1, this.hitLineY), y: this.hitLineY };
+
+        const grad = ctx.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
+        const color = this.COLORS.LANES[lane][1];
+        grad.addColorStop(0, this.hexToRgba(color, 0.3));
+        grad.addColorStop(1, this.hexToRgba(color, 0.0));
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(tl.x, tl.y);
+        ctx.lineTo(tr.x, tr.y);
+        ctx.lineTo(br.x, br.y);
+        ctx.lineTo(bl.x, bl.y);
+        ctx.fill();
+    }
+
+    private renderParticles(ctx: CanvasRenderingContext2D): void {
+        this.particles.forEach(p => {
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.beginPath();
+            // Draw Triangle Shard
+            ctx.moveTo(0, -p.size);
+            ctx.lineTo(p.size, p.size);
+            ctx.lineTo(-p.size, p.size);
+            ctx.fill();
+            ctx.restore();
+        });
+        ctx.globalAlpha = 1.0;
     }
 
     private renderMenu(): void {
@@ -1454,7 +1790,7 @@ export class RhythmGame extends BaseGame {
         // 2. Floating Particles
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         this.particles.forEach(p => {
-            p.y -= p.speed;
+            p.y -= 1; // Ambient upward float
             p.x += Math.sin(this.menuAnimationTimer * 0.5 + p.y * 0.01) * 0.2;
 
             if (p.y < 0) {

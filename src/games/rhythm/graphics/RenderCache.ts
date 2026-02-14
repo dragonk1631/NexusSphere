@@ -31,11 +31,17 @@ export class RenderCache {
         return RenderCache.instance;
     }
 
+    // Cached Long Note Textures
+    public longNoteBodies: HTMLCanvasElement[] = [];
+
     public init(): void {
         console.log("[RenderCache] Generating static assets...");
 
         // 1. Cache Notes for all 6 lanes
         this.notes = this.COLORS.map(colors => this.createCachedNote(colors));
+
+        // 1.5 Cache Long Note Bodies
+        this.longNoteBodies = this.COLORS.map(colors => this.createLongNoteBody(colors));
 
         // 2. Cache Particles (Generic White Glow)
         this.particleGlow = this.createGlowParticle();
@@ -43,6 +49,44 @@ export class RenderCache {
         // 3. Cache Highway (Optional: Needs lane config, passing generic for now)
         // For dynamic resizing, highway might need re-generation on resize.
         // We will implement a method to generate it on demand.
+    }
+
+    private createLongNoteBody(colors: string[]): HTMLCanvasElement {
+        const w = 64; // Power of 2 width for texture repeating if needed
+        const h = 256;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+
+        const baseColor = colors[1]; // Bright color
+
+        // 1. Base Gradient (Fade out towards tail, but head is bright)
+        // Actually, for a scrolling texture, we might want a seamless pattern or a solid gradient.
+        // Let's make a vertical gradient that looks like a "beam".
+        const grad = ctx.createLinearGradient(0, 0, w, 0);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.2, this.hexToRgba(baseColor, 0.4));
+        grad.addColorStop(0.5, this.hexToRgba(baseColor, 0.8));
+        grad.addColorStop(0.8, this.hexToRgba(baseColor, 0.4));
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        // 2. Scanlines
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        for (let y = 0; y < h; y += 4) {
+            ctx.fillRect(0, y, w, 1);
+        }
+
+        return canvas;
+    }
+
+    private hexToRgba(hex: string, alpha: number): string {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
     private createCachedNote(colors: string[]): HTMLCanvasElement {

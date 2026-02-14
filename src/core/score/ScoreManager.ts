@@ -54,6 +54,18 @@ export class ScoreManager {
         this.save();
     }
 
+    public addScore(points: number): void {
+        this.score += points;
+    }
+
+    public increaseCombo(amount: number): void {
+        this.currentCombo += amount;
+        if (this.currentCombo > this.maxCombo) {
+            this.maxCombo = this.currentCombo;
+        }
+        this.save();
+    }
+
     public getAccuracy(): number {
         if (this.totalChartNotes === 0) return 0;
 

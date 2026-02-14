@@ -11,6 +11,13 @@ export interface VisualNote extends GameNote {
     quantizedEndTick?: number;
     isOnBeat?: boolean;
     isStrongBeat?: boolean;
+    // Long Note Props
+    durationMs: number;
+    isHold: boolean;
+    endTick: number; // For logic
+    isHolding: boolean; // Runtime state
+    accumulatedHoldTime: number; // For tick combo
+    type: 'TAP' | 'HOLD';
 }
 
 export class NoteFactory {
@@ -123,7 +130,33 @@ export class NoteFactory {
         const patterns = PatternAnalyzer.analyze(quantized);
         const result = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
 
-        console.log(`[NoteFactory] Charted ${result.length} notes using Dynamic Filling (Primary: ${primaryCandidates}, Secondary: ${secondaryCandidates}).`);
-        return result;
+        // Post-process to map Long Note data
+        // We need to re-attach duration info since LaneAllocator might strictly deal with patterns
+        // But since VisualNote extends GameNote, and GameNote has duration/durationTicks, we can calculate it.
+        // However, LaneAllocator returns VisualNote[]. We should iterate and set isHold based on duration.
+
+        // Use Musical Threshold: 1/2 Beat
+        const beatDurationMs = 60000 / midi.bpm;
+        const holdThresholdMs = beatDurationMs * 0.5;
+
+        const finalResult = result.map(n => {
+            // Use existing duration (from MidiParser or RhythmQuantizer) for accuracy
+            // This handles variable tempo changes correctly
+            const durationMs = n.duration * 1000;
+            const isHold = durationMs >= holdThresholdMs;
+
+            return {
+                ...n,
+                durationMs: durationMs,
+                isHold: isHold,
+                endTick: n.ticks + n.durationTicks,
+                isHolding: false,
+                accumulatedHoldTime: 0,
+                type: isHold ? 'HOLD' : 'TAP'
+            } as VisualNote;
+        });
+
+        console.log(`[NoteFactory] Charted ${finalResult.length} notes (Holds: ${finalResult.filter(n => n.isHold).length}).`);
+        return finalResult;
     }
 }
