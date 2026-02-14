@@ -102,15 +102,19 @@ export class CoreAudioEngine {
 
     public play(): void {
         if (!this.isSoundFontLoaded) return;
+        this.resumePreciseTime();
         this.sequencer?.play();
     }
 
     public pause(): void {
+        this.pausePreciseTime();
         this.sequencer?.pause();
     }
 
     public stop(): void {
         if (this.sequencer) {
+            this.pausePreciseTime();
+            this.setPreciseTime(0);
             this.sequencer.pause();
             this.sequencer.currentTime = 0;
             this.stopAllNotes(); // 기존 코드 재활용
@@ -140,6 +144,7 @@ export class CoreAudioEngine {
     public seek(time: number): void {
         if (this.sequencer) {
             this.sequencer.currentTime = time;
+            this.setPreciseTime(time);
         }
     }
 
@@ -388,6 +393,10 @@ export class CoreAudioEngine {
     }
 
 
+    private preciseStartTime: number = 0;
+    private precisePausedTime: number = 0;
+    private isPrecisePlaying: boolean = false;
+
     public async resume(): Promise<void> {
         if (this.ctx.state === 'suspended') {
             await this.ctx.resume();
@@ -400,5 +409,46 @@ export class CoreAudioEngine {
 
     public get duration(): number {
         return this.sequencer?.duration || 0;
+    }
+
+    // --- High-Precision Time Sync ---
+
+    public startPreciseTime(): void {
+        this.preciseStartTime = this.ctx.currentTime;
+        this.precisePausedTime = 0;
+        this.isPrecisePlaying = true;
+    }
+
+    public pausePreciseTime(): void {
+        if (this.isPrecisePlaying) {
+            this.precisePausedTime += this.ctx.currentTime - this.preciseStartTime;
+            this.isPrecisePlaying = false;
+        }
+    }
+
+    public resumePreciseTime(): void {
+        if (!this.isPrecisePlaying) {
+            this.preciseStartTime = this.ctx.currentTime;
+            this.isPrecisePlaying = true;
+        }
+    }
+
+    public setPreciseTime(time: number): void {
+        this.precisePausedTime = time;
+        this.preciseStartTime = this.ctx.currentTime;
+    }
+
+    /**
+     * Returns the exact audio time based on the hardware clock.
+     * Includes compensation for hardware output latency if available.
+     */
+    public getPreciseTime(): number {
+        if (!this.isPrecisePlaying) {
+            return this.precisePausedTime;
+        }
+        // @ts-ignore: outputLatency is experimental but supported in most modern browsers
+        const latency = this.ctx.outputLatency || 0;
+        const rawTime = this.ctx.currentTime - this.preciseStartTime;
+        return this.precisePausedTime + (rawTime - latency) * (this.sequencer?.playbackRate || 1);
     }
 }

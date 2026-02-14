@@ -48,7 +48,7 @@ export class RenderCache {
     private createCachedNote(colors: string[]): HTMLCanvasElement {
         const w = this.NOTE_WIDTH;
         const h = this.NOTE_HEIGHT;
-        const padding = 20; // For glow
+        const padding = 10; // Reduced padding (was 20)
         const canvas = document.createElement('canvas');
         canvas.width = w + padding * 2;
         canvas.height = h + padding * 2;
@@ -59,17 +59,16 @@ export class RenderCache {
         const baseColor = colors[1];
         const darkColor = colors[0];
 
-        // 1. Outer Glow (Baked)
-        ctx.shadowBlur = 15;
+        // 1. Outer Glow (Reduced for sharpness)
+        ctx.shadowBlur = 8; // Reduced from 15 to avoid ghosting trails
         ctx.shadowColor = baseColor;
         ctx.fillStyle = baseColor;
-        // Draw a rect for shadow base
         ctx.beginPath();
         ctx.roundRect(x + 2, y + 2, w - 4, h - 4, h / 3);
         ctx.fill();
         ctx.shadowBlur = 0; // Reset
 
-        // 2. Base Body (Gradient)
+        // 2. Base Body (High Contrast Gradient)
         const grad = ctx.createLinearGradient(x, y, x, y + h);
         grad.addColorStop(0, baseColor);
         grad.addColorStop(1, darkColor);
@@ -78,17 +77,17 @@ export class RenderCache {
         ctx.roundRect(x, y, w, h, h / 3);
         ctx.fill();
 
-        // 3. Glass Shine (Top Half)
+        // 3. Glass Shine (Sharper)
         const innerGrad = ctx.createLinearGradient(x, y, x, y + h / 2);
-        innerGrad.addColorStop(0, 'rgba(255,255,255,0.9)');
-        innerGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        innerGrad.addColorStop(0, 'rgba(255,255,255,0.95)'); // More opaque
+        innerGrad.addColorStop(1, 'rgba(255,255,255,0.1)');
         ctx.fillStyle = innerGrad;
         ctx.beginPath();
         ctx.roundRect(x + 2, y + 2, w - 4, h / 2 - 2, h / 3);
         ctx.fill();
 
-        // 4. Core Highlight (Ellipse)
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        // 4. Core Highlight (Solid)
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
         ctx.beginPath();
         ctx.ellipse(x + w / 2, y + h * 0.3, w * 0.4, h * 0.15, 0, 0, Math.PI * 2);
         ctx.fill();

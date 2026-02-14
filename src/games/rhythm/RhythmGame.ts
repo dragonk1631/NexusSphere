@@ -66,8 +66,6 @@ export class RhythmGame extends BaseGame {
     private comboAnim = 0; // 0 to 1 anim factor
     private preGameTimer = 0;
     private isAudioStarted = false;
-    private lastAudioTime = 0;
-    private lastAudioUpdate = 0;
     private bgGradient: CanvasGradient | null = null;
 
     // FPS Counter
@@ -398,7 +396,8 @@ export class RhythmGame extends BaseGame {
     private readonly JUDGMENT_DURATION = 500; // ms
 
     private checkHit(lane: number): void {
-        const currentTime = this.audioEngine.currentTime * 1000;
+        // High-Precision Sync for Hit Detection
+        const currentTime = this.audioEngine.getPreciseTime() * 1000;
         const hitWindow = 200; // ms
 
         const candidates = this.visualNotes.filter(n =>
@@ -648,19 +647,13 @@ export class RhythmGame extends BaseGame {
             currentTime = this.preGameTimer;
             if (this.preGameTimer >= 0) {
                 this.audioEngine.play();
+                this.audioEngine.startPreciseTime(); // Synced Start
                 this.isAudioStarted = true;
-                // Avoid tiny jump: currentTime remains 0 or slight positive
             }
         } else {
-            const rawAudioTime = this.audioEngine.currentTime * 1000;
-            if (rawAudioTime !== this.lastAudioTime) {
-                this.lastAudioTime = rawAudioTime;
-                this.lastAudioUpdate = now;
-            }
-            // Interpolate between audio clock ticks for sub-frame precision
-            const drift = now - this.lastAudioUpdate;
-            // Cap drift at 100ms to prevent runaway time if audio hangs
-            currentTime = rawAudioTime + Math.min(drift, 100);
+            // High-Precision Sync: Get time directly from AudioContext via Engine
+            // note: getPreciseTime returns Seconds, convert to MS
+            currentTime = this.audioEngine.getPreciseTime() * 1000;
         }
 
         // Combo Animation Decay
