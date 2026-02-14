@@ -43,6 +43,15 @@ async function launchGame(GameClass: any) {
     console.log(`Initializing ${GameClass.name}...`);
     await currentGame.init();
 
+    // Check if Game initialized into Test Mode (skips standard load/create)
+    if (currentGame.isTestMode) {
+      console.log(`[Main] ${GameClass.name} started in Test Mode. Skipping standard load sequence.`);
+
+      lastTime = performance.now();
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+
     console.log("Loading assets...");
     await currentGame.load();
 
@@ -82,6 +91,20 @@ function handleGameStart(mode: string) {
 // Listen for Layout Editor exit event
 window.addEventListener('layout-exit', () => {
   returnToMenu();
+});
+
+// Listen for Game Switch event (e.g. Editor -> Rhythm)
+window.addEventListener('switch-game', (e: any) => {
+  const targetMode = e.detail.targetMode;
+  console.log(`[Main] Switching to mode: ${targetMode}`);
+
+  if (targetMode === 'rhythm') {
+    launchGame(RhythmGame);
+  } else if (targetMode === 'editor') {
+    launchGame(EditorGame);
+  } else {
+    returnToMenu();
+  }
 });
 
 // --- Mobile Orientation Enforcement ---

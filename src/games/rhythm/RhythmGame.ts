@@ -6,6 +6,7 @@ import { NoteFactory } from './NoteFactory';
 import type { VisualNote } from './NoteFactory';
 import { ScoreManager } from '../../core/score/ScoreManager';
 import { RenderCache } from './graphics/RenderCache';
+import { GameTransition } from '../../core/GameTransition';
 
 // Game States
 const GameState = {
@@ -109,6 +110,9 @@ export class RhythmGame extends BaseGame {
         TEXT_GLOW: '#ffffff'
     };
 
+    private isTestMode: boolean = false;
+    private transitionData: any = null;
+
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
         // Bind input methods properly
@@ -155,15 +159,16 @@ export class RhythmGame extends BaseGame {
     public async init(): Promise<void> {
         console.log("[RhythmGame] Initializing...");
 
-        // Initial Resize
-        this.resize(this.canvas.width, this.canvas.height);
-
-        this.scoreManager = ScoreManager.getInstance();
-        this.scoreManager.reset(); // Reset score/health on game start attempt (though init is called once, we might need to call reset on start)
-
-        // Initialize RenderCache
+        // Initialize RenderCache FIRST
         this.renderCache = RenderCache.getInstance();
         this.renderCache.init();
+
+        // Score Manager
+        this.scoreManager = ScoreManager.getInstance();
+        if (this.scoreManager) this.scoreManager.reset();
+
+        // Initial Resize (Now RenderCache is ready to generate textures)
+        this.resize(this.canvas.width, this.canvas.height);
 
         // Input Handling
         window.addEventListener('keydown', this.handleKeyDown);
@@ -174,8 +179,6 @@ export class RhythmGame extends BaseGame {
         this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
         this.canvas.addEventListener('touchend', this.handleTouchEnd, { passive: false });
 
-        // Create Initial Particles
-        // Create Initial Particles
         // Create Initial Particles
         for (let i = 0; i < 30; i++) {
             this.particles.push({
@@ -191,11 +194,40 @@ export class RhythmGame extends BaseGame {
             });
         }
 
-        // Start Menu Animation Loop - REMOVED (Handled by Main Loop)
-        // ensure main loop handles calculation
+        // Check for Game Transition Data (Test Play from Editor)
+        if (GameTransition.hasData()) {
+            console.log("[RhythmGame] Transition Data Found. Entering TEST MODE.");
+            const data = GameTransition.get();
+            if (data) {
+                this.isTestMode = true;
+                this.transitionData = data;
 
+                // 1. Load Audio Engine
+                await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
+                // 2. Load MIDI from Buffer
+                const parser = new MidiParser();
+                this.midiData = await parser.parse(data.midiBuffer);
+                await this.audioEngine.loadMidi(data.midiBuffer);
 
+                // 3. Apply Settings (Mutes)
+                if (data.settings && data.settings.mutedChannels) {
+                    data.settings.mutedChannels.forEach(ch => {
+                        this.audioEngine.setChannelMute(ch, true);
+                    });
+                }
+
+                // 4. Create Game Elements directly (Skip Menu)
+                this.currentState = GameState.PLAYING;
+                console.log("[RhythmGame] Force-set GameState.PLAYING for Test Mode.");
+
+                this.shouldAutoStart = true;
+                this.create(); // This will trigger start() which assumes PLAYING or sets it
+
+                GameTransition.clear(); // Consume data
+                return;
+            }
+        }
 
         // Load Song List
         try {
@@ -663,7 +695,7 @@ export class RhythmGame extends BaseGame {
         if (this.midiData) {
             let forcedChannels: number[] | null = null;
 
-            // Use Beatmap Channels if available
+            // 2. Use Beatmap Channels if available (Overrides Test Mode if exists, though unlikely unless testing a mapped file)
             if (this.beatmapData && this.beatmapData.gameChannels && this.beatmapData.gameChannels.length > 0) {
                 forcedChannels = this.beatmapData.gameChannels.map((ch: number) => ch - 1);
                 console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${forcedChannels?.join(', ')}`);
@@ -687,10 +719,13 @@ export class RhythmGame extends BaseGame {
     }
 
     private async start() {
+        console.log("[RhythmGame] start() called.");
         // 1. Prepare Audio
         this.audioEngine.stop(); // Stop any pending previews/remnants
         this.audioEngine.seek(0);
+        console.log("[RhythmGame] Resuming Audio Engine...");
         await this.audioEngine.resume();
+        console.log("[RhythmGame] Audio Engine Resumed.");
 
         // 2. Reset Game State
         this.scoreManager?.reset();
@@ -703,7 +738,7 @@ export class RhythmGame extends BaseGame {
         // 3. Set state to PLAYING but don't call play() yet
         // The update loop will handle the countdown
         this.currentState = GameState.PLAYING;
-        console.log("[RhythmGame] Game Started with 2s lead-in.");
+        console.log(`[RhythmGame] Game Started with 2s lead-in. Sync State: ${this.currentState}`);
     }
 
     public update(delta: number): void {
@@ -713,6 +748,8 @@ export class RhythmGame extends BaseGame {
             this.currentFps = this.frameCount;
             this.frameCount = 0;
             this.lastFpsTime = now;
+            // Debug Log every second
+            console.log(`[RhythmGame] State: ${this.currentState}, AudioStarted: ${this.isAudioStarted}, PreGame: ${this.preGameTimer.toFixed(0)}, Time: ${(this.audioEngine?.getPreciseTime() || 0).toFixed(2)}s`);
         }
         this.frameCount++;
 
@@ -736,6 +773,7 @@ export class RhythmGame extends BaseGame {
             this.preGameTimer += delta;
             currentTime = this.preGameTimer;
             if (this.preGameTimer >= 0) {
+                console.log("[RhythmGame] Pre-game timer done. Starting Audio.");
                 this.audioEngine.play();
                 this.audioEngine.startPreciseTime(); // Synced Start
                 this.isAudioStarted = true;
@@ -845,8 +883,6 @@ export class RhythmGame extends BaseGame {
         }
     }
 
-
-
     private triggerExplosion(lane: number, _time: number): void {
         const x = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
         const colorSet = this.COLORS.LANES[lane] || this.COLORS.LANES[0];
@@ -863,7 +899,36 @@ export class RhythmGame extends BaseGame {
     private finishGame(reason: string = "Unknown"): void {
         this.currentState = GameState.RESULT;
         this.audioEngine.stop();
+
+        // Save High Score (Only if NOT in Test Mode)
+        if (this.scoreManager && !this.isTestMode) {
+            const currentSong = this.songList[this.selectedSongIndex];
+            const isNewRecord = this.scoreManager.saveHighScore(currentSong.url);
+            if (isNewRecord) {
+                console.log("[RhythmGame] New High Score Saved!");
+            }
+        }
+
         console.log(`[RhythmGame] Finished. Reason: ${reason}`);
+
+        if (this.isTestMode) {
+            console.log("[RhythmGame] Test Mode Finished. Dispatching return to editor...");
+
+            // Return Data to Editor to restore state
+            if (this.transitionData) {
+                GameTransition.set({
+                    ...this.transitionData,
+                    source: 'rhythm'
+                });
+            }
+
+            // Simple timeout to auto-exit for now, or wait for click
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('switch-game', {
+                    detail: { targetMode: 'editor' }
+                }));
+            }, 3000); // 3 seconds to see score then return
+        }
     }
 
     private render(currentTime: number): void {
@@ -952,9 +1017,9 @@ export class RhythmGame extends BaseGame {
         ctx.font = 'bold 16px monospace';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
-        ctx.shadowBlur = 0;
-        ctx.fillText(`FPS: ${this.currentFps}`, this.canvas.width - 10, 10);
+        ctx.fillText(`FPS: ${this.currentFps}`, width - 10, 10);
         ctx.restore();
+
     }
 
     private getPerspectiveX(laneIndex: number, y: number): number {
@@ -1107,7 +1172,7 @@ export class RhythmGame extends BaseGame {
         // Percent Accuracy
         ctx.font = 'bold 42px "Orbitron"';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`${accuracy.toFixed(2)}%`, leftAreaX, panelY + panelH * 0.68);
+        ctx.fillText(`${accuracy.toFixed(2)}% `, leftAreaX, panelY + panelH * 0.68);
         ctx.font = '16px "Orbitron"';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.fillText("SYNCHRONIZATION RATE", leftAreaX, panelY + panelH * 0.76);
@@ -1442,7 +1507,7 @@ export class RhythmGame extends BaseGame {
 
             // Combo Count
             ctx.font = 'italic bold 70px "Orbitron"';
-            ctx.fillText(`${combo}`, 0, 0);
+            ctx.fillText(`${combo} `, 0, 0);
             ctx.restore();
         }
 
@@ -1593,39 +1658,69 @@ export class RhythmGame extends BaseGame {
 
         // --- CONTENT: INFO & SPEED ---
         const statsCenterX = padding + (leftPanelWidth - padding) * 0.5;
-        const statsTopY = infoY + infoH * 0.25;
 
-        // BPM & Duration (Horizontal on thin panels)
-        const valueSize = Math.max(16, height * 0.04);
+        // Dynamic Y positions
+        const row1Y = infoY + infoH * 0.22;
+        const row2Y = infoY + infoH * 0.52;
+        const row3Y = infoY + infoH * 0.82;
+
+        // BPM & Duration (Row 1)
+        const valueSize = Math.max(16, height * 0.035); // Slightly smaller base font for safety
 
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
         ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(`${bpm}`, statsCenterX - leftPanelWidth * 0.2, statsTopY);
-        this.drawTechLabel("BPM", statsCenterX - leftPanelWidth * 0.2, statsTopY - valueSize * 0.8, 'center');
+        ctx.fillText(`${bpm} `, statsCenterX - leftPanelWidth * 0.2, row1Y);
+        this.drawTechLabel("BPM", statsCenterX - leftPanelWidth * 0.2, row1Y - valueSize * 0.9, 'center');
 
         const totalSeconds = Math.floor(currentSong.duration || 120);
         const durMin = Math.floor(totalSeconds / 60);
         const durSec = (totalSeconds % 60).toString().padStart(2, '0');
-        ctx.fillText(`${durMin}:${durSec}`, statsCenterX + leftPanelWidth * 0.2, statsTopY);
-        this.drawTechLabel("DUR", statsCenterX + leftPanelWidth * 0.2, statsTopY - valueSize * 0.8, 'center');
+        ctx.fillText(`${durMin}:${durSec} `, statsCenterX + leftPanelWidth * 0.2, row1Y);
+        this.drawTechLabel("DUR", statsCenterX + leftPanelWidth * 0.2, row1Y - valueSize * 0.9, 'center');
 
-        // Difficulty
-        const difficultyY = infoY + infoH * 0.55;
+        // Difficulty & Speed (Row 2 - Side by Side)
+        // Difficulty (Left)
         const currentDiff = this.difficultyOptions[this.selectedDifficultyIndex];
         let diffColor = (currentDiff === 'HARD') ? '#ff3333' : (currentDiff === 'EASY' ? '#00ff00' : '#ffff00');
 
         ctx.fillStyle = diffColor;
         ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(currentDiff, statsCenterX, difficultyY);
-        this.drawTechLabel("DIFFICULTY_LV", statsCenterX, difficultyY - valueSize * 0.8, 'center');
+        ctx.fillText(currentDiff, statsCenterX - leftPanelWidth * 0.2, row2Y);
+        this.drawTechLabel("DIFFICULTY", statsCenterX - leftPanelWidth * 0.2, row2Y - valueSize * 0.9, 'center');
 
-        // Speed
-        const speedY = infoY + infoH * 0.85;
+        // Speed (Right)
         ctx.fillStyle = '#ff00ff';
         ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(`x${this.scrollSpeed.toFixed(1)}`, statsCenterX, speedY);
-        this.drawTechLabel("SCROLL_SPD", statsCenterX, speedY - valueSize * 0.8, 'center');
+        ctx.fillText(`x${this.scrollSpeed.toFixed(1)} `, statsCenterX + leftPanelWidth * 0.2, row2Y);
+        this.drawTechLabel("SPEED", statsCenterX + leftPanelWidth * 0.2, row2Y - valueSize * 0.9, 'center');
+
+        // High Score / Answer (Row 3 - Centered)
+        const highScore = this.scoreManager?.getHighScore(currentSong.url);
+
+        if (highScore) {
+            // Rank
+            const gradeColor = (highScore.grade === 'F' || highScore.grade === 'D') ? '#ff3333' : (highScore.grade.includes('S') ? '#00ffff' : '#33ff33');
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = gradeColor;
+            ctx.font = `bold ${valueSize * 1.5}px "Orbitron"`;
+            ctx.fillText(highScore.grade, statsCenterX - 15, row3Y);
+
+            // Score
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#fff';
+            ctx.font = `bold ${valueSize}px "Orbitron"`;
+            ctx.fillText(highScore.score.toLocaleString(), statsCenterX + 15, row3Y);
+
+            this.drawTechLabel("BEST_RECORD", statsCenterX, row3Y - valueSize * 1.1, 'center');
+        } else {
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#666';
+            ctx.font = `italic ${valueSize * 0.8}px "Orbitron"`;
+            ctx.fillText("NO DATA", statsCenterX, row3Y);
+            this.drawTechLabel("BEST_RECORD", statsCenterX, row3Y - valueSize * 1.1, 'center');
+        }
 
         // --- CONTENT: DATA LIST ---
         const listInnerX = rightPanelX + 10;
@@ -1734,7 +1829,7 @@ export class RhythmGame extends BaseGame {
 
             try {
                 const song = this.songList[this.selectedSongIndex];
-                console.log(`[RhythmGame] Loading preview: ${song.name}`);
+                console.log(`[RhythmGame] Loading preview: ${song.name} `);
 
                 // 1. Check Cache
                 if (this.cachedMidi && this.cachedMidi.url === song.url) {
@@ -1772,7 +1867,7 @@ export class RhythmGame extends BaseGame {
         const hue = 160 + Math.abs(hash % 160);
         const saturation = 80 + Math.abs(hash % 20); // 80-100%
         const lightness = 60 + Math.abs(hash % 20);  // 60-80%
-        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        return `hsl(${hue}, ${saturation} %, ${lightness} %)`;
     }
 
     // --- High-Fidelity Rendering Helpers ---

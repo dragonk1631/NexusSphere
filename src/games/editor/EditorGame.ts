@@ -3,6 +3,7 @@ import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { MidiParser } from '../../core/audio/MidiParser';
 import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
+import { GameTransition } from '../../core/GameTransition';
 
 const MIDI_FILES = [
     'assets/audio/midi/BL_popntwin_level7.mid',
@@ -148,9 +149,11 @@ const CHANNEL_COLORS = [
 export class EditorGame extends BaseGame {
     private midiData: ParsedMidi | null = null;
     private ui: EditorUI | null = null;
+    private resizeObserver: ResizeObserver | null = null;
 
     // Channel-Based Data Structure (16 MIDI Channels)
     private channelData: ChannelData[] = [];
+    private rawMidiBuffer: ArrayBuffer | null = null;
 
     // Viewport State
     private scrollX = 0;
@@ -201,7 +204,6 @@ export class EditorGame extends BaseGame {
             }
         );
         this.ui.init();
-        this.ui.populateMidiSelector(MIDI_FILES);
 
         const container = this.ui.getTimelineContainer();
         if (container) {
@@ -212,7 +214,8 @@ export class EditorGame extends BaseGame {
             this.canvas.width = container.clientWidth - 16;
             this.canvas.height = container.clientHeight - 16;
 
-            new ResizeObserver(() => {
+            this.resizeObserver = new ResizeObserver(() => {
+                if (!container.clientWidth || !container.clientHeight) return; // Prevention
                 this.canvas.width = container.clientWidth - 16;
                 this.canvas.height = container.clientHeight - 16;
                 this.updateTrackLayout();
@@ -221,7 +224,8 @@ export class EditorGame extends BaseGame {
                 const totalHeight = 16 * this.trackHeight;
                 const maxScroll = Math.max(0, totalHeight - this.canvas.height);
                 this.scrollY = Math.max(0, Math.min(maxScroll, this.scrollY));
-            }).observe(container);
+            });
+            this.resizeObserver.observe(container);
         }
 
         this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
@@ -260,7 +264,14 @@ export class EditorGame extends BaseGame {
     }
 
     public async load(): Promise<void> {
+        // 1. Check for transition data immediately
+        const transitionData = GameTransition.hasData() ? GameTransition.get() : null;
+
+        // 2. Init Audio
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
+
+        // 3. Populate MIDI Selector
+        this.ui?.populateMidiSelector(MIDI_FILES);
 
         const trackPanel = document.getElementById('track-list-panel');
         if (trackPanel) {
@@ -268,8 +279,23 @@ export class EditorGame extends BaseGame {
             trackPanel.style.pointerEvents = 'auto';
         }
 
+        // 4. Restore from Transition Data OR Load Default
+        if (transitionData && transitionData.source === 'rhythm') {
+            console.log(`[EditorGame] Returning from Test Play: ${transitionData.midiName}`);
+
+            // Sync UI Selector
+            const selector = document.getElementById('midi-selector') as HTMLSelectElement;
+            if (selector) selector.value = transitionData.midiName;
+
+            await this.loadMidiFile(transitionData.midiName, undefined, transitionData.midiBuffer);
+            this.ui?.show();
+            GameTransition.clear();
+            return;
+        }
+
         if (MIDI_FILES.length > 0) {
             await this.loadMidiFile(MIDI_FILES[0]);
+            this.ui?.show();
         }
     }
 
@@ -285,15 +311,18 @@ export class EditorGame extends BaseGame {
         this.ui?.triggerFolderPicker();
     }
 
-    private async loadMidiFile(name: string, file?: File): Promise<void> {
+    private async loadMidiFile(name: string, file?: File, existingBuffer?: ArrayBuffer): Promise<void> {
         try {
             let buffer: ArrayBuffer;
-            if (file) {
+            if (existingBuffer) {
+                buffer = existingBuffer;
+            } else if (file) {
                 buffer = await file.arrayBuffer();
             } else {
                 const res = await fetch(name);
                 buffer = await res.arrayBuffer();
             }
+            this.rawMidiBuffer = buffer;
 
             const parser = new MidiParser();
             this.midiData = await parser.parse(buffer);
@@ -598,6 +627,33 @@ export class EditorGame extends BaseGame {
                 this.isPlaying = false;
                 this.scrollX = 0;
                 this.ui?.setPlayState(false);
+                break;
+            case 'test':
+                if (this.midiData && this.audioEngine) {
+                    // 1. Stop Playback
+                    this.audioEngine.stop();
+
+                    if (this.rawMidiBuffer) {
+                        console.log("[EditorGame] Setting GameTransition data...");
+                        GameTransition.set({
+                            source: 'editor',
+                            midiBuffer: this.rawMidiBuffer!,
+                            midiName: this.midiData?.name || 'Test Song',
+                            settings: {
+                                mutedChannels: new Set(this.mutedTrackIndices),
+                                speed: 1.0,
+                                volume: 1.0
+                            }
+                        });
+                        console.log("[EditorGame] GameTransition set. Dispatching switch-game...");
+
+                        window.dispatchEvent(new CustomEvent('switch-game', {
+                            detail: { targetMode: 'rhythm' }
+                        }));
+                    } else {
+                        console.warn("[Editor] No MIDI buffer available for test play.");
+                    }
+                }
                 break;
             case 'start':
                 this.audioEngine.seek(0);
@@ -995,10 +1051,26 @@ export class EditorGame extends BaseGame {
     }
 
     public destroy(): void {
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = null;
         this.releaseWakeLock();
         this.audioEngine.stop();
         this.isPlaying = false;
         this.ui?.destroy();
         document.body.style.overflow = '';
+
+        // Restore Canvas to Game Container (Crucial for Game Switching)
+        const gameContainer = document.getElementById('game-container');
+        if (gameContainer && this.canvas.parentElement !== gameContainer) {
+            gameContainer.appendChild(this.canvas);
+
+            // Allow CSS to handle layout again
+            this.canvas.style.position = '';
+            this.canvas.style.top = '';
+            this.canvas.style.left = '';
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+            console.log('[EditorGame] Canvas restored to #game-container.');
+        }
     }
 }

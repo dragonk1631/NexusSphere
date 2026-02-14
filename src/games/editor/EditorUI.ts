@@ -53,9 +53,16 @@ export class EditorUI {
         this.onFXChange = fxHandler;
     }
 
+    public show(): void {
+        const container = document.querySelector('.daw-container') as HTMLElement;
+        if (container) {
+            container.style.opacity = '1';
+        }
+    }
+
     public init(): void {
         const html = `
-            <div class="daw-container">
+            <div class="daw-container" style="opacity: 0; transition: opacity 0.3s;">
                 <!-- Top Control Bar (File & Progress) -->
                 <div class="transport-bar">
                     <div class="file-tools" style="display:flex; align-items:center; gap:8px; margin-right: auto;">
@@ -70,6 +77,10 @@ export class EditorUI {
                     </div>
 
                     <div class="extra-tools" style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
+                        <button id="btn-test-play" title="Test Play" style="background:#4CAF50; color:white; border:none; padding:4px 12px; border-radius:4px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:11px;">
+                            <span style="font-size:14px;">🎮</span> TEST
+                        </button>
+                        
                         <div class="bpm-tool" style="display:flex; align-items:center; gap:5px; background:#000; padding:2px 8px; border-radius:4px; border:1px solid #333;">
                             <span style="font-size:9px; color:#666; font-weight:bold;">BPM</span>
                             <input type="number" id="bpm-input" value="120" step="0.1" style="width:45px; background:transparent; color:var(--daw-accent); border:none; outline:none; font-family:monospace; font-size:12px; text-align:right;">
@@ -174,6 +185,7 @@ export class EditorUI {
         q('#btn-play-pause')?.addEventListener('click', () => this.onTransportClick('toggle'));
         q('#btn-stop')?.addEventListener('click', () => this.onTransportClick('stop'));
         q('#btn-end')?.addEventListener('click', () => this.onTransportClick('end'));
+        q('#btn-test-play')?.addEventListener('click', () => this.onTransportClick('test'));
 
         q('#btn-fx-eq-toggle')?.addEventListener('click', (e) => {
             const btn = e.currentTarget as HTMLElement;
