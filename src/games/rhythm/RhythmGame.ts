@@ -756,7 +756,12 @@ export class RhythmGame extends BaseGame {
         this.lastCombo = 0;
         this.comboAnim = 0;
         this.endGameTimer = 0;
-        this.preGameTimer = 2000; // Restore 2-second visual lead-in
+
+        // Dynamic Lead-in: Match the time it takes for a note to travel from Horizon to Hit Line
+        // But ensure at least 1.5s for user to prepare
+        const approachTime = 2000 / this.scrollSpeed;
+        this.preGameTimer = Math.max(1500, approachTime);
+
         this.isAudioStarted = false;
 
         // 3. Set state to PLAYING but don't call play() yet
@@ -821,13 +826,6 @@ export class RhythmGame extends BaseGame {
             // High-Precision Sync: Get time directly from AudioContext via Engine
             // note: getPreciseTime returns Seconds, convert to MS
             currentTime = this.audioEngine.getPreciseTime() * 1000;
-
-            // FINAL VERIFICATION: Drift Monitor (Every 2 seconds)
-            if (this.frameCount % 120 === 0) {
-                const seqTimeMs = (this.audioEngine?.currentTime || 0) * 1000;
-                const drift = seqTimeMs - currentTime;
-                console.log(`[SyncVerify] Seq: ${seqTimeMs.toFixed(0)}ms, Clock: ${currentTime.toFixed(0)}ms, Drift: ${drift.toFixed(1)}ms`);
-            }
         }
 
         // Long Note Tick Scoring & Logic

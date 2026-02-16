@@ -88,10 +88,15 @@ export class CoreAudioEngine {
         if (!this.sequencer) throw new Error("Sequencer not initialized");
         await this.sequencer.loadNewSongList([{ binary: buffer }]);
 
+        // CRITICAL: Ensure sequencer doesn't auto-play and starts at 0
+        this.sequencer.pause();
+        this.sequencer.currentTime = 0;
+        this.setPreciseTime(0);
+
         // Debugging: 시퀀서가 인식하는 트랙 정보 및 객체 속성 전수 조사
         const tracks = this.sequencer.tracks || (this.sequencer.song && this.sequencer.song.tracks);
         if (tracks) {
-            console.log(`[CoreAudioEngine] MIDI Loaded. Sequencer Tracks: ${tracks.length}`);
+            console.log(`[CoreAudioEngine] MIDI Loaded (Paused at 0). Sequencer Tracks: ${tracks.length}`);
             tracks.forEach((t: any, i: number) => {
                 const keys = Object.keys(t);
                 console.log(`[Sequencer-Track-${i}] name: ${t.name}, ch: ${t.channel}, keys: ${keys.join(', ')}`);
@@ -116,9 +121,9 @@ export class CoreAudioEngine {
             this.pausePreciseTime();
             this.sequencer.pause();
             this.sequencer.currentTime = 0;
+            this.stopAllNotes();
             this.setPreciseTime(0);
-            this.stopAllNotes(); // 기존 코드 재활용
-            console.log("[CoreAudioEngine] Sequencer stopped and reset to 0.");
+            console.log("[CoreAudioEngine] Sequencer stopped and fully reset to 0.");
         }
     }
 
