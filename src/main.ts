@@ -11,16 +11,34 @@ UIManager.getInstance();
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
+const FPS_LIMIT = 60;
+const FRAME_MIN_TIME = 1000 / FPS_LIMIT;
 let lastTime = 0;
+let frameDelta = 0;
 let mainMenu: MainMenu;
 
 function gameLoop(timestamp: number) {
   if (!currentGame) return;
 
-  const delta = timestamp - lastTime;
+  const elapsed = timestamp - lastTime;
   lastTime = timestamp;
+  frameDelta += elapsed;
 
-  currentGame.update(delta);
+  // Permissive threshold to handle rAF jitter on high-refresh screens (120Hz+)
+  const threshold = FRAME_MIN_TIME - 0.5;
+
+  if (frameDelta >= threshold) {
+    // Pass accumulated delta to maintain speed consistency
+    currentGame.update(frameDelta);
+
+    // Greedy accumulation: maintain the remainder for the next frame
+    // This prevents "lost time" and keeps the average at exactly 60 FPS
+    frameDelta -= FRAME_MIN_TIME;
+
+    // Safety cap: if delta is still huge (tab was suspended), reset
+    if (frameDelta > FRAME_MIN_TIME) frameDelta = 0;
+  }
+
   requestAnimationFrame(gameLoop);
 }
 

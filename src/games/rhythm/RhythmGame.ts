@@ -73,6 +73,10 @@ export class RhythmGame extends BaseGame {
     private preGameTimer = 0;
     private isAudioStarted = false;
     private bgGradient: CanvasGradient | null = null;
+    private lastNoteIndex = 0;
+    private laneGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
+    private beamGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
+
 
     // FPS Counter
     private lastFpsTime = 0;
@@ -144,6 +148,26 @@ export class RhythmGame extends BaseGame {
 
         this.laneBottomWidth = totalHighwayWidthBottom / this.laneCount;
         this.laneTopWidth = totalHighwayWidthTop / this.laneCount;
+
+        // PRE-CACHE Lane Gradients (Performance)
+        const ctxPre = this.ctx;
+        this.laneGradients = this.COLORS.LANES.map(colorSet => {
+            const grad = ctxPre.createLinearGradient(0, this.horizonY, 0, this.hitLineY);
+            const color = colorSet[1];
+            grad.addColorStop(0, this.hexToRgba(color, 0.0));
+            grad.addColorStop(0.2, this.hexToRgba(color, 0.4));
+            grad.addColorStop(0.8, this.hexToRgba(color, 0.6));
+            grad.addColorStop(1, this.hexToRgba(color, 0.9));
+            return grad;
+        });
+
+        this.beamGradients = this.COLORS.LANES.map(colorSet => {
+            const grad = ctxPre.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
+            const color = colorSet[1];
+            grad.addColorStop(0, this.hexToRgba(color, 0.3));
+            grad.addColorStop(1, this.hexToRgba(color, 0.0));
+            return grad;
+        });
 
         // Re-generate Highway Cache on resize
         if (this.renderCache) {
@@ -763,6 +787,8 @@ export class RhythmGame extends BaseGame {
         this.preGameTimer = Math.max(1500, approachTime);
 
         this.isAudioStarted = false;
+        this.lastNoteIndex = 0;
+
 
         // 3. Set state to PLAYING but don't call play() yet
         // The update loop will handle the countdown
@@ -1352,22 +1378,32 @@ export class RhythmGame extends BaseGame {
 
     private renderNotes(currentTime: number): void {
         const timeToReachHitLine = 2000 / this.scrollSpeed;
-        const windowStart = currentTime - 200;
+        const windowStart = currentTime - 500; // Miss buffer
         const windowEnd = currentTime + timeToReachHitLine;
 
-        // Optimization: Since visualNotes is already sorted by time (in NoteFactory), 
-        // we can find the start index and only iterate until we exceed the window.
-        for (let i = 0; i < this.visualNotes.length; i++) {
-            const note = this.visualNotes[i];
-            if (note.isProcessed) continue;
-
+        // OPTIMIZATION: Advance lastNoteIndex to skip notes that are completely passed
+        while (this.lastNoteIndex < this.visualNotes.length) {
+            const note = this.visualNotes[this.lastNoteIndex];
             const noteTimeMs = note.time * 1000;
             const noteEndMs = note.isHold ? noteTimeMs + note.durationMs : noteTimeMs;
 
-            // Skip notes that haven't entered the window yet (and stop loop since sorted)
+            if (note.isProcessed && noteEndMs < windowStart) {
+                this.lastNoteIndex++;
+            } else {
+                break;
+            }
+        }
+
+        for (let i = this.lastNoteIndex; i < this.visualNotes.length; i++) {
+            const note = this.visualNotes[i];
+            const noteTimeMs = note.time * 1000;
+            const noteEndMs = note.isHold ? noteTimeMs + note.durationMs : noteTimeMs;
+
+            // Stop loop since sorted
             if (noteTimeMs > windowEnd) break;
 
-            // Skip notes that already passed
+            // Skip notes that already passed or are processed (non-hold)
+            if (note.isProcessed && !note.isHold) continue;
             if (noteEndMs < windowStart) continue;
 
             const timeDiff = noteTimeMs - currentTime;
@@ -1453,41 +1489,28 @@ export class RhythmGame extends BaseGame {
             // Draw stretched texture or tiled
             // Dynamic scrolling effects
 
-            let alpha = isHolding ? 0.8 : 0.5;
-            // Flash Effect if holding
+            let alpha = isHolding ? 0.9 : 0.6;
+            // Flash Effect if holding (Math only, no shadowBlur here for performance)
             if (isHolding) {
-                const flash = Math.sin(performance.now() * 0.02) * 0.2 + 0.8; // Oscillate 0.6 - 1.0
+                const flash = Math.sin(performance.now() * 0.02) * 0.1 + 0.9;
                 alpha = flash;
-                ctx.shadowColor = '#ffffff';
-                ctx.shadowBlur = 10 + (flash * 10); // Pulse blur
             }
 
             ctx.globalAlpha = alpha;
-            // Draw twice for scroll loop
             ctx.drawImage(bodyImg, 0, 0, bodyImg.width, bodyImg.height, headX, tailY, Math.max(headW, tailW), headY - tailY);
-            // This texture mapping is crude. For true perspective texturing we need heavy math or WebGL.
-            // Fallback: Simple Gradient Fill if texture is weird, OR use the gradient we made in cache as a simple fill.
 
-            // Simple Fill for now to ensure cleanliness
-            const grad = ctx.createLinearGradient(0, tailY, 0, headY);
-            const color = this.COLORS.LANES[lane][1];
-            grad.addColorStop(0, this.hexToRgba(color, 0.0));
-            grad.addColorStop(0.2, this.hexToRgba(color, 0.4));
-
-            if (isHolding) {
-                grad.addColorStop(1, this.hexToRgba('#ffffff', 0.9)); // Bright core when holding
-            } else {
-                grad.addColorStop(1, this.hexToRgba(color, 0.6));
+            // Use Pre-cached Gradient Fill 
+            const cachedGrad = this.laneGradients[lane];
+            if (cachedGrad) {
+                ctx.fillStyle = cachedGrad;
+                ctx.fill();
             }
-
-            ctx.fillStyle = grad;
-            ctx.fill();
 
             // 3. Tail Cap (Diamond Shape for visibility)
             const capSize = tailW * 0.8;
             ctx.fillStyle = '#ffffff';
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#ffffff';
+            // ctx.shadowBlur = 15; // Removed for performance
+            // ctx.shadowColor = '#ffffff';
             ctx.beginPath();
             ctx.moveTo(tailX + tailW / 2, tailY - capSize / 2); // Top
             ctx.lineTo(tailX + tailW, tailY);                   // Right
@@ -1622,18 +1645,16 @@ export class RhythmGame extends BaseGame {
         const bl = { x: this.getPerspectiveX(lane, this.hitLineY), y: this.hitLineY };
         const br = { x: this.getPerspectiveX(lane + 1, this.hitLineY), y: this.hitLineY };
 
-        const grad = ctx.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
-        const color = this.COLORS.LANES[lane][1];
-        grad.addColorStop(0, this.hexToRgba(color, 0.3));
-        grad.addColorStop(1, this.hexToRgba(color, 0.0));
-
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.moveTo(tl.x, tl.y);
-        ctx.lineTo(tr.x, tr.y);
-        ctx.lineTo(br.x, br.y);
-        ctx.lineTo(bl.x, bl.y);
-        ctx.fill();
+        const grad = this.beamGradients[lane];
+        if (grad) {
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(tl.x, tl.y);
+            ctx.lineTo(tr.x, tr.y);
+            ctx.lineTo(br.x, br.y);
+            ctx.lineTo(bl.x, bl.y);
+            ctx.fill();
+        }
     }
 
     private renderParticles(ctx: CanvasRenderingContext2D): void {
