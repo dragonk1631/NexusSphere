@@ -15,12 +15,12 @@ export class CoreAudioEngine {
     private isSoundFontLoaded: boolean = false;
 
     private constructor() {
-        // Optimization: Use 'playback' latency hint for mobile to increase buffer safety
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        // Optimization: Use 'interactive' for all platforms to ensure lowest possible latency
+        // The engine handles jitter via delta clamping and precise time anchoring.
         this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
-            latencyHint: isMobile ? 'playback' : 'interactive'
+            latencyHint: 'interactive'
         });
-        console.log(`[CoreAudioEngine] Context initialized with ${isMobile ? 'playback' : 'interactive'} latency hint.`);
+        console.log(`[CoreAudioEngine] Context initialized with 'interactive' latency hint.`);
     }
 
     public static getInstance(): CoreAudioEngine {

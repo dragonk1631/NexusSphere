@@ -117,6 +117,10 @@ export class RhythmGame extends BaseGame {
     private isTestMode: boolean = false;
     private transitionData: any = null;
 
+    // Optimization: Index-based windowing to avoid O(N) iteration
+    // Tracks the index of the first note that hasn't been fully processed/missed yet.
+    private lastMissCheckIndex: number = 0;
+
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
         // Bind input methods properly
@@ -190,6 +194,9 @@ export class RhythmGame extends BaseGame {
         // Score Manager
         this.scoreManager = ScoreManager.getInstance();
         if (this.scoreManager) this.scoreManager.reset();
+
+        // Reset Logic Index
+        this.lastMissCheckIndex = 0;
 
         // Initial Resize (Now RenderCache is ready to generate textures)
         this.resize(this.canvas.width, this.canvas.height);
@@ -288,6 +295,11 @@ export class RhythmGame extends BaseGame {
     // Touch Handling
     private handleTouchStart(e: TouchEvent): void {
         e.preventDefault();
+
+        // 1. Synchronously resume AudioContext to satisfy mobile browser policies (User Gesture requirement)
+        if (this.audioEngine) {
+            this.audioEngine.resume();
+        }
 
         if (this.currentState === GameState.MENU) {
             this.handleMenuTouch(e);
@@ -422,16 +434,24 @@ export class RhythmGame extends BaseGame {
     private getLaneFromTouch(x: number, y: number): number {
         // Perspective-based Touch Zones
         // We match visual lanes at the bottom (hit line) area
+
+        // Correct for scaled canvas on mobile
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+
+        const canvasX = (x - rect.left) * scaleX;
+        const canvasY = (y - rect.top) * scaleY;
+
         const totalWidthBottom = this.laneBottomWidth * this.laneCount;
         const startX = (this.canvas.width - totalWidthBottom) / 2;
 
-        if (y < this.canvas.height * 0.5) return -1; // Ignore top half
+        if (canvasY < this.canvas.height * 0.5) return -1; // Ignore top half
 
-        // Map x to lane index based on bottom width (widest point)
-        // This is a simplification but works well for the "near hit line" interaction
-        if (x < startX || x > startX + totalWidthBottom) return -1;
+        // Map canvasX to lane index based on bottom width (widest point)
+        if (canvasX < startX || canvasX > startX + totalWidthBottom) return -1;
 
-        const lane = Math.floor((x - startX) / this.laneBottomWidth);
+        const lane = Math.floor((canvasX - startX) / this.laneBottomWidth);
         return Math.max(0, Math.min(lane, this.laneCount - 1));
     }
 
@@ -526,12 +546,34 @@ export class RhythmGame extends BaseGame {
         const currentTime = this.audioEngine.getPreciseTime() * 1000;
         const hitWindow = 200; // ms
 
-        const candidates = this.visualNotes.filter(n =>
-            n.lane === lane &&
-            !n.isProcessed &&
-            !n.isHolding &&
-            Math.abs(n.time * 1000 - currentTime) < hitWindow
-        );
+        // Optimization: Windowed Search (O(1) average)
+        // Instead of filtering the entire array, we search forward from our current progress index.
+        const candidates: VisualNote[] = [];
+
+        // We start searching a bit before the known "miss" index to be safe against slight timing jitter
+        // or out-of-order lane processing, but generally lastMissCheckIndex is a good lower bound 
+        // for "active" notes. To be extra safe, we can clamp it.
+        // However, for hit detection, we might want to hit a note that is slightly "past" the miss line 
+        // if we are lenient (though updateMissedNotes should have caught it).
+        // Let's iterate forward from lastMissCheckIndex.
+
+        for (let i = this.lastMissCheckIndex; i < this.visualNotes.length; i++) {
+            const n = this.visualNotes[i];
+
+            // 1. If note is already processed, skip
+            if (n.isProcessed && !n.isHolding) continue;
+
+            const noteTime = n.time * 1000;
+
+            // 2. Window Exit Condition: If note is too far in the future (> window), STOP.
+            // Notes are sorted by time, so no need to check further.
+            if (noteTime > currentTime + hitWindow) break;
+
+            // 3. Check Lane & Time Window
+            if (n.lane === lane && Math.abs(noteTime - currentTime) < hitWindow) {
+                candidates.push(n);
+            }
+        }
 
         if (candidates.length > 0) {
             // Find closest note (accuracy)
@@ -628,15 +670,48 @@ export class RhythmGame extends BaseGame {
     // We need to check for missed notes
     private updateMissedNotes(currentTime: number): void {
         const missThreshold = 200; // If note passes by 200ms, it's a miss
+        let missCountThisFrame = 0;
 
-        this.visualNotes.forEach(note => {
-            if (!note.isProcessed && !note.isHolding) {
-                const noteTimeMs = note.time * 1000;
-                if (currentTime > noteTimeMs + missThreshold) {
-                    this.triggerMiss(note);
+        // Optimization: Start from the last checked index (Windowing)
+        // We iterate until we find a note that is in the future (beyond miss threshold)
+        for (let i = this.lastMissCheckIndex; i < this.visualNotes.length; i++) {
+            const note = this.visualNotes[i];
+
+            // 1. If this note is already processed (Hit or Hold released), we can advance the start index
+            // ONLY if it is the note at the current cursor. this ensures the cursor always points
+            // to the first unprocessed note.
+            if ((note.isProcessed && !note.isHolding)) {
+                if (i === this.lastMissCheckIndex) {
+                    this.lastMissCheckIndex++;
+                }
+                continue;
+            }
+
+            const noteTimeMs = note.time * 1000;
+
+            // 2. Exit Condition: If note is in the future relative to miss line, STOP.
+            // Notes are sorted, so we don't need to check the rest.
+            if (noteTimeMs > currentTime + missThreshold) {
+                break;
+            }
+
+            // 3. Process Miss logic if time condition met
+            if (currentTime > noteTimeMs + missThreshold) {
+                // Double check processed state (though loop header handles it, the continue above handles processed ones)
+                if (!note.isProcessed && !note.isHolding) {
+                    // Safety: Limit number of misses per frame to prevent instant Game Over 
+                    // on huge clock jumps (Sync Catch-up).
+                    if (missCountThisFrame < 10) {
+                        this.triggerMiss(note);
+                        missCountThisFrame++;
+                    } else {
+                        // Silent Process: Just mark as processed without damaging further
+                        // This prevents the "Storm of Death" while keeping the chart clean.
+                        note.isProcessed = true;
+                    }
                 }
             }
-        });
+        }
     }
 
     // --- In Render Method ---
@@ -831,8 +906,6 @@ export class RhythmGame extends BaseGame {
         let currentTime = 0;
         if (this.preGameTimer > 0) {
             this.preGameTimer -= delta;
-            // Map 2000 -> 0 to -2000 -> 0
-            currentTime = -this.preGameTimer;
 
             if (this.preGameTimer <= 0) {
                 console.log("[RhythmGame] Lead-in finished. Starting Audio at t=0.");
@@ -840,6 +913,9 @@ export class RhythmGame extends BaseGame {
                 this.audioEngine.startPreciseTime(); // This will anchor to 0 (or sequencer state)
                 this.isAudioStarted = true;
                 currentTime = 0;
+            } else {
+                // Map 2000 -> 0 to -2000 -> 0
+                currentTime = -this.preGameTimer;
             }
         } else if (!this.isAudioStarted) {
             // Safety fallback if preGameTimer was 0 or skipped
@@ -933,9 +1009,11 @@ export class RhythmGame extends BaseGame {
 
         this.render(currentTime);
 
-        // Check Game Over (with 2s protection + 2s lead-in = 4s total safety)
+        // Check Game Over (with 3s protection + 2s lead-in = 5s total safety)
         if (this.scoreManager?.isDead()) {
-            if (currentTime > 2000) {
+            // Safety: No HP Game Over and during lead-in or the first 3 seconds of the song
+            // This prevents premature endings due to sync jumps.
+            if (this.isAudioStarted && currentTime > 3000) {
                 this.finishGame("HP Depleted (Health <= 0)");
                 return;
             }
@@ -943,12 +1021,16 @@ export class RhythmGame extends BaseGame {
 
         if (this.midiData) {
             const durationMs = this.midiData.duration * 1000;
-            if (currentTime >= durationMs - 100) {
+
+            // Safety: Only allow natural end if the audio has been playing for a bit
+            // and the duration is reasonable (> 2s)
+            if (this.isAudioStarted && currentTime >= durationMs - 100 && durationMs > 2000) {
                 this.endGameTimer += delta;
             }
 
             if (this.endGameTimer > 2000) {
                 this.finishGame("Song Completed Normally");
+                return;
             }
         }
     }

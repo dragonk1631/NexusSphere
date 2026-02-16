@@ -13,7 +13,22 @@ export abstract class BaseGame {
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
-        this.ctx = canvas.getContext('2d')!;
+
+        // Android Chrome can be unstable with desynchronized: true
+        const isAndroid = /Android/i.test(navigator.userAgent);
+
+        try {
+            // Optimization: Use desynchronized: true for lowest latency (bypasses compositor)
+            // But disable for Android as it can cause flickering/broken rendering in some Chrome versions
+            this.ctx = canvas.getContext('2d', {
+                desynchronized: !isAndroid,
+                alpha: false
+            })!;
+        } catch (e) {
+            console.warn("[BaseGame] Desynchronized context failed, falling back to standard.");
+            this.ctx = canvas.getContext('2d', { alpha: false })!;
+        }
+
         this.audioEngine = CoreAudioEngine.getInstance();
         this.assetLoader = AssetLoader.getInstance();
     }

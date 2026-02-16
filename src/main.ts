@@ -14,35 +14,54 @@ let currentGame: any = null;
 const FPS_LIMIT = 60;
 const FRAME_MIN_TIME = 1000 / FPS_LIMIT;
 let lastTime = 0;
+let loopCounter = 0;
 let frameDelta = 0;
 let mainMenu: MainMenu;
 
 function gameLoop(timestamp: number) {
   if (!currentGame) return;
 
-  const elapsed = timestamp - lastTime;
+  // Closure capture of loopCounter to detect if a new loop was started
+  const currentLoopId = loopCounter;
+
+  // 1. Calculate elapsed time, but clamp it to prevent massive jumps (e.g. from backgrounding)
+  // 100ms clamp is enough to allow for some lag without breaking game logic/sync
+  const elapsed = Math.min(100, timestamp - lastTime);
   lastTime = timestamp;
   frameDelta += elapsed;
 
-  // Permissive threshold to handle rAF jitter on high-refresh screens (120Hz+)
-  const threshold = FRAME_MIN_TIME - 0.5;
+  // Fixed Step Logic: Ensure game updates at constant rate (e.g. 60hz) 
+  // regardless of screen refresh rate or lag spikes.
+  const FIXED_STEP = 1000 / 60; // 16.666ms
 
-  if (frameDelta >= threshold) {
-    // Pass accumulated delta to maintain speed consistency
-    currentGame.update(frameDelta);
+  if (frameDelta >= FIXED_STEP) {
+    let steps = 0;
+    const MAX_STEPS = 5; // Prevent spiral of death on massive lag
 
-    // Greedy accumulation: maintain the remainder for the next frame
-    // This prevents "lost time" and keeps the average at exactly 60 FPS
-    frameDelta -= FRAME_MIN_TIME;
+    while (frameDelta >= FIXED_STEP) {
+      currentGame.update(FIXED_STEP);
+      frameDelta -= FIXED_STEP;
+      steps++;
 
-    // Safety cap: if delta is still huge (tab was suspended), reset
-    if (frameDelta > FRAME_MIN_TIME) frameDelta = 0;
+      if (steps >= MAX_STEPS) {
+        // If we are too far behind, just give up and snap to now
+        // This prevents the game from running in fast-forward for too long
+        console.warn(`[Main] Lag Spike detected! Skipped ${frameDelta.toFixed(1)}ms`);
+        frameDelta = 0;
+        break;
+      }
+    }
   }
 
-  requestAnimationFrame(gameLoop);
+  // Only continue if this is still the active loop
+  if (currentLoopId === loopCounter) {
+    requestAnimationFrame(gameLoop);
+  }
 }
 
 async function launchGame(GameClass: any) {
+  loopCounter++; // Increment to invalidate previous loops
+
   // Clear ALL UI before switching
   UIManager.getInstance().clear();
 
