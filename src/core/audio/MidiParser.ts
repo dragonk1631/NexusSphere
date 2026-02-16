@@ -64,25 +64,27 @@ export class MidiParser {
             }
 
             const notes: GameNote[] = track.notes.map((note, noteIndex) => {
-                // Simple importance calculation based on velocity and beat alignment
+                const velocity127 = Math.round(note.velocity * 127);
                 const beats = note.time * (bpm / 60);
                 const beatOffset = Math.abs(beats - Math.round(beats));
-                let importance = note.velocity;
+                let importance = velocity127;
 
                 if (beatOffset < 0.1) importance *= 1.3;
                 if (isDrum) importance *= 1.5;
+
+                const noteChannel = (note as any).channel !== undefined ? (note as any).channel : track.channel;
 
                 return {
                     id: `${trackIndex}-${noteIndex}`,
                     time: note.time,
                     midi: note.midi,
                     name: note.name,
-                    velocity: note.velocity,
+                    velocity: velocity127,
                     duration: note.duration,
                     ticks: note.ticks,
                     durationTicks: note.durationTicks,
                     importance,
-                    channel: track.channel // Add channel information
+                    channel: noteChannel
                 };
             });
 

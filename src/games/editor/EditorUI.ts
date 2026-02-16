@@ -80,6 +80,32 @@ export class EditorUI {
                         <button id="btn-test-play" title="Test Play" style="background:#4CAF50; color:white; border:none; padding:4px 12px; border-radius:4px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:11px;">
                             <span style="font-size:14px;">🎮</span> TEST
                         </button>
+
+                        <select id="test-difficulty" style="background:#222; color:#fff; border:1px solid #444; padding:2px 4px; border-radius:4px; font-size:11px; outline:none; cursor:pointer;" title="Test Play Difficulty">
+                            <option value="EASY">EASY</option>
+                            <option value="NORMAL" selected>NORMAL</option>
+                            <option value="HARD">HARD</option>
+                        </select>
+
+                        <select id="test-channel" style="background:#222; color:#fff; border:1px solid #444; padding:2px 4px; border-radius:4px; font-size:11px; outline:none; cursor:pointer;" title="Test Channel">
+                            <option value="-1" selected>AUTO (Melody)</option>
+                            <option value="0">CH 1</option>
+                            <option value="1">CH 2</option>
+                            <option value="2">CH 3</option>
+                            <option value="3">CH 4</option>
+                            <option value="4">CH 5</option>
+                            <option value="5">CH 6</option>
+                            <option value="6">CH 7</option>
+                            <option value="7">CH 8</option>
+                            <option value="8">CH 9</option>
+                            <option value="9">CH 10 (Drums)</option>
+                            <option value="10">CH 11</option>
+                            <option value="11">CH 12</option>
+                            <option value="12">CH 13</option>
+                            <option value="13">CH 14</option>
+                            <option value="14">CH 15</option>
+                            <option value="15">CH 16</option>
+                        </select>
                         
                         <div class="bpm-tool" style="display:flex; align-items:center; gap:5px; background:#000; padding:2px 8px; border-radius:4px; border:1px solid #333;">
                             <span style="font-size:9px; color:#666; font-weight:bold;">BPM</span>
@@ -402,7 +428,7 @@ export class EditorUI {
         }
     }
 
-    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>, mutedIndices: Set<number>, channelColors: string[]): void {
+    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>, mutedIndices: Set<number>, channelColors: string[], gameRoles?: Map<number, string>): void {
         if (!this.trackListPanel) return;
         this.trackListPanel.innerHTML = '';
 
@@ -460,6 +486,19 @@ export class EditorUI {
                         <div class="track-icon-badge" style="width:30px; height:30px; display:flex; align-items:center; justify-content:center; background:${color}22; border:1px solid ${color}44; border-radius:4px; font-size:16px;">
                             ${getIcon(channelInfo)}
                         </div>
+
+                        ${gameRoles && gameRoles.has(ch) ? (() => {
+                        const role = gameRoles.get(ch);
+                        let icon = '🎮';
+                        let color = '#fff';
+                        let title = 'Game Channel';
+
+                        if (role === 'PRIMARY') { icon = '👑'; color = '#ffd700'; title = 'Main Melody (Primary)'; }
+                        else if (role === 'SECONDARY') { icon = '🛡️'; color = '#c0c0c0'; title = 'Accompaniment (Secondary)'; }
+                        else if (role === 'DRUM') { icon = '🥁'; color = '#ff4444'; title = 'Rhythm (Drums)'; }
+
+                        return `<div class="game-channel-badge" title="${title}" style="position:absolute; left: 22px; top: 0px; font-size:12px; text-shadow:0 0 5px ${color}; cursor:help;">${icon}</div>`;
+                    })() : ''} 
 
                         <div class="track-info-container" style="flex:1; pointer-events:none; display:flex; flex-direction:column; justify-content:center; overflow:hidden;">
                             <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:11px; margin-bottom:0px;">
@@ -559,6 +598,16 @@ export class EditorUI {
 
     public getTimelineContainer(): HTMLElement | null {
         return document.getElementById('timeline-area');
+    }
+
+    public getTestDifficulty(): string {
+        const selector = document.getElementById('test-difficulty') as HTMLSelectElement;
+        return selector ? selector.value : 'NORMAL';
+    }
+
+    public getTestChannel(): number {
+        const selector = document.getElementById('test-channel') as HTMLSelectElement;
+        return selector ? parseInt(selector.value) : -1;
     }
 
     public destroy(): void {

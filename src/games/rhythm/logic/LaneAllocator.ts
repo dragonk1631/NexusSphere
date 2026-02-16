@@ -12,6 +12,8 @@ export class LaneAllocator {
         // Split lanes into Hand Groups: Left (0, 1, 2) and Right (3, 4, 5)
         let lastLeftLane = 1;  // Middle of left group
         let lastRightLane = 4; // Middle of right group
+
+        // LIMIT: 1 for EASY/NORMAL, 2 for HARD (as requested)
         const maxChordSize = (difficulty === 'HARD') ? 2 : 1;
 
         // Hand Tracking State
@@ -37,8 +39,31 @@ export class LaneAllocator {
 
             sortedTicks.forEach(tick => {
                 const groupNotes = tickGroups.get(tick)!;
+
+                // Identify Primary notes in this tick to PROTECT them
+                // REFINED PROTECTION: If it's the primary melody, keep ALWAYS.
+                // This ensures fast polyphonic trills or unintended overlaps aren't deleted.
+
+                // Identify Primary notes in this tick to PROTECT them
+                const primaryInGroup = groupNotes.filter(n => (n as any).isPrimary);
+
                 const count = Math.min(groupNotes.length, maxChordSize);
-                const activeNotes = groupNotes.slice(0, count);
+                let activeNotes = groupNotes.slice(0, count);
+
+                // EMERGENCY OVERRIDE for Primary Channel (Reliability / 100% Protection)
+                // If the group contains Primary notes, we ensure they are NOT deleted.
+                if (primaryInGroup.length > 0) {
+                    // Combine the sliced notes (for secondary) with ALL primary notes
+                    // This ensures primary notes are always present, while secondary respects maxChordSize
+                    const nonPrimary = activeNotes.filter(n => !(n as any).isPrimary);
+                    activeNotes = Array.from(new Set([...primaryInGroup, ...nonPrimary])).slice(0, Math.max(count, primaryInGroup.length));
+
+                    // Actually, if it's primary, we want to BE SURE it's not deleted by slice.
+                    // If we have 3 primary and max is 2, we keep all 3.
+                    if (primaryInGroup.length > activeNotes.length) {
+                        activeNotes = primaryInGroup;
+                    }
+                }
 
                 // Helper to find free lane
                 const findFreeLane = (preferred: number, hand: 'left' | 'right'): number => {
@@ -97,16 +122,16 @@ export class LaneAllocator {
                         // FORCE ALTERNATION for rhythm
                         useLeftHand = (lastHand !== 'left');
                     } else {
-                        // FATIGUE BIAS + MIDI PITCH HINT
-                        const pitchHint = note.midi % 2 === 0; // Even midi = Left preference
+                        // IGNORE MIDI PITCH HINT - Use random bias or simple alternation
+                        const rhythmHint = Math.random() > 0.5; // Random initial preference
 
                         if (consecutiveSameHand >= FATIGUE_THRESHOLD) {
                             useLeftHand = (lastHand !== 'left'); // Force swap
                         } else if (lastHand === null) {
-                            useLeftHand = pitchHint;
+                            useLeftHand = rhythmHint;
                         } else {
                             // High chance to keep pitch hint, but slightly bias towards alternation
-                            useLeftHand = (Math.random() > 0.7) ? !lastHand : pitchHint;
+                            useLeftHand = (Math.random() > 0.7) ? !lastHand : rhythmHint;
                         }
                     }
 

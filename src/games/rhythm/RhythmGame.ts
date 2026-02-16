@@ -210,11 +210,25 @@ export class RhythmGame extends BaseGame {
                 this.midiData = await parser.parse(data.midiBuffer);
                 await this.audioEngine.loadMidi(data.midiBuffer);
 
-                // 3. Apply Settings (Mutes)
-                if (data.settings && data.settings.mutedChannels) {
-                    data.settings.mutedChannels.forEach(ch => {
-                        this.audioEngine.setChannelMute(ch, true);
-                    });
+                // 3. Apply Settings (Solo & Mute)
+                if (data.settings) {
+                    const soloChannels = data.settings.soloChannels;
+                    const hasSolo = soloChannels && soloChannels.size > 0;
+
+                    if (hasSolo) {
+                        // Apply Solo: Mute everything else
+                        for (let ch = 0; ch < 16; ch++) {
+                            const isAudible = soloChannels.has(ch);
+                            this.audioEngine.setChannelMute(ch, !isAudible);
+                        }
+                        console.log(`[RhythmGame] Test Mode: Applied Solo for Channels: ${Array.from(soloChannels).map(c => c + 1).join(', ')}`);
+                    } else if (data.settings.mutedChannels) {
+                        // Regular Mute
+                        data.settings.mutedChannels.forEach(ch => {
+                            this.audioEngine.setChannelMute(ch, true);
+                        });
+                        console.log(`[RhythmGame] Test Mode: Applied Mute for Channels: ${Array.from(data.settings.mutedChannels).map(c => c + 1).join(', ')}`);
+                    }
                 }
 
                 // 4. Create Game Elements directly (Skip Menu)
@@ -257,8 +271,12 @@ export class RhythmGame extends BaseGame {
         }
 
         if (this.currentState === GameState.RESULT) {
-            this.currentState = GameState.MENU;
-            this.scoreManager?.reset();
+            if (this.isTestMode) {
+                this.returnToEditor();
+            } else {
+                this.currentState = GameState.MENU;
+                this.scoreManager?.reset();
+            }
             return;
         }
 
@@ -404,8 +422,12 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState === GameState.RESULT) {
             if (event.code === 'Enter' || event.code === 'Space' || event.code === 'Escape') {
-                this.currentState = GameState.MENU;
-                this.scoreManager?.reset();
+                if (this.isTestMode) {
+                    this.returnToEditor();
+                } else {
+                    this.currentState = GameState.MENU;
+                    this.scoreManager?.reset();
+                }
             }
             return;
         }
@@ -694,16 +716,18 @@ export class RhythmGame extends BaseGame {
 
         if (this.midiData) {
             let forcedChannels: number[] | null = null;
-
-            // 2. Use Beatmap Channels if available (Overrides Test Mode if exists, though unlikely unless testing a mapped file)
-            if (this.beatmapData && this.beatmapData.gameChannels && this.beatmapData.gameChannels.length > 0) {
+            if (this.transitionData?.forcedChannels) {
+                forcedChannels = this.transitionData.forcedChannels;
+            } else if (this.beatmapData?.gameChannels && this.beatmapData.gameChannels.length > 0) {
                 forcedChannels = this.beatmapData.gameChannels.map((ch: number) => ch - 1);
                 console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${forcedChannels?.join(', ')}`);
             }
 
+            let difficulty = this.transitionData?.settings?.difficulty || 'NORMAL';
+            if (this.isTestMode && !this.transitionData?.settings?.difficulty) difficulty = 'NORMAL'; // Logic changed: Rely on Editor setting
+
             // Generate Visual Notes through NoteFactory (Smart Charting inside if forcedChannels is null)
-            const difficulty = this.difficultyOptions[this.selectedDifficultyIndex];
-            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels as any, difficulty);
+            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels, difficulty);
 
             console.log(`[RhythmGame] Created ${this.visualNotes.length} notes.`);
             if (this.scoreManager) {
@@ -732,13 +756,13 @@ export class RhythmGame extends BaseGame {
         this.lastCombo = 0;
         this.comboAnim = 0;
         this.endGameTimer = 0;
-        this.preGameTimer = -2000; // Start with 2 seconds lead-in (negative time)
+        this.preGameTimer = 2000; // Restore 2-second visual lead-in
         this.isAudioStarted = false;
 
         // 3. Set state to PLAYING but don't call play() yet
         // The update loop will handle the countdown
         this.currentState = GameState.PLAYING;
-        console.log(`[RhythmGame] Game Started with 2s lead-in. Sync State: ${this.currentState}`);
+        console.log(`[RhythmGame] Game Started immediately. Sync State: ${this.currentState}`);
     }
 
     public update(delta: number): void {
@@ -767,21 +791,43 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState !== GameState.PLAYING) return;
 
+        // BRUTE FORCE PROTECTION: Enforce Mute State Check (Same as Editor)
+        if (this.isTestMode && this.isAudioStarted) {
+            this.enforceMuteCompliance();
+        }
+
         // Time Logic
         let currentTime = 0;
-        if (!this.isAudioStarted) {
-            this.preGameTimer += delta;
-            currentTime = this.preGameTimer;
-            if (this.preGameTimer >= 0) {
-                console.log("[RhythmGame] Pre-game timer done. Starting Audio.");
+        if (this.preGameTimer > 0) {
+            this.preGameTimer -= delta;
+            // Map 2000 -> 0 to -2000 -> 0
+            currentTime = -this.preGameTimer;
+
+            if (this.preGameTimer <= 0) {
+                console.log("[RhythmGame] Lead-in finished. Starting Audio at t=0.");
                 this.audioEngine.play();
-                this.audioEngine.startPreciseTime(); // Synced Start
+                this.audioEngine.startPreciseTime(); // This will anchor to 0 (or sequencer state)
                 this.isAudioStarted = true;
+                currentTime = 0;
             }
+        } else if (!this.isAudioStarted) {
+            // Safety fallback if preGameTimer was 0 or skipped
+            console.log("[RhythmGame] Starting Audio immediately (No lead-in).");
+            this.audioEngine.play();
+            this.audioEngine.startPreciseTime();
+            this.isAudioStarted = true;
+            currentTime = 0;
         } else {
             // High-Precision Sync: Get time directly from AudioContext via Engine
             // note: getPreciseTime returns Seconds, convert to MS
             currentTime = this.audioEngine.getPreciseTime() * 1000;
+
+            // FINAL VERIFICATION: Drift Monitor (Every 2 seconds)
+            if (this.frameCount % 120 === 0) {
+                const seqTimeMs = (this.audioEngine?.currentTime || 0) * 1000;
+                const drift = seqTimeMs - currentTime;
+                console.log(`[SyncVerify] Seq: ${seqTimeMs.toFixed(0)}ms, Clock: ${currentTime.toFixed(0)}ms, Drift: ${drift.toFixed(1)}ms`);
+            }
         }
 
         // Long Note Tick Scoring & Logic
@@ -912,22 +958,55 @@ export class RhythmGame extends BaseGame {
         console.log(`[RhythmGame] Finished. Reason: ${reason}`);
 
         if (this.isTestMode) {
-            console.log("[RhythmGame] Test Mode Finished. Dispatching return to editor...");
+            // Simple timeout to auto-exit for now
+            setTimeout(() => {
+                this.returnToEditor();
+            }, 3000); // 3 seconds to see score then return
+        }
+    }
 
-            // Return Data to Editor to restore state
-            if (this.transitionData) {
-                GameTransition.set({
-                    ...this.transitionData,
-                    source: 'rhythm'
-                });
+    private returnToEditor(): void {
+        if (!this.isTestMode) return;
+
+        console.log("[RhythmGame] Test Mode Finished. Dispatching return to editor...");
+
+        // Return Data to Editor to restore state
+        if (this.transitionData) {
+            GameTransition.set({
+                ...this.transitionData,
+                source: 'rhythm'
+            });
+        }
+
+        window.dispatchEvent(new CustomEvent('switch-game', {
+            detail: { targetMode: 'editor' }
+        }));
+    }
+
+    /**
+     * Enforce Mute Compliance (The "Hammer" Fix)
+     * Checks all channels every frame in Test Mode. If a channel is supposed to be muted/ignored,
+     * absolutely FORCE it to be silent, overriding any leaked MIDI events.
+     */
+    private enforceMuteCompliance(): void {
+        if (!this.transitionData?.settings) return;
+
+        const soloChannels = this.transitionData.settings.soloChannels;
+        const mutedChannels = this.transitionData.settings.mutedChannels;
+        const hasSolo = soloChannels && soloChannels.size > 0;
+
+        for (let ch = 0; ch < 16; ch++) {
+            let isAudible = false;
+            if (hasSolo) {
+                isAudible = soloChannels.has(ch);
+            } else {
+                isAudible = !mutedChannels?.has(ch);
             }
 
-            // Simple timeout to auto-exit for now, or wait for click
-            setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('switch-game', {
-                    detail: { targetMode: 'editor' }
-                }));
-            }, 3000); // 3 seconds to see score then return
+            if (!isAudible) {
+                // FORCE SILENCE via same mechanism as editor
+                this.audioEngine.overrideChannelVolume(ch, 0);
+            }
         }
     }
 

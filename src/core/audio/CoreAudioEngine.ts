@@ -114,10 +114,11 @@ export class CoreAudioEngine {
     public stop(): void {
         if (this.sequencer) {
             this.pausePreciseTime();
-            this.setPreciseTime(0);
             this.sequencer.pause();
             this.sequencer.currentTime = 0;
+            this.setPreciseTime(0);
             this.stopAllNotes(); // 기존 코드 재활용
+            console.log("[CoreAudioEngine] Sequencer stopped and reset to 0.");
         }
     }
 
@@ -414,9 +415,12 @@ export class CoreAudioEngine {
     // --- High-Precision Time Sync ---
 
     public startPreciseTime(): void {
+        // ANCHOR: Sync the visual clock base to the actual sequencer time
+        // We do this BEFORE setting preciseStartTime to capture the absolute current state
+        this.precisePausedTime = this.sequencer?.currentTime || 0;
         this.preciseStartTime = this.ctx.currentTime;
-        this.precisePausedTime = 0;
         this.isPrecisePlaying = true;
+        console.log(`[CoreAudioEngine] PreciseTime started at Seq: ${this.precisePausedTime.toFixed(3)}s, AudCtx: ${this.preciseStartTime.toFixed(3)}s`);
     }
 
     public pausePreciseTime(): void {
@@ -429,6 +433,8 @@ export class CoreAudioEngine {
     public resumePreciseTime(): void {
         if (!this.isPrecisePlaying) {
             this.preciseStartTime = this.ctx.currentTime;
+            // Re-anchor on resume to handle any drift or changes while paused
+            this.precisePausedTime = this.sequencer?.currentTime || this.precisePausedTime;
             this.isPrecisePlaying = true;
         }
     }
@@ -440,15 +446,28 @@ export class CoreAudioEngine {
 
     /**
      * Returns the exact audio time based on the hardware clock.
-     * Includes compensation for hardware output latency if available.
+     * Includes compensation for hardware output latency and visual lag calibration.
      */
     public getPreciseTime(): number {
         if (!this.isPrecisePlaying) {
             return this.precisePausedTime;
         }
+
+        // --- CALIBRATION CONSTANTS ---
+        // Negative = Audio needs to be "older" relative to visual (Compensates for visual lag)
+        // Positive = Audio needs to be "newer"
+        const GLOBAL_VISUAL_CALIBRATION = -0.035; // 35ms offset for browser composition delay
+
         // @ts-ignore: outputLatency is experimental but supported in most modern browsers
-        const latency = this.ctx.outputLatency || 0;
+        const outputLatency = this.ctx.outputLatency || 0;
+        // baseLatency accounts for the processing time of the audio graph itself
+        const baseLatency = (this.ctx as any).baseLatency || 0;
+
+        const totalHardwareLatency = outputLatency + baseLatency;
+
         const rawTime = this.ctx.currentTime - this.preciseStartTime;
-        return this.precisePausedTime + (rawTime - latency) * (this.sequencer?.playbackRate || 1);
+
+        // Final Sync = Raw Clock - Hardware Lag + Aesthetic Calibration
+        return this.precisePausedTime + (rawTime - totalHardwareLatency + GLOBAL_VISUAL_CALIBRATION) * (this.sequencer?.playbackRate || 1);
     }
 }

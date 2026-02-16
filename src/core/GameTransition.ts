@@ -2,10 +2,13 @@ export interface TransitionData {
     source: 'editor' | 'menu' | 'rhythm';
     midiBuffer: ArrayBuffer;
     midiName: string;
+    forcedChannels?: number[];
     settings: {
         mutedChannels: Set<number>;
+        soloChannels?: Set<number>;
         speed: number;
         volume: number;
+        difficulty?: string;
     };
 }
 

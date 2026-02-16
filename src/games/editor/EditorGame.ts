@@ -4,6 +4,7 @@ import { MidiParser } from '../../core/audio/MidiParser';
 import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
 import { GameTransition } from '../../core/GameTransition';
+import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
 
 const MIDI_FILES = [
     'assets/audio/midi/BL_popntwin_level7.mid',
@@ -154,6 +155,8 @@ export class EditorGame extends BaseGame {
     // Channel-Based Data Structure (16 MIDI Channels)
     private channelData: ChannelData[] = [];
     private rawMidiBuffer: ArrayBuffer | null = null;
+    private gameChannelIndices = new Set<number>();
+    private gameChannelRoles = new Map<number, string>(); // Roles: PRIMARY, SECONDARY, DRUM
 
     // Viewport State
     private scrollX = 0;
@@ -328,6 +331,35 @@ export class EditorGame extends BaseGame {
             this.midiData = await parser.parse(buffer);
             await this.audioEngine.loadMidi(buffer);
 
+            // --- Game Channel Analysis ---
+            const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
+            this.gameChannelIndices.clear();
+            this.gameChannelRoles.clear();
+
+            // Default Logic: Primary (1) + Secondary (2) + Drums (9)
+
+            // 1. Primary (Main Melody)
+            if (rankedChannels.length > 0) {
+                this.gameChannelRoles.set(rankedChannels[0], 'PRIMARY');
+                this.gameChannelIndices.add(rankedChannels[0]);
+            }
+
+            // 2. Secondary (Accompaniment - Up to 2 more)
+            for (let i = 1; i < Math.min(3, rankedChannels.length); i++) {
+                this.gameChannelRoles.set(rankedChannels[i], 'SECONDARY');
+                this.gameChannelIndices.add(rankedChannels[i]);
+            }
+
+            // 3. Drums (Always includes 9 if present)
+            const drumTrack = this.midiData.tracks.find(t => t.channel === 9);
+            if (drumTrack && drumTrack.notes.length > 0) {
+                this.gameChannelRoles.set(9, 'DRUM');
+                this.gameChannelIndices.add(9);
+            }
+
+            console.log(`[EditorGame] Identified Game Channels:`);
+            this.gameChannelRoles.forEach((role, ch) => console.log(` - CH ${ch + 1}: ${role}`));
+
             // DEBUG: Analyze Track Structure for "Pollution"
             console.groupCollapsed(`[MIDI Analysis] ${name}`);
             this.midiData.tracks.forEach((t, i) => {
@@ -450,27 +482,26 @@ export class EditorGame extends BaseGame {
 
         // Aggregate notes from all tracks by channel
         this.midiData.tracks.forEach(track => {
-            const ch = track.channel;
-            if (ch >= 0 && ch < 16) {
-                // Add all notes from this track to the channel
-                this.channelData[ch].notes.push(...track.notes);
+            track.notes.forEach(note => {
+                const ch = note.channel;
+                if (ch >= 0 && ch < 16) {
+                    // Add all notes from this track to the channel
+                    this.channelData[ch].notes.push(note);
 
-                // Track which track names contribute to this channel
-                if (track.name && !this.channelData[ch].trackNames.includes(track.name)) {
-                    this.channelData[ch].trackNames.push(track.name);
-                }
+                    // Track which track names contribute to this channel
+                    if (track.name && !this.channelData[ch].trackNames.includes(track.name)) {
+                        this.channelData[ch].trackNames.push(track.name);
+                    }
 
-                // Update instrument family (prefer non-drum instruments for non-channel-9)
-                if (track.noteCount > 0) {
+                    // Update instrument family (prefer non-drum instruments for non-channel-9)
                     if (ch === 9) {
                         this.channelData[ch].instrumentFamily = 'Drums';
                         this.channelData[ch].isDrum = true;
-                    } else if (this.channelData[ch].instrumentFamily === 'Unknown' ||
-                        this.channelData[ch].notes.length < track.notes.length) {
+                    } else if (this.channelData[ch].instrumentFamily === 'Unknown') {
                         this.channelData[ch].instrumentFamily = track.instrumentFamily;
                     }
                 }
-            }
+            });
         });
 
         // Sort notes by time for each channel
@@ -503,7 +534,7 @@ export class EditorGame extends BaseGame {
             }
 
             // Render 16 fixed channel headers with COLORS
-            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes, effectiveMutes, CHANNEL_COLORS);
+            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes, effectiveMutes, CHANNEL_COLORS, this.gameChannelRoles);
         }
     }
 
@@ -634,15 +665,37 @@ export class EditorGame extends BaseGame {
                     this.audioEngine.stop();
 
                     if (this.rawMidiBuffer) {
-                        console.log("[EditorGame] Setting GameTransition data...");
+                        // Check for forced channel from UI
+                        const forcedChannel = this.ui?.getTestChannel() ?? -1;
+                        let targetChannels: number[] | undefined;
+
+                        if (forcedChannel >= 0) {
+                            targetChannels = [forcedChannel];
+                            console.log(`[EditorGame] Test Play: Forcing Channel ${forcedChannel + 1}`);
+                        } else if (this.soloTrackIndices.size > 0) {
+                            // If user has SOLOED channels, use them as forced channels for the game
+                            targetChannels = Array.from(this.soloTrackIndices);
+                            console.log(`[EditorGame] Test Play: Using Solo Channels: ${targetChannels.map(c => c + 1).join(', ')}`);
+                        } else {
+                            // Find the PRIMARY channel to force NoteFactory to use it
+                            const primaryChannel = Array.from(this.gameChannelRoles.entries())
+                                .find(([_, role]) => role === 'PRIMARY')?.[0];
+                            if (primaryChannel !== undefined) {
+                                targetChannels = [primaryChannel];
+                            }
+                        }
+
                         GameTransition.set({
                             source: 'editor',
                             midiBuffer: this.rawMidiBuffer!,
                             midiName: this.midiData?.name || 'Test Song',
+                            forcedChannels: targetChannels,
                             settings: {
                                 mutedChannels: new Set(this.mutedTrackIndices),
+                                soloChannels: new Set(this.soloTrackIndices),
                                 speed: 1.0,
-                                volume: 1.0
+                                volume: 1.0,
+                                difficulty: this.ui?.getTestDifficulty() || 'NORMAL'
                             }
                         });
                         console.log("[EditorGame] GameTransition set. Dispatching switch-game...");

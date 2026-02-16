@@ -1,6 +1,6 @@
 import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
 import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
-import { RhythmQuantizer } from './logic/RhythmQuantizer';
+import { RhythmQuantizer, type QuantizedNote } from './logic/RhythmQuantizer';
 import { PatternAnalyzer } from './logic/PatternAnalyzer';
 import { LaneAllocator } from './logic/LaneAllocator';
 
@@ -22,100 +22,89 @@ export interface VisualNote extends GameNote {
 
 export class NoteFactory {
     public static createNotes(midi: ParsedMidi, laneCount: number = 4, forcedChannels: number[] | null = null, difficulty: string = 'NORMAL'): VisualNote[] {
-        let rankedChannels: number[] | null = null; // Defer analysis
-
-        if (!(forcedChannels && forcedChannels.length > 0)) {
-            rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
-        }
-
-        const ranked = rankedChannels || MelodyAnalyzer.findMelodyChannels(midi);
-
-        // Priority logic: User Forced > Melody Ranked > Support Ranked > Drums
+        // Determine Candidates (Primary, Secondary, Drums)
         let primaryCandidates: number[] = [];
         let secondaryCandidates: number[] = [];
 
         if (forcedChannels && forcedChannels.length > 0) {
             primaryCandidates = forcedChannels;
-            secondaryCandidates = ranked.filter(ch => !forcedChannels.includes(ch)).slice(0, 2);
+            // EXCLUSIVE SOLO MODE: Force Secondary to empty
+            secondaryCandidates = [];
         } else {
-            primaryCandidates = ranked.slice(0, 1);
-            secondaryCandidates = ranked.slice(1, 3);
+            const rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
+            primaryCandidates = rankedChannels.slice(0, 1);
+            secondaryCandidates = []; // Also force empty here for now
         }
-
-        const drumChannel = 9;
 
         const ppq = midi.ppq;
-        const windowTicks = ppq; // Window size: 1 beat
 
-        // Final collection of notes
+        console.log(`[NoteFactory] Primary: ${primaryCandidates}, Secondary: ${secondaryCandidates}`);
+
+        // --- LAYERED GAP FILLING STRATEGY ---
         const finalNotes: GameNote[] = [];
-        const seenNoteKeys = new Set<string>();
 
-        // Pre-group notes by channel and window for fast lookup
-        const channelNoteMap = new Map<number, Map<number, GameNote[]>>();
-        const allTargetChannels = Array.from(new Set([...primaryCandidates, ...secondaryCandidates, drumChannel]));
+        // Grid System for Collision Detection (Quantize to 16th note for occupancy check)
+        const ticksPer16th = ppq / 4;
+        const occupiedGrids = new Set<string>(); // Key: "GridIndex"
 
-        midi.tracks.forEach(track => {
-            if (allTargetChannels.includes(track.channel)) {
-                if (!channelNoteMap.has(track.channel)) channelNoteMap.set(track.channel, new Map());
-                const windowMap = channelNoteMap.get(track.channel)!;
+        const getGridIndex = (tick: number) => Math.floor(tick / ticksPer16th);
 
-                track.notes.forEach(note => {
-                    const windowIndex = Math.floor(note.ticks / windowTicks);
-                    if (!windowMap.has(windowIndex)) windowMap.set(windowIndex, []);
-                    windowMap.get(windowIndex)!.push(note);
+        // Helper to add notes
+        const addNotesToLayer = (channels: number[], isPrimary: boolean) => {
+            // Collect all notes from these channels
+            const layerNotes: GameNote[] = [];
+            midi.tracks.forEach(t => {
+                t.notes.forEach(n => {
+                    if (channels.includes(n.channel)) layerNotes.push(n);
                 });
-            }
-        });
-
-        // Determine total song length in windows
-        let maxTick = 0;
-        midi.tracks.forEach(t => t.notes.forEach(n => maxTick = Math.max(maxTick, n.ticks + n.durationTicks)));
-        const totalWindows = Math.ceil(maxTick / windowTicks);
-
-        console.log(`[NoteFactory] Dynamic Filling: Analyzing ${totalWindows} windows...`);
-
-        for (let w = 0; w < totalWindows; w++) {
-            let selectedNotes: GameNote[] = [];
-
-            // 1. Primary: Forced or Top Melody
-            primaryCandidates.forEach(ch => {
-                const notes = channelNoteMap.get(ch)?.get(w);
-                if (notes) selectedNotes.push(...notes);
             });
 
-            // 2. Secondary: Support/Accompaniment (If primary is thin)
-            // Threshold for filling: less than 1.5 notes per beat average
-            if (selectedNotes.length < 2) {
-                secondaryCandidates.forEach(ch => {
-                    const notes = channelNoteMap.get(ch)?.get(w);
-                    if (notes) selectedNotes.push(...notes);
-                });
-            }
+            // Sort by time
+            layerNotes.sort((a, b) => a.ticks - b.ticks);
 
-            // 3. Tertiary: Drums (If still silent)
-            if (selectedNotes.length === 0) {
-                const drumNotes = channelNoteMap.get(drumChannel)?.get(w);
-                if (drumNotes) {
-                    // Kick, Snare, Closed Hi-Hat
-                    const rhythmicDrums = drumNotes.filter(n => [35, 36, 38, 40, 42].includes(n.midi));
-                    selectedNotes.push(...rhythmicDrums);
+            // Filter & Add
+            layerNotes.forEach(note => {
+                const grid = getGridIndex(note.ticks);
+
+                // 1. Check Collision
+                let isBlocked = false;
+
+                if (isPrimary) {
+                    // Primary always wins
+                } else {
+                    if (occupiedGrids.has(grid.toString())) isBlocked = true;
                 }
-            }
 
-            // Density Control based on difficulty
-            if (difficulty === 'EASY' && selectedNotes.length > 2) selectedNotes = selectedNotes.slice(0, 2);
-            if (difficulty === 'NORMAL' && selectedNotes.length > 3) selectedNotes = selectedNotes.slice(0, 3);
+                // 2. Velocity Filter (Ignore ghost notes < 10% velocity)
+                if (note.velocity < 13) { // 13/127 ~= 10%
+                    isBlocked = true;
+                }
 
-            // Add to final list with deduplication
-            selectedNotes.forEach(note => {
-                const key = `${note.midi}_${note.ticks}`;
-                if (!seenNoteKeys.has(key)) {
+                if (!isBlocked) {
+                    if (isPrimary) {
+                        (note as any).isPrimary = true;
+                    }
+
                     finalNotes.push(note);
-                    seenNoteKeys.add(key);
+                    occupiedGrids.add(grid.toString());
                 }
             });
+        };
+
+        // LAYER 1: PRIMARY (Sacred)
+        addNotesToLayer(primaryCandidates, true);
+
+        // LAYER 2: SECONDARY (Fill Gaps)
+        if (difficulty !== 'EASY') {
+            addNotesToLayer(secondaryCandidates, false);
         }
+
+        // DEBUG: Verify each required channel has some representation
+        primaryCandidates.forEach((ch: number) => {
+            const count = finalNotes.filter(n => n.channel === ch).length;
+            console.log(`[NoteFactory] Channel ${ch + 1} (PRIMARY): ${count} notes gathered.`);
+            if (count === 0) console.warn(`[NoteFactory] WARNING: Channel ${ch + 1} is empty after collection!`);
+        });
 
         let notesToProcess = finalNotes.sort((a, b) => a.ticks - b.ticks);
 
@@ -124,10 +113,28 @@ export class NoteFactory {
             return [];
         }
 
-        // Run Charting Pipeline (Quantize -> Pattern -> Lane) - Run ONLY ONCE
+        // 1. Quantize first
         const quantized = RhythmQuantizer.quantize(notesToProcess, midi.ppq);
-        RhythmQuantizer.applyTimeCorrection(quantized, midi);
-        const patterns = PatternAnalyzer.analyze(quantized);
+
+        // 2. Collapse Chords BASED ON QUANTIZED TICKS (The Fix for jittery MIDI)
+        const collapsed: QuantizedNote[] = [];
+        const seenCounts = new Map<string, number>();
+        const maxLimit = (difficulty === 'HARD') ? 2 : 1;
+
+        quantized.forEach(n => {
+            const key = `${n.channel}_${n.quantizedStartTick}`;
+            const count = seenCounts.get(key) || 0;
+            if (count < maxLimit) {
+                collapsed.push(n);
+                seenCounts.set(key, count + 1);
+            }
+        });
+
+        // 3. Apply Time Correction (Sync Fix)
+        RhythmQuantizer.applyTimeCorrection(collapsed, midi);
+
+        // 4. Pattern & Lane Analysis
+        const patterns = PatternAnalyzer.analyze(collapsed);
         const result = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
 
         // Post-process to map Long Note data

@@ -60,9 +60,9 @@ export class PatternAnalyzer {
                 continue;
             }
 
-            // Just accumulate until a large gap (> 1/4 note, 480 ticks) occurs.
-            // Then Inside createSegment, we can sub-analyze or just classify the whole chunk.
-            if (interval > 480) {
+            // Just accumulate until a fairly large gap occurs.
+            // 960 ticks = 1/2 note. This keeps most phrases together.
+            if (interval > 720) { // Approx 3/4 beat
                 segments.push(this.createSegment(currentPatternNotes));
                 currentPatternNotes = [];
             }
