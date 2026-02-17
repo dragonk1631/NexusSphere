@@ -121,6 +121,14 @@ export class RhythmGame extends BaseGame {
     // Tracks the index of the first note that hasn't been fully processed/missed yet.
     private lastMissCheckIndex: number = 0;
 
+    // Mobile Stability: Track last valid render time to prevent visual reversal
+    // Mobile Stability
+    private lastRenderTime: number = 0;
+    private muteEnforceCounter: number = 0;
+
+    // Touch Tracking (PointerID -> Lane Index)
+    private pointerLanes: Map<number, number> = new Map();
+
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
         // Bind input methods properly
@@ -232,44 +240,9 @@ export class RhythmGame extends BaseGame {
             if (data) {
                 this.isTestMode = true;
                 this.transitionData = data;
-
-                // 1. Load Audio Engine
-                await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
-
-                // 2. Load MIDI from Buffer
-                const parser = new MidiParser();
-                this.midiData = await parser.parse(data.midiBuffer);
-                await this.audioEngine.loadMidi(data.midiBuffer);
-
-                // 3. Apply Settings (Solo & Mute)
-                if (data.settings) {
-                    const soloChannels = data.settings.soloChannels;
-                    const hasSolo = soloChannels && soloChannels.size > 0;
-
-                    if (hasSolo) {
-                        // Apply Solo: Mute everything else
-                        for (let ch = 0; ch < 16; ch++) {
-                            const isAudible = soloChannels.has(ch);
-                            this.audioEngine.setChannelMute(ch, !isAudible);
-                        }
-                        console.log(`[RhythmGame] Test Mode: Applied Solo for Channels: ${Array.from(soloChannels).map(c => c + 1).join(', ')}`);
-                    } else if (data.settings.mutedChannels) {
-                        // Regular Mute
-                        data.settings.mutedChannels.forEach(ch => {
-                            this.audioEngine.setChannelMute(ch, true);
-                        });
-                        console.log(`[RhythmGame] Test Mode: Applied Mute for Channels: ${Array.from(data.settings.mutedChannels).map(c => c + 1).join(', ')}`);
-                    }
-                }
-
-                // 4. Create Game Elements directly (Skip Menu)
-                this.currentState = GameState.PLAYING;
-                console.log("[RhythmGame] Force-set GameState.PLAYING for Test Mode.");
-
-                this.shouldAutoStart = true;
-                this.create(); // This will trigger start() which assumes PLAYING or sets it
-
-                GameTransition.clear(); // Consume data
+                // Data is stored. launchGame will call load() → create() through the normal path.
+                // Audio settings (solo/mute) will be applied in create() after loading.
+                console.log("[RhythmGame] Test Mode data stored. Proceeding with normal load sequence.");
                 return;
             }
         }
@@ -292,16 +265,19 @@ export class RhythmGame extends BaseGame {
         await this.load();
     }
 
-    // Touch Handling
+    // Touch Handling (Pointer-Based)
     private handleTouchStart(e: TouchEvent): void {
         e.preventDefault();
 
-        // 1. Synchronously resume AudioContext to satisfy mobile browser policies (User Gesture requirement)
-        if (this.audioEngine) {
+        // Mobile-First: Ensure audio is unlocked on ANY touch.
+        // Critical for Test Mode which bypasses the MENU (and its resume() call).
+        // Only fires when context is actually suspended — no overhead in normal flow.
+        if (this.audioEngine && !this.audioEngine.isAudioUnlocked()) {
             this.audioEngine.resume();
         }
 
         if (this.currentState === GameState.MENU) {
+            // Audio unlock also happens here via handleMenuTouch for the START flow
             this.handleMenuTouch(e);
             return;
         }
@@ -316,13 +292,20 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
+        // Gameplay Touch
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
             const lane = this.getLaneFromTouch(touch.clientX, touch.clientY);
-            // Trigger Hit Check if lane is valid and not already held
-            if (lane !== -1 && !this.keyState[lane]) {
-                this.keyState[lane] = true;
-                this.checkHit(lane);
+
+            // Track this pointer
+            this.pointerLanes.set(touch.identifier, lane);
+
+            if (lane !== -1) {
+                if (!this.keyState[lane]) {
+                    this.keyState[lane] = true;
+                    this.checkHit(lane);
+                    // console.log(`[TouchStart] ID: ${touch.identifier} -> Lane: ${lane}`);
+                }
             }
         }
     }
@@ -352,8 +335,12 @@ export class RhythmGame extends BaseGame {
             if (this.previewTimeout) clearTimeout(this.previewTimeout);
             this.audioEngine.stop();
 
-            this.shouldAutoStart = true;
-            this.load().then(() => this.create());
+            // Mobile-First: Unlock audio IN this touch handler, BEFORE any async work
+            this.audioEngine.resume().then(() => {
+                console.log(`[RhythmGame] Audio unlocked (state: ${this.audioEngine.isAudioUnlocked() ? 'running' : 'suspended'}). Loading song...`);
+                this.shouldAutoStart = true;
+                this.load().then(() => this.create());
+            });
             return;
         }
 
@@ -401,21 +388,46 @@ export class RhythmGame extends BaseGame {
 
     private handleTouchMove(e: TouchEvent): void {
         e.preventDefault();
+
         if (this.currentState === GameState.MENU) {
+            // ... existing menu logic ...
             const touch = e.changedTouches[0];
             const diffY = touch.clientY - this.touchStartY;
-            const threshold = 50; // Pixel threshold for swipe action
-
-            if (Math.abs(diffY) > threshold) {
-                if (diffY > 0) {
-                    // Swipe Down -> List moves down (Selection Up)
-                    this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
-                } else {
-                    // Swipe Up -> List moves up (Selection Down)
-                    this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
-                }
-                this.touchStartY = touch.clientY; // Reset start to allow continuous scrolling
+            if (Math.abs(diffY) > 50) {
+                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
+                else this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+                this.touchStartY = touch.clientY;
                 this.playPreview();
+            }
+            return;
+        }
+
+        // Gameplay Slide Logic
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            const newLane = this.getLaneFromTouch(touch.clientX, touch.clientY);
+            const oldLane = this.pointerLanes.get(touch.identifier) ?? -1;
+
+            // If lane changed
+            if (newLane !== oldLane) {
+                // 1. Release Old Lane (if valid and no other pointers holding it?)
+                // Simplified: Just release. Multi-touch might flicker if 2 fingers trigger same lane.
+                // Ideal: Count pointers per lane. But for now, direct mapping.
+                if (oldLane !== -1) {
+                    this.keyState[oldLane] = false;
+                    // Handle Hold Release logic if needed (handleKeyUp logic)
+                    this.processLaneRelease(oldLane);
+                }
+
+                // 2. Press New Lane
+                if (newLane !== -1) {
+                    this.keyState[newLane] = true;
+                    this.checkHit(newLane);
+                }
+
+                // Update tracking
+                this.pointerLanes.set(touch.identifier, newLane);
+                // console.log(`[TouchMove] ID: ${touch.identifier} Moved ${oldLane} -> ${newLane}`);
             }
         }
     }
@@ -424,10 +436,40 @@ export class RhythmGame extends BaseGame {
         e.preventDefault();
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
-            const lane = this.getLaneFromTouch(touch.clientX, touch.clientY);
-            if (lane !== -1) {
+            const lane = this.pointerLanes.get(touch.identifier);
+
+            if (lane !== undefined && lane !== -1) {
                 this.keyState[lane] = false;
+                this.processLaneRelease(lane);
+                // console.log(`[TouchEnd] ID: ${touch.identifier} Released Lane ${lane}`);
             }
+
+            this.pointerLanes.delete(touch.identifier);
+        }
+    }
+
+    // Helper to deduplicate release logic (shared with handleKeyUp)
+    private processLaneRelease(lane: number): void {
+        const heldNote = this.holdingLanes[lane];
+        if (heldNote) {
+            const currentTime = this.audioEngine.getPreciseTime() * 1000;
+            const endTime = heldNote.time * 1000 + heldNote.durationMs;
+            const diff = currentTime - endTime;
+
+            if (Math.abs(diff) <= 200) {
+                this.triggerJudgment(lane, 'PERFECT', Math.abs(diff));
+                this.scoreManager?.addScore(100);
+                heldNote.isProcessed = true;
+            } else if (diff < -200) {
+                this.triggerJudgment(lane, 'MISS', Math.abs(diff));
+                heldNote.isProcessed = true;
+            } else {
+                this.triggerJudgment(lane, 'MISS', Math.abs(diff));
+                heldNote.isProcessed = true;
+            }
+
+            heldNote.isHolding = false;
+            this.holdingLanes[lane] = null;
         }
     }
 
@@ -497,35 +539,9 @@ export class RhythmGame extends BaseGame {
 
     private handleKeyUp(event: KeyboardEvent): void {
         const lane = this.getLaneFromKey(event.code); // Assuming getLaneFromKey still returns number or -1
-        if (lane !== -1) { // Changed from !== undefined to !== -1 to match getLaneFromKey's return
-            this.keyState[lane] = false; // Changed from activeKeys to keyState
-
-            // Check Long Note Release
-            const heldNote = this.holdingLanes[lane];
-            if (heldNote) {
-                const currentTime = this.audioEngine.getPreciseTime() * 1000;
-                const endTime = heldNote.time * 1000 + heldNote.durationMs;
-                const diff = currentTime - endTime; // Positive = Late, Negative = Early
-
-                // Valid Release Window: +/- 200ms around End Time
-                if (Math.abs(diff) <= 200) {
-                    // Perfect Release
-                    this.triggerJudgment(lane, 'PERFECT', Math.abs(diff));
-                    this.scoreManager?.addScore(100); // Bonus
-                    heldNote.isProcessed = true;
-                } else if (diff < -200) {
-                    // Early Release -> MISS
-                    this.triggerJudgment(lane, 'MISS', Math.abs(diff));
-                    heldNote.isProcessed = true;
-                } else {
-                    // Late Release
-                    this.triggerJudgment(lane, 'MISS', Math.abs(diff));
-                    heldNote.isProcessed = true;
-                }
-
-                heldNote.isHolding = false;
-                this.holdingLanes[lane] = null;
-            }
+        if (lane !== -1) {
+            this.keyState[lane] = false;
+            this.processLaneRelease(lane);
         }
     }
 
@@ -621,7 +637,6 @@ export class RhythmGame extends BaseGame {
                 this.hitLineY,
                 laneColor
             );
-            console.log(`Hit Lane ${lane}: ${judgmentText} (${Math.round(diff)}ms)`);
 
             return targetNote;
         } else {
@@ -739,12 +754,16 @@ export class RhythmGame extends BaseGame {
         ctx.globalAlpha = alpha;
 
         ctx.fillStyle = this.lastJudgment.color;
-        ctx.shadowColor = this.lastJudgment.color;
-        ctx.shadowBlur = 20;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         // Use a thick, cool font
         ctx.font = 'italic 900 60px "Orbitron", sans-serif';
+        // shadowBlur is expensive on mobile — only apply on desktop
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (!isMobile) {
+            ctx.shadowColor = this.lastJudgment.color;
+            ctx.shadowBlur = 20;
+        }
         ctx.fillText(this.lastJudgment.text, 0, 0);
 
         // Stroke for readability
@@ -764,6 +783,17 @@ export class RhythmGame extends BaseGame {
             console.log("[RhythmGame] Loading assets...");
             await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
+            // Test Mode: Load from transition buffer instead of URL
+            if (this.isTestMode && this.transitionData) {
+                console.log("[RhythmGame] Test Mode: Loading MIDI from transition buffer.");
+                const parser = new MidiParser();
+                this.midiData = await parser.parse(this.transitionData.midiBuffer);
+                await this.audioEngine.loadMidi(this.transitionData.midiBuffer);
+                GameTransition.clear();
+                return;
+            }
+
+            // Normal Mode: Load from song list URL
             const midiUrl = this.songList[this.selectedSongIndex].url;
 
             // 1. Check Cache for MIDI
@@ -823,7 +853,7 @@ export class RhythmGame extends BaseGame {
             }
 
             let difficulty = this.transitionData?.settings?.difficulty || 'NORMAL';
-            if (this.isTestMode && !this.transitionData?.settings?.difficulty) difficulty = 'NORMAL'; // Logic changed: Rely on Editor setting
+            if (this.isTestMode && !this.transitionData?.settings?.difficulty) difficulty = 'NORMAL';
 
             // Generate Visual Notes through NoteFactory (Smart Charting inside if forcedChannels is null)
             this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels, difficulty);
@@ -833,7 +863,30 @@ export class RhythmGame extends BaseGame {
                 this.scoreManager.setTotalNotes(this.visualNotes.length);
             }
 
-            // Only start if explicitly requested (e.g. from Menu)
+            // Test Mode: Apply audio settings and auto-start
+            if (this.isTestMode && this.transitionData?.settings) {
+                const soloChannels = this.transitionData.settings.soloChannels;
+                const hasSolo = soloChannels && soloChannels.size > 0;
+
+                if (hasSolo) {
+                    for (let ch = 0; ch < 16; ch++) {
+                        this.audioEngine.setChannelMute(ch, !soloChannels.has(ch));
+                    }
+                    console.log(`[RhythmGame] Test Mode: Applied Solo for Channels: ${Array.from(soloChannels as Set<number>).map((c: number) => c + 1).join(', ')}`);
+                } else if (this.transitionData.settings.mutedChannels) {
+                    (this.transitionData.settings.mutedChannels as Set<number>).forEach((ch: number) => {
+                        this.audioEngine.setChannelMute(ch, true);
+                    });
+                    console.log(`[RhythmGame] Test Mode: Applied Mute for Channels: ${Array.from(this.transitionData.settings.mutedChannels as Set<number>).map((c: number) => c + 1).join(', ')}`);
+                }
+
+                // Force auto-start for test mode (skip menu)
+                this.shouldAutoStart = true;
+                this.currentState = GameState.PLAYING;
+                console.log("[RhythmGame] Test Mode: Auto-starting game.");
+            }
+
+            // Only start if explicitly requested (e.g. from Menu or Test Mode)
             if (this.midiData && this.shouldAutoStart) {
                 this.shouldAutoStart = false; // Reset
                 this.start();
@@ -841,14 +894,12 @@ export class RhythmGame extends BaseGame {
         }
     }
 
-    private async start() {
+    private start() {
         console.log("[RhythmGame] start() called.");
-        // 1. Prepare Audio
-        this.audioEngine.stop(); // Stop any pending previews/remnants
+        // 1. Prepare Audio (context is already unlocked from menu touch)
+        this.audioEngine.stop();
         this.audioEngine.seek(0);
-        console.log("[RhythmGame] Resuming Audio Engine...");
-        await this.audioEngine.resume();
-        console.log("[RhythmGame] Audio Engine Resumed.");
+        console.log(`[RhythmGame] Audio Context state: ${this.audioEngine.isAudioUnlocked() ? 'running' : 'suspended'}`);
 
         // 2. Reset Game State
         this.scoreManager?.reset();
@@ -856,19 +907,19 @@ export class RhythmGame extends BaseGame {
         this.comboAnim = 0;
         this.endGameTimer = 0;
 
-        // Dynamic Lead-in: Match the time it takes for a note to travel from Horizon to Hit Line
-        // But ensure at least 1.5s for user to prepare
+        // Dynamic Lead-in
         const approachTime = 2000 / this.scrollSpeed;
         this.preGameTimer = Math.max(1500, approachTime);
 
         this.isAudioStarted = false;
         this.lastNoteIndex = 0;
+        this.lastRenderTime = 0;
+        this.muteEnforceCounter = 0;
+        this.lastMissCheckIndex = 0;
 
-
-        // 3. Set state to PLAYING but don't call play() yet
-        // The update loop will handle the countdown
+        // 3. Set state to PLAYING (countdown handled in update loop)
         this.currentState = GameState.PLAYING;
-        console.log(`[RhythmGame] Game Started immediately. Sync State: ${this.currentState}`);
+        console.log(`[RhythmGame] Game Started. PreGameTimer: ${this.preGameTimer.toFixed(0)}ms`);
     }
 
     public update(delta: number): void {
@@ -898,8 +949,13 @@ export class RhythmGame extends BaseGame {
         if (this.currentState !== GameState.PLAYING) return;
 
         // BRUTE FORCE PROTECTION: Enforce Mute State Check (Same as Editor)
+        // Throttle to every 15 frames (~4x/sec at 60fps) to reduce mobile overhead
         if (this.isTestMode && this.isAudioStarted) {
-            this.enforceMuteCompliance();
+            this.muteEnforceCounter++;
+            if (this.muteEnforceCounter >= 15) {
+                this.enforceMuteCompliance();
+                this.muteEnforceCounter = 0;
+            }
         }
 
         // Time Logic
@@ -928,6 +984,13 @@ export class RhythmGame extends BaseGame {
             // High-Precision Sync: Get time directly from AudioContext via Engine
             // note: getPreciseTime returns Seconds, convert to MS
             currentTime = this.audioEngine.getPreciseTime() * 1000;
+
+            // Mobile Anti-Reversal: Never let game time go backwards
+            if (currentTime < this.lastRenderTime - 5) {
+                // Time reversed — hold at previous value (5ms tolerance for rounding)
+                currentTime = this.lastRenderTime;
+            }
+            this.lastRenderTime = currentTime;
         }
 
         // Long Note Tick Scoring & Logic

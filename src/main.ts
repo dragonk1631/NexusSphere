@@ -11,11 +11,13 @@ UIManager.getInstance();
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
+// Restore 60 FPS Cap logic to prevent high-refresh rate overload
 const FPS_LIMIT = 60;
 const FRAME_MIN_TIME = 1000 / FPS_LIMIT;
+
 let lastTime = 0;
 let loopCounter = 0;
-let frameDelta = 0;
+// let frameDelta = 0;
 let mainMenu: MainMenu;
 
 function gameLoop(timestamp: number) {
@@ -24,34 +26,28 @@ function gameLoop(timestamp: number) {
   // Closure capture of loopCounter to detect if a new loop was started
   const currentLoopId = loopCounter;
 
-  // 1. Calculate elapsed time, but clamp it to prevent massive jumps (e.g. from backgrounding)
-  // 100ms clamp is enough to allow for some lag without breaking game logic/sync
-  const elapsed = Math.min(100, timestamp - lastTime);
-  lastTime = timestamp;
-  frameDelta += elapsed;
-
-  // Fixed Step Logic: Ensure game updates at constant rate (e.g. 60hz) 
-  // regardless of screen refresh rate or lag spikes.
-  const FIXED_STEP = 1000 / 60; // 16.666ms
-
-  if (frameDelta >= FIXED_STEP) {
-    let steps = 0;
-    const MAX_STEPS = 5; // Prevent spiral of death on massive lag
-
-    while (frameDelta >= FIXED_STEP) {
-      currentGame.update(FIXED_STEP);
-      frameDelta -= FIXED_STEP;
-      steps++;
-
-      if (steps >= MAX_STEPS) {
-        // If we are too far behind, just give up and snap to now
-        // This prevents the game from running in fast-forward for too long
-        console.warn(`[Main] Lag Spike detected! Skipped ${frameDelta.toFixed(1)}ms`);
-        frameDelta = 0;
-        break;
-      }
+  // 1. Frame Limiter (Cap at 60 FPS)
+  const timeSinceLast = timestamp - lastTime;
+  if (timeSinceLast < FRAME_MIN_TIME) {
+    if (currentLoopId === loopCounter) {
+      requestAnimationFrame(gameLoop);
     }
+    return;
   }
+
+  // 2. Calculate elapsed time (Variable Step)
+  // Clamp at 50ms (20 FPS) to prevent massive jumps/spirals on lag spikes
+  let elapsed = timeSinceLast;
+  if (elapsed > 50) elapsed = 50;
+  if (elapsed < 0) elapsed = 0; // Safety against clock drift
+
+  // Sync lastTime, accounting for the excess delay to maintain smooth 60 FPS average
+  lastTime = timestamp - (elapsed % FRAME_MIN_TIME);
+
+  // 3. Simple Update & Render (1:1)
+  // Mobile Optimization: Never run multiple updates per frame.
+  // RhythmGame and PongGame handle variable delta correctly.
+  currentGame.update(elapsed);
 
   // Only continue if this is still the active loop
   if (currentLoopId === loopCounter) {
@@ -60,6 +56,9 @@ function gameLoop(timestamp: number) {
 }
 
 async function launchGame(GameClass: any) {
+  // Ensure we are in landscape mode on mobile
+  enforceLandscape();
+
   loopCounter++; // Increment to invalidate previous loops
 
   // Clear ALL UI before switching
@@ -79,15 +78,6 @@ async function launchGame(GameClass: any) {
   try {
     console.log(`Initializing ${GameClass.name}...`);
     await currentGame.init();
-
-    // Check if Game initialized into Test Mode (skips standard load/create)
-    if (currentGame.isTestMode) {
-      console.log(`[Main] ${GameClass.name} started in Test Mode. Skipping standard load sequence.`);
-
-      lastTime = performance.now();
-      requestAnimationFrame(gameLoop);
-      return;
-    }
 
     console.log("Loading assets...");
     await currentGame.load();
@@ -113,6 +103,13 @@ function returnToMenu(): void {
   mainMenu.show();
 }
 
+// --- Deployment Verification ---
+const versionDiv = document.createElement('div');
+versionDiv.id = 'version-debug';
+versionDiv.style.cssText = "position:fixed; top:5px; right:5px; background:rgba(0,0,255,0.8); color:white; padding:4px 8px; z-index:99999; font-size:12px; pointer-events:none; font-family:monospace; border-radius:4px;";
+versionDiv.innerText = `VER: AUDIO - FIX - FINAL(Safe Play)`;
+document.body.appendChild(versionDiv);
+
 function handleGameStart(mode: string) {
   if (mode === 'rhythm') {
     launchGame(RhythmGame);
@@ -133,7 +130,7 @@ window.addEventListener('layout-exit', () => {
 // Listen for Game Switch event (e.g. Editor -> Rhythm)
 window.addEventListener('switch-game', (e: any) => {
   const targetMode = e.detail.targetMode;
-  console.log(`[Main] Switching to mode: ${targetMode}`);
+  console.log(`[Main] Switching to mode: ${targetMode} `);
 
   if (targetMode === 'rhythm') {
     launchGame(RhythmGame);
@@ -144,35 +141,90 @@ window.addEventListener('switch-game', (e: any) => {
   }
 });
 
-// --- Mobile Orientation Enforcement ---
+// --- Mobile Orientation & Navigation Guard ---
 async function enforceLandscape() {
   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    // Optimization: Don't Spam API if already correct
+    if (window.innerWidth > window.innerHeight && document.fullscreenElement) {
+      return;
+    }
+
     try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
+      // 1. Fullscreen (User interaction required usually)
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen().catch(() => { });
       }
+
+      // 2. Screen Orientation Lock
       if (screen.orientation && (screen.orientation as any).lock) {
-        await (screen.orientation as any).lock('landscape');
+        // Only lock if not already landscape
+        if (screen.orientation.type.startsWith('portrait')) {
+          await (screen.orientation as any).lock('landscape').catch(() => {
+            console.warn("Orientation lock failed/rejected - relying on CSS fallback");
+          });
+        }
       }
     } catch (e) {
-      console.warn("Orientation lock failed (User interaction might be required or unsupported):", e);
+      // Ignore errors (e.g. user denied)
     }
   }
+}
+
+// History Guard: Prevent Back Button from exiting the app
+function enableHistoryGuard() {
+  // Push a dummy state so "Back" just pops this state but stays on page
+  history.pushState({ page: 'guard' }, '', '');
+
+  window.addEventListener('popstate', () => {
+    // User pressed back — push state again to "trap" them
+    history.pushState({ page: 'guard' }, '', '');
+    // Optional: Show a toast "Press Back again to exit" if needed, 
+    // but for now we just keep them here.
+  });
 }
 
 // Start with Main Menu
 mainMenu = new MainMenu(handleGameStart);
 mainMenu.show();
 
-// Trigger Lock on first Interaction
-window.addEventListener('click', () => enforceLandscape(), { once: true });
-window.addEventListener('touchstart', () => enforceLandscape(), { once: true });
+// --- Mobile Initialization ---
+if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+  // 1. Initial Lock Attempt
+  window.addEventListener('load', () => {
+    setTimeout(enforceLandscape, 1000);
+    enableHistoryGuard();
+  });
 
-// Handle Window Resize
+  // 2. Persistent Lock on Interface Change (Rotation/Resize)
+  window.addEventListener('resize', () => {
+    // Debounce slightly or just call (it has internal checks now)
+    enforceLandscape();
+  });
+
+  // 3. Re-lock on Visibility Change (e.g. switching back from other apps)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      enforceLandscape();
+    }
+  });
+} else {
+  // Desktop: Just handle resize normally
+  window.addEventListener('resize', () => {
+    if (currentGame) {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      currentGame.resize?.(window.innerWidth, window.innerHeight);
+    }
+  });
+}
+
+// Global Resize Handler (Mobile needs this too for rotation updates)
 window.addEventListener('resize', () => {
-  if (currentGame) {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    currentGame.resize?.(window.innerWidth, window.innerHeight);
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  currentGame?.resize?.(window.innerWidth, window.innerHeight);
+  // Re-enforce on resize (rotation)
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    enforceLandscape();
   }
 });

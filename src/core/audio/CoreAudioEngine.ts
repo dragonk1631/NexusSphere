@@ -13,14 +13,15 @@ export class CoreAudioEngine {
     private sequencer: any = null;
     private isReady: boolean = false;
     private isSoundFontLoaded: boolean = false;
+    private isResuming: boolean = false;
 
     private constructor() {
         // Optimization: Use 'interactive' for all platforms to ensure lowest possible latency
         // The engine handles jitter via delta clamping and precise time anchoring.
         this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
-            latencyHint: 'interactive'
+            latencyHint: 'playback' // Changed from 'interactive' to 'playback' for Mobile Stability
         });
-        console.log(`[CoreAudioEngine] Context initialized with 'interactive' latency hint.`);
+        console.log(`[CoreAudioEngine] Context initialized with 'playback' latency hint.`);
     }
 
     public static getInstance(): CoreAudioEngine {
@@ -105,10 +106,21 @@ export class CoreAudioEngine {
         }
     }
 
-    public play(): void {
+    public async play(): Promise<void> {
         if (!this.isSoundFontLoaded) return;
+
+        // Mobile-First: Context MUST already be unlocked before play() is called.
+        // If suspended, log error but don't defer — the caller is responsible for
+        // calling resume() in a user gesture handler BEFORE calling play().
+        if (this.ctx.state === 'suspended') {
+            console.error(`[CoreAudioEngine] play() called while context is suspended! Call resume() in a touch handler first.`);
+            // Attempt resume as a last resort, but this may fail outside user gesture
+            try { await this.ctx.resume(); } catch (e) { /* ignore */ }
+        }
+
         this.resumePreciseTime();
         this.sequencer?.play();
+        console.log(`[CoreAudioEngine] Playback started. Time: ${this.currentTime.toFixed(3)}s`);
     }
 
     public pause(): void {
@@ -399,14 +411,41 @@ export class CoreAudioEngine {
     }
 
 
-    private preciseStartTime: number = 0;
-    private precisePausedTime: number = 0;
+    // --- Mobile-First Precise Time System ---
+    // Uses performance.now() as the primary clock source.
+    // This guarantees the game clock ALWAYS advances, regardless of AudioContext state.
+    // Audio (SpessaSynth) plays independently — if it hiccups, game continues.
+    private preciseStartTime: number = 0;  // performance.now() anchor (ms)
+    private precisePausedTime: number = 0;  // accumulated time at last pause (seconds)
     private isPrecisePlaying: boolean = false;
+    private lastReportedTime: number = 0;   // jitter guard
 
+    /**
+     * Resume the AudioContext. MUST be called from a user gesture handler (touch/click).
+     * This is the ONLY way to unlock audio on mobile browsers.
+     */
     public async resume(): Promise<void> {
-        if (this.ctx.state === 'suspended') {
+        if (this.ctx.state === 'running') return;
+        if (this.isResuming) return;
+
+        this.isResuming = true;
+        console.log(`[CoreAudioEngine] Attempting to resume AudioContext (state: ${this.ctx.state})...`);
+
+        try {
             await this.ctx.resume();
+            console.log(`[CoreAudioEngine] Audio Context Resumed! (state: ${this.ctx.state})`);
+        } catch (e) {
+            console.error("[CoreAudioEngine] Resume Failed:", e);
+        } finally {
+            this.isResuming = false;
         }
+    }
+
+    /**
+     * Returns true if the AudioContext is in 'running' state (unlocked for playback).
+     */
+    public isAudioUnlocked(): boolean {
+        return this.ctx.state === 'running';
     }
 
     public get currentTime(): number {
@@ -420,59 +459,75 @@ export class CoreAudioEngine {
     // --- High-Precision Time Sync ---
 
     public startPreciseTime(): void {
-        // ANCHOR: Sync the visual clock base to the actual sequencer time
-        // We do this BEFORE setting preciseStartTime to capture the absolute current state
-        this.precisePausedTime = this.sequencer?.currentTime || 0;
-        this.preciseStartTime = this.ctx.currentTime;
+        // ANCHOR: Start the game clock from current position using performance.now()
+        const seqTime = this.sequencer?.currentTime || 0;
+        this.precisePausedTime = seqTime;
+        this.preciseStartTime = performance.now();
+        this.lastReportedTime = seqTime;
         this.isPrecisePlaying = true;
-        console.log(`[CoreAudioEngine] PreciseTime started at Seq: ${this.precisePausedTime.toFixed(3)}s, AudCtx: ${this.preciseStartTime.toFixed(3)}s`);
+        console.log(`[CoreAudioEngine] PreciseTime started. Offset: ${seqTime.toFixed(3)}s, Anchor: ${this.preciseStartTime.toFixed(1)}ms`);
     }
 
     public pausePreciseTime(): void {
         if (this.isPrecisePlaying) {
-            this.precisePausedTime += this.ctx.currentTime - this.preciseStartTime;
+            // Snapshot current elapsed time
+            const elapsed = (performance.now() - this.preciseStartTime) / 1000;
+            this.precisePausedTime = this.precisePausedTime + elapsed * (this.sequencer?.playbackRate || 1);
             this.isPrecisePlaying = false;
         }
     }
 
     public resumePreciseTime(): void {
         if (!this.isPrecisePlaying) {
-            this.preciseStartTime = this.ctx.currentTime;
-            // Re-anchor on resume to handle any drift or changes while paused
-            this.precisePausedTime = this.sequencer?.currentTime || this.precisePausedTime;
+            this.preciseStartTime = performance.now();
+            this.lastReportedTime = this.precisePausedTime;
             this.isPrecisePlaying = true;
         }
     }
 
     public setPreciseTime(time: number): void {
         this.precisePausedTime = time;
-        this.preciseStartTime = this.ctx.currentTime;
+        this.preciseStartTime = performance.now();
+        this.lastReportedTime = time;
     }
 
     /**
-     * Returns the exact audio time based on the hardware clock.
-     * Includes compensation for hardware output latency and visual lag calibration.
+     * Returns the current game playback time (seconds).
+     * 
+     * Mobile-First Strategy:
+     * - Uses performance.now() as the SOLE clock source
+     * - Guarantees time ALWAYS advances, regardless of AudioContext or sequencer state
+     * - Audio plays independently via SpessaSynth; if audio hiccups, game continues
+     * - JITTER GUARD: Prevents time reversal and limits sudden jumps
      */
     public getPreciseTime(): number {
         if (!this.isPrecisePlaying) {
             return this.precisePausedTime;
         }
 
-        // --- CALIBRATION CONSTANTS ---
-        // Negative = Audio needs to be "older" relative to visual (Compensates for visual lag)
-        // Positive = Audio needs to be "newer"
-        const GLOBAL_VISUAL_CALIBRATION = -0.035; // 35ms offset for browser composition delay
+        const playbackRate = this.sequencer?.playbackRate || 1;
+        const elapsed = (performance.now() - this.preciseStartTime) / 1000;
+        const currentTime = this.precisePausedTime + elapsed * playbackRate;
 
-        // @ts-ignore: outputLatency is experimental but supported in most modern browsers
-        const outputLatency = this.ctx.outputLatency || 0;
-        // baseLatency accounts for the processing time of the audio graph itself
-        const baseLatency = (this.ctx as any).baseLatency || 0;
+        // Visual calibration: slight offset to compensate for render pipeline delay
+        const VISUAL_OFFSET = -0.025;
+        const calibratedTime = currentTime + VISUAL_OFFSET;
 
-        const totalHardwareLatency = outputLatency + baseLatency;
+        // --- JITTER GUARD ---
+        // 1. Prevent time reversal (shouldn't happen with performance.now(), but safety first)
+        if (calibratedTime < this.lastReportedTime - 0.005) {
+            return this.lastReportedTime;
+        }
 
-        const rawTime = this.ctx.currentTime - this.preciseStartTime;
+        // 2. Prevent massive forward jumps (tab backgrounding, screen lock)
+        const jump = calibratedTime - this.lastReportedTime;
+        if (jump > 0.15) {
+            this.lastReportedTime += 0.016;
+            return this.lastReportedTime;
+        }
 
-        // Final Sync = Raw Clock - Hardware Lag + Aesthetic Calibration
-        return this.precisePausedTime + (rawTime - totalHardwareLatency + GLOBAL_VISUAL_CALIBRATION) * (this.sequencer?.playbackRate || 1);
+        // Normal progression
+        this.lastReportedTime = calibratedTime;
+        return calibratedTime;
     }
 }
