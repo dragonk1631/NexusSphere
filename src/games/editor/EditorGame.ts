@@ -925,7 +925,7 @@ export class EditorGame extends BaseGame {
             }
         }
 
-        this.render();
+        // this.render(); // Render handled by main loop
     }
 
     /**
@@ -954,7 +954,7 @@ export class EditorGame extends BaseGame {
         }
     }
 
-    private render(): void {
+    public render(): void {
         this.ctx.fillStyle = '#0a0a0a';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 

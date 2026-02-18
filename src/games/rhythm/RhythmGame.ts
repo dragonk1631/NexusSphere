@@ -982,12 +982,12 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState === GameState.MENU) {
             this.menuAnimationTimer += delta * 0.001; // Use delta for smooth animation
-            this.render(0);
+            // this.render(0); // Render handled by main loop
             return;
         }
 
         if (this.currentState === GameState.RESULT) {
-            this.render(0);
+            // this.render(0); // Render handled by main loop
             // Handle Result Input elsewhere
             return;
         }
@@ -1126,7 +1126,7 @@ export class RhythmGame extends BaseGame {
         });
         this.particles = this.particles.filter(p => p.alpha > 0);
 
-        this.render(currentTime);
+        // this.render(currentTime); // Render is now called by main loop separate from update
 
         // Check Game Over (with 3s protection + 2s lead-in = 5s total safety)
         if (this.scoreManager?.isDead()) {
@@ -1235,7 +1235,8 @@ export class RhythmGame extends BaseGame {
         }
     }
 
-    private render(currentTime: number): void {
+    public render(): void {
+        const currentTime = this.audioEngine.getPreciseTime() * 1000;
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;

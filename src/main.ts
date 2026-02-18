@@ -11,11 +11,10 @@ UIManager.getInstance();
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
-// Restore 60 FPS Cap logic to prevent high-refresh rate overload
-const FPS_LIMIT = 60;
-const FRAME_MIN_TIME = 1000 / FPS_LIMIT;
+// const FPS_LIMIT = 60;
 
 let lastTime = 0;
+let accumulator = 0;
 let loopCounter = 0;
 // let frameDelta = 0;
 let mainMenu: MainMenu;
@@ -32,7 +31,6 @@ let fpsLastTime = performance.now();
 let currentFps = 0;
 
 function gameLoop(timestamp: number) {
-  // --- FPS Update ---
   // --- FPS Update ---
   if (timestamp - fpsLastTime >= 1000) {
     currentFps = fpsFrameCount;
@@ -51,34 +49,31 @@ function gameLoop(timestamp: number) {
   // Closure capture of loopCounter to detect if a new loop was started
   const currentLoopId = loopCounter;
 
-  // 1. Frame Limiter (Cap at 60 FPS)
-  const timeSinceLast = timestamp - lastTime;
-  if (timeSinceLast < FRAME_MIN_TIME) {
-    if (currentLoopId === loopCounter) {
-      requestAnimationFrame(gameLoop);
+  // 1. Calculate Delta Time (No Cap)
+  let deltaTime = timestamp - lastTime;
+  lastTime = timestamp;
+
+  // Prevent "Spiral of Death"
+  if (deltaTime > 250) deltaTime = 250;
+  if (deltaTime < 0) deltaTime = 0;
+
+  accumulator += deltaTime;
+
+  // 2. Fixed Update (Logic Consistency)
+  const FIXED_STEP = 1000 / 60; // 16.666ms
+
+  while (accumulator >= FIXED_STEP) {
+    if (currentGame) {
+      currentGame.update(FIXED_STEP);
     }
-    return;
+    accumulator -= FIXED_STEP;
   }
 
-  // Count ACTUAL rendered frames
-  fpsFrameCount++;
-
-  // 2. Calculate elapsed time (Variable Step)
-  // Clamp at 50ms (20 FPS) to prevent massive jumps/spirals on lag spikes
-  let elapsed = timeSinceLast;
-  if (elapsed > 50) elapsed = 50;
-  if (elapsed < 0) elapsed = 0; // Safety against clock drift
-
-  // Sync lastTime, accounting for the excess delay to maintain smooth 60 FPS average
-  lastTime = timestamp - (elapsed % FRAME_MIN_TIME);
-
-  // 3. Fixed-Step Update
-  // IMPORTANT: Always pass FRAME_MIN_TIME (16.667ms) as delta, NOT the actual elapsed time.
-  // Reason: The game clock (AudioContext.currentTime) is the source of truth for sync.
-  //         delta is only used for non-time-critical logic (preGameTimer countdown, animations).
-  //         Using a fixed delta prevents logic instability on frame drops.
-  const FIXED_DELTA = FRAME_MIN_TIME;
-  currentGame.update(FIXED_DELTA);
+  // 3. Render (Variable FPS)
+  if (currentGame) {
+    currentGame.render();
+    fpsFrameCount++;
+  }
 
   // Only continue if this is still the active loop
   if (currentLoopId === loopCounter) {
@@ -117,6 +112,8 @@ async function launchGame(GameClass: any) {
     currentGame.create();
 
     lastTime = performance.now();
+    accumulator = 0; // Reset accumulator on new game start
+    fpsFrameCount = 0;
     requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error("Game launch failed:", error);

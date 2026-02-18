@@ -132,10 +132,10 @@ export class LayoutEditor extends BaseGame {
     }
 
     public update(_delta: number): void {
-        this.render();
+        // this.render();
     }
 
-    private render(): void {
+    public render(): void {
         // Background
         this.ctx.fillStyle = '#111';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);

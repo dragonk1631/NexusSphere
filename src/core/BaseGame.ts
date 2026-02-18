@@ -60,6 +60,11 @@ export abstract class BaseGame {
     public abstract destroy(): void;
 
     /**
+     * 메인 렌더링 루프 (Update와 분리됨)
+     */
+    public abstract render(): void;
+
+    /**
      * 캔버스 크기 조절 대응
      */
     public resize(width: number, height: number): void {

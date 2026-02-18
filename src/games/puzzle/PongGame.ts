@@ -92,11 +92,10 @@ export class PongGame extends BaseGame {
             this.triggerHitSound(48); // MIDI note 48 (C3)
         }
 
-        // 5. 렌더링
-        this.render();
+        // this.render();
     }
 
-    private render(): void {
+    public render(): void {
         // 배경
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
