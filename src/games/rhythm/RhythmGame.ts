@@ -81,7 +81,7 @@ export class RhythmGame extends BaseGame {
     // FPS Counter
     private lastFpsTime = 0;
     private frameCount = 0;
-    private currentFps = 0;
+    // currentFps is tracked globally in main.ts (FPS overlay div)
 
     // Perspective Configuration
     private readonly horizonYRatio = 0.0; // Horizon at top (Maximize Highway)
@@ -128,6 +128,13 @@ export class RhythmGame extends BaseGame {
 
     // Touch Tracking (PointerID -> Lane Index)
     private pointerLanes: Map<number, number> = new Map();
+
+    // Audio Latency Calibration
+    // Measured once at game start from AudioContext.outputLatency + baseLatency.
+    // Used to shift the judgment window so that visual and audio are perceptually aligned.
+    // Example: if outputLatencyMs = 50ms, a note played at t=1000ms is HEARD at t=1050ms.
+    // We shift the judgment window forward by 50ms so the player can hit on what they hear.
+    private outputLatencyMs: number = 0;
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
@@ -297,7 +304,14 @@ export class RhythmGame extends BaseGame {
         // Gameplay Touch — audio is already unlocked at this point
         // Block hits during lead-in (preGameTimer > 0): notes aren't active yet
         if (this.preGameTimer > 0) return;
-        const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
+
+        // INPUT LATENCY COMPENSATION:
+        // e.timeStamp is the DOMHighResTimeStamp of when the touch actually occurred.
+        // By the time this handler runs, some time may have passed (JS event queue delay).
+        // We subtract that delay from the current game time to get the true hit time.
+        const handlerTime = performance.now();
+        const inputDelay = Math.max(0, Math.min(handlerTime - e.timeStamp, 100)); // clamp 0-100ms
+        const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - inputDelay;
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
             const lane = this.getLaneFromTouch(touch.clientX, touch.clientY);
@@ -534,7 +548,11 @@ export class RhythmGame extends BaseGame {
         const lane = this.getLaneFromKey(event.code);
         if (lane !== -1) {
             this.keyState[lane] = true;
-            const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
+            // INPUT LATENCY COMPENSATION for keyboard:
+            // event.timeStamp is when the key was physically pressed.
+            const handlerTime = performance.now();
+            const inputDelay = Math.max(0, Math.min(handlerTime - event.timeStamp, 100));
+            const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - inputDelay;
             const hitNote = this.checkHit(lane, currentTimeMs);
 
             if (hitNote && hitNote.isHold) {
@@ -565,12 +583,26 @@ export class RhythmGame extends BaseGame {
     private readonly JUDGMENT_DURATION = 500; // ms
 
     private checkHit(lane: number, currentTime: number): VisualNote | null {
-        // currentTime (ms) is passed from the caller — either update() loop or event handler.
-        // This ensures checkHit and updateMissedNotes always use the same time source.
-        const hitWindow = 200; // ms
+        // currentTime (ms): the precise game time at the moment of input.
+        // Already compensated for event.timeStamp delay by the caller.
+        //
+        // OUTPUT LATENCY SHIFT:
+        // The player hears the audio outputLatencyMs AFTER the game time.
+        // So when they tap "on the beat" they are actually tapping outputLatencyMs late.
+        // We shift currentTime forward by outputLatencyMs to compensate.
+        const adjustedTime = currentTime + this.outputLatencyMs;
+
+        // JUDGMENT WINDOWS (ms from note center, after latency compensation):
+        //   PERFECT: ±40ms  — excellent timing
+        //   GREAT:   ±80ms  — good timing
+        //   GOOD:    ±120ms — acceptable timing
+        //   MISS:    >120ms — too late or too early
+        const PERFECT_WINDOW = 40;
+        const GREAT_WINDOW = 80;
+        const GOOD_WINDOW = 120;
+        const hitWindow = GOOD_WINDOW;
 
         // Optimization: Windowed Search (O(1) average)
-        // Instead of filtering the entire array, we search forward from our current progress index.
         const candidates: VisualNote[] = [];
 
         // We start searching a bit before the known "miss" index to be safe against slight timing jitter
@@ -600,19 +632,19 @@ export class RhythmGame extends BaseGame {
 
         if (candidates.length > 0) {
             // Find closest note (accuracy)
-            candidates.sort((a, b) => Math.abs(a.time * 1000 - currentTime) - Math.abs(b.time * 1000 - currentTime));
+            candidates.sort((a, b) => Math.abs(a.time * 1000 - adjustedTime) - Math.abs(b.time * 1000 - adjustedTime));
             const targetNote = candidates[0];
 
-            const diff = Math.abs(targetNote.time * 1000 - currentTime);
+            const diff = Math.abs(targetNote.time * 1000 - adjustedTime);
             let judgmentText = '';
             let judgmentColor = '';
             let score = 0;
 
-            if (diff < 40) {
+            if (diff < PERFECT_WINDOW) {
                 judgmentText = 'PERFECT';
                 judgmentColor = '#00ffff'; // Cyan
                 score = 100;
-            } else if (diff < 100) {
+            } else if (diff < GREAT_WINDOW) {
                 judgmentText = 'GREAT';
                 judgmentColor = '#00ff00'; // Green
                 score = 80;
@@ -936,10 +968,9 @@ export class RhythmGame extends BaseGame {
     }
 
     public update(delta: number): void {
-        // FPS Calculation
+        // FPS Calculation (counted here, displayed via main.ts global overlay)
         const now = performance.now();
         if (now - this.lastFpsTime >= 1000) {
-            this.currentFps = this.frameCount;
             this.frameCount = 0;
             this.lastFpsTime = now;
             // Debug Log every second
@@ -978,6 +1009,9 @@ export class RhythmGame extends BaseGame {
 
             if (this.preGameTimer <= 0) {
                 console.log("[RhythmGame] Lead-in finished. Starting Audio at t=0.");
+                // Measure output latency NOW (AudioContext must be running at this point)
+                this.outputLatencyMs = this.audioEngine.getOutputLatency() * 1000;
+                console.log(`[RhythmGame] Output latency: ${this.outputLatencyMs.toFixed(1)}ms`);
                 // Force seek to 0 and anchor game clock at 0.
                 // SpessaSynth auto-plays after loadNewSongList(), so sequencer.currentTime
                 // may be e.g. 8.7s by the time preGameTimer expires. Pass 0 explicitly.
@@ -993,6 +1027,8 @@ export class RhythmGame extends BaseGame {
         } else if (!this.isAudioStarted) {
             // Safety fallback if preGameTimer was 0 or skipped
             console.log("[RhythmGame] Starting Audio immediately (No lead-in).");
+            this.outputLatencyMs = this.audioEngine.getOutputLatency() * 1000;
+            console.log(`[RhythmGame] Output latency: ${this.outputLatencyMs.toFixed(1)}ms`);
             this.audioEngine.seek(0);
             this.audioEngine.play();
             this.audioEngine.startPreciseTime(0);

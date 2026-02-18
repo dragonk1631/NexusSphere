@@ -18,7 +18,6 @@ const FRAME_MIN_TIME = 1000 / FPS_LIMIT;
 let lastTime = 0;
 let loopCounter = 0;
 // let frameDelta = 0;
-// let frameDelta = 0;
 let mainMenu: MainMenu;
 
 // FPS Counter Variables
@@ -70,10 +69,13 @@ function gameLoop(timestamp: number) {
   // Sync lastTime, accounting for the excess delay to maintain smooth 60 FPS average
   lastTime = timestamp - (elapsed % FRAME_MIN_TIME);
 
-  // 3. Simple Update & Render (1:1)
-  // Mobile Optimization: Never run multiple updates per frame.
-  // RhythmGame and PongGame handle variable delta correctly.
-  currentGame.update(elapsed);
+  // 3. Fixed-Step Update
+  // IMPORTANT: Always pass FRAME_MIN_TIME (16.667ms) as delta, NOT the actual elapsed time.
+  // Reason: The game clock (AudioContext.currentTime) is the source of truth for sync.
+  //         delta is only used for non-time-critical logic (preGameTimer countdown, animations).
+  //         Using a fixed delta prevents logic instability on frame drops.
+  const FIXED_DELTA = FRAME_MIN_TIME;
+  currentGame.update(FIXED_DELTA);
 
   // Only continue if this is still the active loop
   if (currentLoopId === loopCounter) {

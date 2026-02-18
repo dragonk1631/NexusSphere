@@ -411,14 +411,17 @@ export class CoreAudioEngine {
     }
 
 
-    // --- Mobile-First Precise Time System ---
-    // Uses performance.now() as the primary clock source.
-    // This guarantees the game clock ALWAYS advances, regardless of AudioContext state.
-    // Audio (SpessaSynth) plays independently — if it hiccups, game continues.
-    private preciseStartTime: number = 0;  // performance.now() anchor (ms)
-    private precisePausedTime: number = 0;  // accumulated time at last pause (seconds)
+    // --- Dual-Clock Precise Time System ---
+    // PRIMARY:  AudioContext.currentTime — hardware-synced, no drift, most accurate
+    // FALLBACK: performance.now() — used only when AudioContext is suspended/interrupted
+    //
+    // AudioContext.currentTime is anchored at play() and never drifts from the audio.
+    // This guarantees perfect long-term sync between notes and sound.
+    private audioContextAnchor: number = 0;  // ctx.currentTime at play() (seconds)
+    private audioStartedAt: number = 0;       // performance.now() at play() (ms)
+    private precisePausedTime: number = 0;    // accumulated time at last pause (seconds)
     private isPrecisePlaying: boolean = false;
-    private lastReportedTime: number = 0;   // jitter guard
+    private lastReportedTime: number = 0;     // jitter guard / last returned value
 
     /**
      * Resume the AudioContext. MUST be called from a user gesture handler (touch/click).
@@ -458,31 +461,39 @@ export class CoreAudioEngine {
 
     // --- High-Precision Time Sync ---
 
-    public startPreciseTime(startOffset?: number): void {
-        // ANCHOR: Start the game clock from the given offset using performance.now()
-        // If startOffset is not provided, use sequencer.currentTime as the anchor.
-        // IMPORTANT: For RhythmGame, always pass 0 explicitly — SpessaSynth may auto-play
-        // during the preGameTimer countdown, advancing sequencer.currentTime to e.g. 8.7s.
-        const seqTime = startOffset !== undefined ? startOffset : (this.sequencer?.currentTime || 0);
-        this.precisePausedTime = seqTime;
-        this.preciseStartTime = performance.now();
-        this.lastReportedTime = seqTime;
+    public startPreciseTime(startOffset: number = 0): void {
+        // DUAL-CLOCK ANCHOR:
+        // Record BOTH AudioContext.currentTime and performance.now() at the same instant.
+        // AudioContext.currentTime is hardware-synced and never drifts from audio playback.
+        // performance.now() is used as fallback when AudioContext is suspended.
+        this.audioContextAnchor = this.ctx.currentTime;  // primary clock anchor
+        this.audioStartedAt = performance.now();           // fallback clock anchor
+        this.precisePausedTime = startOffset;
+        this.lastReportedTime = startOffset;
         this.isPrecisePlaying = true;
-        console.log(`[CoreAudioEngine] PreciseTime started. Offset: ${seqTime.toFixed(3)}s, Anchor: ${this.preciseStartTime.toFixed(1)}ms`);
+        console.log(`[CoreAudioEngine] DualClock started. Offset: ${startOffset.toFixed(3)}s, AudioCtx: ${this.audioContextAnchor.toFixed(3)}s, Latency: ${(this.getOutputLatency() * 1000).toFixed(1)}ms`);
     }
 
     public pausePreciseTime(): void {
         if (this.isPrecisePlaying) {
-            // Snapshot current elapsed time
-            const elapsed = (performance.now() - this.preciseStartTime) / 1000;
-            this.precisePausedTime = this.precisePausedTime + elapsed * (this.sequencer?.playbackRate || 1);
+            // Snapshot current elapsed time using the most accurate available clock
+            if (this.ctx.state === 'running') {
+                const playbackRate = this.sequencer?.playbackRate || 1;
+                const audioElapsed = (this.ctx.currentTime - this.audioContextAnchor) * playbackRate;
+                this.precisePausedTime = this.precisePausedTime + audioElapsed;
+            } else {
+                const elapsed = (performance.now() - this.audioStartedAt) / 1000;
+                this.precisePausedTime = this.precisePausedTime + elapsed * (this.sequencer?.playbackRate || 1);
+            }
             this.isPrecisePlaying = false;
         }
     }
 
     public resumePreciseTime(): void {
         if (!this.isPrecisePlaying) {
-            this.preciseStartTime = performance.now();
+            // Re-anchor both clocks at the same instant
+            this.audioContextAnchor = this.ctx.currentTime;
+            this.audioStartedAt = performance.now();
             this.lastReportedTime = this.precisePausedTime;
             this.isPrecisePlaying = true;
         }
@@ -490,18 +501,22 @@ export class CoreAudioEngine {
 
     public setPreciseTime(time: number): void {
         this.precisePausedTime = time;
-        this.preciseStartTime = performance.now();
+        this.audioContextAnchor = this.ctx.currentTime;
+        this.audioStartedAt = performance.now();
         this.lastReportedTime = time;
     }
 
     /**
-     * Returns the current game playback time (seconds).
-     * 
-     * Mobile-First Strategy:
-     * - Uses performance.now() as the SOLE clock source
-     * - Guarantees time ALWAYS advances, regardless of AudioContext or sequencer state
-     * - Audio plays independently via SpessaSynth; if audio hiccups, game continues
-     * - JITTER GUARD: Prevents time reversal and limits sudden jumps
+     * Returns the current game playback time in seconds.
+     *
+     * DUAL-CLOCK STRATEGY:
+     * 1. PRIMARY: AudioContext.currentTime — hardware-synced, zero drift from audio
+     *    Used when ctx.state === 'running'. This is the most accurate source.
+     *    Formula: startOffset + (ctx.currentTime - audioContextAnchor) * playbackRate
+     *
+     * 2. FALLBACK: performance.now() — used when AudioContext is suspended/interrupted
+     *    (e.g. tab backgrounded, screen locked, audio interrupted on mobile)
+     *    Has a jump guard to prevent MISS storms after long interruptions.
      */
     public getPreciseTime(): number {
         if (!this.isPrecisePlaying) {
@@ -509,32 +524,63 @@ export class CoreAudioEngine {
         }
 
         const playbackRate = this.sequencer?.playbackRate || 1;
-        const elapsed = (performance.now() - this.preciseStartTime) / 1000;
-        const currentTime = this.precisePausedTime + elapsed * playbackRate;
 
-        // Visual calibration: slight offset to compensate for render pipeline delay
-        const VISUAL_OFFSET = -0.025;
-        const calibratedTime = currentTime + VISUAL_OFFSET;
+        // --- PRIMARY CLOCK: AudioContext.currentTime ---
+        // AudioContext.currentTime is driven by the audio hardware clock.
+        // It is perfectly synchronized with what the user hears — no drift possible.
+        if (this.ctx.state === 'running') {
+            const audioElapsed = (this.ctx.currentTime - this.audioContextAnchor) * playbackRate;
+            const gameTime = this.precisePausedTime + audioElapsed;
 
-        // --- JITTER GUARD ---
-        // 1. Prevent time reversal (shouldn't happen with performance.now(), but safety first)
-        if (calibratedTime < this.lastReportedTime - 0.005) {
+            // Prevent time reversal (AudioContext should never go backwards, but safety first)
+            if (gameTime < this.lastReportedTime - 0.001) {
+                return this.lastReportedTime;
+            }
+
+            this.lastReportedTime = gameTime;
+            return gameTime;
+        }
+
+        // --- FALLBACK CLOCK: performance.now() ---
+        // AudioContext is suspended (tab background, screen lock, mobile interruption).
+        // Use performance.now() to keep the game clock advancing.
+        const elapsed = (performance.now() - this.audioStartedAt) / 1000;
+        const gameTime = this.precisePausedTime + elapsed * playbackRate;
+
+        // Prevent time reversal
+        if (gameTime < this.lastReportedTime - 0.005) {
             return this.lastReportedTime;
         }
 
-        // 2. Prevent massive forward jumps (tab backgrounding, screen lock, touch event blocking)
-        // Threshold raised to 500ms: mobile touch handlers can block the main thread for 150ms+,
-        // which would falsely trigger this guard and cause a cascade of MISS judgments.
-        const jump = calibratedTime - this.lastReportedTime;
+        // Jump guard: mobile touch handlers can block the main thread for 150ms+.
+        // Clamp to max 100ms per frame to prevent a MISS storm after resuming.
+        const jump = gameTime - this.lastReportedTime;
         if (jump > 0.5) {
-            // Clamp to max 100ms per frame — allows gradual catch-up without MISS storm
             this.lastReportedTime += 0.1;
             return this.lastReportedTime;
         }
 
-        // Normal progression
-        this.lastReportedTime = calibratedTime;
-        return calibratedTime;
+        this.lastReportedTime = gameTime;
+        return gameTime;
+    }
+
+    /**
+     * Returns the total audio output latency in seconds.
+     * This is the delay between when audio data is sent and when the user hears it.
+     * Used to calibrate note judgment timing so that visual and audio are perceptually aligned.
+     *
+     * baseLatency:   Fixed processing latency of the AudioContext pipeline.
+     * outputLatency: Variable hardware latency (speaker/headphone buffer).
+     *
+     * Typical values:
+     *   PC Chrome:    10–30ms
+     *   Mobile Chrome: 50–150ms
+     *   iOS Safari:   20–80ms
+     */
+    public getOutputLatency(): number {
+        const base = this.ctx.baseLatency || 0;
+        const output = (this.ctx as any).outputLatency || 0;
+        return base + output;  // seconds
     }
 
     /**
@@ -546,7 +592,8 @@ export class CoreAudioEngine {
      */
     public resetTimeState(): void {
         this.isPrecisePlaying = false;
-        this.preciseStartTime = 0;
+        this.audioContextAnchor = 0;
+        this.audioStartedAt = 0;
         this.precisePausedTime = 0;
         this.lastReportedTime = 0;
         console.log('[CoreAudioEngine] Time state reset to 0.');
