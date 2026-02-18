@@ -269,16 +269,18 @@ export class RhythmGame extends BaseGame {
     private handleTouchStart(e: TouchEvent): void {
         e.preventDefault();
 
-        // Mobile-First: Ensure audio is unlocked on ANY touch.
-        // Critical for Test Mode which bypasses the MENU (and its resume() call).
-        // Only fires when context is actually suspended — no overhead in normal flow.
-        if (this.audioEngine && !this.audioEngine.isAudioUnlocked()) {
-            this.audioEngine.resume();
-        }
-
         if (this.currentState === GameState.MENU) {
-            // Audio unlock also happens here via handleMenuTouch for the START flow
-            this.handleMenuTouch(e);
+            if (this.isTestMode && this.shouldAutoStart) {
+                // Test Mode: First touch unlocks audio and starts the game (same as normal mode START button)
+                this.audioEngine.resume().then(() => {
+                    console.log(`[RhythmGame] Test Mode: Audio unlocked. Starting game...`);
+                    this.shouldAutoStart = false;
+                    this.start();
+                });
+            } else {
+                // Normal Mode: Handle menu touch (includes audio unlock for START button)
+                this.handleMenuTouch(e);
+            }
             return;
         }
 
@@ -292,7 +294,10 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
-        // Gameplay Touch
+        // Gameplay Touch — audio is already unlocked at this point
+        // Block hits during lead-in (preGameTimer > 0): notes aren't active yet
+        if (this.preGameTimer > 0) return;
+        const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
             const lane = this.getLaneFromTouch(touch.clientX, touch.clientY);
@@ -303,8 +308,7 @@ export class RhythmGame extends BaseGame {
             if (lane !== -1) {
                 if (!this.keyState[lane]) {
                     this.keyState[lane] = true;
-                    this.checkHit(lane);
-                    // console.log(`[TouchStart] ID: ${touch.identifier} -> Lane: ${lane}`);
+                    this.checkHit(lane, currentTimeMs);
                 }
             }
         }
@@ -402,7 +406,9 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
-        // Gameplay Slide Logic
+        // Gameplay Slide Logic — block during lead-in
+        if (this.preGameTimer > 0) return;
+        const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
             const newLane = this.getLaneFromTouch(touch.clientX, touch.clientY);
@@ -410,38 +416,33 @@ export class RhythmGame extends BaseGame {
 
             // If lane changed
             if (newLane !== oldLane) {
-                // 1. Release Old Lane (if valid and no other pointers holding it?)
-                // Simplified: Just release. Multi-touch might flicker if 2 fingers trigger same lane.
-                // Ideal: Count pointers per lane. But for now, direct mapping.
                 if (oldLane !== -1) {
                     this.keyState[oldLane] = false;
-                    // Handle Hold Release logic if needed (handleKeyUp logic)
-                    this.processLaneRelease(oldLane);
+                    this.processLaneRelease(oldLane, currentTimeMs);
                 }
 
                 // 2. Press New Lane
                 if (newLane !== -1) {
                     this.keyState[newLane] = true;
-                    this.checkHit(newLane);
+                    this.checkHit(newLane, currentTimeMs);
                 }
 
                 // Update tracking
                 this.pointerLanes.set(touch.identifier, newLane);
-                // console.log(`[TouchMove] ID: ${touch.identifier} Moved ${oldLane} -> ${newLane}`);
             }
         }
     }
 
     private handleTouchEnd(e: TouchEvent): void {
         e.preventDefault();
+        const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
             const lane = this.pointerLanes.get(touch.identifier);
 
             if (lane !== undefined && lane !== -1) {
                 this.keyState[lane] = false;
-                this.processLaneRelease(lane);
-                // console.log(`[TouchEnd] ID: ${touch.identifier} Released Lane ${lane}`);
+                this.processLaneRelease(lane, currentTimeMs);
             }
 
             this.pointerLanes.delete(touch.identifier);
@@ -449,12 +450,13 @@ export class RhythmGame extends BaseGame {
     }
 
     // Helper to deduplicate release logic (shared with handleKeyUp)
-    private processLaneRelease(lane: number): void {
+    // currentTimeMs: pass update() loop's currentTime to ensure consistent time source.
+    // If called from an event handler (outside update loop), pass getPreciseTime() * 1000.
+    private processLaneRelease(lane: number, currentTimeMs: number): void {
         const heldNote = this.holdingLanes[lane];
         if (heldNote) {
-            const currentTime = this.audioEngine.getPreciseTime() * 1000;
             const endTime = heldNote.time * 1000 + heldNote.durationMs;
-            const diff = currentTime - endTime;
+            const diff = currentTimeMs - endTime;
 
             if (Math.abs(diff) <= 200) {
                 this.triggerJudgment(lane, 'PERFECT', Math.abs(diff));
@@ -502,6 +504,14 @@ export class RhythmGame extends BaseGame {
 
     private handleKeyDown(event: KeyboardEvent): void {
         if (this.currentState === GameState.MENU) {
+            if (this.isTestMode && this.shouldAutoStart) {
+                // Test Mode: Space or Enter starts the game (desktop equivalent of TAP TO START)
+                if (event.code === 'Space' || event.code === 'Enter') {
+                    this.shouldAutoStart = false;
+                    this.start();
+                }
+                return;
+            }
             this.handleMenuInput(event);
             return;
         }
@@ -519,29 +529,26 @@ export class RhythmGame extends BaseGame {
         }
 
         if (event.repeat) return; // Prevent hold trigger
+        if (this.preGameTimer > 0) return; // Block hits during lead-in
 
         const lane = this.getLaneFromKey(event.code);
         if (lane !== -1) {
-            this.keyState[lane] = true; // Mark key as pressed
-            // this.laneEffects[lane] = 1.0; // Assuming laneEffects is a property for visual feedback
-
-            const hitNote = this.checkHit(lane); // checkHit should now return the hit note if any
+            this.keyState[lane] = true;
+            const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
+            const hitNote = this.checkHit(lane, currentTimeMs);
 
             if (hitNote && hitNote.isHold) {
-                // Store active hold note
                 this.holdingLanes[lane] = hitNote;
                 hitNote.isHolding = true;
             }
-
-            // this.playSound('tap'); // Assuming playSound exists for tap feedback
         }
     }
 
     private handleKeyUp(event: KeyboardEvent): void {
-        const lane = this.getLaneFromKey(event.code); // Assuming getLaneFromKey still returns number or -1
+        const lane = this.getLaneFromKey(event.code);
         if (lane !== -1) {
             this.keyState[lane] = false;
-            this.processLaneRelease(lane);
+            this.processLaneRelease(lane, this.audioEngine.getPreciseTime() * 1000);
         }
     }
 
@@ -557,9 +564,9 @@ export class RhythmGame extends BaseGame {
     private lastJudgment: { text: string, color: string, time: number } | null = null;
     private readonly JUDGMENT_DURATION = 500; // ms
 
-    private checkHit(lane: number): VisualNote | null {
-        // High-Precision Sync for Hit Detection
-        const currentTime = this.audioEngine.getPreciseTime() * 1000;
+    private checkHit(lane: number, currentTime: number): VisualNote | null {
+        // currentTime (ms) is passed from the caller — either update() loop or event handler.
+        // This ensures checkHit and updateMissedNotes always use the same time source.
         const hitWindow = 200; // ms
 
         // Optimization: Windowed Search (O(1) average)
@@ -781,6 +788,11 @@ export class RhythmGame extends BaseGame {
 
         this.loadingPromise = (async () => {
             console.log("[RhythmGame] Loading assets...");
+            // CRITICAL: Reset time state before init.
+            // CoreAudioEngine is a singleton — if EditorGame was playing (e.g. at t=45s),
+            // lastReportedTime stays at 45s. Without this reset, getPreciseTime() returns 45s
+            // at game start, causing all notes (starting at t=0) to be MISS'd immediately.
+            this.audioEngine.resetTimeState();
             await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
             // Test Mode: Load from transition buffer instead of URL
@@ -863,7 +875,7 @@ export class RhythmGame extends BaseGame {
                 this.scoreManager.setTotalNotes(this.visualNotes.length);
             }
 
-            // Test Mode: Apply audio settings and auto-start
+            // Test Mode: Apply audio settings, then wait for first touch (same as normal mode)
             if (this.isTestMode && this.transitionData?.settings) {
                 const soloChannels = this.transitionData.settings.soloChannels;
                 const hasSolo = soloChannels && soloChannels.size > 0;
@@ -880,14 +892,15 @@ export class RhythmGame extends BaseGame {
                     console.log(`[RhythmGame] Test Mode: Applied Mute for Channels: ${Array.from(this.transitionData.settings.mutedChannels as Set<number>).map((c: number) => c + 1).join(', ')}`);
                 }
 
-                // Force auto-start for test mode (skip menu)
+                // Stay in MENU state — wait for first touch to unlock audio (same as normal mode).
+                // This prevents the resume() call during gameplay from corrupting the preciseTime anchor.
                 this.shouldAutoStart = true;
-                this.currentState = GameState.PLAYING;
-                console.log("[RhythmGame] Test Mode: Auto-starting game.");
+                this.currentState = GameState.MENU;
+                console.log("[RhythmGame] Test Mode: Waiting for first touch to start (audio unlock required).");
             }
 
-            // Only start if explicitly requested (e.g. from Menu or Test Mode)
-            if (this.midiData && this.shouldAutoStart) {
+            // Only start if explicitly requested (e.g. from Menu — NOT test mode, which waits for touch)
+            if (this.midiData && this.shouldAutoStart && !this.isTestMode) {
                 this.shouldAutoStart = false; // Reset
                 this.start();
             }
@@ -965,8 +978,12 @@ export class RhythmGame extends BaseGame {
 
             if (this.preGameTimer <= 0) {
                 console.log("[RhythmGame] Lead-in finished. Starting Audio at t=0.");
+                // Force seek to 0 and anchor game clock at 0.
+                // SpessaSynth auto-plays after loadNewSongList(), so sequencer.currentTime
+                // may be e.g. 8.7s by the time preGameTimer expires. Pass 0 explicitly.
+                this.audioEngine.seek(0);
                 this.audioEngine.play();
-                this.audioEngine.startPreciseTime(); // This will anchor to 0 (or sequencer state)
+                this.audioEngine.startPreciseTime(0);  // Always anchor at 0
                 this.isAudioStarted = true;
                 currentTime = 0;
             } else {
@@ -976,8 +993,9 @@ export class RhythmGame extends BaseGame {
         } else if (!this.isAudioStarted) {
             // Safety fallback if preGameTimer was 0 or skipped
             console.log("[RhythmGame] Starting Audio immediately (No lead-in).");
+            this.audioEngine.seek(0);
             this.audioEngine.play();
-            this.audioEngine.startPreciseTime();
+            this.audioEngine.startPreciseTime(0);
             this.isAudioStarted = true;
             currentTime = 0;
         } else {
@@ -1259,7 +1277,8 @@ export class RhythmGame extends BaseGame {
         // 6. HUD
         this.renderHUD();
 
-        // 7. FPS Counter (Top Right)
+        // 7. FPS Counter (Removed - Using Global Overlay)
+        /*
         ctx.save();
         ctx.fillStyle = this.currentFps >= 55 ? '#00ff00' : '#ff0000';
         ctx.font = 'bold 16px monospace';
@@ -1267,6 +1286,7 @@ export class RhythmGame extends BaseGame {
         ctx.textBaseline = 'top';
         ctx.fillText(`FPS: ${this.currentFps}`, width - 10, 10);
         ctx.restore();
+        */
 
     }
 
@@ -1825,6 +1845,43 @@ export class RhythmGame extends BaseGame {
         const width = this.canvas.width;
         const height = this.canvas.height;
         const time = this.menuAnimationTimer;
+
+        // Test Mode: Show a simple "TAP TO START" screen instead of the full menu
+        if (this.isTestMode) {
+            ctx.fillStyle = '#0a0015';
+            ctx.fillRect(0, 0, width, height);
+
+            // Pulsing glow effect
+            const pulse = Math.sin(performance.now() * 0.003) * 0.3 + 0.7;
+
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Song name
+            const songName = this.transitionData?.midiName || 'TEST PLAY';
+            ctx.font = `bold ${Math.min(width * 0.04, 28)}px "Orbitron", sans-serif`;
+            ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 20;
+            ctx.fillText(songName.toUpperCase(), width / 2, height * 0.38);
+
+            // TAP TO START
+            ctx.font = `900 ${Math.min(width * 0.06, 48)}px "Orbitron", sans-serif`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 30 * pulse;
+            ctx.fillText('TAP TO START', width / 2, height / 2);
+
+            // Subtitle
+            ctx.font = `${Math.min(width * 0.025, 18)}px "Orbitron", sans-serif`;
+            ctx.fillStyle = `rgba(180, 180, 255, ${pulse * 0.8})`;
+            ctx.shadowBlur = 0;
+            ctx.fillText('[ EDITOR TEST MODE ]', width / 2, height * 0.62);
+
+            ctx.restore();
+            return;
+        }
 
         // 1. Atmosphere & Background
         this.drawAtmosphere(width, height);

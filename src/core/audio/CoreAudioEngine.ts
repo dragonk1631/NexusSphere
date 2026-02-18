@@ -458,9 +458,12 @@ export class CoreAudioEngine {
 
     // --- High-Precision Time Sync ---
 
-    public startPreciseTime(): void {
-        // ANCHOR: Start the game clock from current position using performance.now()
-        const seqTime = this.sequencer?.currentTime || 0;
+    public startPreciseTime(startOffset?: number): void {
+        // ANCHOR: Start the game clock from the given offset using performance.now()
+        // If startOffset is not provided, use sequencer.currentTime as the anchor.
+        // IMPORTANT: For RhythmGame, always pass 0 explicitly — SpessaSynth may auto-play
+        // during the preGameTimer countdown, advancing sequencer.currentTime to e.g. 8.7s.
+        const seqTime = startOffset !== undefined ? startOffset : (this.sequencer?.currentTime || 0);
         this.precisePausedTime = seqTime;
         this.preciseStartTime = performance.now();
         this.lastReportedTime = seqTime;
@@ -519,15 +522,33 @@ export class CoreAudioEngine {
             return this.lastReportedTime;
         }
 
-        // 2. Prevent massive forward jumps (tab backgrounding, screen lock)
+        // 2. Prevent massive forward jumps (tab backgrounding, screen lock, touch event blocking)
+        // Threshold raised to 500ms: mobile touch handlers can block the main thread for 150ms+,
+        // which would falsely trigger this guard and cause a cascade of MISS judgments.
         const jump = calibratedTime - this.lastReportedTime;
-        if (jump > 0.15) {
-            this.lastReportedTime += 0.016;
+        if (jump > 0.5) {
+            // Clamp to max 100ms per frame — allows gradual catch-up without MISS storm
+            this.lastReportedTime += 0.1;
             return this.lastReportedTime;
         }
 
         // Normal progression
         this.lastReportedTime = calibratedTime;
         return calibratedTime;
+    }
+
+    /**
+     * Resets all precise-time state to zero.
+     * MUST be called before starting a new game session when the engine is already initialized (isReady=true).
+     * Without this, the previous game's lastReportedTime leaks into the new session,
+     * causing getPreciseTime() to return stale values (e.g. 45s from editor playback)
+     * which makes all notes appear as MISS immediately.
+     */
+    public resetTimeState(): void {
+        this.isPrecisePlaying = false;
+        this.preciseStartTime = 0;
+        this.precisePausedTime = 0;
+        this.lastReportedTime = 0;
+        console.log('[CoreAudioEngine] Time state reset to 0.');
     }
 }

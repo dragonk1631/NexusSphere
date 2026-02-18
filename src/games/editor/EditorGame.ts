@@ -178,8 +178,44 @@ export class EditorGame extends BaseGame {
     private lastSeekTime: number = 0;
     private wakeLock: any = null;
 
+    // Bound event handlers — stored so they can be removed in destroy()
+    private _boundMouseMove: (e: MouseEvent | TouchEvent) => void;
+    private _boundMouseUp: () => void;
+    private _boundTouchMove: (e: TouchEvent) => void;
+    private _boundTouchEnd: () => void;
+    private _boundTouchCancel: () => void;
+    private _boundVisibilityChange: () => void;
+    private _boundWheel: (e: WheelEvent) => void;
+    private _boundMouseDown: (e: MouseEvent) => void;
+    private _boundCanvasTouchStart: (e: TouchEvent) => void;
+    private _boundMouseEnter: () => void;
+    private _boundMouseLeave: () => void;
+
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
+        this._boundMouseMove = (e) => this.handleMouseMove(e as MouseEvent);
+        this._boundMouseUp = () => this.handleMouseUp();
+        this._boundTouchMove = (e) => {
+            if (this.isDraggingPlayhead) {
+                e.preventDefault();
+                this.handleMouseMove(e);
+            }
+        };
+        this._boundTouchEnd = () => this.handleMouseUp();
+        this._boundTouchCancel = () => this.handleMouseUp();
+        this._boundVisibilityChange = () => {
+            if (this.wakeLock !== null && document.visibilityState === 'visible') {
+                this.requestWakeLock();
+            }
+        };
+        this._boundWheel = (e) => this.handleWheel(e);
+        this._boundMouseDown = (e) => this.handleMouseDown(e);
+        this._boundCanvasTouchStart = (e) => {
+            e.preventDefault();
+            this.handleMouseDown(e);
+        };
+        this._boundMouseEnter = () => { document.body.style.overflow = 'hidden'; };
+        this._boundMouseLeave = () => { document.body.style.overflow = ''; };
     }
 
     public async init(): Promise<void> {
@@ -231,39 +267,25 @@ export class EditorGame extends BaseGame {
             this.resizeObserver.observe(container);
         }
 
-        this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+        this.canvas.addEventListener('wheel', this._boundWheel, { passive: false });
 
         // Mouse Events
-        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-        window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-        window.addEventListener('mouseup', () => this.handleMouseUp());
+        this.canvas.addEventListener('mousedown', this._boundMouseDown);
+        window.addEventListener('mousemove', this._boundMouseMove);
+        window.addEventListener('mouseup', this._boundMouseUp);
 
-        // Touch Events (Fixed: Mobile support)
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent scrolling
-            this.handleMouseDown(e);
-        }, { passive: false });
+        // Touch Events
+        this.canvas.addEventListener('touchstart', this._boundCanvasTouchStart, { passive: false });
+        window.addEventListener('touchmove', this._boundTouchMove, { passive: false });
+        window.addEventListener('touchend', this._boundTouchEnd);
+        window.addEventListener('touchcancel', this._boundTouchCancel);
 
-        window.addEventListener('touchmove', (e) => {
-            if (this.isDraggingPlayhead) {
-                e.preventDefault();
-                this.handleMouseMove(e);
-            }
-        }, { passive: false });
-
-        window.addEventListener('touchend', () => this.handleMouseUp());
-        window.addEventListener('touchcancel', () => this.handleMouseUp());
-
-        this.canvas.addEventListener('mouseenter', () => document.body.style.overflow = 'hidden');
-        this.canvas.addEventListener('mouseleave', () => document.body.style.overflow = '');
+        this.canvas.addEventListener('mouseenter', this._boundMouseEnter);
+        this.canvas.addEventListener('mouseleave', this._boundMouseLeave);
 
         // Prevent sleep on mobile
         this.requestWakeLock();
-        document.addEventListener('visibilitychange', () => {
-            if (this.wakeLock !== null && document.visibilityState === 'visible') {
-                this.requestWakeLock();
-            }
-        });
+        document.addEventListener('visibilitychange', this._boundVisibilityChange);
     }
 
     public async load(): Promise<void> {
@@ -1109,15 +1131,30 @@ export class EditorGame extends BaseGame {
         this.releaseWakeLock();
         this.audioEngine.stop();
         this.isPlaying = false;
+
+        // Remove ALL event listeners — canvas AND window level
+        // Canvas listeners MUST be removed: RhythmGame reuses the same canvas,
+        // so EditorGame's touchstart/mousedown would fire on RhythmGame touches.
+        this.canvas.removeEventListener('wheel', this._boundWheel);
+        this.canvas.removeEventListener('mousedown', this._boundMouseDown);
+        this.canvas.removeEventListener('touchstart', this._boundCanvasTouchStart);
+        this.canvas.removeEventListener('mouseenter', this._boundMouseEnter);
+        this.canvas.removeEventListener('mouseleave', this._boundMouseLeave);
+        window.removeEventListener('mousemove', this._boundMouseMove);
+        window.removeEventListener('mouseup', this._boundMouseUp);
+        window.removeEventListener('touchmove', this._boundTouchMove);
+        window.removeEventListener('touchend', this._boundTouchEnd);
+        window.removeEventListener('touchcancel', this._boundTouchCancel);
+        document.removeEventListener('visibilitychange', this._boundVisibilityChange);
+        console.log('[EditorGame] All event listeners removed.');
+
         this.ui?.destroy();
         document.body.style.overflow = '';
 
-        // Restore Canvas to Game Container (Crucial for Game Switching)
+        // Restore Canvas to Game Container
         const gameContainer = document.getElementById('game-container');
         if (gameContainer && this.canvas.parentElement !== gameContainer) {
             gameContainer.appendChild(this.canvas);
-
-            // Allow CSS to handle layout again
             this.canvas.style.position = '';
             this.canvas.style.top = '';
             this.canvas.style.left = '';

@@ -18,9 +18,35 @@ const FRAME_MIN_TIME = 1000 / FPS_LIMIT;
 let lastTime = 0;
 let loopCounter = 0;
 // let frameDelta = 0;
+// let frameDelta = 0;
 let mainMenu: MainMenu;
 
+// FPS Counter Variables
+const fpsDiv = document.createElement('div');
+fpsDiv.id = 'fps-counter';
+fpsDiv.style.cssText = "position:fixed; top:5px; right:5px; background:rgba(0,0,0,0.5); color:#00ff00; padding:2px 6px; z-index:99999; font-size:14px; pointer-events:none; font-family:monospace; border-radius:4px; font-weight:bold;";
+fpsDiv.innerText = `FPS: --`;
+document.body.appendChild(fpsDiv);
+
+let fpsFrameCount = 0;
+let fpsLastTime = performance.now();
+let currentFps = 0;
+
 function gameLoop(timestamp: number) {
+  // --- FPS Update ---
+  fpsFrameCount++;
+  if (timestamp - fpsLastTime >= 1000) {
+    currentFps = fpsFrameCount;
+    fpsFrameCount = 0;
+    fpsLastTime = timestamp;
+    fpsDiv.innerText = `FPS: ${currentFps}`;
+
+    // Color Coding for Performance Monitoring
+    if (currentFps >= 55) fpsDiv.style.color = '#00ff00';      // Green (Good)
+    else if (currentFps >= 30) fpsDiv.style.color = '#ffff00'; // Yellow (Warning)
+    else fpsDiv.style.color = '#ff0000';                       // Red (Bad)
+  }
+
   if (!currentGame) return;
 
   // Closure capture of loopCounter to detect if a new loop was started
@@ -103,12 +129,7 @@ function returnToMenu(): void {
   mainMenu.show();
 }
 
-// --- Deployment Verification ---
-const versionDiv = document.createElement('div');
-versionDiv.id = 'version-debug';
-versionDiv.style.cssText = "position:fixed; top:5px; right:5px; background:rgba(0,0,255,0.8); color:white; padding:4px 8px; z-index:99999; font-size:12px; pointer-events:none; font-family:monospace; border-radius:4px;";
-versionDiv.innerText = `VER: AUDIO - FIX - FINAL(Safe Play)`;
-document.body.appendChild(versionDiv);
+
 
 function handleGameStart(mode: string) {
   if (mode === 'rhythm') {
