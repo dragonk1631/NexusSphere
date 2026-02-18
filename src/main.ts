@@ -11,12 +11,9 @@ UIManager.getInstance();
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
-// const FPS_LIMIT = 60;
 
 let lastTime = 0;
-let accumulator = 0;
 let loopCounter = 0;
-// let frameDelta = 0;
 let mainMenu: MainMenu;
 
 // FPS Counter Variables
@@ -31,6 +28,9 @@ let fpsLastTime = performance.now();
 let currentFps = 0;
 
 function gameLoop(timestamp: number) {
+  // Prevent potential undefined timestamp on first call
+  if (!timestamp) timestamp = performance.now();
+
   // --- FPS Update ---
   if (timestamp - fpsLastTime >= 1000) {
     currentFps = fpsFrameCount;
@@ -39,7 +39,7 @@ function gameLoop(timestamp: number) {
     fpsDiv.innerText = `FPS: ${currentFps}`;
 
     // Color Coding for Performance Monitoring
-    if (currentFps >= 55) fpsDiv.style.color = '#00ff00';      // Green (Good)
+    if (currentFps >= 58) fpsDiv.style.color = '#00ff00';      // Green (Good)
     else if (currentFps >= 30) fpsDiv.style.color = '#ffff00'; // Yellow (Warning)
     else fpsDiv.style.color = '#ff0000';                       // Red (Bad)
   }
@@ -49,33 +49,32 @@ function gameLoop(timestamp: number) {
   // Closure capture of loopCounter to detect if a new loop was started
   const currentLoopId = loopCounter;
 
-  // 1. Calculate Delta Time (No Cap)
-  let deltaTime = timestamp - lastTime;
-  lastTime = timestamp;
+  // Strict 60 FPS Logic
+  // We want to update AND render exactly 60 times per second.
+  // No variable rendering. This is the "Console Syle" loop.
+  const INTERVAL = 1000 / 60; // 16.666ms
 
-  // Prevent "Spiral of Death"
-  if (deltaTime > 250) deltaTime = 250;
-  if (deltaTime < 0) deltaTime = 0;
+  const elapsed = timestamp - lastTime;
 
-  accumulator += deltaTime;
-
-  // 2. Fixed Update (Logic Consistency)
-  const FIXED_STEP = 1000 / 60; // 16.666ms
-
-  while (accumulator >= FIXED_STEP) {
+  if (elapsed >= INTERVAL) {
+    // Update Logic
     if (currentGame) {
-      currentGame.update(FIXED_STEP);
+      currentGame.update(INTERVAL); // Always pass fixed delta
     }
-    accumulator -= FIXED_STEP;
+
+    // Render Logic
+    if (currentGame) {
+      currentGame.render();
+      fpsFrameCount++;
+    }
+
+    // Sync Time
+    // Modulo prevents drift, but we clamp to avoid spiral of death
+    const excess = elapsed % INTERVAL;
+    lastTime = timestamp - excess;
   }
 
-  // 3. Render (Variable FPS)
-  if (currentGame) {
-    currentGame.render();
-    fpsFrameCount++;
-  }
-
-  // Only continue if this is still the active loop
+  // Loop
   if (currentLoopId === loopCounter) {
     requestAnimationFrame(gameLoop);
   }
@@ -111,9 +110,11 @@ async function launchGame(GameClass: any) {
     console.log("Starting display...");
     currentGame.create();
 
+    // Reset Loop State
     lastTime = performance.now();
-    accumulator = 0; // Reset accumulator on new game start
     fpsFrameCount = 0;
+
+    // Slight delay to align first frame
     requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error("Game launch failed:", error);
@@ -130,8 +131,6 @@ function returnToMenu(): void {
   mainMenu = new MainMenu(handleGameStart);
   mainMenu.show();
 }
-
-
 
 function handleGameStart(mode: string) {
   if (mode === 'rhythm') {

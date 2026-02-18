@@ -954,9 +954,9 @@ export class RhythmGame extends BaseGame {
         this.comboAnim = 0;
         this.endGameTimer = 0;
 
-        // Dynamic Lead-in
+        // Dynamic Lead-in (Min 3000ms for smooth entry from top)
         const approachTime = 2000 / this.scrollSpeed;
-        this.preGameTimer = Math.max(1500, approachTime);
+        this.preGameTimer = Math.max(3000, approachTime);
 
         this.isAudioStarted = false;
         this.lastNoteIndex = 0;
@@ -1109,22 +1109,39 @@ export class RhythmGame extends BaseGame {
         // Check for Missed Notes
         this.updateMissedNotes(currentTime);
 
-        // Update Explosions
-        this.explosions.forEach(exp => {
+        // Optimized Explosion Update (Swap-and-Pop)
+        for (let i = this.explosions.length - 1; i >= 0; i--) {
+            const exp = this.explosions[i];
             exp.radius += 2;
             exp.alpha -= 0.05;
-        });
-        this.explosions = this.explosions.filter(exp => exp.alpha > 0);
 
-        this.particles.forEach(p => {
+            if (exp.alpha <= 0) {
+                // Replace current with last and pop
+                if (i < this.explosions.length - 1) {
+                    this.explosions[i] = this.explosions[this.explosions.length - 1];
+                }
+                this.explosions.pop();
+            }
+        }
+
+        // Optimized Particle Update (Swap-and-Pop)
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
             p.x += p.vx;
             p.y += p.vy;
-            p.vx *= 0.9; // Friction to reduce distance
+            p.vx *= 0.9; // Friction
             p.rotation += p.rotationSpeed;
-            p.vy += 0.2; // Stronger Gravity
-            p.alpha -= 0.04; // Fast fade (Short distance)
-        });
-        this.particles = this.particles.filter(p => p.alpha > 0);
+            p.vy += 0.2; // Gravity
+            p.alpha -= 0.04; // Fade
+
+            if (p.alpha <= 0) {
+                // Replace current with last and pop
+                if (i < this.particles.length - 1) {
+                    this.particles[i] = this.particles[this.particles.length - 1];
+                }
+                this.particles.pop();
+            }
+        }
 
         // this.render(currentTime); // Render is now called by main loop separate from update
 
