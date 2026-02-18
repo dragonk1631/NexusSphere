@@ -1338,22 +1338,23 @@ export class RhythmGame extends BaseGame {
         ctx.fillStyle = this.bgGradient;
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Speed Lines (Warp Effect) - Optimized
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
-        const baseAngle = Date.now() * 0.0005;
-
-        for (let i = 0; i < 12; i++) { // Reduced count for mobile
-            const angle = baseAngle + i * 0.523; // Pre-calculated offset (Math.PI / 6)
-            const cos = Math.cos(angle);
-            const sin = Math.sin(angle);
-            ctx.moveTo(centerX + cos * 50, centerY + sin * 50);
-            ctx.lineTo(centerX + cos * 800, centerY + sin * 800);
+        // Speed Lines (Warp Effect) - Desktop only (too expensive on mobile)
+        if (!this.isMobile) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const centerX = this.canvas.width / 2;
+            const centerY = this.canvas.height / 2;
+            const baseAngle = Date.now() * 0.0005;
+            for (let i = 0; i < 12; i++) {
+                const angle = baseAngle + i * 0.523;
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                ctx.moveTo(centerX + cos * 50, centerY + sin * 50);
+                ctx.lineTo(centerX + cos * 800, centerY + sin * 800);
+            }
+            ctx.stroke();
         }
-        ctx.stroke();
 
         // 2. Draw Perspective Highway
         this.renderHighway();
@@ -1475,12 +1476,17 @@ export class RhythmGame extends BaseGame {
                 const rX1 = this.getPerspectiveX(i + 1, this.horizonY);
                 const lX2 = this.getPerspectiveX(i, this.bottomY);
                 const rX2 = this.getPerspectiveX(i + 1, this.bottomY);
-                const lightGrad = ctx.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
-                lightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
-                lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                ctx.fillStyle = lightGrad;
                 ctx.beginPath();
                 ctx.moveTo(lX1, this.horizonY); ctx.lineTo(rX1, this.horizonY); ctx.lineTo(rX2, this.bottomY); ctx.lineTo(lX2, this.bottomY);
+                if (this.isMobile) {
+                    // Mobile: flat color, no gradient (createLinearGradient is expensive)
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                } else {
+                    const lightGrad = ctx.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
+                    lightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+                    lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    ctx.fillStyle = lightGrad;
+                }
                 ctx.fill();
             }
         }
@@ -1618,12 +1624,16 @@ export class RhythmGame extends BaseGame {
             if (this.keyState[i]) {
                 ctx.fillStyle = baseColor;
                 ctx.strokeStyle = '#fff';
-                ctx.shadowBlur = 10; // Reduced from 30 for mobile performance
-                ctx.shadowColor = baseColor;
+                // shadowBlur is extremely expensive on mobile (CPU fallback on Android)
+                if (!this.isMobile) {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = baseColor;
+                }
                 ctx.beginPath();
                 ctx.roundRect(x, this.hitLineY, width, height, height / 3);
                 ctx.fill();
                 ctx.stroke();
+                ctx.shadowBlur = 0;
             } else {
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -1632,11 +1642,13 @@ export class RhythmGame extends BaseGame {
                 ctx.roundRect(x, this.hitLineY, width, height, height / 3);
                 ctx.fill();
                 ctx.stroke();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.roundRect(x + 4, this.hitLineY + 4, width - 8, height - 8, height / 3);
-                ctx.stroke();
+                if (!this.isMobile) {
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.roundRect(x + 4, this.hitLineY + 4, width - 8, height - 8, height / 3);
+                    ctx.stroke();
+                }
             }
         }
         ctx.shadowBlur = 0;
