@@ -27,6 +27,15 @@ let fpsFrameCount = 0;
 let fpsLastTime = performance.now();
 let currentFps = 0;
 
+// === PERFORMANCE PROFILER ===
+let profUpdateTotal = 0;
+let profRenderTotal = 0;
+let profFrameCount = 0;
+let profDroppedFrames = 0;
+let profMaxFrameTime = 0;
+let profLastRafTime = 0;
+let profRafJitterTotal = 0;
+
 function gameLoop(timestamp: number) {
   // Prevent potential undefined timestamp on first call
   if (!timestamp) timestamp = performance.now();
@@ -42,6 +51,9 @@ function gameLoop(timestamp: number) {
     if (currentFps >= 58) fpsDiv.style.color = '#00ff00';      // Green (Good)
     else if (currentFps >= 30) fpsDiv.style.color = '#ffff00'; // Yellow (Warning)
     else fpsDiv.style.color = '#ff0000';                       // Red (Bad)
+
+    // Also update FPS div to include real vs rAF info
+    fpsDiv.innerText = `FPS: ${currentFps}`;
   }
 
   if (!currentGame) return;
@@ -58,15 +70,55 @@ function gameLoop(timestamp: number) {
 
   // Epsilon to handle 59.94Hz vs 60Hz mismatch (avoid dropping frames due to 0.001ms diff)
   if (elapsed >= INTERVAL - 1.0) {
+    // --- PROFILING: Measure rAF jitter ---
+    if (profLastRafTime > 0) {
+      const rafDelta = timestamp - profLastRafTime;
+      profRafJitterTotal += Math.abs(rafDelta - INTERVAL);
+      if (rafDelta > 20) profDroppedFrames++; // >20ms = likely dropped
+    }
+    profLastRafTime = timestamp;
+
     // Update Logic
+    const t0 = performance.now();
     if (currentGame) {
       currentGame.update(INTERVAL); // Always pass fixed delta
     }
+    const t1 = performance.now();
 
     // Render Logic
     if (currentGame) {
       currentGame.render();
       fpsFrameCount++;
+    }
+    const t2 = performance.now();
+
+    // Accumulate profiling data
+    profUpdateTotal += (t1 - t0);
+    profRenderTotal += (t2 - t1);
+    profMaxFrameTime = Math.max(profMaxFrameTime, t2 - t0);
+    profFrameCount++;
+
+    // --- PROFILING: Log every 2 seconds ---
+    if (timestamp - fpsLastTime >= 2000 && profFrameCount > 0) {
+      const avgUpdate = (profUpdateTotal / profFrameCount).toFixed(2);
+      const avgRender = (profRenderTotal / profFrameCount).toFixed(2);
+      const avgTotal = ((profUpdateTotal + profRenderTotal) / profFrameCount).toFixed(2);
+      const avgJitter = (profRafJitterTotal / profFrameCount).toFixed(2);
+      const renderDetail = (currentGame as any)?._lastRenderProfile || 'N/A';
+      console.log(
+        `[PERF] FPS:${profFrameCount / 2} | ` +
+        `Avg: U=${avgUpdate}ms R=${avgRender}ms T=${avgTotal}ms | ` +
+        `Max:${profMaxFrameTime.toFixed(1)}ms | ` +
+        `Drop:${profDroppedFrames} | Jitter:${avgJitter}ms | ` +
+        `Stages: ${renderDetail}`
+      );
+      // Reset
+      profUpdateTotal = 0;
+      profRenderTotal = 0;
+      profFrameCount = 0;
+      profDroppedFrames = 0;
+      profMaxFrameTime = 0;
+      profRafJitterTotal = 0;
     }
 
     // Sync Time

@@ -1355,9 +1355,11 @@ export class RhythmGame extends BaseGame {
             }
             ctx.stroke();
         }
+        const _p0 = performance.now();
 
         // 2. Draw Perspective Highway
         this.renderHighway();
+        const _p1 = performance.now();
 
         // 2.5 Draw Lane Beams (Hold Feedback)
         this.holdingLanes.forEach((note, lane) => {
@@ -1366,29 +1368,28 @@ export class RhythmGame extends BaseGame {
 
         // 3. Draw Hit Zone (Glowing Pads)
         this.renderHitZone();
+        const _p2 = performance.now();
 
         // 4. Render Notes
         this.renderNotes(currentTime);
+        const _p3 = performance.now();
 
         // 5. Explosions
         this.renderExplosions();
+        const _p4 = performance.now();
 
         // 5.5 Draw Particles
         this.renderParticles(ctx);
 
         // 6. HUD
         this.renderHUD();
+        const _p5 = performance.now();
 
-        // 7. FPS Counter (Removed - Using Global Overlay)
-        /*
-        ctx.save();
-        ctx.fillStyle = this.currentFps >= 55 ? '#00ff00' : '#ff0000';
-        ctx.font = 'bold 16px monospace';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.fillText(`FPS: ${this.currentFps}`, width - 10, 10);
-        ctx.restore();
-        */
+        // === RENDER PROFILE (exposed to main.ts profiler) ===
+        (this as any)._lastRenderProfile =
+            `Hwy:${(_p1 - _p0).toFixed(1)} Hit:${(_p2 - _p1).toFixed(1)} ` +
+            `Notes:${(_p3 - _p2).toFixed(1)} Exp:${(_p4 - _p3).toFixed(1)} ` +
+            `HUD:${(_p5 - _p4).toFixed(1)} Total:${(_p5 - _p0).toFixed(1)}ms`;
 
     }
 
