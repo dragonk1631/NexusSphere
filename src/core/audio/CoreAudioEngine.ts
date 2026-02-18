@@ -19,7 +19,7 @@ export class CoreAudioEngine {
         // Optimization: Use 'interactive' for all platforms to ensure lowest possible latency
         // The engine handles jitter via delta clamping and precise time anchoring.
         this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
-            latencyHint: 'playback' // Changed from 'interactive' to 'playback' for Mobile Stability
+            latencyHint: 'interactive' // Reverted to 'interactive' for better timing precision on mobile
         });
         console.log(`[CoreAudioEngine] Context initialized with 'playback' latency hint.`);
     }
