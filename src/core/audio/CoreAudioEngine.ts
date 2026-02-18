@@ -451,6 +451,10 @@ export class CoreAudioEngine {
         return this.ctx.state === 'running';
     }
 
+    public isPlaying(): boolean {
+        return this.isPrecisePlaying;
+    }
+
     public get currentTime(): number {
         return this.sequencer?.currentTime || 0;
     }

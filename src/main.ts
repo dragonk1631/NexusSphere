@@ -56,7 +56,8 @@ function gameLoop(timestamp: number) {
 
   const elapsed = timestamp - lastTime;
 
-  if (elapsed >= INTERVAL) {
+  // Epsilon to handle 59.94Hz vs 60Hz mismatch (avoid dropping frames due to 0.001ms diff)
+  if (elapsed >= INTERVAL - 1.0) {
     // Update Logic
     if (currentGame) {
       currentGame.update(INTERVAL); // Always pass fixed delta
