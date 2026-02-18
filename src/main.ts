@@ -69,8 +69,7 @@ function gameLoop(timestamp: number) {
 
   const elapsed = timestamp - lastTime;
 
-  // Epsilon to handle 59.94Hz vs 60Hz mismatch (avoid dropping frames due to 0.001ms diff)
-  if (elapsed >= INTERVAL - 1.0) {
+  if (elapsed >= INTERVAL) {
     // --- PROFILING: Measure rAF jitter ---
     if (profLastRafTime > 0) {
       const rafDelta = timestamp - profLastRafTime;
