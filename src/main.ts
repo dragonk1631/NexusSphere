@@ -35,6 +35,7 @@ let profDroppedFrames = 0;
 let profMaxFrameTime = 0;
 let profLastRafTime = 0;
 let profRafJitterTotal = 0;
+let profLastLogTime = performance.now(); // SEPARATE timer for profiling output
 
 function gameLoop(timestamp: number) {
   // Prevent potential undefined timestamp on first call
@@ -98,19 +99,20 @@ function gameLoop(timestamp: number) {
     profMaxFrameTime = Math.max(profMaxFrameTime, t2 - t0);
     profFrameCount++;
 
-    // --- PROFILING: Log every 2 seconds ---
-    if (timestamp - fpsLastTime >= 2000 && profFrameCount > 0) {
+    // --- PROFILING: Log every 2 seconds (using SEPARATE timer) ---
+    if (timestamp - profLastLogTime >= 2000 && profFrameCount > 0) {
+      const elapsed2 = (timestamp - profLastLogTime) / 1000;
       const avgUpdate = (profUpdateTotal / profFrameCount).toFixed(2);
       const avgRender = (profRenderTotal / profFrameCount).toFixed(2);
       const avgTotal = ((profUpdateTotal + profRenderTotal) / profFrameCount).toFixed(2);
       const avgJitter = (profRafJitterTotal / profFrameCount).toFixed(2);
       const renderDetail = (currentGame as any)?._lastRenderProfile || 'N/A';
       console.log(
-        `[PERF] FPS:${profFrameCount / 2} | ` +
+        `[PERF] FPS:${(profFrameCount / elapsed2).toFixed(0)} | ` +
         `Avg: U=${avgUpdate}ms R=${avgRender}ms T=${avgTotal}ms | ` +
         `Max:${profMaxFrameTime.toFixed(1)}ms | ` +
         `Drop:${profDroppedFrames} | Jitter:${avgJitter}ms | ` +
-        `Stages: ${renderDetail}`
+        `${renderDetail}`
       );
       // Reset
       profUpdateTotal = 0;
@@ -119,6 +121,7 @@ function gameLoop(timestamp: number) {
       profDroppedFrames = 0;
       profMaxFrameTime = 0;
       profRafJitterTotal = 0;
+      profLastLogTime = timestamp;
     }
 
     // Sync Time
