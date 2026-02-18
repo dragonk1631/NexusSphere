@@ -1253,7 +1253,13 @@ export class RhythmGame extends BaseGame {
     }
 
     public render(): void {
-        const currentTime = this.audioEngine.getPreciseTime() * 1000;
+        let currentTime = this.audioEngine.getPreciseTime() * 1000;
+
+        // CRITICAL FIX: Sync Render Time with Update Logic (Lead-in)
+        // If we are in lead-in state, override audio time with negative timer
+        if (this.preGameTimer > 0) {
+            currentTime = -this.preGameTimer;
+        }
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;
