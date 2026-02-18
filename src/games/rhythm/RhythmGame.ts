@@ -593,14 +593,14 @@ export class RhythmGame extends BaseGame {
         const adjustedTime = currentTime + this.outputLatencyMs;
 
         // JUDGMENT WINDOWS (ms from note center, after latency compensation):
-        //   PERFECT: ±40ms  — excellent timing
-        //   GREAT:   ±80ms  — good timing
-        //   GOOD:    ±120ms — acceptable timing
-        //   MISS:    >120ms — too late or too early
-        const PERFECT_WINDOW = 40;
-        const GREAT_WINDOW = 80;
-        const GOOD_WINDOW = 120;
-        const hitWindow = GOOD_WINDOW;
+        //   PERFECT: ±50ms  — excellent timing (Relaxed from 40)
+        //   GREAT:   ±100ms — good timing (Relaxed from 80)
+        //   GOOD:    ±150ms — acceptable timing (Relaxed from 120)
+        //   MISS:    >150ms — too late or too early
+        const PERFECT_WINDOW = 50;
+        const GREAT_WINDOW = 100;
+        const GOOD_WINDOW = 150;
+        const hitWindow = 160;
 
         // Optimization: Windowed Search (O(1) average)
         const candidates: VisualNote[] = [];
@@ -648,10 +648,12 @@ export class RhythmGame extends BaseGame {
                 judgmentText = 'GREAT';
                 judgmentColor = '#00ff00'; // Green
                 score = 80;
-            } else {
+            } else if (diff <= GOOD_WINDOW) {
                 judgmentText = 'GOOD';
                 judgmentColor = '#ffff00'; // Yellow
                 score = 50;
+            } else {
+                return null;
             }
 
             // Apply Score & Effects
@@ -723,7 +725,7 @@ export class RhythmGame extends BaseGame {
     // --- In Update Loop ---
     // We need to check for missed notes
     private updateMissedNotes(currentTime: number): void {
-        const missThreshold = 200; // If note passes by 200ms, it's a miss
+        const missThreshold = 150; // If note passes by 150ms (GOOD window end), it's a miss
         let missCountThisFrame = 0;
 
         // Optimization: Start from the last checked index (Windowing)

@@ -33,7 +33,7 @@ let currentFps = 0;
 
 function gameLoop(timestamp: number) {
   // --- FPS Update ---
-  fpsFrameCount++;
+  // --- FPS Update ---
   if (timestamp - fpsLastTime >= 1000) {
     currentFps = fpsFrameCount;
     fpsFrameCount = 0;
@@ -59,6 +59,9 @@ function gameLoop(timestamp: number) {
     }
     return;
   }
+
+  // Count ACTUAL rendered frames
+  fpsFrameCount++;
 
   // 2. Calculate elapsed time (Variable Step)
   // Clamp at 50ms (20 FPS) to prevent massive jumps/spirals on lag spikes
