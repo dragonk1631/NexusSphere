@@ -115,6 +115,7 @@ export class RhythmGame extends BaseGame {
     };
 
     private isTestMode: boolean = false;
+    private isMobile: boolean = false; // Cached mobile flag
     private transitionData: any = null;
 
     // Optimization: Index-based windowing to avoid O(N) iteration
@@ -201,6 +202,10 @@ export class RhythmGame extends BaseGame {
 
     public async init(): Promise<void> {
         console.log("[RhythmGame] Initializing...");
+
+        // Detect Mobile Environment Once
+        this.isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        console.log(`[RhythmGame] Environment: ${this.isMobile ? 'Mobile' : 'Desktop'}`);
 
         // Initialize RenderCache FIRST
         this.renderCache = RenderCache.getInstance();
@@ -800,8 +805,7 @@ export class RhythmGame extends BaseGame {
         // Use a thick, cool font
         ctx.font = 'italic 900 60px "Orbitron", sans-serif';
         // shadowBlur is expensive on mobile — only apply on desktop
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (!isMobile) {
+        if (!this.isMobile) {
             ctx.shadowColor = this.lastJudgment.color;
             ctx.shadowBlur = 20;
         }
@@ -1607,7 +1611,9 @@ export class RhythmGame extends BaseGame {
         const timeToReachHitLine = 2000 / this.scrollSpeed;
         const windowStart = currentTime - 500; // Miss buffer
         // EXTENDED DRAW DISTANCE: Look further ahead to catch notes engaging at horizon
-        const windowEnd = currentTime + timeToReachHitLine * 2.0;
+        // Mobile Optimization: Use 1.5x lookahead to save performance, 2.0x for desktop
+        const lookAheadMultiplier = this.isMobile ? 1.5 : 2.0;
+        const windowEnd = currentTime + timeToReachHitLine * lookAheadMultiplier;
 
         // OPTIMIZATION: Advance lastNoteIndex to skip notes that are completely passed
         while (this.lastNoteIndex < this.visualNotes.length) {
