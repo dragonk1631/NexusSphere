@@ -590,7 +590,7 @@ export class RhythmGame extends BaseGame {
         // The player hears the audio outputLatencyMs AFTER the game time.
         // So when they tap "on the beat" they are actually tapping outputLatencyMs late.
         // We shift currentTime forward by outputLatencyMs to compensate.
-        const adjustedTime = currentTime + this.outputLatencyMs;
+        const adjustedTime = currentTime - this.outputLatencyMs;
 
         // JUDGMENT WINDOWS (ms from note center, after latency compensation):
         //   PERFECT: ±50ms  — excellent timing (Relaxed from 40)
@@ -954,9 +954,9 @@ export class RhythmGame extends BaseGame {
         this.comboAnim = 0;
         this.endGameTimer = 0;
 
-        // Dynamic Lead-in (Min 3000ms for smooth entry from top)
+        // Dynamic Lead-in: Start exactly when notes appear at horizon (plus tiny buffer)
         const approachTime = 2000 / this.scrollSpeed;
-        this.preGameTimer = Math.max(3000, approachTime);
+        this.preGameTimer = approachTime + 500; // 0.5s ready time -> then notes appear
 
         this.isAudioStarted = false;
         this.lastNoteIndex = 0;
