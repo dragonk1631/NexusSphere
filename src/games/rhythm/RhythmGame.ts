@@ -1600,7 +1600,8 @@ export class RhythmGame extends BaseGame {
     private renderNotes(currentTime: number): void {
         const timeToReachHitLine = 2000 / this.scrollSpeed;
         const windowStart = currentTime - 500; // Miss buffer
-        const windowEnd = currentTime + timeToReachHitLine;
+        // EXTENDED DRAW DISTANCE: Look further ahead to catch notes engaging at horizon
+        const windowEnd = currentTime + timeToReachHitLine * 2.0;
 
         // OPTIMIZATION: Advance lastNoteIndex to skip notes that are completely passed
         while (this.lastNoteIndex < this.visualNotes.length) {
@@ -1644,6 +1645,13 @@ export class RhythmGame extends BaseGame {
             const noteX = this.getPerspectiveX(note.lane, noteY);
             const noteHeight = 40 * projectedProgress; // Increased from 25
 
+            // FADE-IN LOGIC: Smoothly fade in notes as they emerge from Horizon
+            // Prevents hard pop-in when linearProgress crosses 0.
+            let alpha = 1.0;
+            if (linearProgress < 0.1) {
+                alpha = Math.max(0, linearProgress / 0.1);
+            }
+
             if (note.isHold) {
                 // Determine Tail Position
                 // Recalculate tail time based on simple duration addition for safety/speed
@@ -1654,21 +1662,18 @@ export class RhythmGame extends BaseGame {
                 // Clamp tail to bottom (hit line) if it's passed
                 if (tailProgress > 1) tailProgress = 1;
 
-                // If tail is not yet visible (too far back), clamp to horizon? 
-                // No, projectedProgress handles the horizon. 
-
                 // Calculate Tail Y
                 const pTail = tailProgress / (perspectiveDepth - (perspectiveDepth - 1) * tailProgress);
                 const tailY = this.horizonY + (this.hitLineY - this.horizonY) * pTail;
 
-                this.drawLongNote(note.lane, noteX, noteY, noteWidth, noteHeight, tailY, note.isHolding);
+                this.drawLongNote(note.lane, noteX, noteY, noteWidth, noteHeight, tailY, note.isHolding, alpha);
             } else {
-                this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane);
+                this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane, alpha);
             }
         }
     }
 
-    private drawLongNote(lane: number, headX: number, headY: number, headW: number, headH: number, tailY: number, isHolding: boolean): void {
+    private drawLongNote(lane: number, headX: number, headY: number, headW: number, headH: number, tailY: number, isHolding: boolean, globalAlpha: number = 1.0): void {
         const ctx = this.ctx;
         if (!this.renderCache) return;
 
@@ -1717,7 +1722,7 @@ export class RhythmGame extends BaseGame {
                 alpha = flash;
             }
 
-            ctx.globalAlpha = alpha;
+            ctx.globalAlpha = alpha * globalAlpha;
             ctx.drawImage(bodyImg, 0, 0, bodyImg.width, bodyImg.height, headX, tailY, Math.max(headW, tailW), headY - tailY);
 
             // Use Pre-cached Gradient Fill 
@@ -1760,13 +1765,16 @@ export class RhythmGame extends BaseGame {
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    private drawGelNote(x: number, y: number, w: number, h: number, lane: number): void {
+    private drawGelNote(x: number, y: number, w: number, h: number, lane: number, alpha: number = 1.0): void {
         // High-Performance Cache Rendering
         if (!this.renderCache) return;
 
         const noteImg = this.renderCache.notes[lane];
         if (noteImg) {
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
             this.ctx.drawImage(noteImg, x, y, w, h);
+            this.ctx.restore();
         }
     }
 
