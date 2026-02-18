@@ -137,11 +137,6 @@ export class RhythmGame extends BaseGame {
     // We shift the judgment window forward by 50ms so the player can hit on what they hear.
     private outputLatencyMs: number = 0;
 
-    // SMOOTH AUDIO TIME LOGIC
-    private smoothedTime: number = 0;
-    private lastAudioTime: number = 0;
-    private lastFrameTime: number = 0;
-
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
         // Bind input methods properly
@@ -1262,42 +1257,14 @@ export class RhythmGame extends BaseGame {
     }
 
     public render(): void {
-        const now = performance.now();
         const rawAudioTime = this.audioEngine.getPreciseTime() * 1000;
 
-        // Audio Time Smoothing:
-        // AudioContext time updates in discrete steps (blocks).
-        // We interpolate based on JS frame time to get a smooth visual curve.
-        if (rawAudioTime !== this.lastAudioTime) {
-            // Audio clock advanced -> Resync, but blend to avoid jump
-            const diff = rawAudioTime - this.smoothedTime;
-            // If drift is small (<50ms), lerp. If huge (seek/lag), snap.
-            if (Math.abs(diff) < 50) {
-                this.smoothedTime += diff * 0.1; // Soft catch-up
-            } else {
-                this.smoothedTime = rawAudioTime;
-            }
-            this.lastAudioTime = rawAudioTime;
-        } else {
-            // Audio clock stagnant -> Predict based on JS delta
-            const dt = now - this.lastFrameTime;
-            // Limit prediction to avoid runaway if audio actually stopped
-            if (dt < 100 && this.audioEngine.isPlaying()) {
-                this.smoothedTime += dt;
-            }
-        }
-        this.lastFrameTime = now;
-
-        // Use smoothed time for rendering
-        let currentTime = this.smoothedTime;
+        let currentTime = rawAudioTime;
 
         // CRITICAL FIX: Sync Render Time with Update Logic (Lead-in)
         // If we are in lead-in state, override audio time with negative timer
         if (this.preGameTimer > 0) {
             currentTime = -this.preGameTimer;
-            // Reset smoother during lead-in so it starts fresh
-            this.smoothedTime = 0;
-            this.lastAudioTime = 0;
         }
         const ctx = this.ctx;
         const width = this.canvas.width;
