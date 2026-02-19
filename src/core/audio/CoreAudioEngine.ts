@@ -16,12 +16,13 @@ export class CoreAudioEngine {
     private isResuming: boolean = false;
 
     private constructor() {
-        // Optimization: Use 'interactive' for all platforms to ensure lowest possible latency
+        // Optimization: Use 'balanced' for stutter-free audio on all platforms
+        // 'interactive' is too aggressive and causes buffer underruns (noise) on constrained systems.
         // The engine handles jitter via delta clamping and precise time anchoring.
         this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
-            latencyHint: 'interactive' // Reverted to 'interactive' for better timing precision on mobile
+            latencyHint: 'balanced' // Changed from 'interactive' to reduce noise/stutter
         });
-        console.log(`[CoreAudioEngine] Context initialized with 'playback' latency hint.`);
+        console.log(`[CoreAudioEngine] Context initialized with 'balanced' latency hint.`);
     }
 
     public static getInstance(): CoreAudioEngine {
@@ -551,18 +552,10 @@ export class CoreAudioEngine {
         const elapsed = (performance.now() - this.audioStartedAt) / 1000;
         const gameTime = this.precisePausedTime + elapsed * playbackRate;
 
-        // Prevent time reversal
-        if (gameTime < this.lastReportedTime - 0.005) {
-            return this.lastReportedTime;
-        }
-
-        // Jump guard: mobile touch handlers can block the main thread for 150ms+.
-        // Clamp to max 100ms per frame to prevent a MISS storm after resuming.
-        const jump = gameTime - this.lastReportedTime;
-        if (jump > 0.5) {
-            this.lastReportedTime += 0.1;
-            return this.lastReportedTime;
-        }
+        // Jump Guard Removed (Fix #1)
+        // Allow the game to snap to true time (even if large jump) after a lag spike.
+        // The game logic handles 'miss storms' via a frame-based miss limit.
+        // Blocking the jump here permanently breaks sync with audio.
 
         this.lastReportedTime = gameTime;
         return gameTime;

@@ -598,14 +598,14 @@ export class RhythmGame extends BaseGame {
         const adjustedTime = currentTime - this.outputLatencyMs;
 
         // JUDGMENT WINDOWS (ms from note center, after latency compensation):
-        //   PERFECT: ±50ms  — excellent timing (Relaxed from 40)
-        //   GREAT:   ±100ms — good timing (Relaxed from 80)
-        //   GOOD:    ±150ms — acceptable timing (Relaxed from 120)
-        //   MISS:    >150ms — too late or too early
-        const PERFECT_WINDOW = 50;
-        const GREAT_WINDOW = 100;
-        const GOOD_WINDOW = 150;
-        const hitWindow = 160;
+        //   PERFECT: ±70ms  — excellent timing (Relaxed from 50)
+        //   GREAT:   ±120ms — good timing (Relaxed from 100)
+        //   GOOD:    ±160ms — acceptable timing (Relaxed from 150)
+        //   MISS:    >160ms — too late or too early
+        const PERFECT_WINDOW = 70;
+        const GREAT_WINDOW = 120;
+        const GOOD_WINDOW = 160;
+        const hitWindow = 170;
 
         // Optimization: Windowed Search (O(1) average)
         const candidates: VisualNote[] = [];
@@ -730,7 +730,7 @@ export class RhythmGame extends BaseGame {
     // --- In Update Loop ---
     // We need to check for missed notes
     private updateMissedNotes(currentTime: number): void {
-        const missThreshold = 150; // If note passes by 150ms (GOOD window end), it's a miss
+        const missThreshold = 160; // If note passes by 160ms (GOOD window end), it's a miss
         let missCountThisFrame = 0;
 
         // Optimization: Start from the last checked index (Windowing)
@@ -1023,9 +1023,15 @@ export class RhythmGame extends BaseGame {
                 // may be e.g. 8.7s by the time preGameTimer expires. Pass 0 explicitly.
                 this.audioEngine.seek(0);
                 this.audioEngine.play();
-                this.audioEngine.startPreciseTime(0);  // Always anchor at 0
+
+                // FIX: Sync game time with ACTUAL audio start time.
+                // SpessaSynth skips initial silence (e.g. starts at 3.5s).
+                // We must anchor the game clock to this actual start time, not 0.
+                const actualStartTime = this.audioEngine.currentTime;
+                this.audioEngine.startPreciseTime(actualStartTime);
+
                 this.isAudioStarted = true;
-                currentTime = 0;
+                currentTime = actualStartTime * 1000;
             } else {
                 // Map 2000 -> 0 to -2000 -> 0
                 currentTime = -this.preGameTimer;
@@ -1035,11 +1041,16 @@ export class RhythmGame extends BaseGame {
             console.log("[RhythmGame] Starting Audio immediately (No lead-in).");
             this.outputLatencyMs = this.audioEngine.getOutputLatency() * 1000;
             console.log(`[RhythmGame] Output latency: ${this.outputLatencyMs.toFixed(1)}ms`);
+
             this.audioEngine.seek(0);
             this.audioEngine.play();
-            this.audioEngine.startPreciseTime(0);
+
+            // FIX: Sync here as well
+            const actualStartTime = this.audioEngine.currentTime;
+            this.audioEngine.startPreciseTime(actualStartTime);
+
             this.isAudioStarted = true;
-            currentTime = 0;
+            currentTime = actualStartTime * 1000;
         } else {
             // High-Precision Sync: Get time directly from AudioContext via Engine
             // note: getPreciseTime returns Seconds, convert to MS
