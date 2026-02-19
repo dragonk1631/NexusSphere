@@ -15,6 +15,8 @@ interface ChannelStats {
     avgVelocity: number;
     durationEntropy: number; // Rhythmic variety
     activityRatio: number; // % of song duration covered by notes
+    avgInterval: number; // Detects melodic motion vs wide jumps
+    maxGap: number; // Detects phrasing
 
     // Final Score
     score: number;
@@ -28,7 +30,7 @@ export class MelodyAnalyzer {
      * @returns Array of channel numbers (0-15), sorted by probability (descending)
      */
     public static findMelodyChannels(midi: ParsedMidi): number[] {
-        console.log(`[MelodyAnalyzer] Starting Advanced Analysis...`);
+        console.log(`[MelodyAnalyzer] Starting Advanced Analysis (v2)...`);
 
         const duration = midi.duration || 180; // Default 3 mins if unknown
 
@@ -48,6 +50,8 @@ export class MelodyAnalyzer {
                 avgVelocity: 0,
                 durationEntropy: 0,
                 activityRatio: 0,
+                avgInterval: 0,
+                maxGap: 0,
                 score: 0,
                 scoreDetails: []
             });
@@ -97,18 +101,37 @@ export class MelodyAnalyzer {
             stats.avgPitch = pitches.reduce((a, b) => a + b, 0) / stats.noteCount;
             stats.pitchStdDev = this.calculateStdDev(pitches, stats.avgPitch);
 
-            // B. Polyphony (Chord Detection)
-            // Count how many notes overlap significantly
+            const velocities = stats.notes.map(n => n.velocity);
+            stats.avgVelocity = velocities.reduce((a, b) => a + b, 0) / stats.noteCount;
+
+            // B. Polyphony & Gap Calculation
             let overlapFrames = 0;
+            let totalInterval = 0;
+            let intervalsCount = 0;
+            let maxGap = 0;
+
             for (let i = 0; i < stats.notes.length - 1; i++) {
                 const current = stats.notes[i];
                 const next = stats.notes[i + 1];
-                // If next note starts before current ends (with small buffer), it's a chord/overlap
+
+                // Polyphony Check
                 if (next.time < current.time + current.duration - 0.05) {
                     overlapFrames++;
                 }
+
+                // Interval Check
+                if (next.time > current.time) {
+                    totalInterval += Math.abs(next.midi - current.midi);
+                    intervalsCount++;
+                }
+
+                // Gap Check
+                const gap = next.time - (current.time + current.duration);
+                if (gap > maxGap) maxGap = gap;
             }
             stats.polyphonyRatio = overlapFrames / stats.noteCount;
+            stats.avgInterval = intervalsCount > 0 ? totalInterval / intervalsCount : 0;
+            stats.maxGap = maxGap;
 
             // C. Rhythmic Entropy (Duration Variety)
             const durations = stats.notes.map(n => Math.round(n.duration * 100) / 100); // Quantize to 10ms
