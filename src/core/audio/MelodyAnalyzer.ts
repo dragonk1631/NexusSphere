@@ -217,9 +217,14 @@ export class MelodyAnalyzer {
             details.push("GoodPitchRange +200");
         }
 
-        // 5. Note Count Sweet Spot
-        if (stats.noteCount > 50 && stats.noteCount < 1500) {
-            score += 200;
+        // 5. Note Count Sweet Spot (Updated Phase 3)
+        // Melodies need enough density to be playable.
+        if (stats.noteCount < 100) {
+            score -= 1000; // Too few notes for a rhythm game
+            details.push(`LowNoteCount(${stats.noteCount}) -1000`);
+        } else if (stats.noteCount >= 200 && stats.noteCount <= 1200) {
+            score += 500; // Optimal range
+            details.push("OptimalNoteCount +500");
         } else if (stats.noteCount > 2000) {
             score -= 500; // Too spammy (trills, arpeggios)
             details.push("Spammy -500");
