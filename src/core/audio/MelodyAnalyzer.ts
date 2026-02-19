@@ -146,6 +146,28 @@ export class MelodyAnalyzer {
             analyzedChannels.push(stats);
         });
 
+        // 3.5. First Principle: "Most Notes = Likely Melody" (User Request)
+        // Find the candidate with the highest note count (excluding Drums & Bass)
+        // and give it a massive bonus to maximize probability.
+        let maxNoteCount = -1;
+        let maxNoteCandidate: ChannelStats | null = null;
+
+        analyzedChannels.forEach(c => {
+            // Exclude obvious drums/bass from this contest
+            const isBass = /bass/.test(c.instrumentFamily) || c.avgPitch < 45;
+            if (!c.isDrum && !isBass) {
+                if (c.noteCount > maxNoteCount) {
+                    maxNoteCount = c.noteCount;
+                    maxNoteCandidate = c;
+                }
+            }
+        });
+
+        if (maxNoteCandidate) {
+            (maxNoteCandidate as ChannelStats).score += 2000;
+            (maxNoteCandidate as ChannelStats).scoreDetails.push("FirstPrinciple(MostNotes) +2000");
+        }
+
         // 4. Sort by Score
         analyzedChannels.sort((a, b) => b.score - a.score);
 
