@@ -48,24 +48,31 @@ export class NoteFactory {
         const finalNotes: GameNote[] = [];
 
         // Grid System for Collision Detection (Quantize to 16th note for occupancy check)
-        const ticksPer16th = ppq / 4;
-        const occupiedGrids = new Set<string>(); // Key: "GridIndex"
+        // REFACTOR: Use Precise Range-Based Collision to avoid false positives/negatives
+        interface TickRange { start: number, end: number }
+        const occupiedRanges: TickRange[] = [];
 
-        const getGridIndex = (tick: number) => Math.floor(tick / ticksPer16th);
-
-        // Helper to mark grids as occupied
+        // Helper to mark range as occupied
         const markOccupied = (startTick: number, durationTicks: number) => {
-            const startGrid = getGridIndex(startTick);
-            const endGrid = getGridIndex(startTick + durationTicks);
-            for (let g = startGrid; g <= endGrid; g++) {
-                occupiedGrids.add(g.toString());
-            }
+            // Buffer: reduce duration slightly to allow "perfectly adjacent" notes to flow
+            const buffer = ppq / 8; // 32nd note buffer? No, let's just be precise.
+            // If primary note ends at 100, secondary can start at 100.
+            // Use open-ended interval [start, end) logic effectively.
+            occupiedRanges.push({ start: startTick, end: startTick + durationTicks });
         };
 
-        // Helper to check if a grid is occupied
-        const isRegionBlocked = (startTick: number) => {
-            const grid = getGridIndex(startTick);
-            return occupiedGrids.has(grid.toString());
+        // Helper to check if a range is blocked
+        const isRegionBlocked = (startTick: number, durationTicks: number) => {
+            const myEnd = startTick + durationTicks;
+            // Naive O(N) check - sufficient for chart generation (N is number of primary notes)
+            for (const range of occupiedRanges) {
+                // Check intersection
+                // A start < B end && A end > B start
+                if (startTick < range.end && myEnd > range.start) {
+                    return true;
+                }
+            }
+            return false;
         };
 
         // Helper to add notes
@@ -85,12 +92,13 @@ export class NoteFactory {
             layerNotes.forEach(note => {
                 // 1. Check Collision
                 let isBlocked = false;
+                const noteDuration = note.durationTicks || (ppq / 4);
 
                 if (isPrimary) {
                     // Primary always wins
                 } else {
-                    // Secondary must respect occupied grids
-                    if (isRegionBlocked(note.ticks)) isBlocked = true;
+                    // Secondary must respect occupied ranges
+                    if (isRegionBlocked(note.ticks, noteDuration)) isBlocked = true;
                 }
 
                 // 2. Velocity Filter (Ignore ghost notes < 10% velocity)
@@ -105,8 +113,8 @@ export class NoteFactory {
 
                     finalNotes.push(note);
 
-                    // Mark grids as occupied (crucial for gap filling logic)
-                    markOccupied(note.ticks, note.durationTicks || (ppq / 4));
+                    // Mark range as occupied
+                    markOccupied(note.ticks, noteDuration);
                 }
             });
         };
@@ -114,9 +122,12 @@ export class NoteFactory {
         // LAYER 1: PRIMARY (Sacred)
         addNotesToLayer(primaryCandidates, true);
 
-        // LAYER 2: SECONDARY (Fill Gaps)
+        // LAYER 2+: SECONDARY (Iterative Gap Filling)
+        // Iterate through ALL secondary candidates to fill gaps sequentially
         if (difficulty !== 'EASY') {
-            addNotesToLayer(secondaryCandidates, false);
+            secondaryCandidates.forEach(ch => {
+                addNotesToLayer([ch], false);
+            });
         }
 
         // DEBUG: Verify each required channel has some representation
