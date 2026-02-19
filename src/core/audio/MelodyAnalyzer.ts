@@ -187,19 +187,26 @@ export class MelodyAnalyzer {
         // 5. Gap Filling Logic (Secondary)
         // Find high-scoring channels that play when primary is silent
         const result = [primary.channel];
+        const usedChannels = new Set<number>([primary.channel]);
 
         const secondaryCandidates = analyzedChannels.slice(1);
         if (secondaryCandidates.length > 0) {
+            // A. Try to find a Smart Gap Filler first
             const gapFiller = this.findBestGapFiller(primary, secondaryCandidates);
             if (gapFiller) {
                 console.log(`[MelodyAnalyzer] Gap-Filler Selected: CH ${gapFiller.channel + 1}`);
                 result.push(gapFiller.channel);
+                usedChannels.add(gapFiller.channel);
             }
 
-            // Add a third layer if it's very distinct and high scoring
-            if (secondaryCandidates.length > 2 && secondaryCandidates[1] !== gapFiller && secondaryCandidates[1].score > 1000) {
-                result.push(secondaryCandidates[1].channel);
-            }
+            // B. Fill the rest of the list with high-scoring channels (Fallback)
+            // This ensures NoteFactory always has something to use if it wants to.
+            secondaryCandidates.forEach(c => {
+                if (!usedChannels.has(c.channel)) {
+                    result.push(c.channel);
+                    usedChannels.add(c.channel);
+                }
+            });
         }
 
         return result;
