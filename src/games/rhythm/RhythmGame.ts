@@ -1222,8 +1222,11 @@ export class RhythmGame extends BaseGame {
         }
     }
 
+    private isReturningToEditor = false;
+
     private returnToEditor(): void {
-        if (!this.isTestMode) return;
+        if (!this.isTestMode || this.isReturningToEditor) return;
+        this.isReturningToEditor = true;
 
         console.log("[RhythmGame] Test Mode Finished. Dispatching return to editor...");
 

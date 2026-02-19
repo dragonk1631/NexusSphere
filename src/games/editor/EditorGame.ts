@@ -362,20 +362,29 @@ export class EditorGame extends BaseGame {
 
             // 1. Primary (Main Melody)
             if (rankedChannels.length > 0) {
-                this.gameChannelRoles.set(rankedChannels[0], 'PRIMARY');
-                this.gameChannelIndices.add(rankedChannels[0]);
+                const primaryCh = rankedChannels[0];
+                this.gameChannelRoles.set(primaryCh, 'PRIMARY');
+                this.gameChannelIndices.add(primaryCh);
             }
 
-            // 2. Secondary (Accompaniment - Up to 2 more)
-            for (let i = 1; i < Math.min(3, rankedChannels.length); i++) {
-                this.gameChannelRoles.set(rankedChannels[i], 'SECONDARY');
-                this.gameChannelIndices.add(rankedChannels[i]);
+            // 2. Secondary (Accompaniment)
+            // Automatically assign up to 5 secondary channels if available, ensuring a rich gameplay experience
+            // Skipping the primary channel index (0)
+            for (let i = 1; i < rankedChannels.length; i++) {
+                const ch = rankedChannels[i];
+                // Limit secondary channels to prevent chaos (e.g. max 4 secondary)
+                if (this.gameChannelIndices.size >= 5) break;
+
+                this.gameChannelRoles.set(ch, 'SECONDARY');
+                this.gameChannelIndices.add(ch);
             }
 
-            // 3. Drums (Always includes 9 if present)
+            // 3. Drums (Always includes 9 if present and note count > 0)
+            // Note: MelodyAnalyzer ranking might already include 9 if it had melody-like qualities,
+            // but we explicitly enforce DRUM role for channel 9.
             const drumTrack = this.midiData.tracks.find(t => t.channel === 9);
             if (drumTrack && drumTrack.notes.length > 0) {
-                this.gameChannelRoles.set(9, 'DRUM');
+                this.gameChannelRoles.set(9, 'DRUM'); // Override role if it was set to secondary
                 this.gameChannelIndices.add(9);
             }
 
