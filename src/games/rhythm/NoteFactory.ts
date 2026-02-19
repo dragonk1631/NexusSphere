@@ -55,7 +55,6 @@ export class NoteFactory {
         // Helper to mark range as occupied
         const markOccupied = (startTick: number, durationTicks: number) => {
             // Buffer: reduce duration slightly to allow "perfectly adjacent" notes to flow
-            const buffer = ppq / 8; // 32nd note buffer? No, let's just be precise.
             // If primary note ends at 100, secondary can start at 100.
             // Use open-ended interval [start, end) logic effectively.
             occupiedRanges.push({ start: startTick, end: startTick + durationTicks });
