@@ -248,6 +248,31 @@ export class MelodyAnalyzer {
             details.push("Sparse -500");
         }
 
+        // 8. Velocity (Louder is likely Main)
+        if (stats.avgVelocity > 95) {
+            score += 300;
+            details.push(`HighSustain(${Math.round(stats.avgVelocity)}) +300`);
+        } else if (stats.avgVelocity < 60) {
+            score -= 300;
+            details.push("Quiet -300");
+        }
+
+        // 9. Phrasing (Human melodies breathe)
+        // If the track never stops for more than 0.5s, it's likely a mechanical loop
+        if (stats.maxGap > 2.0) {
+            score += 200; // Has phrasing/breathing room
+            details.push("Phrasing +200");
+        } else if (stats.maxGap < 0.3) {
+            score -= 400; // Continuous stream (machine gun)
+            details.push("NoBreaks -400");
+        }
+
+        // 10. Track Priority (Earlier tracks often main)
+        if (stats.channel <= 3) {
+            score += 100;
+            details.push("EarlyTrack +100");
+        }
+
         stats.score = score;
         stats.scoreDetails = details;
     }
