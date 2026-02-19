@@ -33,7 +33,11 @@ export class NoteFactory {
         } else {
             const rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
             primaryCandidates = rankedChannels.slice(0, 1);
-            secondaryCandidates = []; // Also force empty here for now
+
+            // Gap Filling: Use the next best channel (or specifically identified gap filler)
+            if (rankedChannels.length > 1) {
+                secondaryCandidates = rankedChannels.slice(1, 2);
+            }
         }
 
         const ppq = midi.ppq;
@@ -48,6 +52,21 @@ export class NoteFactory {
         const occupiedGrids = new Set<string>(); // Key: "GridIndex"
 
         const getGridIndex = (tick: number) => Math.floor(tick / ticksPer16th);
+
+        // Helper to mark grids as occupied
+        const markOccupied = (startTick: number, durationTicks: number) => {
+            const startGrid = getGridIndex(startTick);
+            const endGrid = getGridIndex(startTick + durationTicks);
+            for (let g = startGrid; g <= endGrid; g++) {
+                occupiedGrids.add(g.toString());
+            }
+        };
+
+        // Helper to check if a grid is occupied
+        const isRegionBlocked = (startTick: number) => {
+            const grid = getGridIndex(startTick);
+            return occupiedGrids.has(grid.toString());
+        };
 
         // Helper to add notes
         const addNotesToLayer = (channels: number[], isPrimary: boolean) => {
@@ -64,15 +83,14 @@ export class NoteFactory {
 
             // Filter & Add
             layerNotes.forEach(note => {
-                const grid = getGridIndex(note.ticks);
-
                 // 1. Check Collision
                 let isBlocked = false;
 
                 if (isPrimary) {
                     // Primary always wins
                 } else {
-                    if (occupiedGrids.has(grid.toString())) isBlocked = true;
+                    // Secondary must respect occupied grids
+                    if (isRegionBlocked(note.ticks)) isBlocked = true;
                 }
 
                 // 2. Velocity Filter (Ignore ghost notes < 10% velocity)
@@ -86,7 +104,9 @@ export class NoteFactory {
                     }
 
                     finalNotes.push(note);
-                    occupiedGrids.add(grid.toString());
+
+                    // Mark grids as occupied (crucial for gap filling logic)
+                    markOccupied(note.ticks, note.durationTicks || (ppq / 4));
                 }
             });
         };
