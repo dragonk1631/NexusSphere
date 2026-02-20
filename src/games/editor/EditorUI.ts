@@ -19,6 +19,9 @@ export class EditorUI {
     private onTrackVolume: (trackIndex: number, volume: number) => void;
     private onEQChange: (type: 'low' | 'mid' | 'high', val: number) => void;
     private onFXChange: (type: 'reverb' | 'chorus', val: number) => void;
+    private onChannelRoleChange: (channelIndex: number, role: string) => void;
+    private onAutoRolesClick: () => void;
+    private onSaveConfigClick: () => void;
 
     constructor(
         transportHandler: (action: string) => void,
@@ -34,7 +37,10 @@ export class EditorUI {
         volumeHandler: (val: number) => void,
         trackVolumeHandler: (idx: number, vol: number) => void,
         eqHandler: (type: 'low' | 'mid' | 'high', val: number) => void,
-        fxHandler: (type: 'reverb' | 'chorus', val: number) => void
+        fxHandler: (type: 'reverb' | 'chorus', val: number) => void,
+        channelRoleHandler: (channelIndex: number, role: string) => void,
+        autoRolesHandler: () => void,
+        saveConfigHandler: () => void
     ) {
         this.uiManager = UIManager.getInstance();
         this.onTransportClick = transportHandler;
@@ -51,6 +57,9 @@ export class EditorUI {
         this.onTrackVolume = trackVolumeHandler;
         this.onEQChange = eqHandler;
         this.onFXChange = fxHandler;
+        this.onChannelRoleChange = channelRoleHandler;
+        this.onAutoRolesClick = autoRolesHandler;
+        this.onSaveConfigClick = saveConfigHandler;
     }
 
     public show(): void {
@@ -77,6 +86,14 @@ export class EditorUI {
                     </div>
 
                     <div class="extra-tools" style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
+                        <button id="btn-auto-roles" title="Auto Detect Roles" style="background:#2196F3; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            🤖 AUTO ROLES
+                        </button>
+
+                        <button id="btn-save-config" title="Save to LocalStorage" style="background:#FF9800; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            💾 SAVE (LOCAL)
+                        </button>
+
                         <button id="btn-test-play" title="Test Play" style="background:#4CAF50; color:white; border:none; padding:4px 12px; border-radius:4px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:11px;">
                             <span style="font-size:14px;">🎮</span> TEST
                         </button>
@@ -212,6 +229,8 @@ export class EditorUI {
         q('#btn-stop')?.addEventListener('click', () => this.onTransportClick('stop'));
         q('#btn-end')?.addEventListener('click', () => this.onTransportClick('end'));
         q('#btn-test-play')?.addEventListener('click', () => this.onTransportClick('test'));
+        q('#btn-auto-roles')?.addEventListener('click', () => this.onAutoRolesClick());
+        q('#btn-save-config')?.addEventListener('click', () => this.onSaveConfigClick());
 
         q('#btn-fx-eq-toggle')?.addEventListener('click', (e) => {
             const btn = e.currentTarget as HTMLElement;
@@ -487,18 +506,13 @@ export class EditorUI {
                             ${getIcon(channelInfo)}
                         </div>
 
-                        ${gameRoles && gameRoles.has(ch) ? (() => {
-                        const role = gameRoles.get(ch);
-                        let icon = '🎮';
-                        let color = '#fff';
-                        let title = 'Game Channel';
-
-                        if (role === 'PRIMARY') { icon = '👑'; color = '#ffd700'; title = 'Main Melody (Primary)'; }
-                        else if (role === 'SECONDARY') { icon = '🛡️'; color = '#c0c0c0'; title = 'Accompaniment (Secondary)'; }
-                        else if (role === 'DRUM') { icon = '🥁'; color = '#ff4444'; title = 'Rhythm (Drums)'; }
-
-                        return `<div class="game-channel-badge" title="${title}" style="position:absolute; left: 22px; top: 0px; font-size:12px; text-shadow:0 0 5px ${color}; cursor:help;">${icon}</div>`;
-                    })() : ''} 
+                        <select class="channel-role-select" data-index="${ch}" style="background:#222; color:${color}; border:1px solid #444; border-radius:3px; font-size:10px; padding:2px; margin-right:8px; cursor:pointer; outline:none;">
+                            <option value="NONE" ${(!gameRoles || !gameRoles.has(ch)) ? 'selected' : ''}>--</option>
+                            <option value="PRIMARY" ${(gameRoles && gameRoles.get(ch) === 'PRIMARY') ? 'selected' : ''}>👑 PRI</option>
+                            <option value="SECONDARY" ${(gameRoles && gameRoles.get(ch) === 'SECONDARY') ? 'selected' : ''}>🛡️ SEC</option>
+                            <option value="THIRD" ${(gameRoles && gameRoles.get(ch) === 'THIRD') ? 'selected' : ''}>🔸 3RD</option>
+                            <option value="DRUM" ${(gameRoles && gameRoles.get(ch) === 'DRUM') ? 'selected' : ''}>🥁 DRM</option>
+                        </select>
 
                         <div class="track-info-container" style="flex:1; pointer-events:none; display:flex; flex-direction:column; justify-content:center; overflow:hidden;">
                             <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:11px; margin-bottom:0px;">
@@ -529,6 +543,15 @@ export class EditorUI {
                 });
 
                 slider?.addEventListener('mousedown', (e) => e.stopPropagation());
+
+                const roleSelect = div.querySelector('.channel-role-select') as HTMLSelectElement;
+                roleSelect?.addEventListener('change', (e) => {
+                    e.stopPropagation();
+                    const val = (e.target as HTMLSelectElement).value;
+                    this.onChannelRoleChange(ch, val);
+                });
+                roleSelect?.addEventListener('click', (e) => e.stopPropagation());
+                roleSelect?.addEventListener('mousedown', (e) => e.stopPropagation());
 
 
                 div.querySelector('.track-btn-m')?.addEventListener('click', (e) => {

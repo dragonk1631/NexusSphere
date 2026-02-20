@@ -157,6 +157,7 @@ export class EditorGame extends BaseGame {
     private rawMidiBuffer: ArrayBuffer | null = null;
     private gameChannelIndices = new Set<number>();
     private gameChannelRoles = new Map<number, string>(); // Roles: PRIMARY, SECONDARY, DRUM
+    private currentMidiFileName: string = 'test';
 
     // Viewport State
     private scrollX = 0;
@@ -240,7 +241,10 @@ export class EditorGame extends BaseGame {
             (type, val) => {
                 if (type === 'reverb') this.audioEngine.setReverbDepth(val);
                 if (type === 'chorus') this.audioEngine.setChorusDepth(val);
-            }
+            },
+            (channelIndex, role) => this.handleChannelRoleChange(channelIndex, role),
+            () => this.handleAutoRoles(),
+            () => this.handleSaveConfig()
         );
         this.ui.init();
 
@@ -338,6 +342,9 @@ export class EditorGame extends BaseGame {
 
     private async loadMidiFile(name: string, file?: File, existingBuffer?: ArrayBuffer): Promise<void> {
         try {
+            // Ensure we capture the actual filename for localStorage consistency with RhythmGame
+            this.currentMidiFileName = name.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+
             let buffer: ArrayBuffer;
             if (existingBuffer) {
                 buffer = existingBuffer;
@@ -354,38 +361,54 @@ export class EditorGame extends BaseGame {
             await this.audioEngine.loadMidi(buffer);
 
             // --- Game Channel Analysis ---
-            const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
             this.gameChannelIndices.clear();
             this.gameChannelRoles.clear();
 
-            // Default Logic: Primary (1) + Secondary (2) + Drums (9)
+            const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const savedConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
+            let loadedFromLocal = false;
 
-            // 1. Primary (Main Melody)
-            if (rankedChannels.length > 0) {
-                const primaryCh = rankedChannels[0];
-                this.gameChannelRoles.set(primaryCh, 'PRIMARY');
-                this.gameChannelIndices.add(primaryCh);
+            if (savedConfigStr) {
+                try {
+                    const savedConfig = JSON.parse(savedConfigStr);
+                    const channelConfig = savedConfig.channelConfig;
+                    if (channelConfig) {
+                        // JSON beatmap format is 1-indexed, so we subtract 1 for engine's 0-index
+                        channelConfig.primary?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'PRIMARY'); this.gameChannelIndices.add(ch - 1); });
+                        channelConfig.secondary?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'SECONDARY'); this.gameChannelIndices.add(ch - 1); });
+                        channelConfig.third?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'THIRD'); this.gameChannelIndices.add(ch - 1); });
+                        channelConfig.drum?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'DRUM'); this.gameChannelIndices.add(ch - 1); });
+                        loadedFromLocal = true;
+                        console.log(`[EditorGame] Loaded Channel Config from LocalStorage for ${this.midiData.name}`);
+                    }
+                } catch (err) {
+                    console.warn(`[EditorGame] Failed to parse local config:`, err);
+                }
             }
 
-            // 2. Secondary (Accompaniment)
-            // Automatically assign up to 5 secondary channels if available, ensuring a rich gameplay experience
-            // Skipping the primary channel index (0)
-            for (let i = 1; i < rankedChannels.length; i++) {
-                const ch = rankedChannels[i];
-                // Limit secondary channels to prevent chaos (e.g. max 4 secondary)
-                if (this.gameChannelIndices.size >= 5) break;
+            if (!loadedFromLocal) {
+                const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
+                // 1. Primary (Main Melody)
+                if (rankedChannels.length > 0) {
+                    const primaryCh = rankedChannels[0];
+                    this.gameChannelRoles.set(primaryCh, 'PRIMARY');
+                    this.gameChannelIndices.add(primaryCh);
+                }
 
-                this.gameChannelRoles.set(ch, 'SECONDARY');
-                this.gameChannelIndices.add(ch);
-            }
+                // 2. Secondary (Accompaniment)
+                for (let i = 1; i < rankedChannels.length; i++) {
+                    const ch = rankedChannels[i];
+                    if (this.gameChannelIndices.size >= 5) break;
+                    this.gameChannelRoles.set(ch, 'SECONDARY');
+                    this.gameChannelIndices.add(ch);
+                }
 
-            // 3. Drums (Always includes 9 if present and note count > 0)
-            // Note: MelodyAnalyzer ranking might already include 9 if it had melody-like qualities,
-            // but we explicitly enforce DRUM role for channel 9.
-            const drumTrack = this.midiData.tracks.find(t => t.channel === 9);
-            if (drumTrack && drumTrack.notes.length > 0) {
-                this.gameChannelRoles.set(9, 'DRUM'); // Override role if it was set to secondary
-                this.gameChannelIndices.add(9);
+                // 3. Drums
+                const drumTrack = this.midiData.tracks.find(t => t.channel === 9);
+                if (drumTrack && drumTrack.notes.length > 0) {
+                    this.gameChannelRoles.set(9, 'DRUM');
+                    this.gameChannelIndices.add(9);
+                }
             }
 
             console.log(`[EditorGame] Identified Game Channels:`);
@@ -709,12 +732,26 @@ export class EditorGame extends BaseGame {
                             console.log(`[EditorGame] Test Play: Using Solo Channels: ${targetChannels.map(c => c + 1).join(', ')}`);
                         } else {
                             // Find the PRIMARY channel to force NoteFactory to use it
-                            const primaryChannel = Array.from(this.gameChannelRoles.entries())
-                                .find(([_, role]) => role === 'PRIMARY')?.[0];
-                            if (primaryChannel !== undefined) {
-                                targetChannels = [primaryChannel];
-                            }
+                            // --- CHANGED: Do NOT force primary channel anymore ---
+                            // Instead, treat test-mode exactly like normal mode, allowing
+                            // NoteFactory to use secondary channels for gap-filling.
+                            targetChannels = undefined;
                         }
+
+                        // Gather the channelConfig based on gameChannelRoles
+                        const channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } = {
+                            primary: [],
+                            secondary: [],
+                            third: [],
+                            drum: []
+                        };
+
+                        this.gameChannelRoles.forEach((role, ch) => {
+                            if (role === 'PRIMARY') channelConfig.primary.push(ch);
+                            else if (role === 'SECONDARY') channelConfig.secondary.push(ch);
+                            else if (role === 'THIRD') channelConfig.third.push(ch);
+                            else if (role === 'DRUM') channelConfig.drum.push(ch);
+                        });
 
                         GameTransition.set({
                             source: 'editor',
@@ -726,7 +763,8 @@ export class EditorGame extends BaseGame {
                                 soloChannels: new Set(this.soloTrackIndices),
                                 speed: 1.0,
                                 volume: 1.0,
-                                difficulty: this.ui?.getTestDifficulty() || 'NORMAL'
+                                difficulty: this.ui?.getTestDifficulty() || 'NORMAL',
+                                channelConfig: channelConfig
                             }
                         });
                         console.log("[EditorGame] GameTransition set. Dispatching switch-game...");
@@ -789,6 +827,87 @@ export class EditorGame extends BaseGame {
         // Channel index IS the MIDI channel (0-15)
         this.audioEngine.setChannelVolume(channelIndex, volume);
         this.ui?.updateTrackVolumeUI(channelIndex, volume);
+    }
+
+    private handleChannelRoleChange(channelIndex: number, role: string): void {
+        if (role === 'NONE') {
+            this.gameChannelRoles.delete(channelIndex);
+            this.gameChannelIndices.delete(channelIndex);
+        } else {
+            this.gameChannelRoles.set(channelIndex, role);
+            this.gameChannelIndices.add(channelIndex);
+        }
+        this.updateTrackLayout();
+        this.handleSaveConfig(false); // Auto-save silently on change
+    }
+
+    private handleAutoRoles(): void {
+        if (!this.midiData) return;
+
+        // Remove configured layout to rely on defaults again
+        const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        localStorage.removeItem(`beatmap_config_${safeName}`);
+
+        const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
+        this.gameChannelIndices.clear();
+        this.gameChannelRoles.clear();
+
+        if (rankedChannels.length > 0) {
+            this.gameChannelRoles.set(rankedChannels[0], 'PRIMARY');
+            this.gameChannelIndices.add(rankedChannels[0]);
+        }
+
+        for (let i = 1; i < rankedChannels.length; i++) {
+            const ch = rankedChannels[i];
+            if (this.gameChannelIndices.size >= 5) break;
+            this.gameChannelRoles.set(ch, 'SECONDARY');
+            this.gameChannelIndices.add(ch);
+        }
+
+        const drumTrack = this.midiData.tracks.find(t => t.channel === 9);
+        if (drumTrack && drumTrack.notes.length > 0) {
+            this.gameChannelRoles.set(9, 'DRUM');
+            this.gameChannelIndices.add(9);
+        }
+
+        this.updateTrackLayout();
+    }
+
+    private handleSaveConfig(showFeedback: boolean = true): void {
+        if (!this.midiData) return;
+
+        const channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } = {
+            primary: [],
+            secondary: [],
+            third: [],
+            drum: []
+        };
+
+        this.gameChannelRoles.forEach((role, ch) => {
+            if (role === 'PRIMARY') channelConfig.primary.push(ch + 1); // 1-indexed for beatmap standards
+            else if (role === 'SECONDARY') channelConfig.secondary.push(ch + 1);
+            else if (role === 'THIRD') channelConfig.third.push(ch + 1);
+            else if (role === 'DRUM') channelConfig.drum.push(ch + 1);
+        });
+
+        // Collect an array of all game channels for backward compatibility
+        const gameChannels = [...channelConfig.primary, ...channelConfig.secondary, ...channelConfig.third, ...channelConfig.drum];
+
+        const outputData = {
+            version: "1.1",
+            songName: this.currentMidiFileName,
+            bpm: this.midiData.bpm,
+            gameChannels: gameChannels,
+            channelConfig: channelConfig
+        };
+
+        const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        localStorage.setItem(`beatmap_config_${safeName}`, JSON.stringify(outputData));
+        console.log(`[EditorGame] Saved config to localStorage for ${safeName}`);
+
+        if (showFeedback) {
+            alert(`Channel configuration for '${this.midiData.name}' saved to local storage!`);
+        }
     }
 
     private handleWheel(e: WheelEvent): void {

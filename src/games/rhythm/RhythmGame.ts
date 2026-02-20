@@ -865,21 +865,38 @@ export class RhythmGame extends BaseGame {
 
             // 2. Beatmap Check
             const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
-            const beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
 
-            try {
-                console.log(`[RhythmGame] Checking for beatmap at: ${beatmapUrl}`);
-                const res = await fetch(beatmapUrl);
-                const contentType = res.headers.get("content-type");
+            // Check LocalStorage First (User Settings Override)
+            const safeName = midiName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const localConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
 
-                if (res.ok && contentType && contentType.includes("application/json")) {
-                    this.beatmapData = await res.json();
-                    console.log("[RhythmGame] Custom beatmap found and loaded.");
-                } else {
+            if (localConfigStr) {
+                try {
+                    this.beatmapData = JSON.parse(localConfigStr);
+                    console.log(`[RhythmGame] Loaded beatmap config from LocalStorage for ${midiName}`);
+                } catch (e) {
+                    console.warn(`[RhythmGame] Failed to parse local config for ${midiName}`, e);
                     this.beatmapData = null;
                 }
-            } catch (e) {
-                this.beatmapData = null;
+            }
+
+            // If no local override, check server
+            if (!this.beatmapData) {
+                const beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
+                try {
+                    console.log(`[RhythmGame] Checking for beatmap at: ${beatmapUrl}`);
+                    const res = await fetch(beatmapUrl);
+                    const contentType = res.headers.get("content-type");
+
+                    if (res.ok && contentType && contentType.includes("application/json")) {
+                        this.beatmapData = await res.json();
+                        console.log("[RhythmGame] Custom beatmap found and loaded from server.");
+                    } else {
+                        this.beatmapData = null;
+                    }
+                } catch (e) {
+                    this.beatmapData = null;
+                }
             }
         })();
 
@@ -895,20 +912,41 @@ export class RhythmGame extends BaseGame {
 
         if (this.midiData) {
             let forcedChannels: number[] | null = null;
-            if (this.transitionData?.forcedChannels) {
+            let channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } | null = null;
+
+            if (this.transitionData?.settings?.channelConfig) {
+                channelConfig = this.transitionData.settings.channelConfig;
+                console.log(`[RhythmGame] Using Transition ChannelConfig`);
+            } else if (this.transitionData?.forcedChannels) {
                 forcedChannels = this.transitionData.forcedChannels;
+            } else if (this.beatmapData?.channelConfig) {
+                channelConfig = {
+                    // Beatmap JSON is 1-indexed, engine is 0-indexed
+                    primary: this.beatmapData.channelConfig.primary.map((ch: number) => ch - 1),
+                    secondary: this.beatmapData.channelConfig.secondary.map((ch: number) => ch - 1),
+                    third: this.beatmapData.channelConfig.third.map((ch: number) => ch - 1),
+                    drum: this.beatmapData.channelConfig.drum.map((ch: number) => ch - 1)
+                };
+                console.log(`[RhythmGame] Using Beatmap ChannelConfig`);
             } else if (this.beatmapData?.gameChannels && this.beatmapData.gameChannels.length > 0) {
                 forcedChannels = this.beatmapData.gameChannels.map((ch: number) => ch - 1);
                 console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${forcedChannels?.join(', ')}`);
             }
 
-            let difficulty = this.transitionData?.settings?.difficulty || 'NORMAL';
-            if (this.isTestMode && !this.transitionData?.settings?.difficulty) difficulty = 'NORMAL';
+            let difficulty = this.transitionData?.settings?.difficulty;
+
+            // If normal mode and no override applied, use the internal menu's selected difficulty
+            if (!this.isTestMode && !difficulty) {
+                difficulty = this.difficultyOptions[this.selectedDifficultyIndex];
+            }
+
+            // Fallback
+            if (!difficulty) difficulty = 'NORMAL';
 
             // Generate Visual Notes through NoteFactory (Smart Charting inside if forcedChannels is null)
-            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels, difficulty);
+            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels, difficulty, channelConfig);
 
-            console.log(`[RhythmGame] Created ${this.visualNotes.length} notes.`);
+            console.log(`[RhythmGame] Created ${this.visualNotes.length} notes on ${difficulty} difficulty.`);
             if (this.scoreManager) {
                 this.scoreManager.setTotalNotes(this.visualNotes.length);
             }

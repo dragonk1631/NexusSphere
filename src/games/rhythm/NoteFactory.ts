@@ -21,12 +21,28 @@ export interface VisualNote extends GameNote {
 }
 
 export class NoteFactory {
-    public static createNotes(midi: ParsedMidi, laneCount: number = 4, forcedChannels: number[] | null = null, difficulty: string = 'NORMAL'): VisualNote[] {
+    public static createNotes(
+        midi: ParsedMidi,
+        laneCount: number = 4,
+        forcedChannels: number[] | null = null,
+        difficulty: string = 'NORMAL',
+        channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } | null = null
+    ): VisualNote[] {
         // Determine Candidates (Primary, Secondary, Drums)
         let primaryCandidates: number[] = [];
         let secondaryCandidates: number[] = [];
 
-        if (forcedChannels && forcedChannels.length > 0) {
+        if (channelConfig) {
+            primaryCandidates = channelConfig.primary;
+            // Combine secondary and third for gap filling hierarchy
+            secondaryCandidates = [...channelConfig.secondary, ...channelConfig.third];
+
+            // Note: Drums are typically handled separately or interleaved by PatternAnalyzer/LaneAllocator,
+            // but we can pass them in to ensure they get converted to game notes.
+            if (channelConfig.drum.length > 0) {
+                secondaryCandidates.push(...channelConfig.drum);
+            }
+        } else if (forcedChannels && forcedChannels.length > 0) {
             primaryCandidates = forcedChannels;
             // EXCLUSIVE SOLO MODE: Force Secondary to empty
             secondaryCandidates = [];
@@ -34,9 +50,9 @@ export class NoteFactory {
             const rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
             primaryCandidates = rankedChannels.slice(0, 1);
 
-            // Gap Filling: Use the next best channel (or specifically identified gap filler)
+            // Gap Filling: Use all remaining ranked channels (Melody 2, 3, and Drums)
             if (rankedChannels.length > 1) {
-                secondaryCandidates = rankedChannels.slice(1, 2);
+                secondaryCandidates = rankedChannels.slice(1);
             }
         }
 
@@ -61,13 +77,20 @@ export class NoteFactory {
         };
 
         // Helper to check if a range is blocked
-        const isRegionBlocked = (startTick: number, durationTicks: number) => {
+        const isRegionBlocked = (startTick: number, durationTicks: number, isPrimary: boolean) => {
             const myEnd = startTick + durationTicks;
-            // Naive O(N) check - sufficient for chart generation (N is number of primary notes)
+            const overlapTolerance = 60; // Allow up to a 1/32nd note (60 ticks at 480 PPQ) of overlap for legato
+
             for (const range of occupiedRanges) {
-                // Check intersection
-                // A start < B end && A end > B start
-                if (startTick < range.end && myEnd > range.start) {
+                // If it starts at almost exactly the same time, it's a chord on the same layer.
+                // We shouldn't block exact chords here; `RhythmQuantizer` handles chord density logic later.
+                if (!isPrimary && Math.abs(startTick - range.start) < 15) {
+                    continue;
+                }
+
+                // To collide, my start must be significantly before their end
+                // AND my end must be significantly after their start.
+                if (startTick < range.end - overlapTolerance && myEnd > range.start + overlapTolerance) {
                     return true;
                 }
             }
@@ -97,7 +120,7 @@ export class NoteFactory {
                     // Primary always wins
                 } else {
                     // Secondary must respect occupied ranges
-                    if (isRegionBlocked(note.ticks, noteDuration)) isBlocked = true;
+                    if (isRegionBlocked(note.ticks, noteDuration, false)) isBlocked = true;
                 }
 
                 // 2. Velocity Filter (Ignore ghost notes < 10% velocity)
@@ -123,11 +146,26 @@ export class NoteFactory {
 
         // LAYER 2+: SECONDARY (Iterative Gap Filling)
         // Iterate through ALL secondary candidates to fill gaps sequentially
+        const layerStats: { channel: number, added: number }[] = [];
+
         if (difficulty !== 'EASY') {
             secondaryCandidates.forEach(ch => {
+                const before = finalNotes.length;
                 addNotesToLayer([ch], false);
+                const added = finalNotes.length - before;
+                layerStats.push({ channel: ch, added });
             });
         }
+
+        // --- COVERAGE ANALYSIS ---
+        const totalDurationTicks = Math.max(...midi.tracks.flatMap(t => t.notes.map(n => n.ticks + (n.durationTicks || 0))), 1);
+        const occupiedTicks = occupiedRanges.reduce((sum, r) => sum + (r.end - r.start), 0);
+        const coverageRatio = (occupiedTicks / totalDurationTicks) * 100;
+
+        console.log(`[NoteFactory] Coverage Analysis: ${coverageRatio.toFixed(1)}% of song contains notes.`);
+        layerStats.forEach(s => {
+            console.log(`[NoteFactory] -> Gap Filling (Ch ${s.channel + 1}): Added ${s.added} notes.`);
+        });
 
         // DEBUG: Verify each required channel has some representation
         primaryCandidates.forEach((ch: number) => {

@@ -164,50 +164,30 @@ export class MelodyAnalyzer {
         });
 
         if (maxNoteCandidate) {
-            (maxNoteCandidate as ChannelStats).score += 2000;
-            (maxNoteCandidate as ChannelStats).scoreDetails.push("FirstPrinciple(MostNotes) +2000");
+            (maxNoteCandidate as ChannelStats).score += 1000;
+            (maxNoteCandidate as ChannelStats).scoreDetails.push("FirstPrinciple(MostNotes) +1000");
         }
 
-        // 4. Sort by Score
-        analyzedChannels.sort((a, b) => b.score - a.score);
+        // 4. Group by Type and Sort
+        const nonDrums = analyzedChannels.filter(c => !c.isDrum).sort((a, b) => b.score - a.score);
+        const drums = analyzedChannels.filter(c => c.isDrum).sort((a, b) => b.score - a.score);
+
+        // 5. Build Hierarchical Result (Melody 1 -> 2 -> 3 -> Drums)
+        const result: number[] = [];
+
+        // Top 3 Melodic Channels
+        if (nonDrums.length > 0) result.push(nonDrums[0].channel);
+        if (nonDrums.length > 1) result.push(nonDrums[1].channel);
+        if (nonDrums.length > 2) result.push(nonDrums[2].channel);
+
+        // Best Drum Channel (as fallback)
+        if (drums.length > 0) {
+            result.push(drums[0].channel);
+        }
 
         // Debug Output
-        analyzedChannels.slice(0, 5).forEach((c, idx) => {
-            console.log(`[Rank ${idx + 1}] CH ${c.channel + 1} (${c.instrumentFamily}) Score: ${c.score}`);
-            console.log(`   > ${c.scoreDetails.join(' | ')}`);
-        });
-
-        if (analyzedChannels.length === 0) {
-            console.warn("[MelodyAnalyzer] No suitable channels found.");
-            return [];
-        }
-
-        const primary = analyzedChannels[0];
-
-        // 5. Gap Filling Logic (Secondary)
-        // Find high-scoring channels that play when primary is silent
-        const result = [primary.channel];
-        const usedChannels = new Set<number>([primary.channel]);
-
-        const secondaryCandidates = analyzedChannels.slice(1);
-        if (secondaryCandidates.length > 0) {
-            // A. Try to find a Smart Gap Filler first
-            const gapFiller = this.findBestGapFiller(primary, secondaryCandidates);
-            if (gapFiller) {
-                console.log(`[MelodyAnalyzer] Gap-Filler Selected: CH ${gapFiller.channel + 1}`);
-                result.push(gapFiller.channel);
-                usedChannels.add(gapFiller.channel);
-            }
-
-            // B. Fill the rest of the list with high-scoring channels (Fallback)
-            // This ensures NoteFactory always has something to use if it wants to.
-            secondaryCandidates.forEach(c => {
-                if (!usedChannels.has(c.channel)) {
-                    result.push(c.channel);
-                    usedChannels.add(c.channel);
-                }
-            });
-        }
+        console.log(`[Ranked Channels] Melodies: ${nonDrums.map(c => c.channel + 1)}, Drums: ${drums.map(c => c.channel + 1)}`);
+        console.log(`[Final hierarchy] ${result.map(c => c + 1)}`);
 
         return result;
     }
@@ -247,11 +227,11 @@ export class MelodyAnalyzer {
         // 3. Polyphony (Strong Indicator of Accompaniment)
         // Melodies are usually monophonic (ratio < 0.1)
         if (stats.polyphonyRatio > 0.3) {
-            score -= 1500;
-            details.push(`Polyphony(${stats.polyphonyRatio.toFixed(2)}) -1500`);
+            score -= 2500; // Likely Chords/Pads
+            details.push(`Polyphony(${stats.polyphonyRatio.toFixed(2)}) -2500`);
         } else if (stats.polyphonyRatio > 0.1) {
-            score -= 500;
-            details.push("Poly(Mid) -500");
+            score -= 800;
+            details.push("Poly(Mid) -800");
         } else {
             score += 500;
             details.push("Mono +500");
@@ -325,49 +305,17 @@ export class MelodyAnalyzer {
             details.push("EarlyTrack +100");
         }
 
-        stats.score = score;
-        stats.scoreDetails = details;
-    }
-
-    private static findBestGapFiller(primary: ChannelStats, candidates: ChannelStats[]): ChannelStats | null {
-        // Define silent windows for Primary
-        const primaryTimes = primary.notes.map(n => n.time);
-        const gaps: { start: number, end: number }[] = [];
-        const GAP_THRESHOLD = 2.0;
-
-        for (let i = 1; i < primaryTimes.length; i++) {
-            const diff = primaryTimes[i] - primaryTimes[i - 1];
-            if (diff > GAP_THRESHOLD) {
-                gaps.push({ start: primaryTimes[i - 1] + 0.5, end: primaryTimes[i] - 0.5 });
-            }
+        // 11. Melodic Motion (Small intervals = likely melody)
+        if (stats.avgInterval >= 1 && stats.avgInterval <= 4) {
+            score += 500;
+            details.push(`MelodicMotion(${stats.avgInterval.toFixed(1)}) +500`);
+        } else if (stats.avgInterval > 12) {
+            score -= 500; // Likely arpeggiated accompaniment
+            details.push(`ExtremeJumps(${stats.avgInterval.toFixed(1)}) -500`);
         }
 
-        let bestCandidate: ChannelStats | null = null;
-        let bestScore = -Infinity;
-
-        candidates.forEach(c => {
-            // Must have decent musical score (not noise)
-            if (c.score < -1000) return;
-
-            let gapFillingNotes = 0;
-            let overlappingNotes = 0;
-
-            c.notes.forEach(n => {
-                const isInGap = gaps.some(g => n.time >= g.start && n.time <= g.end);
-                if (isInGap) gapFillingNotes++;
-                else overlappingNotes++;
-            });
-
-            // Heavily reward filling gaps, penalize stepping on primary's toes
-            const gapScore = (gapFillingNotes * 3) - (overlappingNotes * 1) + (c.score * 0.1);
-
-            if (gapScore > bestScore && gapFillingNotes > 10) {
-                bestScore = gapScore;
-                bestCandidate = c;
-            }
-        });
-
-        return bestCandidate;
+        stats.score = score;
+        stats.scoreDetails = details;
     }
 
     private static calculateStdDev(values: number[], mean: number): number {
