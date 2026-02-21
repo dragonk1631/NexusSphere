@@ -47,6 +47,7 @@ export class RhythmGame extends BaseGame {
     private songList: SongEntry[] = [
         { name: 'Test Song', url: ASSET_PATHS.AUDIO.MIDI.TEST }
     ];
+    private currentSortMode: 'name' | 'bpm' | 'duration' | 'noteCount' = 'name';
     private selectedSongIndex = 0;
     private previewTimeout: ReturnType<typeof setTimeout> | null = null;
     private speedOptions = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
@@ -71,6 +72,7 @@ export class RhythmGame extends BaseGame {
     private lastCombo = 0;
     private comboAnim = 0; // 0 to 1 anim factor
     private preGameTimer = 0;
+    private targetStartTime = 0; // Target audio start time to sync visuals
     private isAudioStarted = false;
     private bgGradient: CanvasGradient | null = null;
     private lastNoteIndex = 0;
@@ -86,7 +88,7 @@ export class RhythmGame extends BaseGame {
     // Perspective Configuration
     private readonly horizonYRatio = 0.0; // Horizon at top (Maximize Highway)
     private readonly bottomYRatio = 1.0;  // Highway ends at bottom
-    private readonly hitLineYRatio = 0.9; // Hit line near bottom
+    private readonly hitLineYRatio = 0.85; // Hit line moved up slightly to avoid mobile cutoffs
 
     private horizonY = 0;
     private bottomY = 0;
@@ -145,6 +147,9 @@ export class RhythmGame extends BaseGame {
         this.handleTouchStart = this.handleTouchStart.bind(this);
         this.handleTouchMove = this.handleTouchMove.bind(this);
         this.handleTouchEnd = this.handleTouchEnd.bind(this);
+        this.handleMouseDown = this.handleMouseDown.bind(this);
+        this.handleMouseMove = this.handleMouseMove.bind(this);
+        this.handleMouseUp = this.handleMouseUp.bind(this);
 
         // Load Sci-Fi Font
         const fontLink = document.createElement('link');
@@ -230,6 +235,12 @@ export class RhythmGame extends BaseGame {
         this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
         this.canvas.addEventListener('touchend', this.handleTouchEnd, { passive: false });
 
+        // Mouse Support
+        this.canvas.addEventListener('mousedown', this.handleMouseDown);
+        this.canvas.addEventListener('mousemove', this.handleMouseMove);
+        this.canvas.addEventListener('mouseup', this.handleMouseUp);
+        this.canvas.addEventListener('mouseleave', this.handleMouseUp);
+
         // Create Initial Particles
         for (let i = 0; i < 30; i++) {
             this.particles.push({
@@ -266,6 +277,7 @@ export class RhythmGame extends BaseGame {
                 const list = await res.json();
                 if (Array.isArray(list) && list.length > 0) {
                     this.songList = list;
+                    this.sortSongList();
                     console.log(`[RhythmGame] Loaded ${list.length} songs.`);
                 }
             }
@@ -275,6 +287,33 @@ export class RhythmGame extends BaseGame {
 
         // Load Default Song Data (Load first song or selected)
         await this.load();
+    }
+
+    private sortSongList(): void {
+        const previousTargetUrl = this.songList[this.selectedSongIndex]?.url;
+        this.songList.sort((a, b) => {
+            switch (this.currentSortMode) {
+                case 'name':
+                    return a.name.localeCompare(b.name);
+                case 'bpm':
+                    return (b.bpm || 0) - (a.bpm || 0);
+                case 'duration':
+                    return (b.duration || 0) - (a.duration || 0);
+                case 'noteCount':
+                    return (b.noteCount || 0) - (a.noteCount || 0);
+                default:
+                    return a.name.localeCompare(b.name);
+            }
+        });
+
+        // Try to maintain the selection
+        if (previousTargetUrl) {
+            const newIndex = this.songList.findIndex(s => s.url === previousTargetUrl);
+            if (newIndex !== -1) this.selectedSongIndex = newIndex;
+            else this.selectedSongIndex = 0;
+        } else {
+            this.selectedSongIndex = 0;
+        }
     }
 
     // Touch Handling (Pointer-Based)
@@ -291,7 +330,9 @@ export class RhythmGame extends BaseGame {
                 });
             } else {
                 // Normal Mode: Handle menu touch (includes audio unlock for START button)
-                this.handleMenuTouch(e);
+                const touch = e.changedTouches[0];
+                this.touchStartY = touch.clientY;
+                this.handleMenuPointer(touch.clientX, touch.clientY);
             }
             return;
         }
@@ -333,27 +374,123 @@ export class RhythmGame extends BaseGame {
         }
     }
 
-    private handleMenuTouch(e: TouchEvent): void {
-        const touch = e.changedTouches[0]; // Handle single touch for menu
-        this.touchStartY = touch.clientY;
-        const x = touch.clientX;
-        const y = touch.clientY;
+    // Mouse Handling (Pointer-Based)
+    private isMouseDown: boolean = false;
+    private mouseLane: number = -1;
+
+    private handleMouseDown(e: MouseEvent): void {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        if (this.currentState === GameState.MENU) {
+            if (this.isTestMode && this.shouldAutoStart) {
+                this.audioEngine.resume().then(() => {
+                    this.shouldAutoStart = false;
+                    this.start();
+                });
+            } else {
+                this.touchStartY = y;
+                this.handleMenuPointer(x, y);
+            }
+            return;
+        }
+
+        if (this.currentState === GameState.RESULT) {
+            if (this.isTestMode) {
+                this.returnToEditor();
+            } else {
+                this.currentState = GameState.MENU;
+                this.scoreManager?.reset();
+            }
+            return;
+        }
+
+        if (this.preGameTimer > 0) return;
+
+        this.isMouseDown = true;
+        const handlerTime = performance.now();
+        const inputDelay = Math.max(0, Math.min(handlerTime - e.timeStamp, 100));
+        const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - inputDelay;
+
+        const lane = this.getLaneFromTouch(e.clientX, e.clientY);
+        this.mouseLane = lane;
+        if (lane !== -1 && !this.keyState[lane]) {
+            this.keyState[lane] = true;
+            this.checkHit(lane, currentTimeMs);
+        }
+    }
+
+    private handleMouseMove(e: MouseEvent): void {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleY = this.canvas.height / rect.height;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        if (this.currentState === GameState.MENU && this.isMouseDown) {
+            const diffY = y - this.touchStartY;
+            if (Math.abs(diffY) > 50) {
+                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
+                else this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+                this.touchStartY = y;
+                this.playPreview();
+            }
+            return;
+        }
+
+        if (!this.isMouseDown || this.preGameTimer > 0) return;
+
+        const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
+        const newLane = this.getLaneFromTouch(e.clientX, e.clientY);
+        const oldLane = this.mouseLane;
+
+        if (newLane !== oldLane) {
+            if (oldLane !== -1) {
+                this.keyState[oldLane] = false;
+                this.processLaneRelease(oldLane, currentTimeMs);
+            }
+            if (newLane !== -1) {
+                this.keyState[newLane] = true;
+                this.checkHit(newLane, currentTimeMs);
+            }
+            this.mouseLane = newLane;
+        }
+    }
+
+    private handleMouseUp(_e: MouseEvent): void {
+        this.isMouseDown = false;
+        if (this.mouseLane !== -1) {
+            this.keyState[this.mouseLane] = false;
+            this.processLaneRelease(this.mouseLane, this.audioEngine.getPreciseTime() * 1000);
+            this.mouseLane = -1;
+        }
+    }
+
+    private handleMenuPointer(x: number, y: number): void {
         const width = this.canvas.width;
         const height = this.canvas.height;
+        const padding = Math.min(width * 0.02, 20);
 
-        // Layout Config (Must match renderMenu)
-        const padding = 20;
-        const leftPanelWidth = width * 0.45;
+        const leftPanelWidth = width * 0.46;
         const rightPanelX = width * 0.5;
+        const visPanelH = height * 0.48; // Match renderMenu
+        const infoY = visPanelH + padding + 10;
+        const infoH = height - infoY - Math.max(padding, 10);
 
-        // Panel 2: Info & Speed
-        const visPanelH = height * 0.55;
-        const visY = padding;
-        const infoY = visY + visPanelH + padding;
-        const infoH = height - infoY - padding;
-        const speedControlY = infoY + infoH - 50;
+        const listX = rightPanelX;
+        const listY = padding;
+        const listW = width - rightPanelX - padding;
+        const listH = height - 2.5 * padding - 40;
+        const listInnerY = padding + 10;
 
-        if (x > width * 0.7 && y > height * 0.85) {
+        // Button Hitboxes
+        const btnW = Math.max(260, width * 0.2);
+        const btnH = Math.max(65, height * 0.1);
+        const btnX = width - padding - btnW;
+        const btnY = height - padding - btnH;
+
+        if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
             // Stop preview before starting
             if (this.previewTimeout) clearTimeout(this.previewTimeout);
             this.audioEngine.stop();
@@ -367,43 +504,87 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
-        // 2. Check Speed Controls (Bottom Left Panel)
-        // Hitbox around the "SPEED" text and arrows
-        if (x < leftPanelWidth && y > speedControlY - 20 && y < speedControlY + 60) {
-            const centerX = padding + (leftPanelWidth - 2 * padding) * 0.5;
-            if (x < centerX) {
-                // Slower
-                this.selectedSpeedIndex = Math.max(0, this.selectedSpeedIndex - 1);
-            } else {
-                // Faster
-                this.selectedSpeedIndex = Math.min(this.speedOptions.length - 1, this.selectedSpeedIndex + 1);
+        // 2. Check Difficulty & Speed Controls (Row 2 positions)
+        const row2Y = infoY + infoH * 0.52;
+        const statsCenterX = padding + (leftPanelWidth - padding) * 0.5;
+        const hitWidth = 60; // Reasonable tap area for arrows
+        const hitHeight = 50;
+
+        // Difficulty Left/Right
+        const diffX = statsCenterX - leftPanelWidth * 0.2;
+        if (y > row2Y - hitHeight && y < row2Y + hitHeight) {
+            if (Math.abs(x - (diffX - hitWidth)) < hitWidth) {
+                this.selectedDifficultyIndex = Math.max(0, this.selectedDifficultyIndex - 1);
+                this.playPreview();
+                return;
+            } else if (Math.abs(x - (diffX + hitWidth)) < hitWidth) {
+                this.selectedDifficultyIndex = Math.min(this.difficultyOptions.length - 1, this.selectedDifficultyIndex + 1);
+                this.playPreview();
+                return;
             }
-            this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
+        }
+
+        // Speed Left/Right
+        const speedX = statsCenterX + leftPanelWidth * 0.2;
+        if (y > row2Y - hitHeight && y < row2Y + hitHeight) {
+            if (Math.abs(x - (speedX - hitWidth)) < hitWidth) {
+                this.selectedSpeedIndex = Math.max(0, this.selectedSpeedIndex - 1);
+                this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
+                return;
+            } else if (Math.abs(x - (speedX + hitWidth)) < hitWidth) {
+                this.selectedSpeedIndex = Math.min(this.speedOptions.length - 1, this.selectedSpeedIndex + 1);
+                this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
+                return;
+            }
+        }
+
+        // 3. Check Sort Button Hit
+        if (y > listY && y < listY + 30 && x > listX + listW - 100) {
+            const modes: ('name' | 'bpm' | 'duration' | 'noteCount')[] = ['name', 'bpm', 'duration', 'noteCount'];
+            const idx = modes.indexOf(this.currentSortMode);
+            this.currentSortMode = modes[(idx + 1) % modes.length];
+            this.sortSongList();
+            this.playPreview();
             return;
         }
 
-        // 3. Check Song List (Right Panel)
-        const listY = padding;
-        const listH = height - 2 * padding;
-        const listInnerY = listY + 10;
-        const itemHeight = (listH - 20) / 7;
-        const visibleCount = 7;
+        // 4. Check Song List (Click to select immediately)
+        const listHitX = rightPanelX + 10;
+        const listHitMaxX = width - Math.min(width * 0.02, 20) - 10;
+        const visibleCount = Math.floor(listH / (height * 0.08));
+        const itemHeight = (listH - 20) / visibleCount;
+        const maxScrollOffset = Math.max(0, this.songList.length - visibleCount);
 
-        if (x > rightPanelX + 10 && x < width - padding - 10 && y > listInnerY && y < listInnerY + (itemHeight * visibleCount)) {
+        const scrollbarW = 10;
+        const scrollbarX = leftPanelWidth + (width * 0.5 - leftPanelWidth - scrollbarW) / 2;
 
+        // Scrollbar Click Interaction (Padding hitbox with 10 extra pixels around the track for easier touch)
+        if (x >= scrollbarX - 10 && x <= scrollbarX + scrollbarW + 10 && y >= listInnerY && y <= listInnerY + (itemHeight * visibleCount)) {
+            const scrollPercentage = (y - listInnerY) / (itemHeight * visibleCount);
+            const targetVisibleStart = Math.min(maxScrollOffset, Math.max(0, Math.round(scrollPercentage * maxScrollOffset)));
+
+            // Map to the middle of the new visible window
+            this.selectedSongIndex = Math.min(this.songList.length - 1, targetVisibleStart + Math.floor(visibleCount / 2));
+            this.playPreview();
+            return;
+        }
+
+        // List Content Interaction
+        const listContentX = listHitX;
+        if (x > listContentX && x < listHitMaxX && y > listInnerY && y < listInnerY + (itemHeight * visibleCount)) {
             const relativeY = y - listInnerY;
             const clickedIndexOffset = Math.floor(relativeY / itemHeight);
 
-            // Determine start index based on scroll (centering selected but clamped)
-            let startIndex = this.selectedSongIndex - Math.floor(visibleCount / 2);
-            if (startIndex < 0) startIndex = 0;
-            if (startIndex > this.songList.length - visibleCount) startIndex = Math.max(0, this.songList.length - visibleCount);
+            let visibleStartIndex = this.selectedSongIndex - Math.floor(visibleCount / 2);
+            if (visibleStartIndex < 0) visibleStartIndex = 0;
+            if (visibleStartIndex > maxScrollOffset) visibleStartIndex = maxScrollOffset;
 
             if (clickedIndexOffset >= 0 && clickedIndexOffset < visibleCount) {
-                const targetIndex = startIndex + clickedIndexOffset;
+                const targetIndex = visibleStartIndex + clickedIndexOffset;
                 if (targetIndex >= 0 && targetIndex < this.songList.length) {
                     this.selectedSongIndex = targetIndex;
                     this.playPreview();
+                    return; // Prevent fallthrough
                 }
             }
         }
@@ -558,12 +739,7 @@ export class RhythmGame extends BaseGame {
             const handlerTime = performance.now();
             const inputDelay = Math.max(0, Math.min(handlerTime - event.timeStamp, 100));
             const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - inputDelay;
-            const hitNote = this.checkHit(lane, currentTimeMs);
-
-            if (hitNote && hitNote.isHold) {
-                this.holdingLanes[lane] = hitNote;
-                hitNote.isHolding = true;
-            }
+            this.checkHit(lane, currentTimeMs);
         }
     }
 
@@ -666,6 +842,7 @@ export class RhythmGame extends BaseGame {
                 // Long Note Head: Combo Only, No Stats
                 if (this.scoreManager) this.scoreManager.increaseCombo(1);
                 this.showJudgment(judgmentText, judgmentColor);
+                this.holdingLanes[targetNote.lane] = targetNote;
                 targetNote.isHolding = true;
             } else {
                 // Single Note: Full Stats
@@ -996,6 +1173,13 @@ export class RhythmGame extends BaseGame {
         this.comboAnim = 0;
         this.endGameTimer = 0;
 
+        // PRE-CALCULATE AUDIO START TIME:
+        // SpessaSynth skips initial silence automatically. We must find the exact time of the first note
+        // and tell the game to count down towards THAT time, not 0.
+        // Add a slight 50ms margin to give the audio attack room to breathe.
+        const firstNoteTime = this.visualNotes.length > 0 ? this.visualNotes[0].time : 0;
+        this.targetStartTime = Math.max(0, firstNoteTime - 0.05);
+
         // Dynamic Lead-in: Start exactly when notes appear at horizon (plus tiny buffer)
         const approachTime = 2000 / this.scrollSpeed;
         this.preGameTimer = approachTime + 500; // 0.5s ready time -> then notes appear
@@ -1052,27 +1236,27 @@ export class RhythmGame extends BaseGame {
             this.preGameTimer -= delta;
 
             if (this.preGameTimer <= 0) {
-                console.log("[RhythmGame] Lead-in finished. Starting Audio at t=0.");
+                console.log(`[RhythmGame] Lead-in finished. Seeking Audio to target startTime: ${this.targetStartTime.toFixed(3)}s`);
                 // Measure output latency NOW (AudioContext must be running at this point)
                 this.outputLatencyMs = this.audioEngine.getOutputLatency() * 1000;
                 console.log(`[RhythmGame] Output latency: ${this.outputLatencyMs.toFixed(1)}ms`);
-                // Force seek to 0 and anchor game clock at 0.
-                // SpessaSynth auto-plays after loadNewSongList(), so sequencer.currentTime
-                // may be e.g. 8.7s by the time preGameTimer expires. Pass 0 explicitly.
-                this.audioEngine.seek(0);
+
+                // FORCE AUDIO TO SYNC WITH VISUAL TARGET
+                // We seek to the exact time the pregame visual countdown was aiming for.
+                // This eliminates unpredictable jump intervals from SpessaSynth silence skipping.
+                this.audioEngine.seek(this.targetStartTime);
                 this.audioEngine.play();
 
-                // FIX: Sync game time with ACTUAL audio start time.
-                // SpessaSynth skips initial silence (e.g. starts at 3.5s).
-                // We must anchor the game clock to this actual start time, not 0.
                 const actualStartTime = this.audioEngine.currentTime;
                 this.audioEngine.startPreciseTime(actualStartTime);
 
                 this.isAudioStarted = true;
+                // Use actualStartTime going forward in case it varied by a microsecond
                 currentTime = actualStartTime * 1000;
             } else {
-                // Map 2000 -> 0 to -2000 -> 0
-                currentTime = -this.preGameTimer;
+                // Smoothly approach targetStartTime instead of 0
+                // For example, if target is 1750ms and timer is 2500ms -> currentTime = 1750 - 2500 = -750ms
+                currentTime = (this.targetStartTime * 1000) - this.preGameTimer;
             }
         } else if (!this.isAudioStarted) {
             // Safety fallback if preGameTimer was 0 or skipped
@@ -2054,26 +2238,45 @@ export class RhythmGame extends BaseGame {
         const seedColor = this.getSeededColor(currentSong.name);
         const bpm = currentSong.bpm || 120;
 
-        // Layout Config (Responsive)
-        const padding = width * 0.02;
+        // Layout Config (Landscape Only)
+        // Clamp padding to prevent elements from crushing together
+        const padding = Math.min(width * 0.02, 20);
         const leftPanelWidth = width * 0.46;
         const rightPanelX = width * 0.5;
 
         // Panel Sizes
-        const visPanelH = height * 0.52;
-        const listH = height - 2.5 * padding - 40; // Leave room for footer
-        const infoY = visPanelH + 2 * padding;
-        const infoH = height - infoY - 2.5 * padding - 40;
+        const visPanelH = height * 0.48; // Reduced block size to give the info plate more vertical room
+        const infoY = visPanelH + padding + 10; // Tighter padding between the two left panels
+        const infoH = height - infoY - Math.max(padding, 10);
+
+        const listX = rightPanelX;
+        const listY = padding;
+        const listW = width - rightPanelX - padding;
+        const listH = height - 2.5 * padding - 40;
 
         // Draw Holographic Panels
         this.drawHolographicRect(padding, padding, leftPanelWidth - padding, visPanelH, '#00ffff');
         this.drawHolographicRect(padding, infoY, leftPanelWidth - padding, infoH, '#ff00ff');
-        this.drawHolographicRect(rightPanelX, padding, width - rightPanelX - padding, listH, '#ffffff');
+        this.drawHolographicRect(listX, listY, listW, listH, '#ffffff');
 
         // Tech Labels
         this.drawTechLabel("VISUAL_CORE.SYS", padding + 10, padding + 15);
-        this.drawTechLabel("DATA_STREAM.LOG", rightPanelX + 10, padding + 15);
         this.drawTechLabel("SYS.CONFIG", padding + 10, infoY + 15);
+        this.drawTechLabel("DATA_STREAM.LOG", listX + 10, listY + 15);
+
+        // Sort Button Render
+        const sortText = `SORT: ${this.currentSortMode.toUpperCase()}`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#aaa';
+        ctx.font = `bold 10px "Orbitron"`;
+        ctx.fillText(sortText, listX + listW - 10, listY + 15);
+
+        // Draw a subtle border around the sort hit area
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.beginPath();
+        const textWidth = ctx.measureText(sortText).width;
+        ctx.roundRect(listX + listW - 10 - textWidth - 8, listY + 3, textWidth + 16, 18, 4);
+        ctx.stroke();
 
         // --- CONTENT: VISUALIZER ---
         const cx = padding + (leftPanelWidth - padding) * 0.5;
@@ -2106,9 +2309,8 @@ export class RhythmGame extends BaseGame {
         const row1Y = infoY + infoH * 0.22;
         const row2Y = infoY + infoH * 0.52;
         const row3Y = infoY + infoH * 0.82;
-
-        // BPM & Duration (Row 1)
-        const valueSize = Math.max(16, height * 0.035); // Slightly smaller base font for safety
+        // Dynamically scale font to firmly prevent overflowing its row height constraint
+        const valueSize = Math.min(Math.max(12, height * 0.035), infoH * 0.18);
 
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
@@ -2129,13 +2331,13 @@ export class RhythmGame extends BaseGame {
 
         ctx.fillStyle = diffColor;
         ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(currentDiff, statsCenterX - leftPanelWidth * 0.2, row2Y);
+        ctx.fillText(`◀  ${currentDiff}  ▶`, statsCenterX - leftPanelWidth * 0.2, row2Y);
         this.drawTechLabel("DIFFICULTY", statsCenterX - leftPanelWidth * 0.2, row2Y - valueSize * 0.9, 'center');
 
         // Speed (Right)
         ctx.fillStyle = '#ff00ff';
         ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(`x${this.scrollSpeed.toFixed(1)} `, statsCenterX + leftPanelWidth * 0.2, row2Y);
+        ctx.fillText(`◀  x${this.scrollSpeed.toFixed(1)}  ▶`, statsCenterX + leftPanelWidth * 0.2, row2Y);
         this.drawTechLabel("SPEED", statsCenterX + leftPanelWidth * 0.2, row2Y - valueSize * 0.9, 'center');
 
         // High Score / Answer (Row 3 - Centered)
@@ -2147,7 +2349,7 @@ export class RhythmGame extends BaseGame {
 
             ctx.textAlign = 'right';
             ctx.fillStyle = gradeColor;
-            ctx.font = `bold ${valueSize * 1.5}px "Orbitron"`;
+            ctx.font = `bold ${valueSize * 1.2}px "Orbitron"`; // Scaled down from 1.5 for box fitting
             ctx.fillText(highScore.grade, statsCenterX - 15, row3Y);
 
             // Score
@@ -2166,18 +2368,39 @@ export class RhythmGame extends BaseGame {
         }
 
         // --- CONTENT: DATA LIST ---
-        const listInnerX = rightPanelX + 10;
-        const listInnerY = padding + 10;
-        const listInnerW = width - rightPanelX - 2 * padding - 10;
+        const listInnerX = listX + 10;
+        const listInnerY = listY + 10;
+        const listInnerW = listW - 20;
         const visibleCount = Math.floor(listH / (height * 0.08)); // Dynamic item count
         const itemHeight = (listH - 20) / visibleCount;
 
-        ctx.save();
-        ctx.translate(listInnerX, listInnerY);
-
+        const maxScrollOffset = Math.max(0, this.songList.length - visibleCount);
         let visibleStartIndex = this.selectedSongIndex - Math.floor(visibleCount / 2);
         if (visibleStartIndex < 0) visibleStartIndex = 0;
-        if (visibleStartIndex > this.songList.length - visibleCount) visibleStartIndex = Math.max(0, this.songList.length - visibleCount);
+        if (visibleStartIndex > maxScrollOffset) visibleStartIndex = maxScrollOffset;
+
+        // Draw Scrollbar Track & Thumb in the gap between the two panels
+        const scrollbarW = 10;
+        const scrollbarX = leftPanelWidth + (width * 0.5 - leftPanelWidth - scrollbarW) / 2;
+        const scrollbarY = listInnerY;
+        const scrollbarH = itemHeight * visibleCount;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.fillRect(scrollbarX, scrollbarY, scrollbarW, scrollbarH);
+
+        const thumbH = Math.max(30, scrollbarH * (visibleCount / Math.max(1, this.songList.length)));
+        const scrollProgress = maxScrollOffset > 0 ? visibleStartIndex / maxScrollOffset : 0;
+        const thumbY = scrollbarY + scrollProgress * (scrollbarH - thumbH);
+
+        ctx.fillStyle = '#00ffff';
+        ctx.fillRect(scrollbarX, thumbY, scrollbarW, thumbH);
+
+        // Draw List Content
+        const listContentX = listInnerX;
+        const listContentW = listInnerW;
+
+        ctx.save();
+        ctx.translate(listContentX, listInnerY);
 
         for (let i = 0; i < visibleCount; i++) {
             const index = visibleStartIndex + i;
@@ -2191,10 +2414,10 @@ export class RhythmGame extends BaseGame {
             ctx.translate(0, y);
 
             if (isSelected) {
-                this.drawHolographicRect(0, 0, listInnerW, itemHeight - 2, '#00ffff', true);
+                this.drawHolographicRect(0, 0, listContentW, itemHeight - 2, '#00ffff', true);
             } else {
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
-                ctx.fillRect(0, 0, listInnerW, itemHeight - 2);
+                ctx.fillRect(0, 0, listContentW, itemHeight - 2);
             }
 
             // Index
@@ -2207,7 +2430,7 @@ export class RhythmGame extends BaseGame {
             ctx.fillStyle = isSelected ? '#fff' : '#aaa';
             ctx.font = `${isSelected ? 'bold' : ''} ${itemHeight * 0.35}px "Orbitron"`;
             let songTitle = song.name;
-            const maxTitleW = listInnerW * (isSelected ? 0.6 : 0.8);
+            const maxTitleW = listContentW * (isSelected ? 0.6 : 0.8);
             if (ctx.measureText(songTitle).width > maxTitleW) {
                 while (ctx.measureText(songTitle + "...").width > maxTitleW && songTitle.length > 0) {
                     songTitle = songTitle.substring(0, songTitle.length - 1);
@@ -2217,19 +2440,43 @@ export class RhythmGame extends BaseGame {
             ctx.fillText(songTitle, 50, itemHeight * 0.6);
 
             if (isSelected) {
-                this.drawTechLabel("<< ACTIVE", listInnerW - 10, itemHeight * 0.6, 'right');
+                this.drawTechLabel("<< ACTIVE", listContentW - 10, itemHeight * 0.6, 'right');
             }
             ctx.restore();
         }
         ctx.restore();
 
-        // Footer Prompts
-        const footerY = height - 15;
-        ctx.textAlign = 'right';
+        // Footer Prompts / Start Button
+        const btnW = Math.max(260, width * 0.2);
+        const btnH = Math.max(65, height * 0.1);
+        const btnX = width - padding - btnW;
+        const btnY = height - padding - btnH;
+
         const pulse = 0.5 + Math.sin(time * 5) * 0.5;
-        ctx.fillStyle = `rgba(${255 * (1 - pulse)}, 255, 255, ${0.5 + pulse * 0.5})`;
-        ctx.font = `bold ${Math.max(12, height * 0.035)}px "Orbitron"`;
-        ctx.fillText("READY TO SYNC // [START]", width - padding, footerY);
+
+        ctx.save();
+        // Solid Glowing Base
+        ctx.fillStyle = `rgba(0, 255, 136, ${0.4 + pulse * 0.3})`;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#00ff88';
+        ctx.fillRect(btnX, btnY, btnW, btnH);
+
+        // Border
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(btnX, btnY, btnW, btnH);
+
+        // Text Content
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 0; // Clear text
+
+        // Flexible precise sizing to stop overflow
+        const fontSize = Math.min(24, Math.max(16, height * 0.04));
+        ctx.font = `900 ${fontSize}px "Orbitron"`;
+        ctx.fillText("// SYNC START //", btnX + btnW / 2, btnY + btnH / 2);
+        ctx.restore();
     }
     private handleMenuInput(e: KeyboardEvent): void {
         let selectionChanged = false;
@@ -2459,5 +2706,9 @@ export class RhythmGame extends BaseGame {
         this.canvas.removeEventListener('touchstart', this.handleTouchStart);
         this.canvas.removeEventListener('touchmove', this.handleTouchMove);
         this.canvas.removeEventListener('touchend', this.handleTouchEnd);
+        this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+        this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+        this.canvas.removeEventListener('mouseup', this.handleMouseUp);
+        this.canvas.removeEventListener('mouseleave', this.handleMouseUp);
     }
 }

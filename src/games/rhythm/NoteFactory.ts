@@ -39,7 +39,8 @@ export class NoteFactory {
 
             // Note: Drums are typically handled separately or interleaved by PatternAnalyzer/LaneAllocator,
             // but we can pass them in to ensure they get converted to game notes.
-            if (channelConfig.drum.length > 0) {
+            // ONLY ALLOW DRUMS in HARD difficulty
+            if (difficulty === 'HARD' && channelConfig.drum.length > 0) {
                 secondaryCandidates.push(...channelConfig.drum);
             }
         } else if (forcedChannels && forcedChannels.length > 0) {
@@ -53,6 +54,11 @@ export class NoteFactory {
             // Gap Filling: Use all remaining ranked channels (Melody 2, 3, and Drums)
             if (rankedChannels.length > 1) {
                 secondaryCandidates = rankedChannels.slice(1);
+
+                // ONLY ALLOW DRUMS in HARD difficulty (Standard MIDI Drum is Channel 9)
+                if (difficulty !== 'HARD') {
+                    secondaryCandidates = secondaryCandidates.filter(ch => ch !== 9);
+                }
             }
         }
 
@@ -79,7 +85,7 @@ export class NoteFactory {
         // Helper to check if a range is blocked
         const isRegionBlocked = (startTick: number, durationTicks: number, isPrimary: boolean) => {
             const myEnd = startTick + durationTicks;
-            const overlapTolerance = 60; // Allow up to a 1/32nd note (60 ticks at 480 PPQ) of overlap for legato
+            const overlapTolerance = 15; // Require at least 15 ticks of actual overlap to block (allows slight legato)
 
             for (const range of occupiedRanges) {
                 // If it starts at almost exactly the same time, it's a chord on the same layer.
@@ -88,10 +94,19 @@ export class NoteFactory {
                     continue;
                 }
 
-                // To collide, my start must be significantly before their end
-                // AND my end must be significantly after their start.
-                if (startTick < range.end - overlapTolerance && myEnd > range.start + overlapTolerance) {
-                    return true;
+                // Calculate actual overlap duration
+                const overlapStart = Math.max(startTick, range.start);
+                const overlapEnd = Math.min(myEnd, range.end);
+
+                if (overlapEnd > overlapStart) {
+                    const overlapDuration = overlapEnd - overlapStart;
+                    const primaryDuration = range.end - range.start;
+
+                    // To collide, the overlapping region must be larger than our tolerance, 
+                    // OR it completely covers the target short primary note.
+                    if (overlapDuration > overlapTolerance || overlapDuration >= primaryDuration) {
+                        return true;
+                    }
                 }
             }
             return false;

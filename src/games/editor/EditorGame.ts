@@ -6,119 +6,13 @@ import { EditorUI } from './EditorUI';
 import { GameTransition } from '../../core/GameTransition';
 import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
 
-const MIDI_FILES = [
-    'assets/audio/midi/BL_popntwin_level7.mid',
-    'assets/audio/midi/Bloody_Tears.mid',
-    'assets/audio/midi/BublBobl_RK.mid',
-    'assets/audio/midi/CV1-_Vampire_Killer.mid',
-    'assets/audio/midi/Cammy_s.mid',
-    "assets/audio/midi/DOOM - Robert C. Prince - E1M1 - At Doom's Gate.mid",
-    'assets/audio/midi/DanceofGold.mid',
-    'assets/audio/midi/DarkWoods.mid',
-    'assets/audio/midi/ENIX_-_Dragon_Warrior_3_(_Overworld_BGM_).mid',
-    'assets/audio/midi/FF6_The_Fierce_Battle_Xg.mid',
-    'assets/audio/midi/Fighting.mid',
-    'assets/audio/midi/GM01.mid',
-    'assets/audio/midi/GM02.mid',
-    'assets/audio/midi/GM03.mid',
-    'assets/audio/midi/GM04.mid',
-    'assets/audio/midi/GM05.mid',
-    'assets/audio/midi/GM06.mid',
-    'assets/audio/midi/GM07.mid',
-    'assets/audio/midi/GM08.mid',
-    'assets/audio/midi/GM09.mid',
-    'assets/audio/midi/GM10.mid',
-    'assets/audio/midi/GM11.mid',
-    'assets/audio/midi/GokujyoParodius_Stage1.mid',
-    'assets/audio/midi/GokujyoParodius_Stage2.mid',
-    'assets/audio/midi/GokujyoParodius_Stage4.mid',
-    'assets/audio/midi/GokujyoParodius_StageSpecial.mid',
-    'assets/audio/midi/Human1gm.mid',
-    'assets/audio/midi/Human2gm.mid',
-    'assets/audio/midi/HyruleCastlePunkRockRemix.mid',
-    'assets/audio/midi/IoGtown.mid',
-    'assets/audio/midi/Ken2.mid',
-    'assets/audio/midi/One-Winged_Angel.mid',
-    'assets/audio/midi/PNTB_l41.mid',
-    'assets/audio/midi/Parodius_-_Twinbees_Theme.mid',
-    "assets/audio/midi/Pirates of the Caribbean - He's a Pirate (1).mid",
-    'assets/audio/midi/Rage Against the Machine - Killing in the Name Of.mid',
-    'assets/audio/midi/SMWTHEME.mid',
-    'assets/audio/midi/Save_Them.mid',
-    'assets/audio/midi/Stage00000.mid',
-    'assets/audio/midi/Stage00001.mid',
-    'assets/audio/midi/Stage00002.mid',
-    'assets/audio/midi/Stage00003.mid',
-    'assets/audio/midi/Stage00004.mid',
-    'assets/audio/midi/Stage00005.mid',
-    'assets/audio/midi/Stage00006.mid',
-    'assets/audio/midi/Stage00007.mid',
-    'assets/audio/midi/Stage00008.mid',
-    'assets/audio/midi/Stage00009.mid',
-    'assets/audio/midi/Stage00010.mid',
-    'assets/audio/midi/Stage00011.mid',
-    'assets/audio/midi/Stage00012.mid',
-    'assets/audio/midi/Starcraft - Terran Theme 03 MIDI.mid',
-    'assets/audio/midi/Still_More_Fighting.mid',
-    'assets/audio/midi/Terranigma_-_Terranigma_-_Underworld.mid',
-    'assets/audio/midi/Theme_of_Simon.mid',
-    'assets/audio/midi/Trisection-1.mid',
-    'assets/audio/midi/VP_BTL1.mid',
-    'assets/audio/midi/Videogame_Tune_-_Ghouls_and_Ghosts_-_Level_1.mid',
-    'assets/audio/midi/Wicked_Child_1.mid',
-    'assets/audio/midi/Wicked_Child_DMC.mid',
-    'assets/audio/midi/World1-1_Allstars.mid',
-    'assets/audio/midi/Z3LightWorldDungeon_RockRemix.mid',
-    'assets/audio/midi/Zenkusa_-_PopnTwinbee_Level2.mid',
-    'assets/audio/midi/Zenkusa_-_PopnTwinbee_Level5.mid',
-    'assets/audio/midi/ballade-pour-adeline.mid',
-    'assets/audio/midi/begining.mid',
-    'assets/audio/midi/ccoverworld2.mid',
-    'assets/audio/midi/corazonazul_ff6boss.mid',
-    'assets/audio/midi/cv5stg7c.mid',
-    'assets/audio/midi/dw3_bt1.mid',
-    'assets/audio/midi/dw5_town.mid',
-    'assets/audio/midi/exryu.mid',
-    'assets/audio/midi/fe3_main.mid',
-    'assets/audio/midi/ff2bsbtl.mid',
-    'assets/audio/midi/ff6_zozo_v2.mid',
-    'assets/audio/midi/fft_211.mid',
-    'assets/audio/midi/fft_apoplexy.mid',
-    'assets/audio/midi/fftactics-midi_Chapel.mid',
-    'assets/audio/midi/gtgm.mid',
-    'assets/audio/midi/kefka.mid',
-    'assets/audio/midi/livealive-killingfield.mid',
-    'assets/audio/midi/melodies_of_life.mid',
-    'assets/audio/midi/olrox.mid',
-    'assets/audio/midi/overworld.mid',
-    'assets/audio/midi/popntwinbee-staffroll.mid',
-    'assets/audio/midi/popntwinbee-stage3.mid',
-    'assets/audio/midi/popntwinbee-stage6.mid',
-    'assets/audio/midi/requiem_02_[unknown].mid',
-    'assets/audio/midi/ryusfa2mix.MID',
-    'assets/audio/midi/sfa2ken.mid',
-    'assets/audio/midi/sfa2saku.mid',
-    'assets/audio/midi/sfa2zang.mid',
-    'assets/audio/midi/som_maintheme.mid',
-    'assets/audio/midi/stage00013.mid',
-    'assets/audio/midi/stage00014.mid',
-    'assets/audio/midi/stage00015.mid',
-    'assets/audio/midi/sti1.mid',
-    'assets/audio/midi/super_mario_world_pops_remix.mid',
-    'assets/audio/midi/supertwinbeestage1.mid',
-    'assets/audio/midi/t_ogre15.mid',
-    'assets/audio/midi/teso_01.mid',
-    'assets/audio/midi/teso_02.mid',
-    'assets/audio/midi/test.mid',
-    'assets/audio/midi/waopen.mid',
-    'assets/audio/midi/wins1.mid',
-    'assets/audio/midi/z3boss.mid',
-    'assets/audio/midi/z3lightw.mid',
-    'assets/audio/midi/zb_smw_rockroll2.mid',
-    'assets/audio/midi/백조의호수.mid',
-    'assets/audio/midi/에어울프.mid',
-    'assets/audio/midi/터키행진곡.mid',
-];
+export interface SongEntry {
+    name: string;
+    url: string;
+    bpm?: number;
+    duration?: number;
+    noteCount?: number;
+}
 
 interface ChannelData {
     channel: number;
@@ -158,6 +52,11 @@ export class EditorGame extends BaseGame {
     private gameChannelIndices = new Set<number>();
     private gameChannelRoles = new Map<number, string>(); // Roles: PRIMARY, SECONDARY, DRUM
     private currentMidiFileName: string = 'test';
+    private currentMidiFileUrl: string = ''; // Keep track of the actual URL exactly as passed
+
+    // Song List State
+    private songList: SongEntry[] = [];
+    private currentSortMode: string = 'name';
 
     // Viewport State
     private scrollX = 0;
@@ -244,7 +143,8 @@ export class EditorGame extends BaseGame {
             },
             (channelIndex, role) => this.handleChannelRoleChange(channelIndex, role),
             () => this.handleAutoRoles(),
-            () => this.handleSaveConfig()
+            () => this.handleSaveConfig(),
+            (sortBy) => this.handleSortChange(sortBy)
         );
         this.ui.init();
 
@@ -299,8 +199,24 @@ export class EditorGame extends BaseGame {
         // 2. Init Audio
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
+        // Fetch Song List
+        try {
+            const res = await fetch('assets/data/midi_list.json');
+            if (res.ok) {
+                const list = await res.json();
+                if (Array.isArray(list) && list.length > 0) {
+                    this.songList = list;
+                    console.log(`[EditorGame] Loaded ${list.length} songs.`);
+                }
+            }
+        } catch (e) {
+            console.warn('[EditorGame] Failed to load song list.', e);
+        }
+
+        this.sortSongList();
+
         // 3. Populate MIDI Selector
-        this.ui?.populateMidiSelector(MIDI_FILES);
+        this.ui?.populateMidiSelector(this.songList);
 
         const trackPanel = document.getElementById('track-list-panel');
         if (trackPanel) {
@@ -322,9 +238,37 @@ export class EditorGame extends BaseGame {
             return;
         }
 
-        if (MIDI_FILES.length > 0) {
-            await this.loadMidiFile(MIDI_FILES[0]);
+        if (this.songList.length > 0) {
+            await this.loadMidiFile(this.songList[0].url);
             this.ui?.show();
+        }
+    }
+
+    private sortSongList(): void {
+        this.songList.sort((a, b) => {
+            switch (this.currentSortMode) {
+                case 'name':
+                    return a.name.localeCompare(b.name);
+                case 'bpm':
+                    return (b.bpm || 0) - (a.bpm || 0);
+                case 'duration':
+                    return (b.duration || 0) - (a.duration || 0);
+                case 'noteCount':
+                    return (b.noteCount || 0) - (a.noteCount || 0);
+                default:
+                    return a.name.localeCompare(b.name);
+            }
+        });
+    }
+
+    private handleSortChange(sortBy: string): void {
+        this.currentSortMode = sortBy;
+        this.sortSongList();
+        this.ui?.populateMidiSelector(this.songList);
+
+        // Ensure the currently active file is still selected in the dropdown
+        if (this.currentMidiFileUrl) {
+            this.ui?.setSelectedMidi(this.currentMidiFileUrl);
         }
     }
 
@@ -342,6 +286,7 @@ export class EditorGame extends BaseGame {
 
     private async loadMidiFile(name: string, file?: File, existingBuffer?: ArrayBuffer): Promise<void> {
         try {
+            this.currentMidiFileUrl = name;
             // Ensure we capture the actual filename for localStorage consistency with RhythmGame
             this.currentMidiFileName = name.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
 
@@ -756,7 +701,7 @@ export class EditorGame extends BaseGame {
                         GameTransition.set({
                             source: 'editor',
                             midiBuffer: this.rawMidiBuffer!,
-                            midiName: this.midiData?.name || 'Test Song',
+                            midiName: this.currentMidiFileUrl || this.midiData?.name || 'Test Song',
                             forcedChannels: targetChannels,
                             settings: {
                                 mutedChannels: new Set(this.mutedTrackIndices),

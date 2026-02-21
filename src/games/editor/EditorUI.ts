@@ -22,6 +22,7 @@ export class EditorUI {
     private onChannelRoleChange: (channelIndex: number, role: string) => void;
     private onAutoRolesClick: () => void;
     private onSaveConfigClick: () => void;
+    private onSortChange: (sortBy: string) => void;
 
     constructor(
         transportHandler: (action: string) => void,
@@ -40,7 +41,8 @@ export class EditorUI {
         fxHandler: (type: 'reverb' | 'chorus', val: number) => void,
         channelRoleHandler: (channelIndex: number, role: string) => void,
         autoRolesHandler: () => void,
-        saveConfigHandler: () => void
+        saveConfigHandler: () => void,
+        sortHandler: (sortBy: string) => void
     ) {
         this.uiManager = UIManager.getInstance();
         this.onTransportClick = transportHandler;
@@ -60,6 +62,7 @@ export class EditorUI {
         this.onChannelRoleChange = channelRoleHandler;
         this.onAutoRolesClick = autoRolesHandler;
         this.onSaveConfigClick = saveConfigHandler;
+        this.onSortChange = sortHandler;
     }
 
     public show(): void {
@@ -79,6 +82,12 @@ export class EditorUI {
                             📂
                             <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none;">
                         </label>
+                        <select id="editor-sort" style="background:#000; color:#fff; border:1px solid #333; padding:4px 8px; border-radius:3px; outline:none; font-size:11px; margin-left: 5px; max-width:110px;">
+                            <option value="name">Sort: Name</option>
+                            <option value="bpm">Sort: BPM</option>
+                            <option value="duration">Sort: Length</option>
+                            <option value="noteCount">Sort: Notes</option>
+                        </select>
                         <button class="refresh-btn" id="btn-refresh" title="Refresh List" style="background:#333; border:1px solid #444; color:#fff; width:28px; height:28px; border-radius:4px; cursor:pointer;">🔄</button>
                         <select id="midi-selector" style="background:#000; color:#fff; border:1px solid #333; padding:4px 8px; border-radius:3px; outline:none; font-size:11px; max-width:150px;">
                             <option value="">-- No Folder --</option>
@@ -255,6 +264,11 @@ export class EditorUI {
             if (files) this.onFolderSelect(files);
         });
 
+        q('#editor-sort')?.addEventListener('change', (e) => {
+            const select = e.target as HTMLSelectElement;
+            this.onSortChange(select.value);
+        });
+
         q('#midi-selector')?.addEventListener('change', (e) => {
             const select = e.target as HTMLSelectElement;
             const filename = select.value;
@@ -327,7 +341,7 @@ export class EditorUI {
         }
     }
 
-    public populateMidiSelector(files: string[] | File[]): void {
+    public populateMidiSelector(files: any[] | File[]): void {
         const selector = document.getElementById('midi-selector') as HTMLSelectElement;
         if (!selector) return;
         selector.innerHTML = '<option value="">-- Choose MIDI --</option>';
@@ -342,10 +356,17 @@ export class EditorUI {
                 selector.appendChild(option);
             });
         } else {
-            (files as string[]).forEach(file => {
+            files.forEach(file => {
                 const option = document.createElement('option');
-                option.value = file;
-                option.textContent = file.split('/').pop() || file;
+                if (typeof file === 'string') {
+                    option.value = file;
+                    option.textContent = file.split('/').pop() || file;
+                } else if (file) {
+                    option.value = file.url;
+                    let text = file.name || file.url.split('/').pop();
+                    if (file.bpm) text += ` [${Math.round(file.bpm)} BPM]`;
+                    option.textContent = text;
+                }
                 selector.appendChild(option);
             });
         }
