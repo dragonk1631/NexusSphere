@@ -139,6 +139,11 @@ export class RhythmGame extends BaseGame {
     // We shift the judgment window forward by 50ms so the player can hit on what they hear.
     private outputLatencyMs: number = 0;
 
+    // Silence Skipping Compensation
+    // Some synthesizers (SpessaSynth) skip leading silence in MIDI files.
+    // effectiveStartTime stores the ACTUAL position where audio playback starts.
+    private effectiveStartTime: number = 0;
+
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
         // Bind input methods properly
@@ -934,6 +939,7 @@ export class RhythmGame extends BaseGame {
             }
 
             // 3. Process Miss logic if time condition met
+            // currentTime already has latency compensated in the update loop
             if (currentTime > noteTimeMs + missThreshold) {
                 // Double check processed state (though loop header handles it, the continue above handles processed ones)
                 if (!note.isProcessed && !note.isHolding) {
@@ -1155,7 +1161,16 @@ export class RhythmGame extends BaseGame {
             // Only start if explicitly requested (e.g. from Menu — NOT test mode, which waits for touch)
             if (this.midiData && this.shouldAutoStart && !this.isTestMode) {
                 this.shouldAutoStart = false; // Reset
-                this.start();
+
+                // MAIN MODE SYNC FIX:
+                // SpessaSynth's AudioWorklet takes a few milliseconds to process the MIDI 
+                // asynchronously after `loadMidi()`. If we `start()` and `seek(0)` instantly,
+                // the worklet hasn't initialized the lead-in/silence skipping, returning 0
+                // for `effectiveStartTime`. We wait 150ms before starting to guarantee sync.
+                console.log("[RhythmGame] Delaying start() by 150ms to allow AudioWorklet init...");
+                setTimeout(() => {
+                    this.start();
+                }, 150);
             }
         }
     }
@@ -1173,12 +1188,17 @@ export class RhythmGame extends BaseGame {
         this.comboAnim = 0;
         this.endGameTimer = 0;
 
-        // PRE-CALCULATE AUDIO START TIME:
-        // SpessaSynth skips initial silence automatically. We must find the exact time of the first note
-        // and tell the game to count down towards THAT time, not 0.
-        // Add a slight 50ms margin to give the audio attack room to breathe.
-        const firstNoteTime = this.visualNotes.length > 0 ? this.visualNotes[0].time : 0;
-        this.targetStartTime = Math.max(0, firstNoteTime - 0.05);
+        // Always start the target at 0 so we don't skip intro music and avoid seek de-sync
+        this.targetStartTime = 0;
+
+        // DRY SEEK: Detect if the synthesizer will skip leading silence (common in SpessaSynth)
+        // By seeking now, we can see where the playhead ACTUALLY lands.
+        this.audioEngine.seek(this.targetStartTime);
+        this.effectiveStartTime = this.audioEngine.currentTime;
+        console.log(`[RhythmGame] Dry Seek: Target ${this.targetStartTime}s -> Effective ${this.effectiveStartTime}s`);
+
+        // Pre-calculate latency early
+        this.outputLatencyMs = this.audioEngine.getOutputLatency() * 1000;
 
         // Dynamic Lead-in: Start exactly when notes appear at horizon (plus tiny buffer)
         const approachTime = 2000 / this.scrollSpeed;
@@ -1196,6 +1216,11 @@ export class RhythmGame extends BaseGame {
     }
 
     public update(delta: number): void {
+        // Prevent massive time jumps due to lag spikes (e.g. initialization lag, tab backgrounding).
+        // If delta is excessively large, cap it to a standard frame duration (16ms) to keep visual 
+        // countdowns like preGameTimer smooth and prevent notes from teleporting mid-screen on start.
+        if (delta > 100) delta = 16;
+
         // FPS Calculation (counted here, displayed via main.ts global overlay)
         const now = performance.now();
         if (now - this.lastFpsTime >= 1000) {
@@ -1251,12 +1276,14 @@ export class RhythmGame extends BaseGame {
                 this.audioEngine.startPreciseTime(actualStartTime);
 
                 this.isAudioStarted = true;
-                // Use actualStartTime going forward in case it varied by a microsecond
-                currentTime = actualStartTime * 1000;
+                // Use actualStartTime going forward in case it varied by a microsecond.
+                // Apply outputLatencyMs here as well to match the subsequent loop frames.
+                currentTime = (actualStartTime * 1000) - this.outputLatencyMs;
             } else {
-                // Smoothly approach targetStartTime instead of 0
-                // For example, if target is 1750ms and timer is 2500ms -> currentTime = 1750 - 2500 = -750ms
-                currentTime = (this.targetStartTime * 1000) - this.preGameTimer;
+                // Unified visualTime Formula:
+                // Align the countdown to end exactly at (effectiveStartTime - outputLatencyMs).
+                // This ensures the visual notes are exactly where the audio will be heard.
+                currentTime = (this.effectiveStartTime * 1000 - this.outputLatencyMs) - this.preGameTimer;
             }
         } else if (!this.isAudioStarted) {
             // Safety fallback if preGameTimer was 0 or skipped
@@ -1272,11 +1299,10 @@ export class RhythmGame extends BaseGame {
             this.audioEngine.startPreciseTime(actualStartTime);
 
             this.isAudioStarted = true;
-            currentTime = actualStartTime * 1000;
+            currentTime = (actualStartTime * 1000) - this.outputLatencyMs;
         } else {
-            // High-Precision Sync: Get time directly from AudioContext via Engine
-            // note: getPreciseTime returns Seconds, convert to MS
-            currentTime = this.audioEngine.getPreciseTime() * 1000;
+            // Offset by outputLatencyMs so visual/miss logic aligns with what user hears
+            currentTime = (this.audioEngine.getPreciseTime() * 1000) - this.outputLatencyMs;
 
             // Mobile Anti-Reversal: Never let game time go backwards
             if (currentTime < this.lastRenderTime - 5) {
@@ -1349,8 +1375,9 @@ export class RhythmGame extends BaseGame {
         // Optimized Explosion Update (Swap-and-Pop)
         for (let i = this.explosions.length - 1; i >= 0; i--) {
             const exp = this.explosions[i];
-            exp.radius += 2;
-            exp.alpha -= 0.05;
+            exp.radius += 4; // Expand faster
+            exp.alpha -= 0.08; // Fade faster for quick "pop"
+
 
             if (exp.alpha <= 0) {
                 // Replace current with last and pop
@@ -1495,12 +1522,14 @@ export class RhythmGame extends BaseGame {
     public render(): void {
         const rawAudioTime = this.audioEngine.getPreciseTime() * 1000;
 
-        let currentTime = rawAudioTime;
+        // Delay visual rendering by outputLatencyMs so note reaches bottom exactly when audio hits speaker
+        // Use the raw actual game time (without lead-in override yet)
+        let currentTime = rawAudioTime - this.outputLatencyMs;
 
-        // CRITICAL FIX: Sync Render Time with Update Logic (Lead-in)
-        // If we are in lead-in state, override audio time with negative timer
         if (this.preGameTimer > 0) {
-            currentTime = -this.preGameTimer;
+            // UNIFIED SYNC: Matches update() loop's lead-in calculation exactly.
+            // (Target start point - latency offset) minus remaining countdown.
+            currentTime = (this.effectiveStartTime * 1000 - this.outputLatencyMs) - this.preGameTimer;
         }
         const ctx = this.ctx;
         const width = this.canvas.width;
@@ -1569,8 +1598,8 @@ export class RhythmGame extends BaseGame {
             if (note) this.drawLaneBeam(lane);
         });
 
-        // 3. Draw Hit Zone (Glowing Pads)
-        this.renderHitZone();
+        // 3. Draw Hit Zone (Glowing Pads & Pulse)
+        this.renderHitZone(currentTime);
         const _p2 = performance.now();
 
         // 4. Render Notes
@@ -1637,25 +1666,26 @@ export class RhythmGame extends BaseGame {
             ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y); ctx.lineTo(br.x, br.y);
             ctx.fill();
 
-            // Road (Electric Cyber Mix)
+            // Road (Cyberpunk DJMax Style)
+            // Brighter, more vibrant, less muddy
             const roadGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-            roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.9)');
-            roadGrad.addColorStop(0.5, 'rgba(30, 10, 60, 0.8)'); // Purple hint
-            roadGrad.addColorStop(1, 'rgba(20, 20, 80, 0.95)');  // Vibrant deep blue
+            roadGrad.addColorStop(0, 'rgba(0, 10, 30, 0.95)');
+            roadGrad.addColorStop(0.5, 'rgba(10, 30, 80, 0.9)');
+            roadGrad.addColorStop(1, 'rgba(0, 50, 120, 0.95)');  // Vibrant bright blue
             ctx.fillStyle = roadGrad;
             ctx.beginPath();
             ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
             ctx.fill();
 
-            // Dividers
-            ctx.lineWidth = 1; // Thinned from 2
+            // Dividers (Brighter and stronger)
+            ctx.lineWidth = 2; // Increased back to 2 for pop
             for (let i = 1; i < this.laneCount; i++) {
                 const topX = this.getPerspectiveX(i, this.horizonY);
                 const botX = this.getPerspectiveX(i, this.bottomY);
                 const divGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
                 divGrad.addColorStop(0, 'rgba(0, 255, 255, 0)');
-                divGrad.addColorStop(0.5, 'rgba(0, 255, 255, 0.5)');
-                divGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                divGrad.addColorStop(0.3, 'rgba(0, 255, 255, 0.8)'); // Brighter earlier
+                divGrad.addColorStop(1, 'rgba(255, 255, 255, 0.5)'); // White near player
                 ctx.strokeStyle = divGrad;
                 ctx.beginPath();
                 ctx.moveTo(topX, this.horizonY); ctx.lineTo(botX, this.bottomY);
@@ -1805,22 +1835,64 @@ export class RhythmGame extends BaseGame {
 
         if (!particleImg) return;
 
+        ctx.save();
+        // Additive blending for that extremely bright, overlapping "pop" effect
+        ctx.globalCompositeOperation = 'lighter';
+
         this.explosions.forEach(exp => {
-            ctx.save();
-            ctx.globalAlpha = exp.alpha;
             // Draw cached glow particle
-            const size = exp.radius * 4;
+            ctx.globalAlpha = exp.alpha * 1.5; // Boost alpha slightly due to additive blending
+            const size = exp.radius * 6; // Larger initial burst
             ctx.translate(exp.x, exp.y);
             ctx.drawImage(particleImg, -size / 2, -size / 2, size, size);
-            ctx.restore();
+
+            // Draw a second tight core for intense brightness
+            const coreSize = size * 0.4;
+            ctx.globalAlpha = exp.alpha;
+            ctx.drawImage(particleImg, -coreSize / 2, -coreSize / 2, coreSize, coreSize);
+
+            ctx.translate(-exp.x, -exp.y); // Reset translate instead of rapid save/restore
         });
+        ctx.restore();
     }
 
-    private renderHitZone(): void {
+    private renderHitZone(currentTime: number): void {
         const ctx = this.ctx;
+        const width = this.canvas.width;
+
+        // --- GLOBAL HIT ZONE PULSE (BPM Sync) ---
+        // Assuming 120 BPM average (500ms per beat) for consistent pulsing if we don't have exact live BPM easily available here
+        const beatCycle = (currentTime % 500) / 500; // 0.0 to 1.0
+        // Quick flash on beat, slow fade
+        const pulseAlpha = Math.max(0, 1 - (beatCycle * 1.5));
+
+        ctx.save();
+        if (!this.isMobile) {
+            // Draw a glowing energy band behind the hit zone
+            const bandHeight = 70;
+            const bandGrad = ctx.createLinearGradient(0, this.hitLineY - bandHeight / 2, 0, this.hitLineY + bandHeight / 2);
+            bandGrad.addColorStop(0, 'rgba(0, 255, 255, 0)');
+            bandGrad.addColorStop(0.5, `rgba(0, 255, 255, ${0.1 + pulseAlpha * 0.3})`);
+            bandGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+
+            ctx.fillStyle = bandGrad;
+            ctx.fillRect(0, this.hitLineY - bandHeight / 2, width, bandHeight);
+
+            // Strong glowing line directly under the hit zone
+            ctx.strokeStyle = `rgba(0, 255, 255, ${0.5 + pulseAlpha * 0.5})`;
+            ctx.lineWidth = 2 + pulseAlpha * 3;
+            ctx.shadowBlur = 10 + pulseAlpha * 20;
+            ctx.shadowColor = '#00ffff';
+            ctx.beginPath();
+            ctx.moveTo(0, this.hitLineY + 25); // Center of hit zones
+            ctx.lineTo(width, this.hitLineY + 25);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
         for (let i = 0; i < this.laneCount; i++) {
-            const width = this.getPerspectiveWidth(this.hitLineY);
-            const height = 50; // Increased from 35 for better visibility
+            const laneWidth = this.getPerspectiveWidth(this.hitLineY);
+            const height = 50;
             const x = this.getPerspectiveX(i, this.hitLineY);
             const colorSet = this.COLORS.LANES[i] || this.COLORS.LANES[0];
             const baseColor = colorSet[1];
@@ -1828,34 +1900,34 @@ export class RhythmGame extends BaseGame {
             if (this.keyState[i]) {
                 ctx.fillStyle = baseColor;
                 ctx.strokeStyle = '#fff';
-                // shadowBlur is extremely expensive on mobile (CPU fallback on Android)
+                // shadowBlur is extremely expensive on mobile
                 if (!this.isMobile) {
-                    ctx.shadowBlur = 10;
+                    ctx.shadowBlur = 15;
                     ctx.shadowColor = baseColor;
                 }
                 ctx.beginPath();
-                ctx.roundRect(x, this.hitLineY, width, height, height / 3);
+                ctx.roundRect(x, this.hitLineY, laneWidth, height, height / 3);
                 ctx.fill();
                 ctx.stroke();
                 ctx.shadowBlur = 0;
             } else {
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + pulseAlpha * 0.3})`;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // slightly darker for contrast
                 ctx.shadowBlur = 0;
                 ctx.beginPath();
-                ctx.roundRect(x, this.hitLineY, width, height, height / 3);
+                ctx.roundRect(x, this.hitLineY, laneWidth, height, height / 3);
                 ctx.fill();
                 ctx.stroke();
                 if (!this.isMobile) {
                     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
                     ctx.lineWidth = 1;
                     ctx.beginPath();
-                    ctx.roundRect(x + 4, this.hitLineY + 4, width - 8, height - 8, height / 3);
+                    ctx.roundRect(x + 4, this.hitLineY + 4, laneWidth - 8, height - 8, height / 3);
                     ctx.stroke();
                 }
             }
         }
-        ctx.shadowBlur = 0;
+        ctx.restore();
     }
 
     private renderNotes(currentTime: number): void {
@@ -1906,7 +1978,8 @@ export class RhythmGame extends BaseGame {
 
             const noteWidth = this.getPerspectiveWidth(noteY);
             const noteX = this.getPerspectiveX(note.lane, noteY);
-            const noteHeight = 40 * projectedProgress; // Increased from 25
+            // Height matches the new 50px hit zone size
+            const noteHeight = 50 * projectedProgress;
 
             // FADE-IN LOGIC: Smoothly fade in notes as they emerge from Horizon
             // Prevents hard pop-in when linearProgress crosses 0.
@@ -1965,6 +2038,21 @@ export class RhythmGame extends BaseGame {
         const bodyImg = this.renderCache.longNoteBodies[lane];
         if (bodyImg) {
             ctx.save();
+
+            // Draw Central Energy Rod (가운데 봉) underneath the body pattern
+            ctx.beginPath();
+            ctx.moveTo(headX + headW / 2, headY);
+            ctx.lineTo(tailX + tailW / 2, tailY);
+            ctx.lineWidth = 12 * (headW / this.laneBottomWidth); // Scale thickness
+            ctx.strokeStyle = `rgba(255, 255, 255, ${isHolding ? 0.9 : 0.4})`;
+            if (!this.isMobile && isHolding) {
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ffffff';
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Prepare Clipping Path for the polygon body
             ctx.beginPath();
             ctx.moveTo(headX, headY + headH * 0.5); // Center of head vertically?
             ctx.lineTo(headX + headW, headY + headH * 0.5);
@@ -1995,17 +2083,23 @@ export class RhythmGame extends BaseGame {
                 ctx.fill();
             }
 
-            // 3. Tail Cap (Diamond Shape for visibility)
-            const capSize = tailW * 0.8;
+            // 3. Redesigned Tail Cap (Distinct Glow Bar)
+            // Use a bright horizontal bar that matches the tail width
+            const capHeight = 8;
             ctx.fillStyle = '#ffffff';
-            // ctx.shadowBlur = 15; // Removed for performance
-            // ctx.shadowColor = '#ffffff';
+            if (!this.isMobile) {
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = this.COLORS.LANES[lane] ? this.COLORS.LANES[lane][1] : '#ffffff';
+            }
+
             ctx.beginPath();
-            ctx.moveTo(tailX + tailW / 2, tailY - capSize / 2); // Top
-            ctx.lineTo(tailX + tailW, tailY);                   // Right
-            ctx.lineTo(tailX + tailW / 2, tailY + capSize / 2); // Bottom
-            ctx.lineTo(tailX, tailY);                           // Left
-            ctx.closePath();
+            ctx.roundRect(tailX, tailY - capHeight / 2, tailW, capHeight, capHeight / 2);
+            ctx.fill();
+
+            // Draw a slightly darker inner line for contrast
+            ctx.fillStyle = this.COLORS.LANES[lane] ? this.COLORS.LANES[lane][0] : '#aaaaaa';
+            ctx.beginPath();
+            ctx.roundRect(tailX + 2, tailY - 1, tailW - 4, 2, 1);
             ctx.fill();
 
             ctx.shadowBlur = 0; // Reset
@@ -2014,11 +2108,6 @@ export class RhythmGame extends BaseGame {
 
         // 2. Draw Head (The standard note)
         this.drawGelNote(headX, headY, headW, headH, lane);
-
-        // 3. Draw Tail Cap (Flat bar)
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(tailX, tailY - 2, tailW, 4);
-
     }
 
     private hexToRgba(hex: string, alpha: number): string {
@@ -2044,6 +2133,7 @@ export class RhythmGame extends BaseGame {
     private renderHUD(): void {
         if (!this.scoreManager) return;
         const ctx = this.ctx;
+        const width = this.canvas.width;
         const score = Math.floor(this.scoreManager.getScore());
         const combo = this.scoreManager.getCombo();
 
@@ -2051,9 +2141,33 @@ export class RhythmGame extends BaseGame {
         ctx.font = 'bold 24px "Orbitron", sans-serif';
         ctx.textBaseline = 'top';
 
-        // HP Bar
-        const hpX = 20, hpY = 20, hpWidth = 300, hpHeight = 30;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        // --- HUD BACKGROUND PANELS (Cyberpunk Arcade Style) ---
+        // HP Panel (Top Left)
+        ctx.fillStyle = 'rgba(10, 10, 15, 0.7)';
+        ctx.strokeStyle = '#ff0066'; // Neon pink border
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 10);
+        ctx.lineTo(340, 10);
+        ctx.lineTo(320, 60);
+        ctx.lineTo(0, 60);
+        ctx.fill();
+        ctx.stroke();
+
+        // Score Panel (Top Right)
+        ctx.fillStyle = 'rgba(10, 10, 15, 0.7)';
+        ctx.strokeStyle = '#00ffff'; // Cyan border
+        ctx.beginPath();
+        ctx.moveTo(width, 10);
+        ctx.lineTo(width - 240, 10);
+        ctx.lineTo(width - 220, 60);
+        ctx.lineTo(width, 60);
+        ctx.fill();
+        ctx.stroke();
+
+        // --- HP Bar ---
+        const hpX = 15, hpY = 20, hpWidth = 280, hpHeight = 25;
+        // Background track
         ctx.beginPath();
         ctx.moveTo(hpX, hpY); ctx.lineTo(hpX + hpWidth, hpY); ctx.lineTo(hpX + hpWidth - 20, hpY + hpHeight); ctx.lineTo(hpX, hpY + hpHeight);
         ctx.fill();
@@ -2077,13 +2191,20 @@ export class RhythmGame extends BaseGame {
             ctx.moveTo(hpX + 2, hpY + 2); ctx.lineTo(hpX + fillW, hpY + 2); ctx.lineTo(hpX + fillW - 20 * hpPercent, hpY + hpHeight - 2); ctx.lineTo(hpX + 2, hpY + hpHeight - 2);
             ctx.fill();
         }
-        ctx.fillStyle = '#fff'; ctx.font = 'italic bold 20px "Orbitron"'; ctx.fillText("HP", hpX + 5, hpY + 40);
+        ctx.fillStyle = '#fff'; ctx.font = 'italic bold 20px "Orbitron"'; ctx.fillText("HP", hpX + 5, hpY + 32);
 
-        // Score
+        // --- Score ---
         ctx.textAlign = 'right';
-        ctx.shadowBlur = 10; ctx.shadowColor = this.COLORS.TEXT_GLOW;
-        ctx.fillStyle = '#fff'; ctx.font = 'italic 20px "Orbitron"'; ctx.fillText("SCORE", this.canvas.width - 20, 25);
-        ctx.font = 'italic bold 36px "Orbitron"'; ctx.fillText(score.toLocaleString(), this.canvas.width - 20, 50);
+        if (!this.isMobile) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00ffff';
+        }
+        ctx.fillStyle = '#fff';
+        ctx.font = 'italic 16px "Orbitron"';
+        ctx.fillText("SCORE", width - 15, 15);
+        ctx.font = 'italic bold 32px "Orbitron"';
+        ctx.fillText(score.toLocaleString(), width - 15, 32);
+        ctx.shadowBlur = 0;
 
         // Combo
         if (combo > 0) {
@@ -2112,23 +2233,35 @@ export class RhythmGame extends BaseGame {
     // --- Visual Helpers ---
 
     private createShatterEffect(x: number, y: number, color: string, isSmall: boolean = false): void {
-        const count = isSmall ? 6 : 15;
-        const speed = isSmall ? 15 : 25;
+        const count = isSmall ? 8 : 25; // More particles!
+        const speed = isSmall ? 20 : 40; // Faster!
+
+        // Add to main explosion list for the expanding ring/glow
+        this.explosions.push({
+            x: x,
+            y: y,
+            radius: isSmall ? 10 : 20, // Start bigger
+            alpha: 1.0,
+            color: color
+        });
 
         for (let i = 0; i < count; i++) {
+            // Mix of shards and sparks
+            const isSpark = Math.random() > 0.5;
             this.particles.push({
                 x: x,
                 y: y,
-                vx: (Math.random() - 0.5) * speed * 0.5, // Reduced Horizontal Spread (HALF)
-                vy: (Math.random() * -0.3 - 0.1) * speed,
+                vx: (Math.random() - 0.5) * speed * 0.8, // Wider spread
+                vy: (Math.random() * -0.5 - 0.2) * speed, // Shoot higher
                 alpha: 1.0,
-                size: Math.random() * (isSmall ? 2 : 4) + 1, // Small shards
-                color: color,
+                size: Math.random() * (isSmall ? 3 : (isSpark ? 6 : 4)) + 2, // Larger, more varied
+                color: isSpark ? '#ffffff' : color, // Mix white sparks in
                 rotation: Math.random() * Math.PI * 2,
-                rotationSpeed: (Math.random() - 0.5) * 1.0 // Fast spin
+                rotationSpeed: (Math.random() - 0.5) * 1.5
             });
         }
     }
+
 
     private drawLaneBeam(lane: number): void {
         const ctx = this.ctx;

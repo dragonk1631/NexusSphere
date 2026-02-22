@@ -11,6 +11,11 @@ export default defineConfig(({ command }) => ({
     server: {
         https: true,
         host: true, // Listen on all addresses, including LAN IP
+        strictPort: true,
+        hmr: {
+            host: 'localhost',
+            protocol: 'wss',
+        }
     },
     build: {
         outDir: 'dist',

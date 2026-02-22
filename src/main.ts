@@ -136,8 +136,8 @@ function gameLoop(timestamp: number) {
 }
 
 async function launchGame(GameClass: any) {
-  // Ensure we are in landscape mode on mobile
-  enforceLandscape();
+  // Ensure we are in landscape mode on mobile (user gesture confirmed here)
+  enforceLandscape(true);
 
   loopCounter++; // Increment to invalidate previous loops
 
@@ -219,7 +219,7 @@ window.addEventListener('switch-game', (e: any) => {
 });
 
 // --- Mobile Orientation & Navigation Guard ---
-async function enforceLandscape() {
+async function enforceLandscape(isUserGesture: boolean = false) {
   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
     // Optimization: Don't Spam API if already correct
     if (window.innerWidth > window.innerHeight && document.fullscreenElement) {
@@ -228,7 +228,7 @@ async function enforceLandscape() {
 
     try {
       // 1. Fullscreen (User interaction required usually)
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      if (isUserGesture && !document.fullscreenElement && document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen().catch(() => { });
       }
 
@@ -268,20 +268,20 @@ mainMenu.show();
 if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
   // 1. Initial Lock Attempt
   window.addEventListener('load', () => {
-    setTimeout(enforceLandscape, 1000);
+    setTimeout(() => enforceLandscape(false), 1000);
     enableHistoryGuard();
   });
 
   // 2. Persistent Lock on Interface Change (Rotation/Resize)
   window.addEventListener('resize', () => {
     // Debounce slightly or just call (it has internal checks now)
-    enforceLandscape();
+    enforceLandscape(false);
   });
 
   // 3. Re-lock on Visibility Change (e.g. switching back from other apps)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      enforceLandscape();
+      enforceLandscape(false); // Some browsers don't consider visibilitychange a user gesture
     }
   });
 } else {
@@ -302,6 +302,6 @@ window.addEventListener('resize', () => {
   currentGame?.resize?.(window.innerWidth, window.innerHeight);
   // Re-enforce on resize (rotation)
   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    enforceLandscape();
+    enforceLandscape(false);
   }
 });
