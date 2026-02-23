@@ -26,168 +26,90 @@ export class NoteFactory {
         laneCount: number = 4,
         forcedChannels: number[] | null = null,
         difficulty: string = 'NORMAL',
-        channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } | null = null
+        measureConfig: [number, number][] | null = null
     ): VisualNote[] {
-        // Determine Candidates (Primary, Secondary, Drums)
-        let primaryCandidates: number[] = [];
-        let secondaryCandidates: number[] = [];
-
-        if (channelConfig) {
-            primaryCandidates = channelConfig.primary;
-            // Combine secondary and third for gap filling hierarchy
-            secondaryCandidates = [...channelConfig.secondary, ...channelConfig.third];
-
-            // Note: Drums are typically handled separately or interleaved by PatternAnalyzer/LaneAllocator,
-            // but we can pass them in to ensure they get converted to game notes.
-            // ONLY ALLOW DRUMS in HARD difficulty
-            if (difficulty === 'HARD' && channelConfig.drum.length > 0) {
-                secondaryCandidates.push(...channelConfig.drum);
-            }
-        } else if (forcedChannels && forcedChannels.length > 0) {
-            primaryCandidates = forcedChannels;
-            // EXCLUSIVE SOLO MODE: Force Secondary to empty
-            secondaryCandidates = [];
-        } else {
-            const rankedChannels = MelodyAnalyzer.findMelodyChannels(midi);
-            primaryCandidates = rankedChannels.slice(0, 1);
-
-            // Gap Filling: Use all remaining ranked channels (Melody 2, 3, and Drums)
-            if (rankedChannels.length > 1) {
-                secondaryCandidates = rankedChannels.slice(1);
-
-                // ONLY ALLOW DRUMS in HARD difficulty (Standard MIDI Drum is Channel 9)
-                if (difficulty !== 'HARD') {
-                    secondaryCandidates = secondaryCandidates.filter(ch => ch !== 9);
-                }
-            }
-        }
-
         const ppq = midi.ppq;
-
-        console.log(`[NoteFactory] Primary: ${primaryCandidates}, Secondary: ${secondaryCandidates}`);
-
-        // --- LAYERED GAP FILLING STRATEGY ---
         const finalNotes: GameNote[] = [];
 
-        // Grid System for Collision Detection (Quantize to 16th note for occupancy check)
-        // REFACTOR: Use Precise Range-Based Collision to avoid false positives/negatives
-        interface TickRange { start: number, end: number }
-        const occupiedRanges: TickRange[] = [];
-
-        // Helper to mark range as occupied
-        const markOccupied = (startTick: number, durationTicks: number) => {
-            // Buffer: reduce duration slightly to allow "perfectly adjacent" notes to flow
-            // If primary note ends at 100, secondary can start at 100.
-            // Use open-ended interval [start, end) logic effectively.
-            occupiedRanges.push({ start: startTick, end: startTick + durationTicks });
-        };
-
-        // Helper to check if a range is blocked
-        const isRegionBlocked = (startTick: number, durationTicks: number, isPrimary: boolean) => {
-            const myEnd = startTick + durationTicks;
-            const overlapTolerance = 15; // Require at least 15 ticks of actual overlap to block (allows slight legato)
-
-            for (const range of occupiedRanges) {
-                // If it starts at almost exactly the same time, it's a chord on the same layer.
-                // We shouldn't block exact chords here; `RhythmQuantizer` handles chord density logic later.
-                if (!isPrimary && Math.abs(startTick - range.start) < 15) {
-                    continue;
+        // 1. Convert measureConfig array to Map if available
+        const measureMap = new Map<number, number>();
+        if (measureConfig && Array.isArray(measureConfig)) {
+            measureConfig.forEach(entry => {
+                if (Array.isArray(entry) && entry.length >= 2) {
+                    measureMap.set(Number(entry[0]), Number(entry[1]));
                 }
-
-                // Calculate actual overlap duration
-                const overlapStart = Math.max(startTick, range.start);
-                const overlapEnd = Math.min(myEnd, range.end);
-
-                if (overlapEnd > overlapStart) {
-                    const overlapDuration = overlapEnd - overlapStart;
-                    const primaryDuration = range.end - range.start;
-
-                    // To collide, the overlapping region must be larger than our tolerance, 
-                    // OR it completely covers the target short primary note.
-                    if (overlapDuration > overlapTolerance || overlapDuration >= primaryDuration) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        };
-
-        // Helper to add notes
-        const addNotesToLayer = (channels: number[], isPrimary: boolean) => {
-            // Collect all notes from these channels
-            const layerNotes: GameNote[] = [];
-            midi.tracks.forEach(t => {
-                t.notes.forEach(n => {
-                    if (channels.includes(n.channel)) layerNotes.push(n);
-                });
-            });
-
-            // Sort by time
-            layerNotes.sort((a, b) => a.ticks - b.ticks);
-
-            // Filter & Add
-            layerNotes.forEach(note => {
-                // 1. Check Collision
-                let isBlocked = false;
-                const noteDuration = note.durationTicks || (ppq / 4);
-
-                if (isPrimary) {
-                    // Primary always wins
-                } else {
-                    // Secondary must respect occupied ranges
-                    if (isRegionBlocked(note.ticks, noteDuration, false)) isBlocked = true;
-                }
-
-                // 2. Velocity Filter (Ignore ghost notes < 10% velocity)
-                if (note.velocity < 13) { // 13/127 ~= 10%
-                    isBlocked = true;
-                }
-
-                if (!isBlocked) {
-                    if (isPrimary) {
-                        (note as any).isPrimary = true;
-                    }
-
-                    finalNotes.push(note);
-
-                    // Mark range as occupied
-                    markOccupied(note.ticks, noteDuration);
-                }
-            });
-        };
-
-        // LAYER 1: PRIMARY (Sacred)
-        addNotesToLayer(primaryCandidates, true);
-
-        // LAYER 2+: SECONDARY (Iterative Gap Filling)
-        // Iterate through ALL secondary candidates to fill gaps sequentially
-        const layerStats: { channel: number, added: number }[] = [];
-
-        if (difficulty !== 'EASY') {
-            secondaryCandidates.forEach(ch => {
-                const before = finalNotes.length;
-                addNotesToLayer([ch], false);
-                const added = finalNotes.length - before;
-                layerStats.push({ channel: ch, added });
             });
         }
 
-        // --- COVERAGE ANALYSIS ---
-        const totalDurationTicks = Math.max(...midi.tracks.flatMap(t => t.notes.map(n => n.ticks + (n.durationTicks || 0))), 1);
-        const occupiedTicks = occupiedRanges.reduce((sum, r) => sum + (r.end - r.start), 0);
-        const coverageRatio = (occupiedTicks / totalDurationTicks) * 100;
+        // Helper: Get Primary channel for a given measure
+        // Determine Default Auto Primary for entire song if measureMap is empty or unavailable
+        let autoGeneratedConfig: Map<number, number> | null = null;
+        if (measureMap.size === 0) {
+            console.log("[NoteFactory] No measure map found. Generating intelligence Magic configuration...");
+            autoGeneratedConfig = MelodyAnalyzer.suggestGapFilling(midi);
+        }
 
-        console.log(`[NoteFactory] Coverage Analysis: ${coverageRatio.toFixed(1)}% of song contains notes.`);
-        layerStats.forEach(s => {
-            console.log(`[NoteFactory] -> Gap Filling (Ch ${s.channel + 1}): Added ${s.added} notes.`);
+        // Helper: Get Primary channel for a given measure
+        const getMeasurePrimaryChannel = (measureIdx: number): number | null => {
+            // Priority 1: User defined measure map
+            if (measureMap.has(measureIdx)) return measureMap.get(measureIdx)!;
+
+            // Priority 2: Auto generated Magic config
+            if (autoGeneratedConfig && autoGeneratedConfig.has(measureIdx)) return autoGeneratedConfig.get(measureIdx)!;
+
+            // Priority 3: Inheritance (Scan backwards in both maps)
+            let ch = null;
+            for (let i = measureIdx; i >= 0; i--) {
+                if (measureMap.has(i)) {
+                    ch = measureMap.get(i)!;
+                    break;
+                }
+                if (autoGeneratedConfig && autoGeneratedConfig.has(i)) {
+                    ch = autoGeneratedConfig.get(i)!;
+                    break;
+                }
+            }
+            return ch;
+        };
+
+        // 2. Iterate through ALL notes and ONLY keep if they match the measure's primary channel
+        // or if they are forced overrides (Test mode soloing etc).
+        midi.tracks.forEach(track => {
+            track.notes.forEach(note => {
+                // Ignore ghost notes
+                if (note.velocity < 13) return;
+
+                const measureIdx = Math.floor(note.ticks / (ppq * 4));
+
+                // If Single Test Mode Channel Override is active, ignore measure config
+                if (forcedChannels && forcedChannels.length > 0) {
+                    if (forcedChannels.includes(note.channel)) finalNotes.push(note);
+                    return;
+                }
+
+                // Check Measure Target Channel
+                const targetChannel = getMeasurePrimaryChannel(measureIdx);
+
+                if (targetChannel !== null && note.channel === targetChannel) {
+                    (note as any).isPrimary = true;
+                    finalNotes.push(note);
+                } else if (note.channel === 9 && false /* Future: includeDrums config check here */) {
+                    // Placeholder constraint for drums
+                    finalNotes.push(note);
+                }
+            });
         });
 
-        // DEBUG: Verify each required channel has some representation
-        primaryCandidates.forEach((ch: number) => {
-            const count = finalNotes.filter(n => n.channel === ch).length;
-            console.log(`[NoteFactory] Channel ${ch + 1} (PRIMARY): ${count} notes gathered.`);
-            if (count === 0) console.warn(`[NoteFactory] WARNING: Channel ${ch + 1} is empty after collection!`);
-        });
+        console.log(`[NoteFactory] Collected ${finalNotes.length} notes based on measure configuration.`);
+
+        // DEBUG: Ensure there is at least one primary channel detected/processed
+        if (measureMap.size > 0) {
+            console.log(`[NoteFactory] Processed with defined Measure Map entries: ${measureMap.size}`);
+        } else if (autoGeneratedConfig) {
+            console.log(`[NoteFactory] Intelligence Magic configuration applied (Segments: ${autoGeneratedConfig.size})`);
+        } else {
+            console.warn(`[NoteFactory] No configuration available. Generating empty chart.`);
+        }
 
         let notesToProcess = finalNotes.sort((a, b) => a.ticks - b.ticks);
 
@@ -247,6 +169,11 @@ export class NoteFactory {
         });
 
         console.log(`[NoteFactory] Charted ${finalResult.length} notes (Holds: ${finalResult.filter(n => n.isHold).length}).`);
+        if (finalResult.length > 0) {
+            console.log(`[NoteFactory] First 5 notes sample:`, finalResult.slice(0, 5).map(n => ({
+                tick: n.ticks, time: n.time, lane: n.lane, duration: n.duration, isHold: n.isHold
+            })));
+        }
         return finalResult;
     }
 }

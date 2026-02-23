@@ -9,7 +9,7 @@ export default defineConfig(({ command }) => ({
         basicSsl()
     ],
     server: {
-        https: true,
+        https: {},
         host: true, // Listen on all addresses, including LAN IP
         strictPort: true,
         hmr: {

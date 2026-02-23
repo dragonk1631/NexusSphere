@@ -49,8 +49,7 @@ export class EditorGame extends BaseGame {
     // Channel-Based Data Structure (16 MIDI Channels)
     private channelData: ChannelData[] = [];
     private rawMidiBuffer: ArrayBuffer | null = null;
-    private gameChannelIndices = new Set<number>();
-    private gameChannelRoles = new Map<number, string>(); // Roles: PRIMARY, SECONDARY, DRUM
+    private measureConfig = new Map<number, number>(); // Map<MeasureIndex, PrimaryChannel>
     private currentMidiFileName: string = 'test';
     private currentMidiFileUrl: string = ''; // Keep track of the actual URL exactly as passed
 
@@ -91,12 +90,19 @@ export class EditorGame extends BaseGame {
     private _boundMouseEnter: () => void;
     private _boundMouseLeave: () => void;
 
+    // --- Measure Selection State ---
+    private isDraggingMeasureRange: boolean = false;
+    private selectedMeasures = new Set<number>();
+    private lastDragMeasure: number | null = null;
+    private dragSelectionMode: 'select' | 'deselect' | null = null;
+
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
+        this.selectedMeasures = new Set<number>();
         this._boundMouseMove = (e) => this.handleMouseMove(e as MouseEvent);
         this._boundMouseUp = () => this.handleMouseUp();
         this._boundTouchMove = (e) => {
-            if (this.isDraggingPlayhead) {
+            if (this.isDraggingPlayhead || this.isDraggingMeasureRange) {
                 e.preventDefault();
                 this.handleMouseMove(e);
             }
@@ -141,12 +147,27 @@ export class EditorGame extends BaseGame {
                 if (type === 'reverb') this.audioEngine.setReverbDepth(val);
                 if (type === 'chorus') this.audioEngine.setChorusDepth(val);
             },
-            (channelIndex, role) => this.handleChannelRoleChange(channelIndex, role),
-            () => this.handleAutoRoles(),
+            (sortBy) => this.handleSortChange(sortBy),
             () => this.handleSaveConfig(),
-            (sortBy) => this.handleSortChange(sortBy)
+            (idx: number) => this.handleTrackHeaderClick(idx),
+            () => this.handleToggleAllMeasures(),
+            () => this.handleMagicAnalyze(),
+            () => this.handleResetConfig()
         );
         this.ui.init();
+
+        // --- EMERGENCY CONFIG WIPE (Reverting to Clean State) ---
+        console.log('[EditorGame] !!! EMERGENCY WIPE REQUESTED !!!');
+        let count = 0;
+        const allKeys = Object.keys(localStorage);
+        allKeys.forEach(key => {
+            if (key.includes('beatmap_config')) {
+                localStorage.removeItem(key);
+                count++;
+            }
+        });
+        this.measureConfig.clear(); // Clear current memory as well
+        console.log(`[EditorGame] Successfully wiped ${count} items from storage and cleared memory.`);
 
         const container = this.ui.getTimelineContainer();
         if (container) {
@@ -172,6 +193,9 @@ export class EditorGame extends BaseGame {
         }
 
         this.canvas.addEventListener('wheel', this._boundWheel, { passive: false });
+
+        // UI Cleanups
+        this.selectedMeasures.clear();
 
         // Mouse Events
         this.canvas.addEventListener('mousedown', this._boundMouseDown);
@@ -305,9 +329,8 @@ export class EditorGame extends BaseGame {
             this.midiData = await parser.parse(buffer);
             await this.audioEngine.loadMidi(buffer);
 
-            // --- Game Channel Analysis ---
-            this.gameChannelIndices.clear();
-            this.gameChannelRoles.clear();
+            // --- Game Measure Analysis (Measure Default setup) ---
+            this.measureConfig.clear();
 
             const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const savedConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
@@ -316,15 +339,16 @@ export class EditorGame extends BaseGame {
             if (savedConfigStr) {
                 try {
                     const savedConfig = JSON.parse(savedConfigStr);
-                    const channelConfig = savedConfig.channelConfig;
-                    if (channelConfig) {
-                        // JSON beatmap format is 1-indexed, so we subtract 1 for engine's 0-index
-                        channelConfig.primary?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'PRIMARY'); this.gameChannelIndices.add(ch - 1); });
-                        channelConfig.secondary?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'SECONDARY'); this.gameChannelIndices.add(ch - 1); });
-                        channelConfig.third?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'THIRD'); this.gameChannelIndices.add(ch - 1); });
-                        channelConfig.drum?.forEach((ch: number) => { this.gameChannelRoles.set(ch - 1, 'DRUM'); this.gameChannelIndices.add(ch - 1); });
+                    if (savedConfig.version === "1.2" && savedConfig.measureConfig) {
+                        // Version 1.2 Format (New Measure-Based)
+                        const entries = savedConfig.measureConfig;
+                        entries.forEach((entry: [number, number]) => {
+                            this.measureConfig.set(Number(entry[0]), Number(entry[1]));
+                        });
                         loadedFromLocal = true;
-                        console.log(`[EditorGame] Loaded Channel Config from LocalStorage for ${this.midiData.name}`);
+                        console.log(`[EditorGame] Loaded Measure Config from LocalStorage for ${this.midiData.name}`);
+                    } else {
+                        console.warn(`[EditorGame] Found old config format for ${this.midiData.name}. Ignoring.`);
                     }
                 } catch (err) {
                     console.warn(`[EditorGame] Failed to parse local config:`, err);
@@ -332,32 +356,10 @@ export class EditorGame extends BaseGame {
             }
 
             if (!loadedFromLocal) {
-                const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
-                // 1. Primary (Main Melody)
-                if (rankedChannels.length > 0) {
-                    const primaryCh = rankedChannels[0];
-                    this.gameChannelRoles.set(primaryCh, 'PRIMARY');
-                    this.gameChannelIndices.add(primaryCh);
-                }
-
-                // 2. Secondary (Accompaniment)
-                for (let i = 1; i < rankedChannels.length; i++) {
-                    const ch = rankedChannels[i];
-                    if (this.gameChannelIndices.size >= 5) break;
-                    this.gameChannelRoles.set(ch, 'SECONDARY');
-                    this.gameChannelIndices.add(ch);
-                }
-
-                // 3. Drums
-                const drumTrack = this.midiData.tracks.find(t => t.channel === 9);
-                if (drumTrack && drumTrack.notes.length > 0) {
-                    this.gameChannelRoles.set(9, 'DRUM');
-                    this.gameChannelIndices.add(9);
-                }
+                // Apply strategic Magic Analyze (Gap Filling) as default if no saved config exists
+                this.handleMagicAnalyze();
+                console.log(`[EditorGame] Applied strategic Magic defaults (Gap Filling) on load.`);
             }
-
-            console.log(`[EditorGame] Identified Game Channels:`);
-            this.gameChannelRoles.forEach((role, ch) => console.log(` - CH ${ch + 1}: ${role}`));
 
             // DEBUG: Analyze Track Structure for "Pollution"
             console.groupCollapsed(`[MIDI Analysis] ${name}`);
@@ -533,7 +535,7 @@ export class EditorGame extends BaseGame {
             }
 
             // Render 16 fixed channel headers with COLORS
-            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes, effectiveMutes, CHANNEL_COLORS, this.gameChannelRoles);
+            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes, effectiveMutes, CHANNEL_COLORS);
         }
     }
 
@@ -683,20 +685,8 @@ export class EditorGame extends BaseGame {
                             targetChannels = undefined;
                         }
 
-                        // Gather the channelConfig based on gameChannelRoles
-                        const channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } = {
-                            primary: [],
-                            secondary: [],
-                            third: [],
-                            drum: []
-                        };
-
-                        this.gameChannelRoles.forEach((role, ch) => {
-                            if (role === 'PRIMARY') channelConfig.primary.push(ch);
-                            else if (role === 'SECONDARY') channelConfig.secondary.push(ch);
-                            else if (role === 'THIRD') channelConfig.third.push(ch);
-                            else if (role === 'DRUM') channelConfig.drum.push(ch);
-                        });
+                        // Convert measureConfig Map to Array for passing via GameTransition
+                        const measureObj = Array.from(this.measureConfig.entries());
 
                         GameTransition.set({
                             source: 'editor',
@@ -709,7 +699,7 @@ export class EditorGame extends BaseGame {
                                 speed: 1.0,
                                 volume: 1.0,
                                 difficulty: this.ui?.getTestDifficulty() || 'NORMAL',
-                                channelConfig: channelConfig
+                                measureConfig: measureObj
                             }
                         });
                         console.log("[EditorGame] GameTransition set. Dispatching switch-game...");
@@ -774,76 +764,19 @@ export class EditorGame extends BaseGame {
         this.ui?.updateTrackVolumeUI(channelIndex, volume);
     }
 
-    private handleChannelRoleChange(channelIndex: number, role: string): void {
-        if (role === 'NONE') {
-            this.gameChannelRoles.delete(channelIndex);
-            this.gameChannelIndices.delete(channelIndex);
-        } else {
-            this.gameChannelRoles.set(channelIndex, role);
-            this.gameChannelIndices.add(channelIndex);
-        }
-        this.updateTrackLayout();
-        this.handleSaveConfig(false); // Auto-save silently on change
-    }
+    // Auto Roles and Channel Role changing logic is removed.
 
-    private handleAutoRoles(): void {
+    public handleSaveConfig(showFeedback: boolean = true): void {
         if (!this.midiData) return;
 
-        // Remove configured layout to rely on defaults again
-        const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        localStorage.removeItem(`beatmap_config_${safeName}`);
-
-        const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
-        this.gameChannelIndices.clear();
-        this.gameChannelRoles.clear();
-
-        if (rankedChannels.length > 0) {
-            this.gameChannelRoles.set(rankedChannels[0], 'PRIMARY');
-            this.gameChannelIndices.add(rankedChannels[0]);
-        }
-
-        for (let i = 1; i < rankedChannels.length; i++) {
-            const ch = rankedChannels[i];
-            if (this.gameChannelIndices.size >= 5) break;
-            this.gameChannelRoles.set(ch, 'SECONDARY');
-            this.gameChannelIndices.add(ch);
-        }
-
-        const drumTrack = this.midiData.tracks.find(t => t.channel === 9);
-        if (drumTrack && drumTrack.notes.length > 0) {
-            this.gameChannelRoles.set(9, 'DRUM');
-            this.gameChannelIndices.add(9);
-        }
-
-        this.updateTrackLayout();
-    }
-
-    private handleSaveConfig(showFeedback: boolean = true): void {
-        if (!this.midiData) return;
-
-        const channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } = {
-            primary: [],
-            secondary: [],
-            third: [],
-            drum: []
-        };
-
-        this.gameChannelRoles.forEach((role, ch) => {
-            if (role === 'PRIMARY') channelConfig.primary.push(ch + 1); // 1-indexed for beatmap standards
-            else if (role === 'SECONDARY') channelConfig.secondary.push(ch + 1);
-            else if (role === 'THIRD') channelConfig.third.push(ch + 1);
-            else if (role === 'DRUM') channelConfig.drum.push(ch + 1);
-        });
-
-        // Collect an array of all game channels for backward compatibility
-        const gameChannels = [...channelConfig.primary, ...channelConfig.secondary, ...channelConfig.third, ...channelConfig.drum];
+        // Convert Map to Array of [MeasureIdx, PrimaryChannel] for JSON
+        const measureObj = Array.from(this.measureConfig.entries());
 
         const outputData = {
-            version: "1.1",
+            version: "1.2",
             songName: this.currentMidiFileName,
             bpm: this.midiData.bpm,
-            gameChannels: gameChannels,
-            channelConfig: channelConfig
+            measureConfig: measureObj
         };
 
         const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -851,7 +784,7 @@ export class EditorGame extends BaseGame {
         console.log(`[EditorGame] Saved config to localStorage for ${safeName}`);
 
         if (showFeedback) {
-            alert(`Channel configuration for '${this.midiData.name}' saved to local storage!`);
+            alert(`Measure configuration for '${this.midiData.name}' saved to local storage!`);
         }
     }
 
@@ -875,9 +808,80 @@ export class EditorGame extends BaseGame {
         }
     }
 
+    public handleResetConfig(): void {
+        console.log('[EditorGame] Resetting all configurations...');
+
+        // Wipe all from storage
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.includes('beatmap_config')) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+
+        // Clear memory
+        this.measureConfig.clear();
+
+        // Re-run Magic Analyze to get back to best-auto state
+        this.handleMagicAnalyze();
+
+        alert("All manual configurations have been deleted. Re-analyzing with Magic...");
+    }
+
     private wasPlaying = false; // Add state to track playback before drag
 
     private handleMouseDown(e: MouseEvent | TouchEvent): void {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        // --- Handle Measure Header Click & Drag ---
+        const headerHeight = 24;
+        if (y <= headerHeight) {
+            // Calculate which measure was clicked
+            const ppq = this.midiData?.ppq || 480;
+            const pixelsPerTick = this.zoomX;
+            const clickedTick = (x + this.scrollX) / pixelsPerTick;
+            const measureIdx = Math.floor(clickedTick / (ppq * 4)); // assuming 4/4 time
+
+            this.isDraggingMeasureRange = true;
+            this.lastDragMeasure = measureIdx;
+
+            // Toggle selection for initial click
+            if (this.selectedMeasures.has(measureIdx)) {
+                this.selectedMeasures.delete(measureIdx);
+                this.dragSelectionMode = 'deselect';
+            } else {
+                this.selectedMeasures.add(measureIdx);
+                this.dragSelectionMode = 'select';
+            }
+
+            this.render(); // Update selection visual
+            return; // Prevent seek logic
+        }
+
+        // --- Handle Canvas Body Click (Channel Assignment when measures selected) ---
+        if (this.selectedMeasures.size > 0 && y > headerHeight) {
+            const ppq = this.midiData?.ppq || 480;
+            const pixelsPerTick = this.zoomX;
+            const clickedTick = (x + this.scrollX) / pixelsPerTick;
+            const clickedMeasureIdx = Math.floor(clickedTick / (ppq * 4));
+
+            // Only assign if clicking inside one of the selected measures
+            if (this.selectedMeasures.has(clickedMeasureIdx)) {
+                const channelIdx = Math.floor((y - headerHeight + this.scrollY) / this.trackHeight);
+                if (channelIdx >= 0 && channelIdx < 16) {
+                    this.handleTrackHeaderClick(channelIdx);
+                    return; // Prevent seek logic
+                }
+            }
+        }
+
+        // --- Normal Seek Logic ---
         this.isDraggingPlayhead = true;
         this.wasPlaying = this.isPlaying; // Store previous state
         this.audioEngine.pause();
@@ -888,12 +892,51 @@ export class EditorGame extends BaseGame {
     }
 
     private handleMouseMove(e: MouseEvent | TouchEvent): void {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        void y;
+
+        if (this.isDraggingMeasureRange && this.lastDragMeasure !== null) {
+            const ppq = this.midiData?.ppq || 480;
+            const pixelsPerTick = this.zoomX;
+            const clickedTick = (x + this.scrollX) / pixelsPerTick;
+            const measureIdx = Math.floor(Math.max(0, clickedTick) / (ppq * 4));
+
+            if (this.lastDragMeasure !== measureIdx) {
+                // Range select/deselect between lastDragMeasure and measureIdx
+                const start = Math.min(this.lastDragMeasure, measureIdx);
+                const end = Math.max(this.lastDragMeasure, measureIdx);
+
+                for (let m = start; m <= end; m++) {
+                    if (this.dragSelectionMode === 'select') {
+                        this.selectedMeasures.add(m);
+                    } else if (this.dragSelectionMode === 'deselect') {
+                        this.selectedMeasures.delete(m);
+                    }
+                }
+
+                this.lastDragMeasure = measureIdx;
+                this.render(); // 렌더링을 갱신해서 범위 시각화를 업데이트
+            }
+            return;
+        }
+
         if (this.isDraggingPlayhead) {
             this.seekAtMouse(e);
         }
     }
 
-    private handleMouseUp(): void {
+    private handleMouseUp(_e?: MouseEvent | TouchEvent): void {
+        if (this.isDraggingMeasureRange) {
+            this.isDraggingMeasureRange = false;
+            this.lastDragMeasure = null;
+            this.dragSelectionMode = null;
+            return;
+        }
+
         if (this.isDraggingPlayhead) {
             this.isDraggingPlayhead = false;
 
@@ -1031,14 +1074,17 @@ export class EditorGame extends BaseGame {
         this.ctx.fillStyle = '#0a0a0a';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        const headerHeight = 24; // Measure Header Height
+
         // Fixed 16 channels (0-15)
         const channelCount = 16;
         const startChannel = Math.max(0, Math.floor(this.scrollY / this.trackHeight));
-        const endChannel = Math.min(channelCount, startChannel + Math.ceil(this.canvas.height / this.trackHeight) + 1);
+        // Add +1 to endChannel to cover lower boundary visibility perfectly
+        const endChannel = Math.min(channelCount, startChannel + Math.ceil((this.canvas.height - headerHeight) / this.trackHeight) + 1);
 
         // Colored Striping on Canvas
         for (let i = startChannel; i < endChannel; i++) {
-            const channelTop = i * this.trackHeight - this.scrollY;
+            const channelTop = headerHeight + i * this.trackHeight - this.scrollY;
 
             // Channel Background Tint - FAINT
             this.ctx.fillStyle = CHANNEL_COLORS[i];
@@ -1056,32 +1102,106 @@ export class EditorGame extends BaseGame {
             }
         }
 
+        // Helper: Get measure's primary channel (fallback to previous measure if not set)
+        const getMeasurePrimaryChannel = (measureIdx: number): number | null => {
+            let ch = null;
+            for (let i = measureIdx; i >= 0; i--) {
+                if (this.measureConfig.has(i)) {
+                    ch = this.measureConfig.get(i)!;
+                    break;
+                }
+            }
+            return ch;
+        };
+
         // Grid (Tick-based)
         const ppq = this.midiData?.ppq || 480;
         const pixelsPerProcessedTick = this.zoomX;
         const startTick = Math.floor(this.scrollX / pixelsPerProcessedTick);
         const endTick = startTick + Math.ceil(this.canvas.width / pixelsPerProcessedTick) + 1;
 
-        // Snap startTick to nearest beat (assuming 4/4)
+        // Snap startTick to nearest beat
         const tickStep = ppq; // 1 beat
         const alignedStartTick = Math.floor(startTick / tickStep) * tickStep;
+
+        // Opaque background for measure header to hide scrolling channels
+        this.ctx.fillStyle = '#0a0a0a';
+        this.ctx.fillRect(0, 0, this.canvas.width, headerHeight);
+        this.ctx.strokeStyle = '#333';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, headerHeight);
+        this.ctx.lineTo(this.canvas.width, headerHeight);
+        this.ctx.stroke();
 
         this.ctx.lineWidth = 1;
         for (let t = alignedStartTick; t <= endTick; t += tickStep) {
             const x = t * pixelsPerProcessedTick - this.scrollX;
             const isBar = (t / ppq) % 4 === 0; // Assuming 4/4
             this.ctx.strokeStyle = isBar ? '#444' : '#222';
+
             this.ctx.beginPath();
-            this.ctx.moveTo(x, 0);
+            // Start drawing line below header region
+            this.ctx.moveTo(x, headerHeight);
             this.ctx.lineTo(x, this.canvas.height);
             this.ctx.stroke();
 
+            // Draw Measure Header Block
             if (isBar) {
+                const measureIdx = Math.round(t / (ppq * 4));
+                const barNum = measureIdx + 1;
+
+                // Draw measure number
                 this.ctx.fillStyle = '#666';
                 this.ctx.font = '9px monospace';
-                const barNum = Math.round(t / (ppq * 4)) + 1;
-                this.ctx.fillText(barNum.toString(), x + 4, 12);
+                this.ctx.fillText(barNum.toString(), x + 4, headerHeight - 12);
+
+                // Draw configured primary channel for this measure
+                const primaryCh = getMeasurePrimaryChannel(measureIdx);
+                if (primaryCh !== null) {
+                    const color = CHANNEL_COLORS[primaryCh] || '#888';
+                    this.ctx.fillStyle = color;
+                    this.ctx.font = 'bold 10px sans-serif';
+                    this.ctx.fillText(`CH ${primaryCh + 1}`, x + 4, headerHeight - 2);
+
+                    // Optional: Draw a subtle colored background for the measure header
+                    const nextBarX = (t + ppq * 4) * pixelsPerProcessedTick - this.scrollX;
+                    const w = nextBarX - x;
+                    this.ctx.fillStyle = `${color}22`; // 22 is slight opacity hex
+                    this.ctx.fillRect(x, 0, w, headerHeight);
+                }
             }
+        }
+
+        // --- Render Selection Range (Vertical Highlights) ---
+        if (this.selectedMeasures.size > 0) {
+            this.ctx.fillStyle = 'rgba(76, 175, 80, 0.1)'; // Very subtle green fill for the whole lane
+            this.ctx.strokeStyle = 'rgba(76, 175, 80, 0.8)'; // Strong Green outline
+            this.ctx.lineWidth = 1.5;
+
+            this.selectedMeasures.forEach(mIdx => {
+                const startX = (mIdx * ppq * 4) * pixelsPerProcessedTick - this.scrollX;
+                const width = (ppq * 4) * pixelsPerProcessedTick;
+
+                // Only draw if visible
+                if (startX + width > 0 && startX < this.canvas.width) {
+                    // Fill whole vertical lane
+                    this.ctx.fillStyle = 'rgba(76, 175, 80, 0.1)';
+                    this.ctx.fillRect(startX, headerHeight, width, this.canvas.height - headerHeight);
+
+                    // Draw outer border (left/right) to make it look like a selection
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(startX, 0);
+                    this.ctx.lineTo(startX, this.canvas.height);
+                    this.ctx.moveTo(startX + width, 0);
+                    this.ctx.lineTo(startX + width, this.canvas.height);
+                    this.ctx.stroke();
+
+                    // Fill Header separately with a bit more opacity
+                    this.ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
+                    this.ctx.fillRect(startX, 0, width, headerHeight);
+                }
+            });
         }
 
         // Horizontal Separator Lines (High Contrast)
@@ -1089,17 +1209,23 @@ export class EditorGame extends BaseGame {
         this.ctx.lineWidth = 1.2;      // Adjusted to 1.2
         this.ctx.beginPath();
         for (let i = startChannel; i <= endChannel; i++) {
-            const y = i * this.trackHeight - this.scrollY;
+            const y = headerHeight + i * this.trackHeight - this.scrollY;
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.canvas.width, y);
         }
         this.ctx.stroke();
 
+        // Clip area for notes so they don't draw over the measure header when scrolling up
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.rect(0, headerHeight, this.canvas.width, this.canvas.height - headerHeight);
+        this.ctx.clip();
+
         for (let ch = startChannel; ch < endChannel; ch++) {
             const channelInfo = this.channelData[ch];
             if (!channelInfo) continue;
 
-            const channelTop = ch * this.trackHeight - this.scrollY;
+            const channelTop = headerHeight + ch * this.trackHeight - this.scrollY;
             const isSoloed = this.soloTrackIndices.has(ch);
             const hasAnySolo = this.soloTrackIndices.size > 0;
 
@@ -1147,6 +1273,8 @@ export class EditorGame extends BaseGame {
             }
             this.ctx.globalAlpha = 1.0;
         }
+
+        this.ctx.restore(); // Remove clipping region
 
         // Playhead (Tick-based)
         const displayTime = this.isDraggingPlayhead ? this.scrubTime : this.audioEngine.currentTime;
@@ -1234,6 +1362,85 @@ export class EditorGame extends BaseGame {
             this.canvas.width = window.innerWidth;
             this.canvas.height = window.innerHeight;
             console.log('[EditorGame] Canvas restored to #game-container.');
+        }
+    }
+
+    private handleTrackHeaderClick(channelIndex: number): void {
+        if (this.selectedMeasures.size === 0) {
+            return;
+        }
+
+        // --- Prevent Leakage ---
+        // Before applying, find the next measure after our selection range
+        // and "seal" it with its CURRENT inherited primary channel so it doesn't change.
+        let maxMeasureIdx = -1;
+        this.selectedMeasures.forEach(mIdx => {
+            if (mIdx > maxMeasureIdx) maxMeasureIdx = mIdx;
+        });
+
+        const nextMeasureIdx = maxMeasureIdx + 1;
+        const ppq = this.midiData?.ppq || 480;
+        const totalTicks = this.midiData?.durationTicks || 0;
+        const maxSongMeasure = Math.ceil(totalTicks / (ppq * 4));
+
+        if (nextMeasureIdx < maxSongMeasure && !this.measureConfig.has(nextMeasureIdx)) {
+            // How to find what it was inheriting? We have getMeasurePrimaryChannel inside render,
+            // let's define a helper or just do it here.
+            let inheritedCh: number | null = null;
+            for (let i = nextMeasureIdx; i >= 0; i--) {
+                if (this.measureConfig.has(i)) {
+                    inheritedCh = this.measureConfig.get(i)!;
+                    break;
+                }
+            }
+            if (inheritedCh !== null) {
+                this.measureConfig.set(nextMeasureIdx, inheritedCh);
+            }
+        }
+
+        // Apply channelIndex as primary channel to all selected measures
+        this.selectedMeasures.forEach(mIdx => {
+            this.measureConfig.set(mIdx, channelIndex);
+        });
+
+        this.handleSaveConfig(false);
+        this.render();
+    }
+
+    public handleToggleAllMeasures(): void {
+        if (!this.midiData) return;
+        const ppq = this.midiData.ppq || 480;
+        const totalTicks = this.midiData.durationTicks || 0;
+        const totalMeasures = Math.ceil(totalTicks / (ppq * 4));
+
+        if (this.selectedMeasures.size >= totalMeasures) {
+            // Already all selected, so deselect all
+            this.selectedMeasures.clear();
+        } else {
+            // Select all
+            for (let i = 0; i < totalMeasures; i++) {
+                this.selectedMeasures.add(i);
+            }
+        }
+        this.render();
+    }
+
+    private handleMagicAnalyze(): void {
+        if (!this.midiData) return;
+
+        console.log('[EditorGame] Executing Magic Auto-Analyze (Gap Filling)...');
+        const autoConfig = MelodyAnalyzer.suggestGapFilling(this.midiData);
+
+        if (autoConfig.size > 0) {
+            // Clear current map and apply auto-generated one
+            this.measureConfig.clear();
+            autoConfig.forEach((ch, mIdx) => {
+                this.measureConfig.set(mIdx, ch);
+            });
+
+            this.handleSaveConfig(false);
+            this.render();
+            console.log(`[EditorGame] Magic Analyze complete. Applied ${autoConfig.size} strategic changes.`);
         }
     }
 }

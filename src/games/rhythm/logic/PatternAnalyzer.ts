@@ -53,13 +53,6 @@ export class PatternAnalyzer {
             const interval = nextNote.quantizedStartTick - note.quantizedStartTick;
 
             // Pattern Break Condition
-            // If gap is large (> 1/2 note), definitely break
-            if (interval > 960) { // 960 = 1/2 note at 480 PPQ
-                segments.push(this.createSegment(currentPatternNotes));
-                currentPatternNotes = [];
-                continue;
-            }
-
             // Just accumulate until a fairly large gap occurs.
             // 960 ticks = 1/2 note. This keeps most phrases together.
             if (interval > 720) { // Approx 3/4 beat

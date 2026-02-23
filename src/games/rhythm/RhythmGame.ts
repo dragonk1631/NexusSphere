@@ -1095,22 +1095,18 @@ export class RhythmGame extends BaseGame {
 
         if (this.midiData) {
             let forcedChannels: number[] | null = null;
-            let channelConfig: { primary: number[], secondary: number[], third: number[], drum: number[] } | null = null;
+            let measureConfig: [number, number][] | null = null;
 
-            if (this.transitionData?.settings?.channelConfig) {
-                channelConfig = this.transitionData.settings.channelConfig;
-                console.log(`[RhythmGame] Using Transition ChannelConfig`);
+            if (this.transitionData?.settings?.measureConfig) {
+                measureConfig = this.transitionData.settings.measureConfig;
+                console.log(`[RhythmGame] Using Transition MeasureConfig`);
             } else if (this.transitionData?.forcedChannels) {
                 forcedChannels = this.transitionData.forcedChannels;
+            } else if (this.beatmapData?.version === "1.2" && this.beatmapData?.measureConfig) {
+                measureConfig = this.beatmapData.measureConfig;
+                console.log(`[RhythmGame] Using Beatmap MeasureConfig`);
             } else if (this.beatmapData?.channelConfig) {
-                channelConfig = {
-                    // Beatmap JSON is 1-indexed, engine is 0-indexed
-                    primary: this.beatmapData.channelConfig.primary.map((ch: number) => ch - 1),
-                    secondary: this.beatmapData.channelConfig.secondary.map((ch: number) => ch - 1),
-                    third: this.beatmapData.channelConfig.third.map((ch: number) => ch - 1),
-                    drum: this.beatmapData.channelConfig.drum.map((ch: number) => ch - 1)
-                };
-                console.log(`[RhythmGame] Using Beatmap ChannelConfig`);
+                console.warn(`[RhythmGame] WARNING: Old beatmap format detected. Ignoring old channelConfig.`);
             } else if (this.beatmapData?.gameChannels && this.beatmapData.gameChannels.length > 0) {
                 forcedChannels = this.beatmapData.gameChannels.map((ch: number) => ch - 1);
                 console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${forcedChannels?.join(', ')}`);
@@ -1127,7 +1123,7 @@ export class RhythmGame extends BaseGame {
             if (!difficulty) difficulty = 'NORMAL';
 
             // Generate Visual Notes through NoteFactory (Smart Charting inside if forcedChannels is null)
-            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels, difficulty, channelConfig);
+            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels, difficulty, measureConfig);
 
             console.log(`[RhythmGame] Created ${this.visualNotes.length} notes on ${difficulty} difficulty.`);
             if (this.scoreManager) {

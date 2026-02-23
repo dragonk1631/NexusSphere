@@ -19,10 +19,12 @@ export class EditorUI {
     private onTrackVolume: (trackIndex: number, volume: number) => void;
     private onEQChange: (type: 'low' | 'mid' | 'high', val: number) => void;
     private onFXChange: (type: 'reverb' | 'chorus', val: number) => void;
-    private onChannelRoleChange: (channelIndex: number, role: string) => void;
-    private onAutoRolesClick: () => void;
-    private onSaveConfigClick: () => void;
     private onSortChange: (sortBy: string) => void;
+    private onSaveConfig: () => void;
+    private onTrackHeaderClick: (trackIndex: number) => void;
+    private onToggleAllMeasures: () => void;
+    private onMagicAnalyze: () => void;
+    private onResetConfig: () => void;
 
     constructor(
         transportHandler: (action: string) => void,
@@ -39,10 +41,12 @@ export class EditorUI {
         trackVolumeHandler: (idx: number, vol: number) => void,
         eqHandler: (type: 'low' | 'mid' | 'high', val: number) => void,
         fxHandler: (type: 'reverb' | 'chorus', val: number) => void,
-        channelRoleHandler: (channelIndex: number, role: string) => void,
-        autoRolesHandler: () => void,
+        sortHandler: (sortBy: string) => void,
         saveConfigHandler: () => void,
-        sortHandler: (sortBy: string) => void
+        trackHeaderClickHandler: (trackIndex: number) => void,
+        toggleAllHandler: () => void,
+        magicAnalyzeHandler: () => void,
+        resetConfigHandler: () => void
     ) {
         this.uiManager = UIManager.getInstance();
         this.onTransportClick = transportHandler;
@@ -59,10 +63,12 @@ export class EditorUI {
         this.onTrackVolume = trackVolumeHandler;
         this.onEQChange = eqHandler;
         this.onFXChange = fxHandler;
-        this.onChannelRoleChange = channelRoleHandler;
-        this.onAutoRolesClick = autoRolesHandler;
-        this.onSaveConfigClick = saveConfigHandler;
         this.onSortChange = sortHandler;
+        this.onSaveConfig = saveConfigHandler;
+        this.onTrackHeaderClick = trackHeaderClickHandler;
+        this.onToggleAllMeasures = toggleAllHandler;
+        this.onMagicAnalyze = magicAnalyzeHandler;
+        this.onResetConfig = resetConfigHandler;
     }
 
     public show(): void {
@@ -95,12 +101,11 @@ export class EditorUI {
                     </div>
 
                     <div class="extra-tools" style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
-                        <button id="btn-auto-roles" title="Auto Detect Roles" style="background:#2196F3; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
-                            🤖 AUTO ROLES
-                        </button>
-
                         <button id="btn-save-config" title="Save to LocalStorage" style="background:#FF9800; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
-                            💾 SAVE (LOCAL)
+                            💾 SAVE
+                        </button>
+                        <button id="btn-reset-config" title="Clear all manual configs" style="background:#f44336; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            ↺ RESET
                         </button>
 
                         <button id="btn-test-play" title="Test Play" style="background:#4CAF50; color:white; border:none; padding:4px 12px; border-radius:4px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:11px;">
@@ -238,8 +243,12 @@ export class EditorUI {
         q('#btn-stop')?.addEventListener('click', () => this.onTransportClick('stop'));
         q('#btn-end')?.addEventListener('click', () => this.onTransportClick('end'));
         q('#btn-test-play')?.addEventListener('click', () => this.onTransportClick('test'));
-        q('#btn-auto-roles')?.addEventListener('click', () => this.onAutoRolesClick());
-        q('#btn-save-config')?.addEventListener('click', () => this.onSaveConfigClick());
+        q('#btn-save-config')?.addEventListener('click', () => this.onSaveConfig());
+        q('#btn-reset-config')?.addEventListener('click', () => {
+            if (confirm("Are you sure you want to delete ALL manual configurations? This cannot be undone.")) {
+                this.onResetConfig();
+            }
+        });
 
         q('#btn-fx-eq-toggle')?.addEventListener('click', (e) => {
             const btn = e.currentTarget as HTMLElement;
@@ -468,9 +477,49 @@ export class EditorUI {
         }
     }
 
-    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>, mutedIndices: Set<number>, channelColors: string[], gameRoles?: Map<number, string>): void {
+    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>, mutedIndices: Set<number>, channelColors: string[]): void {
         if (!this.trackListPanel) return;
         this.trackListPanel.innerHTML = '';
+
+        // Add Sticky Header Spacer to match Canvas Measure Header
+        const headerSpacer = document.createElement('div');
+        headerSpacer.style.cssText = 'position: sticky; top: 0; height: 24px; min-height: 24px; background: #0a0a0a; border-bottom: 1px solid #333; z-index: 10; width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 0 4px; box-sizing: border-box; color: #666; font-size: 10px; font-weight: bold;';
+
+        const label = document.createElement('span');
+        label.innerText = 'CHANNELS';
+        headerSpacer.appendChild(label);
+
+        const btnContainer = document.createElement('div');
+        btnContainer.style.display = 'flex';
+        btnContainer.style.gap = '4px';
+
+        const magicBtn = document.createElement('button');
+        magicBtn.innerHTML = '🪄';
+        magicBtn.title = 'Magic Auto-Fill (Fill Gaps)';
+        magicBtn.style.cssText = 'background: #222; color: #fff; border: 1px solid #ffcc00; border-radius: 4px; font-size: 11px; padding: 1px 4px; cursor: pointer; transition: all 0.2s;';
+        magicBtn.onmouseover = () => { magicBtn.style.background = '#444'; magicBtn.style.transform = 'scale(1.1)'; };
+        magicBtn.onmouseout = () => { magicBtn.style.background = '#222'; magicBtn.style.transform = 'scale(1.0)'; };
+        magicBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.onMagicAnalyze();
+        };
+        btnContainer.appendChild(magicBtn);
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.innerText = 'ALL';
+        toggleBtn.title = 'Select / Deselect All Measures';
+        toggleBtn.style.cssText = 'background: #222; color: #aaa; border: 1px solid #444; border-radius: 4px; font-size: 9px; padding: 1px 6px; cursor: pointer; transition: all 0.2s;';
+        toggleBtn.onmouseover = () => { toggleBtn.style.background = '#333'; toggleBtn.style.color = '#fff'; };
+        toggleBtn.onmouseout = () => { toggleBtn.style.background = '#222'; toggleBtn.style.color = '#aaa'; };
+        toggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.onToggleAllMeasures();
+        };
+        btnContainer.appendChild(toggleBtn);
+
+        headerSpacer.appendChild(btnContainer);
+
+        this.trackListPanel.appendChild(headerSpacer);
 
         const getIcon = (channel: any) => {
             if (channel.isDrum) return '🥁';
@@ -509,7 +558,7 @@ export class EditorUI {
                 div.addEventListener('click', (e) => {
                     const target = e.target as HTMLElement;
                     if (target.closest('.track-btn-m') || target.closest('.track-btn-s') || target.closest('.track-volume-slider')) return;
-                    this.onTrackSolo(ch, !soloIndices.has(ch));
+                    this.onTrackHeaderClick(ch);
                 });
 
                 const channelVolume = channelVolumes.get(ch) || 100;
@@ -526,14 +575,6 @@ export class EditorUI {
                         <div class="track-icon-badge" style="width:30px; height:30px; display:flex; align-items:center; justify-content:center; background:${color}22; border:1px solid ${color}44; border-radius:4px; font-size:16px;">
                             ${getIcon(channelInfo)}
                         </div>
-
-                        <select class="channel-role-select" data-index="${ch}" style="background:#222; color:${color}; border:1px solid #444; border-radius:3px; font-size:10px; padding:2px; margin-right:8px; cursor:pointer; outline:none;">
-                            <option value="NONE" ${(!gameRoles || !gameRoles.has(ch)) ? 'selected' : ''}>--</option>
-                            <option value="PRIMARY" ${(gameRoles && gameRoles.get(ch) === 'PRIMARY') ? 'selected' : ''}>👑 PRI</option>
-                            <option value="SECONDARY" ${(gameRoles && gameRoles.get(ch) === 'SECONDARY') ? 'selected' : ''}>🛡️ SEC</option>
-                            <option value="THIRD" ${(gameRoles && gameRoles.get(ch) === 'THIRD') ? 'selected' : ''}>🔸 3RD</option>
-                            <option value="DRUM" ${(gameRoles && gameRoles.get(ch) === 'DRUM') ? 'selected' : ''}>🥁 DRM</option>
-                        </select>
 
                         <div class="track-info-container" style="flex:1; pointer-events:none; display:flex; flex-direction:column; justify-content:center; overflow:hidden;">
                             <div class="track-name" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; font-size:11px; margin-bottom:0px;">
@@ -564,15 +605,6 @@ export class EditorUI {
                 });
 
                 slider?.addEventListener('mousedown', (e) => e.stopPropagation());
-
-                const roleSelect = div.querySelector('.channel-role-select') as HTMLSelectElement;
-                roleSelect?.addEventListener('change', (e) => {
-                    e.stopPropagation();
-                    const val = (e.target as HTMLSelectElement).value;
-                    this.onChannelRoleChange(ch, val);
-                });
-                roleSelect?.addEventListener('click', (e) => e.stopPropagation());
-                roleSelect?.addEventListener('mousedown', (e) => e.stopPropagation());
 
 
                 div.querySelector('.track-btn-m')?.addEventListener('click', (e) => {

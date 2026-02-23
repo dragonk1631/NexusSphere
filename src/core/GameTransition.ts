@@ -9,7 +9,7 @@ export interface TransitionData {
         speed: number;
         volume: number;
         difficulty?: string;
-        channelConfig?: { primary: number[], secondary: number[], third: number[], drum: number[] };
+        measureConfig?: [number, number][]; // Array of [MeasureIndex, PrimaryChannel]
     };
 }
 

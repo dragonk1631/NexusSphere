@@ -28,6 +28,7 @@ export interface ParsedMidi {
     name: string;
     bpm: number;
     duration: number;
+    durationTicks: number;
     ppq: number; // Pulses Per Quarter note
     tempos: { bpm: number, time: number, ticks: number }[]; // Tempo map
     timeSignatures: { ticks: number, timeSignature: number[] }[]; // Time Signature map
@@ -104,6 +105,7 @@ export class MidiParser {
             name: midi.name || 'Untitled',
             bpm,
             duration: midi.duration,
+            durationTicks: Math.max(...midi.tracks.map(t => t.durationTicks), 0),
             ppq: midi.header.ppq || 480,
             tempos: midi.header.tempos.map(t => ({ bpm: t.bpm, time: t.time || 0, ticks: t.ticks || 0 })),
             timeSignatures: midi.header.timeSignatures.map(ts => ({ ticks: ts.ticks || 0, timeSignature: ts.timeSignature })),

@@ -90,7 +90,10 @@ export class MelodyAnalyzer {
         const analyzedChannels: ChannelStats[] = [];
 
         statsMap.forEach(stats => {
-            if (stats.notes.length < 10) return; // Ignore empty/noise channels
+            // Filter ghost notes early to match NoteFactory logic (threshold 13)
+            stats.notes = stats.notes.filter(n => n.velocity >= 13);
+
+            if (stats.notes.length < 5) return; // Keep low-density channels if they are clean
 
             // Sort notes by time for analysis
             stats.notes.sort((a, b) => a.time - b.time);
@@ -143,6 +146,12 @@ export class MelodyAnalyzer {
             stats.activityRatio = totalNoteDuration / duration;
 
             this.computeScore(stats);
+
+            // IGNORE DRUMS & PERCUSSION completely for melody analysis
+            if (stats.isDrum || stats.instrumentFamily.includes('percussion') || stats.instrumentFamily.includes('drum')) {
+                return;
+            }
+
             analyzedChannels.push(stats);
         });
 
@@ -175,10 +184,10 @@ export class MelodyAnalyzer {
         // 5. Build Hierarchical Result (Melody 1 -> 2 -> 3 -> Drums)
         const result: number[] = [];
 
-        // Top 3 Melodic Channels
-        if (nonDrums.length > 0) result.push(nonDrums[0].channel);
-        if (nonDrums.length > 1) result.push(nonDrums[1].channel);
-        if (nonDrums.length > 2) result.push(nonDrums[2].channel);
+        // Top candidates (increased for better gap filling)
+        for (let i = 0; i < Math.min(nonDrums.length, 8); i++) {
+            result.push(nonDrums[i].channel);
+        }
 
         // Best Drum Channel (as fallback)
         if (drums.length > 0) {
@@ -226,12 +235,12 @@ export class MelodyAnalyzer {
 
         // 3. Polyphony (Strong Indicator of Accompaniment)
         // Melodies are usually monophonic (ratio < 0.1)
-        if (stats.polyphonyRatio > 0.3) {
-            score -= 2500; // Likely Chords/Pads
-            details.push(`Polyphony(${stats.polyphonyRatio.toFixed(2)}) -2500`);
-        } else if (stats.polyphonyRatio > 0.1) {
-            score -= 800;
-            details.push("Poly(Mid) -800");
+        if (stats.polyphonyRatio > 0.45) {
+            score -= 1500; // Likely Chords/Pads
+            details.push(`Polyphony(${stats.polyphonyRatio.toFixed(2)}) -1500`);
+        } else if (stats.polyphonyRatio > 0.2) {
+            score -= 500;
+            details.push("Poly(Mid) -500");
         } else {
             score += 500;
             details.push("Mono +500");
@@ -325,10 +334,82 @@ export class MelodyAnalyzer {
     }
 
     /**
+     * Detects if the track is primarily composed of repeating interval patterns (Arpeggios).
+     */
+    /**
      * Legacy support
      */
     public static findMelodyTrack(midi: ParsedMidi): number {
         const channels = this.findMelodyChannels(midi);
         return channels.length > 0 ? channels[0] : -1;
+    }
+
+    /**
+     * Intelligent Gap-Filling Strategy:
+     * 1. Pick a global Primary Channel (Main melody).
+     * 2. For each measure, if the Main Channel has no notes, 
+     *    find the best available candidate that HAS notes in that specific measure.
+     * @returns Map<measureIndex, channelIndex>
+     */
+    public static suggestGapFilling(midi: ParsedMidi): Map<number, number> {
+        const config = new Map<number, number>();
+
+        // Use a deeper pool for gap filling (top 8 candidates instead of top 3)
+        const ranked = this.findMelodyChannels(midi);
+        if (ranked.length === 0) return config;
+
+        const mainChannel = ranked[0];
+        const ppq = midi.ppq || 480;
+        const totalTicks = (midi as any).durationTicks || 0;
+        const totalMeasures = Math.ceil(totalTicks / (ppq * 4));
+
+        // Group all notes by channel and measure for fast lookup
+        const channelMeasureMap = new Map<number, Set<number>>(); // Map<channel, Set<measureIdx>>
+
+        midi.tracks.forEach(track => {
+            const ch = track.channel;
+            if (!channelMeasureMap.has(ch)) channelMeasureMap.set(ch, new Set());
+            const measureSet = channelMeasureMap.get(ch)!;
+
+            track.notes.forEach(note => {
+                if (note.velocity < 13) return; // Ignore ghosts
+                const mIdx = Math.floor(note.ticks / (ppq * 4));
+                measureSet.add(mIdx);
+            });
+        });
+
+        // Then, analyze transitions
+        // FIX: Always set measure 0 to mainChannel to provide a root for inheritance
+        let currentAssignedChannel = mainChannel;
+        config.set(0, mainChannel);
+
+        for (let m = 0; m < totalMeasures; m++) {
+            const mainHasNotes = channelMeasureMap.get(mainChannel)?.has(m);
+
+            if (mainHasNotes) {
+                // Return to main channel if it has content
+                if (currentAssignedChannel !== mainChannel) {
+                    config.set(m, mainChannel);
+                    currentAssignedChannel = mainChannel;
+                }
+            } else {
+                // Gap detected! Find a candidate from ranked list that HAS notes here
+                let bestAlt: number | null = null;
+                for (let i = 1; i < ranked.length; i++) {
+                    const altCh = ranked[i];
+                    if (channelMeasureMap.get(altCh)?.has(m)) {
+                        bestAlt = altCh;
+                        break;
+                    }
+                }
+
+                if (bestAlt !== null && bestAlt !== currentAssignedChannel) {
+                    config.set(m, bestAlt);
+                    currentAssignedChannel = bestAlt;
+                }
+            }
+        }
+
+        return config;
     }
 }
