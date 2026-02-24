@@ -156,15 +156,13 @@ export class MelodyAnalyzer {
         });
 
         // 3.5. First Principle: "Most Notes = Likely Melody" (User Request)
-        // Find the candidate with the highest note count (excluding Drums & Bass)
-        // and give it a massive bonus to maximize probability.
+        // Find the candidate with the absolute highest note count (excluding Drums)
         let maxNoteCount = -1;
         let maxNoteCandidate: ChannelStats | null = null;
 
         analyzedChannels.forEach(c => {
-            // Exclude obvious drums/bass from this contest
-            const isBass = /bass/.test(c.instrumentFamily) || c.avgPitch < 45;
-            if (!c.isDrum && !isBass) {
+            // Only exclude explicit drum channels. We let low-pitch melodies compete.
+            if (!c.isDrum) {
                 if (c.noteCount > maxNoteCount) {
                     maxNoteCount = c.noteCount;
                     maxNoteCandidate = c;
@@ -172,9 +170,14 @@ export class MelodyAnalyzer {
             }
         });
 
-        if (maxNoteCandidate) {
-            (maxNoteCandidate as ChannelStats).score += 1000;
-            (maxNoteCandidate as ChannelStats).scoreDetails.push("FirstPrinciple(MostNotes) +1000");
+        // Apply a massive bonus to maximize probability, but ONLY if it has a meaningful number of notes
+        // and isn't explicitly named as a bass track.
+        if (maxNoteCandidate && maxNoteCount > 20) {
+            const isExplicitBass = /bass/.test((maxNoteCandidate as ChannelStats).instrumentFamily);
+            if (!isExplicitBass) {
+                (maxNoteCandidate as ChannelStats).score += 1500;
+                (maxNoteCandidate as ChannelStats).scoreDetails.push("FirstPrinciple(MostNotes) +1500");
+            }
         }
 
         // 4. Group by Type and Sort
@@ -219,7 +222,7 @@ export class MelodyAnalyzer {
         if (stats.isDrum) { // Channel 10 or Percussion
             score -= 3000;
             details.push("IsDrum -3000");
-        } else if (/bass/.test(stats.instrumentFamily) || stats.avgPitch < 45) {
+        } else if (/bass/.test(stats.instrumentFamily) || stats.avgPitch < 35) {
             score -= 1000;
             details.push("IsBass -1000");
         } else if (/lead|sax|trumpet|flute|oboe|clarinet|distortion|overdrive|singing/.test(stats.instrumentFamily)) {

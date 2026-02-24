@@ -477,7 +477,7 @@ export class EditorUI {
         }
     }
 
-    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>, mutedIndices: Set<number>, channelColors: string[]): void {
+    public renderChannelHeaders(channelData: any[], channelHeight: number, soloIndices: Set<number>, channelVolumes: Map<number, number>, mutedIndices: Set<number>, channelColors: string[], mainChannels: Set<number> = new Set()): void {
         if (!this.trackListPanel) return;
         this.trackListPanel.innerHTML = '';
 
@@ -538,7 +538,8 @@ export class EditorUI {
         for (let ch = 0; ch < 16; ch++) {
             const channelInfo = channelData[ch];
             const div = document.createElement('div');
-            div.className = `track-header zebra-${(ch % 2) + 1}`;
+            const isMain = mainChannels && mainChannels.has(ch);
+            div.className = `track-header zebra-${(ch % 2) + 1} ${isMain ? 'main-channel' : ''}`;
 
             const color = channelColors[ch] || '#888';
 
@@ -546,9 +547,12 @@ export class EditorUI {
             const h = Math.floor(channelHeight);
 
             // Match Canvas Zebra (High Contrast)
-            const bg = (ch % 2 === 1) ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.5)';
+            let bg = (ch % 2 === 1) ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.5)';
+            if (isMain) bg = 'rgba(255, 215, 0, 0.1)'; // Golden background twist
 
-            div.style.cssText = `height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden; border-left: 4px solid ${color}; border-bottom: 1.2px solid #555; background: ${bg};`;
+            const borderStyle = isMain ? `border: 2px solid gold;` : `border-left: 4px solid ${color}; border-bottom: 1.2px solid #555;`;
+
+            div.style.cssText = `position: relative; height: ${h}px; min-height: ${h}px; max-height: ${h}px; box-sizing: border-box; overflow: hidden; ${borderStyle} background: ${bg}; transition: all 0.2s;`;
 
             if (channelInfo && channelInfo.notes.length > 0) {
                 if (soloIndices.has(ch)) div.classList.add('solo-active');
@@ -568,9 +572,13 @@ export class EditorUI {
                     ? channelInfo.trackNames.join(', ')
                     : `Channel ${ch + 1}`;
 
+                // Restore the original MAIN badge positioned to the top left
+                const mainBadge = isMain ? `<div title="Auto-Selected Main Channel" style="position:absolute; left:0; top:0; background:gold; color:#000; font-size:9px; font-weight:bold; padding:1px 3px; border-bottom-right-radius:4px; z-index: 5; box-shadow: 1px 1px 3px rgba(0,0,0,0.5);">👑 MAIN</div>` : '';
+
                 div.innerHTML = `
+                    ${mainBadge}
                     <div style="display:flex; align-items:center; width:100%; height:100%; padding: 0 5px; gap:8px; overflow:hidden;">
-                        <span class="track-number" style="color:${color}; font-weight:bold;">${ch + 1}</span>
+                        <span class="track-number" style="color:${isMain ? 'gold' : color}; font-weight:bold; width:16px; text-align:center; display:inline-block; margin-top:${isMain ? '12px' : '0'};">${ch + 1}</span>
                         
                         <div class="track-icon-badge" style="width:30px; height:30px; display:flex; align-items:center; justify-content:center; background:${color}22; border:1px solid ${color}44; border-radius:4px; font-size:16px;">
                             ${getIcon(channelInfo)}

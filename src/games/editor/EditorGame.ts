@@ -185,7 +185,7 @@ export class EditorGame extends BaseGame {
                 this.updateTrackLayout();
 
                 // Clamp scrollY after resize to prevent out-of-bounds
-                const totalHeight = 16 * this.trackHeight;
+                const totalHeight = 16 * this.trackHeight + 24;
                 const maxScroll = Math.max(0, totalHeight - this.canvas.height);
                 this.scrollY = Math.max(0, Math.min(maxScroll, this.scrollY));
             });
@@ -329,37 +329,6 @@ export class EditorGame extends BaseGame {
             this.midiData = await parser.parse(buffer);
             await this.audioEngine.loadMidi(buffer);
 
-            // --- Game Measure Analysis (Measure Default setup) ---
-            this.measureConfig.clear();
-
-            const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            const savedConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
-            let loadedFromLocal = false;
-
-            if (savedConfigStr) {
-                try {
-                    const savedConfig = JSON.parse(savedConfigStr);
-                    if (savedConfig.version === "1.2" && savedConfig.measureConfig) {
-                        // Version 1.2 Format (New Measure-Based)
-                        const entries = savedConfig.measureConfig;
-                        entries.forEach((entry: [number, number]) => {
-                            this.measureConfig.set(Number(entry[0]), Number(entry[1]));
-                        });
-                        loadedFromLocal = true;
-                        console.log(`[EditorGame] Loaded Measure Config from LocalStorage for ${this.midiData.name}`);
-                    } else {
-                        console.warn(`[EditorGame] Found old config format for ${this.midiData.name}. Ignoring.`);
-                    }
-                } catch (err) {
-                    console.warn(`[EditorGame] Failed to parse local config:`, err);
-                }
-            }
-
-            if (!loadedFromLocal) {
-                // Apply strategic Magic Analyze (Gap Filling) as default if no saved config exists
-                this.handleMagicAnalyze();
-                console.log(`[EditorGame] Applied strategic Magic defaults (Gap Filling) on load.`);
-            }
 
             // DEBUG: Analyze Track Structure for "Pollution"
             console.groupCollapsed(`[MIDI Analysis] ${name}`);
@@ -405,10 +374,42 @@ export class EditorGame extends BaseGame {
             this.ui?.setBpm(this.midiData.bpm);
             this.ui?.setMidiMeta({ name: this.midiData.name });
 
-            // Channel-Based Data Aggregation
+            // Channel-Based Data Aggregation (MUST be called before updateTrackLayout uses channelData)
             this.aggregateChannelData();
 
-            // Render Layout with RESET state
+            // --- Game Measure Analysis (Measure Default setup) ---
+            this.measureConfig.clear();
+
+            const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const savedConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
+            let loadedFromLocal = false;
+
+            if (savedConfigStr) {
+                try {
+                    const savedConfig = JSON.parse(savedConfigStr);
+                    if (savedConfig.version === "1.2" && savedConfig.measureConfig) {
+                        // Version 1.2 Format (New Measure-Based)
+                        const entries = savedConfig.measureConfig;
+                        entries.forEach((entry: [number, number]) => {
+                            this.measureConfig.set(Number(entry[0]), Number(entry[1]));
+                        });
+                        loadedFromLocal = true;
+                        console.log(`[EditorGame] Loaded Measure Config from LocalStorage for ${this.midiData.name}`);
+                    } else {
+                        console.warn(`[EditorGame] Found old config format for ${this.midiData.name}. Ignoring.`);
+                    }
+                } catch (err) {
+                    console.warn(`[EditorGame] Failed to parse local config:`, err);
+                }
+            }
+
+            if (!loadedFromLocal) {
+                // Apply strategic Magic Analyze (Gap Filling) as default if no saved config exists
+                this.handleMagicAnalyze();
+                console.log(`[EditorGame] Applied strategic Magic defaults (Gap Filling) on load.`);
+            }
+
+            // Render Layout with RESET state (which relies on measureConfig and channelData)
             this.updateTrackLayout();
             this.syncAudioStates();
 
@@ -486,8 +487,13 @@ export class EditorGame extends BaseGame {
             track.notes.forEach(note => {
                 const ch = note.channel;
                 if (ch >= 0 && ch < 16) {
-                    // Add all notes from this track to the channel
-                    this.channelData[ch].notes.push(note);
+                    // Deduplicate notes to prevent additive render overlapping (glitch visuals)
+                    const isDuplicate = this.channelData[ch].notes.some(existing =>
+                        Math.abs(existing.ticks - note.ticks) < 5 && existing.midi === note.midi
+                    );
+                    if (!isDuplicate) {
+                        this.channelData[ch].notes.push(note);
+                    }
 
                     // Track which track names contribute to this channel
                     if (track.name && !this.channelData[ch].trackNames.includes(track.name)) {
@@ -534,8 +540,22 @@ export class EditorGame extends BaseGame {
                 if (!isAudible) effectiveMutes.add(ch);
             }
 
+            // Find the true global MAIN channel using the comprehensive MelodyAnalyzer
+            let bestMainChannel = -1;
+            if (this.midiData) {
+                const rankedChannels = MelodyAnalyzer.findMelodyChannels(this.midiData);
+                if (rankedChannels.length > 0) {
+                    bestMainChannel = rankedChannels[0];
+                }
+            }
+
+            const mainChannels = new Set<number>();
+            if (bestMainChannel !== -1) {
+                mainChannels.add(bestMainChannel);
+            }
+
             // Render 16 fixed channel headers with COLORS
-            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes, effectiveMutes, CHANNEL_COLORS);
+            this.ui?.renderChannelHeaders(this.channelData, this.trackHeight, this.soloTrackIndices, this.trackVolumes, effectiveMutes, CHANNEL_COLORS, mainChannels);
         }
     }
 
@@ -796,7 +816,7 @@ export class EditorGame extends BaseGame {
             // Horizontal scroll via shift+wheel could be added here
         } else {
             // Fixed 16 channels for scroll calculation
-            const totalHeight = 16 * this.trackHeight;
+            const totalHeight = 16 * this.trackHeight + 24;
             const maxScroll = Math.max(0, totalHeight - this.canvas.height);
             this.scrollY = Math.max(0, Math.min(maxScroll, this.scrollY + e.deltaY));
             this.ui?.syncTrackScroll(this.scrollY);
@@ -1033,7 +1053,7 @@ export class EditorGame extends BaseGame {
         if (this.ui && this.midiData) {
             // Optimization: Throttled sync (only if playing or dragging)
             if (this.isPlaying || this.isDraggingPlayhead) {
-                const totalHeight = 16 * this.trackHeight;
+                const totalHeight = 16 * this.trackHeight + 24;
                 const maxScroll = Math.max(1, totalHeight - this.canvas.height);
                 // Correct percentage: scrollY relative to scrollable range, not total height
                 const scrollPercent = this.scrollY / maxScroll;
@@ -1266,6 +1286,21 @@ export class EditorGame extends BaseGame {
                     this.ctx.fillStyle = noteColor;
                     this.ctx.fillRect(x, y, w, h);
 
+                    // Check if note is in the main channel for its measure
+                    const ppq = this.midiData?.ppq || 480;
+                    const measureIdx = Math.floor(note.ticks / (ppq * 4));
+                    const isMainChannel = getMeasurePrimaryChannel(measureIdx) === ch;
+
+                    if (isMainChannel) {
+                        this.ctx.save();
+                        this.ctx.strokeStyle = '#ffffff';
+                        this.ctx.lineWidth = 1.5;
+                        this.ctx.shadowBlur = 8;
+                        this.ctx.shadowColor = '#ffffff';
+                        this.ctx.strokeRect(x, y, w, h);
+                        this.ctx.restore();
+                    }
+
                     // Lighter top edge for 3D effect
                     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                     this.ctx.fillRect(x, y, w, 1);
@@ -1404,6 +1439,7 @@ export class EditorGame extends BaseGame {
         });
 
         this.handleSaveConfig(false);
+        this.updateTrackLayout();
         this.render();
     }
 
@@ -1439,6 +1475,7 @@ export class EditorGame extends BaseGame {
             });
 
             this.handleSaveConfig(false);
+            this.updateTrackLayout();
             this.render();
             console.log(`[EditorGame] Magic Analyze complete. Applied ${autoConfig.size} strategic changes.`);
         }
