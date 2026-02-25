@@ -16,7 +16,6 @@ export class BackgroundRenderer {
     private static instance: BackgroundRenderer | null = null;
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
-    private rafId: number = 0;
     private time: number = 0;
 
     private particles: Particle[] = [];
@@ -32,7 +31,7 @@ export class BackgroundRenderer {
         setTimeout(() => {
             this.resize();
             this.render = this.render.bind(this);
-            this.rafId = requestAnimationFrame(this.render);
+            requestAnimationFrame(this.render);
         }, 0);
     }
 
@@ -152,10 +151,10 @@ export class BackgroundRenderer {
         // 2. Draw active pattern
         this.ctx.save();
         switch (theme.pattern) {
-            case 'stars': this.drawStars(w, h, theme); break;
+            case 'stars': this.drawStars(h, theme); break;
             case 'grid3d': this.drawGrid3D(w, h, theme); break;
             case 'scanlines': this.drawScanlines(w, h, theme); break;
-            case 'matrix': this.drawMatrix(w, h, theme); break;
+            case 'matrix': this.drawMatrix(h, theme); break;
             case 'waves': this.drawWaves(w, h, theme); break;
             case 'bubbles': this.drawBubbles(w, h, theme); break;
             case 'embers': this.drawEmbers(w, h, theme); break;
@@ -164,13 +163,12 @@ export class BackgroundRenderer {
             case 'floating': this.drawFloating(w, h, theme); break;
         }
         this.ctx.restore();
-
-        this.rafId = requestAnimationFrame(this.render);
+        requestAnimationFrame(this.render);
     }
 
     // --- Pattern Rendering Methods ---
 
-    private drawStars(w: number, h: number, theme: ThemeConfig) {
+    private drawStars(h: number, theme: ThemeConfig) {
         this.ctx.fillStyle = theme.particleColor;
         this.particles.forEach(p => {
             p.y += p.vy!;
@@ -232,12 +230,12 @@ export class BackgroundRenderer {
         this.ctx.fill();
     }
 
-    private drawMatrix(w: number, h: number, theme: ThemeConfig) {
+    private drawMatrix(h: number, theme: ThemeConfig) {
         this.ctx.fillStyle = theme.particleColor;
         this.ctx.font = '16px monospace';
         const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*";
 
-        this.particles.forEach((p, i) => {
+        this.particles.forEach((p) => {
             p.y += p.vy!;
             if (p.y > h + p.s! * 20) {
                 p.y = -p.s! * 20;
