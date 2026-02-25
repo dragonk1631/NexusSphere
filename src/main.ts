@@ -4,6 +4,7 @@ import { RhythmGame } from './games/rhythm/RhythmGame';
 import { EditorGame } from './games/editor/EditorGame';
 import { LayoutEditor } from './games/editor/LayoutEditor';
 import { MainMenu } from './ui/MainMenu';
+import { TitleScreen } from './ui/TitleScreen';
 import { UIManager } from './core/ui/UIManager';
 
 // Initialize UI Manager
@@ -260,9 +261,11 @@ function enableHistoryGuard() {
   });
 }
 
-// Start with Main Menu
-mainMenu = new MainMenu(handleGameStart);
-mainMenu.show();
+// Start with Title Screen
+new TitleScreen(() => {
+  mainMenu = new MainMenu(handleGameStart);
+  mainMenu.show();
+});
 
 // --- Mobile Initialization ---
 if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {

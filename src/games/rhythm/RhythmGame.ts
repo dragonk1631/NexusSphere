@@ -155,6 +155,7 @@ export class RhythmGame extends BaseGame {
         this.handleMouseDown = this.handleMouseDown.bind(this);
         this.handleMouseMove = this.handleMouseMove.bind(this);
         this.handleMouseUp = this.handleMouseUp.bind(this);
+        this.handleWheel = this.handleWheel.bind(this);
 
         // Load Sci-Fi Font
         const fontLink = document.createElement('link');
@@ -245,6 +246,7 @@ export class RhythmGame extends BaseGame {
         this.canvas.addEventListener('mousemove', this.handleMouseMove);
         this.canvas.addEventListener('mouseup', this.handleMouseUp);
         this.canvas.addEventListener('mouseleave', this.handleMouseUp);
+        this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
 
         // Create Initial Particles
         for (let i = 0; i < 30; i++) {
@@ -397,6 +399,7 @@ export class RhythmGame extends BaseGame {
                     this.start();
                 });
             } else {
+                this.isMouseDown = true;
                 this.touchStartY = y;
                 this.handleMenuPointer(x, y);
             }
@@ -435,9 +438,9 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState === GameState.MENU && this.isMouseDown) {
             const diffY = y - this.touchStartY;
-            if (Math.abs(diffY) > 50) {
-                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
-                else this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+            if (Math.abs(diffY) > 25) {
+                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+                else this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
                 this.touchStartY = y;
                 this.playPreview();
             }
@@ -470,6 +473,17 @@ export class RhythmGame extends BaseGame {
             this.processLaneRelease(this.mouseLane, this.audioEngine.getPreciseTime() * 1000);
             this.mouseLane = -1;
         }
+    }
+
+    private handleWheel(e: WheelEvent): void {
+        if (this.currentState !== GameState.MENU) return;
+        e.preventDefault();
+        if (e.deltaY > 0) {
+            this.selectedSongIndex = Math.min(this.songList.length - 1, this.selectedSongIndex + 1);
+        } else {
+            this.selectedSongIndex = Math.max(0, this.selectedSongIndex - 1);
+        }
+        this.playPreview();
     }
 
     private handleMenuPointer(x: number, y: number): void {
@@ -602,9 +616,9 @@ export class RhythmGame extends BaseGame {
             // ... existing menu logic ...
             const touch = e.changedTouches[0];
             const diffY = touch.clientY - this.touchStartY;
-            if (Math.abs(diffY) > 50) {
-                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
-                else this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+            if (Math.abs(diffY) > 25) {
+                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+                else this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
                 this.touchStartY = touch.clientY;
                 this.playPreview();
             }
@@ -1736,13 +1750,15 @@ export class RhythmGame extends BaseGame {
 
         // 2. Title Section
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 48px "Orbitron"';
+        ctx.font = '900 48px "Nunito"';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = '#00ffff';
-        ctx.fillText("DATA RETRIEVAL COMPLETE", width / 2, height * 0.12);
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowOffsetY = 4;
+        ctx.fillText("STAGE CLEAR!", width / 2, height * 0.12);
         ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
 
         // 3. Layout Constants (Responsive)
         const panelW = Math.min(width * 0.9, 850);
@@ -1750,7 +1766,7 @@ export class RhythmGame extends BaseGame {
         const panelX = (width - panelW) / 2;
         const panelY = height * 0.22;
 
-        this.drawHolographicRect(panelX, panelY, panelW, panelH, '#00ffff');
+        this.drawCuteTile(panelX, panelY, panelW, panelH, '#74b9ff', true);
 
         // 4. Left Section: Rank and Accuracy
         const leftAreaX = panelX + panelW * 0.3;
@@ -1764,65 +1780,54 @@ export class RhythmGame extends BaseGame {
         else if (accuracy >= 70) grade = 'C';
         else if (accuracy >= 50) grade = 'D';
 
-        const gradeColor = (grade === 'F' || grade === 'D') ? '#ff3333' : (grade.includes('S') ? '#00ffff' : '#33ff33');
+        const gradeColor = (grade === 'F' || grade === 'D') ? '#ff7675' : (grade.includes('S') ? '#74b9ff' : '#55efc4');
 
         ctx.textAlign = 'center';
-        ctx.font = 'bold 180px "Orbitron"';
+        ctx.font = '900 180px "Nunito"';
         ctx.fillStyle = gradeColor;
-        ctx.shadowBlur = 40 + Math.sin(Date.now() * 0.005) * 10;
-        ctx.shadowColor = gradeColor;
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = 'white';
+        ctx.lineJoin = 'round';
+        ctx.strokeText(grade, leftAreaX, panelY + panelH * 0.4);
         ctx.fillText(grade, leftAreaX, panelY + panelH * 0.4);
-        ctx.shadowBlur = 0;
 
         // Percent Accuracy
-        ctx.font = 'bold 42px "Orbitron"';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(`${accuracy.toFixed(2)}% `, leftAreaX, panelY + panelH * 0.68);
-        ctx.font = '16px "Orbitron"';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.fillText("SYNCHRONIZATION RATE", leftAreaX, panelY + panelH * 0.76);
+        this.drawCuteLabel(`${accuracy.toFixed(2)}% `, leftAreaX, panelY + panelH * 0.68, 'center', 42, '#fff', true);
+        this.drawCuteLabel("ACCURACY", leftAreaX, panelY + panelH * 0.76, 'center', 16, '#e6628c');
 
         // 5. Right Section: Detailed Judgments
-        const rightAreaX = panelX + panelW * 0.52; // Moved slightly left from 0.55
+        const rightAreaX = panelX + panelW * 0.52;
         const startY = panelY + panelH * 0.18;
         const rowHeight = 45;
 
         const renderStatRow = (label: string, value: number | string, color: string, y: number, isLarge = false) => {
-            ctx.textAlign = 'left';
-            ctx.font = `bold ${isLarge ? '20' : '18'}px "Orbitron"`;
-            ctx.fillStyle = color;
-            ctx.fillText(label, rightAreaX, y);
+            this.drawCuteLabel(label, rightAreaX, y, 'left', isLarge ? 24 : 18, color, true);
 
-            ctx.textAlign = 'right';
-            ctx.font = `bold ${isLarge ? '36' : '22'}px "Orbitron"`;
-            ctx.fillStyle = '#ffffff';
-            // Increased offset to 0.41 to maximize space 
             const valueX = rightAreaX + panelW * 0.41;
-            ctx.fillText(value.toString(), valueX, y);
+            this.drawCuteLabel(value.toString(), valueX, y, 'right', isLarge ? 36 : 22, '#fff', true);
 
             // Subtle Divider
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.beginPath();
-            ctx.moveTo(rightAreaX, y + 12);
-            ctx.lineTo(valueX, y + 12);
+            ctx.moveTo(rightAreaX, y + 15);
+            ctx.lineTo(valueX, y + 15);
             ctx.stroke();
         };
 
-        renderStatRow("PERFECT", stats.perfect, '#00ffff', startY);
-        renderStatRow("GREAT", stats.great, '#33ff33', startY + rowHeight);
-        renderStatRow("GOOD", stats.good, '#ffff33', startY + rowHeight * 2);
-        renderStatRow("MISS", stats.miss, '#ff3333', startY + rowHeight * 3);
+        renderStatRow("PERFECT", stats.perfect, '#74b9ff', startY);
+        renderStatRow("GREAT", stats.great, '#55efc4', startY + rowHeight);
+        renderStatRow("GOOD", stats.good, '#ffeaa7', startY + rowHeight * 2);
+        renderStatRow("MISS", stats.miss, '#ff7675', startY + rowHeight * 3);
 
         // Score & Max Combo
-        renderStatRow("TOTAL SCORE", Math.floor(score).toLocaleString(), '#ffffff', startY + rowHeight * 4.5, true);
-        renderStatRow("MAX COMBO", maxCombo, '#33ff33', startY + rowHeight * 6.2, true);
+        renderStatRow("TOTAL SCORE", Math.floor(score).toLocaleString(), '#ff9a9e', startY + rowHeight * 4.5, true);
+        renderStatRow("MAX COMBO", maxCombo, '#fdcb6e', startY + rowHeight * 6.2, true);
 
         // 6. Footer Prompt
         const pulse = 0.5 + Math.sin(Date.now() * 0.005) * 0.5;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.7})`;
-        ctx.font = 'bold 22px "Orbitron"';
-        ctx.fillText("TAP OR PRESS ANY KEY TO DISCONNECT", width / 2, height * 0.93 + Math.sin(Date.now() * 0.003) * 5);
+        ctx.globalAlpha = 0.5 + pulse * 0.5;
+        this.drawCuteLabel("TAP OR PRESS ANY KEY TO DISCONNECT", width / 2, height * 0.92, 'center', 24, '#fff', true);
+        ctx.globalAlpha = 1.0;
     }
 
     private renderExplosions(): void {
@@ -2342,75 +2347,98 @@ export class RhythmGame extends BaseGame {
         // 1. Atmosphere & Background
         this.drawAtmosphere(width, height);
 
-        // Digital Grid Floor (Subtle)
-        ctx.save();
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.08)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        const horizon = height * 0.4;
-        const gridSize = Math.max(width, height) * 0.08;
-
-        for (let x = 0; x <= width; x += gridSize) {
-            ctx.moveTo(x, horizon);
-            ctx.lineTo((x - width / 2) * 4 + width / 2, height);
-        }
-        for (let y = horizon; y < height; y += gridSize * 0.5) {
-            const progress = (y - horizon) / (height - horizon);
-            const yPos = horizon + Math.pow(progress, 2) * (height - horizon);
-            ctx.moveTo(0, yPos);
-            ctx.lineTo(width, yPos);
-        }
-        ctx.stroke();
-        ctx.restore();
-
         const currentSong = this.songList[this.selectedSongIndex];
         const seedColor = this.getSeededColor(currentSong.name);
         const bpm = currentSong.bpm || 120;
 
         // Layout Config (Landscape Only)
-        // Clamp padding to prevent elements from crushing together
         const padding = Math.min(width * 0.02, 20);
         const leftPanelWidth = width * 0.46;
         const rightPanelX = width * 0.5;
 
         // Panel Sizes
-        const visPanelH = height * 0.48; // Reduced block size to give the info plate more vertical room
-        const infoY = visPanelH + padding + 10; // Tighter padding between the two left panels
-        const infoH = height - infoY - Math.max(padding, 10);
+        const visPanelH = height * 0.48;
+        const infoY = visPanelH + padding + 10;
+        const infoH = height - infoY - padding;
 
-        const listX = rightPanelX;
+        // SONG LIST: start 25px left of rightPanelX to close the gap, scrollbar lives inside its left edge
+        const listX = rightPanelX - 25;
         const listY = padding;
-        const listW = width - rightPanelX - padding;
-        const listH = height - 2.5 * padding - 40;
+        const listW = width - listX - padding;
+        const listH = height - listY - padding;
 
-        // Draw Holographic Panels
-        this.drawHolographicRect(padding, padding, leftPanelWidth - padding, visPanelH, '#00ffff');
-        this.drawHolographicRect(padding, infoY, leftPanelWidth - padding, infoH, '#ff00ff');
-        this.drawHolographicRect(listX, listY, listW, listH, '#ffffff');
+        // --- DRAW PANELS WITH COLORED OUTLINES ---
+        const TAB_H = 26; // tab height that sticks above the frame
 
-        // Tech Labels
-        this.drawTechLabel("VISUAL_CORE.SYS", padding + 10, padding + 15);
-        this.drawTechLabel("SYS.CONFIG", padding + 10, infoY + 15);
-        this.drawTechLabel("DATA_STREAM.LOG", listX + 10, listY + 15);
+        const drawPanelWithTab = (
+            px: number, py: number, pw: number, ph: number,
+            tabLabel: string, outlineColor: string
+        ) => {
+            ctx.save();
 
-        // Sort Button Render
+            // Panel background
+            ctx.fillStyle = 'rgba(15, 15, 30, 0.65)';
+            ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.roundRect(px, py, pw, ph, 12);
+            ctx.fill();
+
+            // Colored outline
+            ctx.shadowColor = outlineColor;
+            ctx.shadowBlur = 6;
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = outlineColor;
+            ctx.stroke();
+            ctx.shadowColor = 'transparent';
+
+            // --- Tab (outside, above top-left corner) ---
+            ctx.font = `800 14px "Nunito", sans-serif`;
+            const tabW = ctx.measureText(tabLabel).width + 20;
+            // Tab sits flush with left of panel, bottom edge at py-1 (connected to panel top)
+            const tabX = px + 12;
+            const tabY = py - TAB_H + 2;
+            ctx.fillStyle = outlineColor;
+            ctx.beginPath();
+            // Rounded only on top corners
+            ctx.roundRect(tabX, tabY, tabW, TAB_H, [8, 8, 0, 0]);
+            ctx.fill();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.stroke();
+
+            // Tab text — stroke first for outline, then fill white
+            ctx.font = `800 14px "Nunito", sans-serif`;
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'left';
+            // Black outline
+            ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowBlur = 5;
+            ctx.shadowOffsetY = 2;
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx.lineJoin = 'round';
+            ctx.strokeText(tabLabel, tabX + 10, tabY + TAB_H / 2);
+            // White fill
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(tabLabel, tabX + 10, tabY + TAB_H / 2);
+            ctx.restore();
+        };
+
+        drawPanelWithTab(padding, padding + TAB_H, leftPanelWidth - padding, visPanelH - TAB_H, 'SONG INFO', '#FFD700');
+        drawPanelWithTab(padding, infoY + TAB_H, leftPanelWidth - padding, infoH - TAB_H, 'OPTIONS', '#e91e8c');
+        drawPanelWithTab(listX, listY + TAB_H, listW, listH - TAB_H, 'SONG LIST', '#00bcd4');
+
+        // Sort Text (right side of song list panel)
         const sortText = `SORT: ${this.currentSortMode.toUpperCase()}`;
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#aaa';
-        ctx.font = `bold 10px "Orbitron"`;
-        ctx.fillText(sortText, listX + listW - 10, listY + 15);
+        this.drawCuteLabel(sortText, listX + listW - 20, listY + TAB_H + 16, 'right', 12, '#74b9ff', false);
 
-        // Draw a subtle border around the sort hit area
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.beginPath();
-        const textWidth = ctx.measureText(sortText).width;
-        ctx.roundRect(listX + listW - 10 - textWidth - 8, listY + 3, textWidth + 16, 18, 4);
-        ctx.stroke();
 
         // --- CONTENT: VISUALIZER ---
         const cx = padding + (leftPanelWidth - padding) * 0.5;
-        const cy = padding + visPanelH * 0.5;
-        const radius = Math.min(leftPanelWidth * 0.4, visPanelH * 0.35);
+        const cy = (padding + TAB_H) + (visPanelH - TAB_H) * 0.5 + 10;
+        const radius = Math.min(leftPanelWidth * 0.4, (visPanelH - TAB_H) * 0.35);
 
         this.drawVisualizer(cx, cy, radius, time, seedColor, bpm);
 
@@ -2419,110 +2447,233 @@ export class RhythmGame extends BaseGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const titleSize = Math.min(width * 0.035, radius * 0.6);
-        ctx.fillStyle = '#fff';
-        ctx.font = `900 ${titleSize}px "Orbitron"`;
+        const titleSize = Math.min(width * 0.035, radius * 0.45); // Smaller to allow 2 lines
+        ctx.font = `900 ${titleSize}px "Nunito"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
 
-        // Truncate title if it's too long for the circle
-        let title = currentSong.name.toUpperCase();
-        if (ctx.measureText(title).width > radius * 1.8) {
-            title = title.substring(0, 15) + "...";
+        const MAX_TITLE_CHARS = 20;
+        const maxTitleWidth = radius * 1.45;
+
+        // Build lines: split by spaces, keep original case
+        const rawName = currentSong.name; // original case preserved
+        const rawWords = rawName.split(' ');
+        const buildLines: string[] = [];
+        let curLine = '';
+
+        for (let i = 0; i < rawWords.length; i++) {
+            const test = curLine ? curLine + ' ' + rawWords[i] : rawWords[i];
+            if ((ctx.measureText(test).width > maxTitleWidth || test.length > MAX_TITLE_CHARS) && curLine) {
+                buildLines.push(curLine);
+                curLine = rawWords[i];
+            } else {
+                curLine = test;
+            }
         }
-        ctx.fillText(title, 0, 0);
+        if (curLine) buildLines.push(curLine);
+
+        // Clamp to 2 lines, hard-truncate each to MAX_TITLE_CHARS
+        const lines = buildLines.slice(0, 2).map((l, idx) => {
+            if (l.length > MAX_TITLE_CHARS) {
+                return l.substring(0, MAX_TITLE_CHARS - 3) + '...';
+            }
+            if (idx === 1 && buildLines.length > 2) {
+                return l.substring(0, MAX_TITLE_CHARS - 3) + '...';
+            }
+            return l;
+        });
+
+        const lineHeight = titleSize * 1.2;
+        const startY = -(lines.length - 1) * lineHeight / 2;
+
+        for (let i = 0; i < lines.length; i++) {
+            const yOffset = startY + i * lineHeight;
+
+            ctx.save(); // isolate per-line state
+
+            // Per-line gradient: each line has its own full gradient from top to bottom
+            const lineGrad = ctx.createLinearGradient(0, yOffset - titleSize * 0.6, 0, yOffset + titleSize * 0.6);
+            lineGrad.addColorStop(0, '#c0001a');  // deep crimson at top
+            lineGrad.addColorStop(0.3, '#ff3a00');  // vivid orange-red
+            lineGrad.addColorStop(0.65, '#ffd700');  // gold
+            lineGrad.addColorStop(1, '#ffffff');   // white at bottom
+
+            // Black shadow outer stroke (no color cycling)
+            ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 6;
+            ctx.shadowBlur = 12;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 10;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(lines[i], 0, yOffset);
+
+            // White mid stroke
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+            ctx.lineWidth = 4;
+            ctx.strokeText(lines[i], 0, yOffset);
+
+            // Per-line gradient fill
+            ctx.fillStyle = lineGrad;
+            ctx.fillText(lines[i], 0, yOffset);
+
+            ctx.restore();
+        }
         ctx.restore();
 
         // --- CONTENT: INFO & SPEED ---
-        const statsCenterX = padding + (leftPanelWidth - padding) * 0.5;
+        // options panel starts below its tab
+        const infoPanelY = infoY + /* TAB_H from drawPanelWithTab */ 26;
+        const infoPanelH = infoH - 26;
 
-        // Dynamic Y positions
-        const row1Y = infoY + infoH * 0.22;
-        const row2Y = infoY + infoH * 0.52;
-        const row3Y = infoY + infoH * 0.82;
-        // Dynamically scale font to firmly prevent overflowing its row height constraint
-        const valueSize = Math.min(Math.max(12, height * 0.035), infoH * 0.18);
+        const pad = Math.min(infoPanelH * 0.045, 12);
+        const numRows = 3;
+        const optH = (infoPanelH - pad * (numRows + 1)) / numRows;
 
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(`${bpm} `, statsCenterX - leftPanelWidth * 0.2, row1Y);
-        this.drawTechLabel("BPM", statsCenterX - leftPanelWidth * 0.2, row1Y - valueSize * 0.9, 'center');
+        // Two columns that strictly fit within left panel width minus outer padding
+        const innerW = (leftPanelWidth - padding) - padding; // total usable width = leftPanelWidth - 2*padding
+        const optW = (innerW - pad) / 2;
+
+        const col1X = padding + pad;
+        const col2X = col1X + optW + pad;
+        const row1Y = infoPanelY + pad;
+        const row2Y = row1Y + optH + pad;
+        const row3Y = row2Y + optH + pad;
+
+        const bestW = optW * 2 + pad;
+        const bestX = padding + pad;
+
+        const c1X = col1X + optW / 2;
+        const c2X = col2X + optW / 2;
+
+        const valueSize = Math.max(11, optH * 0.32);
+        const labelSize = Math.max(8, optH * 0.2);
+
+        // Pink gradient option frames matching OPTIONS badge color
+        const drawOptFrame = (fx: number, fy: number, fw: number, fh: number) => {
+            ctx.save();
+            const g = ctx.createLinearGradient(fx, fy, fx + fw, fy + fh);
+            g.addColorStop(0, 'rgba(233, 30, 140, 0.25)');
+            g.addColorStop(1, 'rgba(156, 39, 176, 0.15)');
+            ctx.fillStyle = g;
+            ctx.shadowColor = 'rgba(233,30,140,0.2)';
+            ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.roundRect(fx, fy, fw, fh, 8);
+            ctx.fill();
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = 'rgba(233, 30, 140, 0.5)';
+            ctx.shadowColor = 'transparent';
+            ctx.stroke();
+            ctx.restore();
+        };
+
+        drawOptFrame(col1X, row1Y, optW, optH);
+        drawOptFrame(col2X, row1Y, optW, optH);
+        drawOptFrame(col1X, row2Y, optW, optH);
+        drawOptFrame(col2X, row2Y, optW, optH);
+        drawOptFrame(bestX, row3Y, bestW, optH);
+
+        // High contrast values — vertically centered within each frame
+        const textYOffset = optH * 0.62;
+        const labelYOffset = optH * 0.28;
+
+        this.drawCuteLabel(`${bpm} `, c1X, row1Y + textYOffset, 'center', valueSize, '#fff', true);
+        this.drawCuteLabel("BPM", c1X, row1Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
         const totalSeconds = Math.floor(currentSong.duration || 120);
         const durMin = Math.floor(totalSeconds / 60);
         const durSec = (totalSeconds % 60).toString().padStart(2, '0');
-        ctx.fillText(`${durMin}:${durSec} `, statsCenterX + leftPanelWidth * 0.2, row1Y);
-        this.drawTechLabel("DUR", statsCenterX + leftPanelWidth * 0.2, row1Y - valueSize * 0.9, 'center');
+        this.drawCuteLabel(`${durMin}:${durSec} `, c2X, row1Y + textYOffset, 'center', valueSize, '#fff', true);
+        this.drawCuteLabel("DUR", c2X, row1Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
-        // Difficulty & Speed (Row 2 - Side by Side)
-        // Difficulty (Left)
+        // Difficulty & Speed 
         const currentDiff = this.difficultyOptions[this.selectedDifficultyIndex];
-        let diffColor = (currentDiff === 'HARD') ? '#ff3333' : (currentDiff === 'EASY' ? '#00ff00' : '#ffff00');
+        let diffColor = (currentDiff === 'HARD') ? '#ff7675' : (currentDiff === 'EASY' ? '#55efc4' : '#ffeaa7');
 
-        ctx.fillStyle = diffColor;
-        ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(`◀  ${currentDiff}  ▶`, statsCenterX - leftPanelWidth * 0.2, row2Y);
-        this.drawTechLabel("DIFFICULTY", statsCenterX - leftPanelWidth * 0.2, row2Y - valueSize * 0.9, 'center');
+        this.drawCuteLabel(`◀  ${currentDiff}  ▶`, c1X, row2Y + textYOffset, 'center', valueSize, diffColor, true);
+        this.drawCuteLabel("DIFFICULTY", c1X, row2Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
-        // Speed (Right)
-        ctx.fillStyle = '#ff00ff';
-        ctx.font = `bold ${valueSize}px "Orbitron"`;
-        ctx.fillText(`◀  x${this.scrollSpeed.toFixed(1)}  ▶`, statsCenterX + leftPanelWidth * 0.2, row2Y);
-        this.drawTechLabel("SPEED", statsCenterX + leftPanelWidth * 0.2, row2Y - valueSize * 0.9, 'center');
+        // Speed 
+        this.drawCuteLabel(`◀  x${this.scrollSpeed.toFixed(1)}  ▶`, c2X, row2Y + textYOffset, 'center', valueSize, '#a29bfe', true);
+        this.drawCuteLabel("SPEED", c2X, row2Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
-        // High Score / Answer (Row 3 - Centered)
+        // High Score
         const highScore = this.scoreManager?.getHighScore(currentSong.url);
+        const bX = bestX + bestW / 2;
 
         if (highScore) {
-            // Rank
-            const gradeColor = (highScore.grade === 'F' || highScore.grade === 'D') ? '#ff3333' : (highScore.grade.includes('S') ? '#00ffff' : '#33ff33');
-
-            ctx.textAlign = 'right';
-            ctx.fillStyle = gradeColor;
-            ctx.font = `bold ${valueSize * 1.2}px "Orbitron"`; // Scaled down from 1.5 for box fitting
-            ctx.fillText(highScore.grade, statsCenterX - 15, row3Y);
-
-            // Score
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#fff';
-            ctx.font = `bold ${valueSize}px "Orbitron"`;
-            ctx.fillText(highScore.score.toLocaleString(), statsCenterX + 15, row3Y);
-
-            this.drawTechLabel("BEST_RECORD", statsCenterX, row3Y - valueSize * 1.1, 'center');
+            const gradeColor = (highScore.grade === 'F' || highScore.grade === 'D') ? '#ff7675' : (highScore.grade.includes('S') ? '#74b9ff' : '#55efc4');
+            this.drawCuteLabel(highScore.grade, bX - 60, row3Y + optH / 2, 'right', valueSize * 1.5, gradeColor, true);
+            this.drawCuteLabel(highScore.score.toLocaleString(), bX + 20, row3Y + textYOffset, 'left', valueSize, '#fff', true);
+            this.drawCuteLabel("BEST RECORD", bX + 20, row3Y + labelYOffset, 'left', labelSize, '#ffd32a', true);
         } else {
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#666';
-            ctx.font = `italic ${valueSize * 0.8}px "Orbitron"`;
-            ctx.fillText("NO DATA", statsCenterX, row3Y);
-            this.drawTechLabel("BEST_RECORD", statsCenterX, row3Y - valueSize * 1.1, 'center');
+            this.drawCuteLabel("NO DATA", bX, row3Y + textYOffset, 'center', valueSize * 0.8, '#b2bec3', true);
+            this.drawCuteLabel("BEST RECORD", bX, row3Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
         }
 
-        // --- CONTENT: DATA LIST ---
-        const listInnerX = listX + 10;
-        const listInnerY = listY + 10;
-        const listInnerW = listW - 20;
-        const visibleCount = Math.floor(listH / (height * 0.08)); // Dynamic item count
-        const itemHeight = (listH - 20) / visibleCount;
+        const listInnerY = listY + 26 + 10; // below tab
+        // Song list: 9 items + bottom play button
+        const visibleCount = 9;
+        const btnAreaH = Math.max(60, height * 0.09);
+        const listBtnGap = Math.max(10, height * 0.015); // gap between last item and play button
+        // listAvailH accounts for tab(26+10), gap, and button area so itemHeight is correct
+        const listAvailH = listH - 26 - 10 - listBtnGap - btnAreaH - 8;
+        const itemHeight = listAvailH / visibleCount;
+
+        // Scrollbar: top = listInnerY, bottom = bottom of last item (same as list items)
+        const scrollbarW = 28;
+        const scrollbarX = listX + 6;
+        const scrollbarY = listInnerY;
+        const scrollbarH = visibleCount * itemHeight; // exactly same height as song list
+
+        const listInnerX = listX + scrollbarW + 14; // content starts after scrollbar
+        const listInnerW = listW - (scrollbarW + 14) - 10;
 
         const maxScrollOffset = Math.max(0, this.songList.length - visibleCount);
         let visibleStartIndex = this.selectedSongIndex - Math.floor(visibleCount / 2);
         if (visibleStartIndex < 0) visibleStartIndex = 0;
         if (visibleStartIndex > maxScrollOffset) visibleStartIndex = maxScrollOffset;
 
-        // Draw Scrollbar Track & Thumb in the gap between the two panels
-        const scrollbarW = 10;
-        const scrollbarX = leftPanelWidth + (width * 0.5 - leftPanelWidth - scrollbarW) / 2;
-        const scrollbarY = listInnerY;
-        const scrollbarH = itemHeight * visibleCount;
+        // Scrollbar: inside song list left edge
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(scrollbarX, scrollbarY, scrollbarW, scrollbarH, 7);
+        ctx.fill();
+        ctx.stroke();
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.fillRect(scrollbarX, scrollbarY, scrollbarW, scrollbarH);
-
-        const thumbH = Math.max(30, scrollbarH * (visibleCount / Math.max(1, this.songList.length)));
+        // Thumb: reactive size based on song count
+        const thumbRatio = Math.min(1, visibleCount / Math.max(1, this.songList.length));
+        const thumbH = Math.max(28, scrollbarH * thumbRatio);
         const scrollProgress = maxScrollOffset > 0 ? visibleStartIndex / maxScrollOffset : 0;
         const thumbY = scrollbarY + scrollProgress * (scrollbarH - thumbH);
 
-        ctx.fillStyle = '#00ffff';
-        ctx.fillRect(scrollbarX, thumbY, scrollbarW, thumbH);
+        const thumbGrad = ctx.createLinearGradient(scrollbarX, thumbY, scrollbarX + scrollbarW, thumbY + thumbH);
+        thumbGrad.addColorStop(0, '#38bdf8');   // sky blue
+        thumbGrad.addColorStop(0.5, '#0ea5e9'); // ocean blue
+        thumbGrad.addColorStop(1, '#2563eb');   // deep blue
+        ctx.fillStyle = thumbGrad;
+        ctx.shadowColor = 'rgba(14, 165, 233, 0.6)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 0;
+        ctx.beginPath();
+        ctx.roundRect(scrollbarX, thumbY, scrollbarW, thumbH, 7);
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        // Reset ALL shadow state before stroke and further draws to prevent flicker
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.stroke();
+        ctx.restore();
 
         // Draw List Content
         const listContentX = listInnerX;
@@ -2543,68 +2694,101 @@ export class RhythmGame extends BaseGame {
             ctx.translate(0, y);
 
             if (isSelected) {
-                this.drawHolographicRect(0, 0, listContentW, itemHeight - 2, '#00ffff', true);
+                this.drawCuteTile(0, 5, listContentW, itemHeight - 10, '#1a73e8', true);
             } else {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
-                ctx.fillRect(0, 0, listContentW, itemHeight - 2);
+                // Premium gradient row styling
+                ctx.save();
+                const rowGrad = ctx.createLinearGradient(0, 5, listContentW, itemHeight - 5);
+                rowGrad.addColorStop(0, 'rgba(100, 120, 200, 0.35)');
+                rowGrad.addColorStop(1, 'rgba(60, 80, 160, 0.15)');
+                ctx.fillStyle = rowGrad;
+                ctx.shadowColor = 'rgba(100, 140, 255, 0.2)';
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.roundRect(0, 5, listContentW, itemHeight - 10, 10);
+                ctx.fill();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(160, 190, 255, 0.35)';
+                ctx.shadowColor = 'transparent';
+                ctx.stroke();
+                ctx.restore();
             }
 
             // Index
-            ctx.fillStyle = isSelected ? '#00ffff' : '#666';
-            ctx.font = `bold ${itemHeight * 0.3}px "Orbitron"`;
-            ctx.textAlign = 'left';
-            ctx.fillText((index + 1).toString().padStart(2, '0'), 10, itemHeight * 0.6);
+            const idxColor = isSelected ? '#fff' : 'rgba(160, 185, 255, 0.7)';
+            this.drawCuteLabel((index + 1).toString().padStart(2, '0'), 25, itemHeight * 0.5, 'left', itemHeight * 0.38, idxColor, false, '"Nunito", sans-serif');
 
-            // Title (Truncated)
-            ctx.fillStyle = isSelected ? '#fff' : '#aaa';
-            ctx.font = `${isSelected ? 'bold' : ''} ${itemHeight * 0.35}px "Orbitron"`;
             let songTitle = song.name;
-            const maxTitleW = listContentW * (isSelected ? 0.6 : 0.8);
+            const maxTitleW = listContentW * (isSelected ? 0.6 : 0.82) - 90;
+
+            // Critical fix: set sophisticated font before measuring
+            ctx.font = `700 ${itemHeight * 0.42}px "Nunito", sans-serif`;
+
             if (ctx.measureText(songTitle).width > maxTitleW) {
                 while (ctx.measureText(songTitle + "...").width > maxTitleW && songTitle.length > 0) {
                     songTitle = songTitle.substring(0, songTitle.length - 1);
                 }
                 songTitle += "...";
             }
-            ctx.fillText(songTitle, 50, itemHeight * 0.6);
+
+            const songColor = isSelected ? '#fff' : 'rgba(220, 230, 255, 0.95)';
+            this.drawCuteLabel(songTitle, 70, itemHeight * 0.5, 'left', itemHeight * 0.42, songColor, isSelected, '"Nunito", sans-serif');
 
             if (isSelected) {
-                this.drawTechLabel("<< ACTIVE", listContentW - 10, itemHeight * 0.6, 'right');
+                this.drawCuteLabel("◀◀", listContentW - 20, itemHeight * 0.5, 'right', itemHeight * 0.35, '#fff', false, '"Nunito", sans-serif');
             }
             ctx.restore();
         }
         ctx.restore();
+        // PLAY NOW button: full width inside SONG LIST panel, clamped to stay inside frame
+        const btnMargin = 6;
+        const btnH2 = btnAreaH;
+        const btnX2 = listX + btnMargin;
+        const btnW2 = listW - btnMargin * 2;
+        const btnY2Natural = listInnerY + visibleCount * itemHeight + listBtnGap;
+        const btnY2Max = listY + listH - btnH2 - btnMargin;
+        const btnY2 = Math.min(btnY2Natural, btnY2Max);
 
-        // Footer Prompts / Start Button
-        const btnW = Math.max(260, width * 0.2);
-        const btnH = Math.max(65, height * 0.1);
-        const btnX = width - padding - btnW;
-        const btnY = height - padding - btnH;
-
-        const pulse = 0.5 + Math.sin(time * 5) * 0.5;
+        const pulse = 0.5 + Math.sin(time * 4) * 0.5;
+        const shimmer = (Math.sin(time * 3) + 1) / 2;
 
         ctx.save();
-        // Solid Glowing Base
-        ctx.fillStyle = `rgba(0, 255, 136, ${0.4 + pulse * 0.3})`;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = '#00ff88';
-        ctx.fillRect(btnX, btnY, btnW, btnH);
+        const btnGrad2 = ctx.createLinearGradient(btnX2, btnY2, btnX2 + btnW2, btnY2 + btnH2);
+        btnGrad2.addColorStop(0, `hsl(${270 + shimmer * 30}, 80%, 60%)`);
+        btnGrad2.addColorStop(0.5, '#f9ca24');
+        btnGrad2.addColorStop(1, '#f0932b');
+        ctx.fillStyle = btnGrad2;
+        ctx.shadowBlur = 12 + pulse * 18;
+        ctx.shadowColor = `rgba(249, 202, 36, ${0.5 + pulse * 0.4})`;
+        ctx.shadowOffsetY = 3;
+        ctx.beginPath();
+        ctx.roundRect(btnX2, btnY2, btnW2, btnH2, 16);
+        ctx.fill();
+
+        // Fully reset shadow so gloss + border are not tainted
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = 0;
+
+        // Top gloss
+        const gloss2 = ctx.createLinearGradient(btnX2, btnY2, btnX2, btnY2 + btnH2 * 0.55);
+        gloss2.addColorStop(0, `rgba(255,255,255,${0.3 + shimmer * 0.2})`);
+        gloss2.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gloss2;
+        ctx.beginPath();
+        ctx.roundRect(btnX2, btnY2, btnW2, btnH2 * 0.55, [16, 16, 0, 0]);
+        ctx.fill();
 
         // Border
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(btnX, btnY, btnW, btnH);
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = `rgba(255,255,255,0.8)`;
+        ctx.beginPath();
+        ctx.roundRect(btnX2, btnY2, btnW2, btnH2, 16);
+        ctx.stroke();
 
-        // Text Content
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowBlur = 0; // Clear text
-
-        // Flexible precise sizing to stop overflow
-        const fontSize = Math.min(24, Math.max(16, height * 0.04));
-        ctx.font = `900 ${fontSize}px "Orbitron"`;
-        ctx.fillText("// SYNC START //", btnX + btnW / 2, btnY + btnH / 2);
+        const fontSize2 = Math.min(24, Math.max(16, btnH2 * 0.45));
+        this.drawCuteLabel('▶  PLAY NOW  ▶', btnX2 + btnW2 / 2, btnY2 + btnH2 / 2, 'center', fontSize2, '#fff', true);
         ctx.restore();
     }
     private handleMenuInput(e: KeyboardEvent): void {
@@ -2694,79 +2878,91 @@ export class RhythmGame extends BaseGame {
     private drawAtmosphere(width: number, height: number): void {
         const ctx = this.ctx;
 
-        // 1. Vibrant Vignette Background
-        const grad = ctx.createRadialGradient(width / 2, height / 2, height * 0.1, width / 2, height / 2, height * 0.9);
-        grad.addColorStop(0, '#1a1a4a'); // Brighter electric center
-        grad.addColorStop(1, '#000000'); // Deep edges
+        // 1. Twilight Gradient Background
+        const grad = ctx.createLinearGradient(0, 0, width, height);
+        grad.addColorStop(0, '#2b5876');
+        grad.addColorStop(1, '#4e4376');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, width, height);
 
-        // 2. Floating Particles
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        // 2. Floating Bubbles
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         this.particles.forEach(p => {
             p.y -= 1; // Ambient upward float
-            p.x += Math.sin(this.menuAnimationTimer * 0.5 + p.y * 0.01) * 0.2;
+            p.x += Math.sin(this.menuAnimationTimer * 0.5 + p.y * 0.01) * 0.5;
 
             if (p.y < 0) {
                 p.y = height;
                 p.x = Math.random() * width;
             }
 
-            const flicker = Math.random() > 0.95 ? 0 : p.alpha;
-            ctx.globalAlpha = flicker;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, p.size * 5, 0, Math.PI * 2);
             ctx.fill();
         });
-        ctx.globalAlpha = 1.0;
     }
 
-    private drawHolographicRect(x: number, y: number, w: number, h: number, color: string, isActive: boolean = false): void {
+    private drawCuteTile(x: number, y: number, w: number, h: number, color: string, isActive: boolean = false): void {
         const ctx = this.ctx;
         ctx.save();
 
-        // Glass Background (Gradient)
-        const grad = ctx.createLinearGradient(x, y, x, y + h);
-        grad.addColorStop(0, isActive ? 'rgba(0, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)');
-        grad.addColorStop(1, isActive ? 'rgba(0, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.4)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = color; // Trust the provided color including alpha
 
-        // Scanline Texture Overlay
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        for (let i = y; i < y + h; i += 4) {
-            ctx.fillRect(x, i, w, 1);
-        }
+        ctx.shadowColor = isActive ? color : 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = isActive ? 15 : 6;
+        ctx.shadowOffsetY = 2;
 
-        // Glow Border
-        ctx.strokeStyle = isActive ? '#00ffff' : color;
-        ctx.lineWidth = isActive ? 2 : 1;
-        ctx.shadowBlur = isActive ? 15 : 5;
-        ctx.shadowColor = isActive ? '#00ffff' : color;
-        ctx.strokeRect(x, y, w, h);
-
-        // Tech Corners (Accents)
-        const cornerSize = 10;
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#fff';
-        ctx.shadowBlur = 0;
         ctx.beginPath();
-        // Top-Left
-        ctx.moveTo(x, y + cornerSize); ctx.lineTo(x, y); ctx.lineTo(x + cornerSize, y);
-        // Bottom-Right
-        ctx.moveTo(x + w, y + h - cornerSize); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - cornerSize, y + h);
+        ctx.roundRect(x, y, w, h, isActive ? 20 : 12);
+        ctx.fill();
+
+        // Glowing border
+        if (isActive) {
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'white';
+            ctx.shadowColor = 'transparent';
+        } else {
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.shadowColor = 'transparent';
+        }
         ctx.stroke();
 
         ctx.restore();
     }
 
-    private drawTechLabel(text: string, x: number, y: number, align: CanvasTextAlign = 'left'): void {
+    private drawCuteLabel(text: string, x: number, y: number, align: CanvasTextAlign = 'left', size: number = 14, color: string = '#636e72', outline: boolean = false, fontFam: string = '"Nunito", sans-serif'): void {
         const ctx = this.ctx;
         ctx.save();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px "Orbitron"';
+        ctx.font = `800 ${size}px ${fontFam}`;
         ctx.textAlign = align;
+        ctx.textBaseline = 'middle';
+
+        if (outline) {
+            // Full outline stroke: black shadow + stroke, then fill
+            ctx.shadowColor = 'rgba(0,0,0,0.85)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 3;
+            ctx.shadowOffsetX = 0;
+            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+            ctx.lineJoin = 'round';
+            ctx.strokeText(text, x, y);
+        } else {
+            // Lightweight: just a soft drop-shadow on the fill, no strokeText (perf)
+            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+            ctx.shadowBlur = 3;
+            ctx.shadowOffsetY = 2;
+            ctx.shadowOffsetX = 0;
+        }
+
+        ctx.fillStyle = color;
         ctx.fillText(text, x, y);
+
+        // Always reset shadow to avoid leaking into subsequent draws
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
         ctx.restore();
     }
 
@@ -2775,54 +2971,41 @@ export class RhythmGame extends BaseGame {
         ctx.save();
         ctx.translate(cx, cy);
 
-        // Layer 1: Base Ring (Counter-Rotating)
+        // Layer 1: Base Ring 
         ctx.rotate(time * -0.2);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([10, 20]);
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = 'rgba(0,0,0,0.1)';
+        ctx.shadowBlur = 5;
         ctx.beginPath();
         ctx.arc(0, 0, radius * 1.2, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.setLineDash([]);
 
         // Layer 2: Main Data Ring (Pulsing)
         const pulse = Math.sin(time * (bpm / 60) * Math.PI);
         ctx.rotate(time * 0.4);
         ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 15;
+        ctx.lineWidth = 6;
+        ctx.shadowBlur = 10;
         ctx.shadowColor = color;
         ctx.beginPath();
         ctx.arc(0, 0, radius + pulse * 5, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Layer 3: Reactive Bars
-        const bars = 32;
+        // Layer 3: Reactive Bars (Cute Rounded)
+        const bars = 24;
         for (let i = 0; i < bars; i++) {
             const angle = (Math.PI * 2 / bars) * i;
-            const barLen = 10 + Math.abs(Math.sin(time * 4 + i)) * 40 * (pulse + 1);
+            const barLen = 10 + Math.abs(Math.sin(time * 4 + i)) * 20 * (pulse + 1);
 
             ctx.save();
             ctx.rotate(angle);
             ctx.fillStyle = color;
-            ctx.fillRect(radius + 10, -2, barLen, 2); // Thinner bars
+            ctx.beginPath();
+            ctx.roundRect(radius + 15, -4, barLen, 8, 4);
+            ctx.fill();
             ctx.restore();
         }
-
-        // Layer 4: Inner Core Hexagon
-        ctx.rotate(time * 0.1);
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.05 + pulse * 0.1})`;
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI * 2 / 6) * i;
-            const hx = Math.cos(angle) * (radius * 0.4);
-            const hy = Math.sin(angle) * (radius * 0.4);
-            if (i === 0) ctx.moveTo(hx, hy);
-            else ctx.lineTo(hx, hy);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
 
         ctx.restore();
     }

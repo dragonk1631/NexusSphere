@@ -380,7 +380,8 @@ export class EditorGame extends BaseGame {
             // --- Game Measure Analysis (Measure Default setup) ---
             this.measureConfig.clear();
 
-            const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const strippedName = this.currentMidiFileName.replace(/\.mid$/i, '');
+            const safeName = strippedName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const savedConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
             let loadedFromLocal = false;
 
@@ -799,7 +800,8 @@ export class EditorGame extends BaseGame {
             measureConfig: measureObj
         };
 
-        const safeName = this.currentMidiFileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const strippedName = this.currentMidiFileName.replace(/\.mid$/i, '');
+        const safeName = strippedName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
         localStorage.setItem(`beatmap_config_${safeName}`, JSON.stringify(outputData));
         console.log(`[EditorGame] Saved config to localStorage for ${safeName}`);
 
