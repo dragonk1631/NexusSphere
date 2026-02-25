@@ -656,36 +656,7 @@ canvas {
   margin-bottom: 2rem;
 }
 
-.settings-section {
-  width: 100%;
-  max-width: 400px;
-  margin-bottom: 2rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-}
-
-.settings-section h3 {
-  color: #888;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-}
-
-.setting-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.8rem;
-}
-
-.setting-row label {
-  color: #ccc;
-}
-
-.setting-row input[type="range"] {
-  width: 150px;
-}
+/* Settings Section styles moved to SettingsUI.ts component */
 
 .settings-btn {
   background: transparent;

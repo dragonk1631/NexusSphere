@@ -1,14 +1,45 @@
+import { ThemeManager } from '../core/ThemeManager';
+
 export class TitleScreen {
     private container: HTMLDivElement;
+    private canvas: HTMLCanvasElement;
+    private ctx: CanvasRenderingContext2D;
     private onStart: () => void;
+    private rafId: number = 0;
+    private time: number = 0;
+    private width: number = 0;
+    private height: number = 0;
+    private isTransitioning: boolean = false;
 
     constructor(onStart: () => void) {
         this.onStart = onStart;
         this.container = document.createElement('div');
         this.container.id = 'title-screen';
+
+        this.canvas = document.createElement('canvas');
+        this.ctx = this.canvas.getContext('2d') as CanvasRenderingContext2D; // Make it transparent
+        this.container.appendChild(this.canvas);
+
+        ThemeManager.getInstance().setContext('title');
+
         this.applyStyles();
-        this.buildUI();
         document.body.appendChild(this.container);
+
+        this.resize();
+        window.addEventListener('resize', this.resize.bind(this));
+
+        this.container.addEventListener('pointerdown', this.handleStart.bind(this));
+
+        // removed particle init
+
+        this.loop();
+    }
+
+    private resize() {
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
     }
 
     private applyStyles() {
@@ -16,309 +47,247 @@ export class TitleScreen {
         style.id = 'title-screen-style';
         style.textContent = `
             #title-screen {
-                position: fixed;
-                top: 0; left: 0; width: 100vw; height: 100vh;
-                background: linear-gradient(125deg, #a1c4fd 0%, #c2e9fb 30%, #fbc2eb 70%, #a18cd1 100%);
-                background-size: 400% 400%;
-                animation: gradientBG 15s ease infinite;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-                font-family: 'Nunito', 'Segoe UI', sans-serif;
-                user-select: none;
-                overflow: hidden;
-                cursor: pointer;
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                z-index: 10000; cursor: pointer; user-select: none;
+                font-family: 'Nunito', sans-serif;
             }
-
-            @keyframes gradientBG {
-                0% { background-position: 0% 50%; }
-                50% { background-position: 100% 50%; }
-                100% { background-position: 0% 50%; }
-            }
-
-            .aesthetic-bg-elements {
-                position: absolute;
-                top: 0; left: 0; width: 100vw; height: 100vh;
-                pointer-events: none;
-                z-index: -1;
-                overflow: hidden;
-            }
-
-            /* Falling Star Trails */
-            .falling-star {
-                position: absolute;
-                width: 3px;
-                border-radius: 999px;
-                animation: fallStar linear infinite;
-                opacity: 0;
-            }
-
-            @keyframes fallStar {
-                0%   { transform: translateY(-120px) rotate(var(--angle)); opacity: 0; }
-                5%   { opacity: 0.9; }
-                80%  { opacity: 0.6; }
-                100% { transform: translateY(130vh) rotate(var(--angle)); opacity: 0; }
-            }
-
-            .float-bubble {
-                position: absolute;
-                border-radius: 50%;
-                background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0.2) 60%, transparent 100%);
-                animation: floatUp ease-in-out infinite alternate;
-            }
-
-            @keyframes floatUp {
-                0%   { transform: translateY(0) scale(1); opacity: 0.5; }
-                100% { transform: translateY(-100px) scale(1.1); opacity: 0.8; }
-            }
-
-            .title-version {
-                position: absolute;
-                top: 20px; left: 20px;
-                background: linear-gradient(135deg, #74b9ff, #0984e3);
-                color: white;
-                padding: 8px 16px;
-                border-radius: 20px;
-                font-weight: bold;
-                font-size: clamp(0.8rem, 2.5vw, 1.2rem);
-                border: 3px solid white;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-                display: flex; align-items: center; gap: 8px;
-            }
-
-            .title-logo-container {
-                margin-bottom: 40px;
-                animation: floatLogo 4s ease-in-out infinite;
-                transform-origin: center;
-                text-align: center;
-            }
-
-            /* GRAVITY-STYLE FONT: thick black multi-layer outline */
-            .title-logo {
-                font-size: clamp(3rem, 12vw, 7rem);
-                font-weight: 900;
-                text-transform: uppercase;
-                margin: 0;
-                line-height: 1;
-                background: linear-gradient(to bottom, #ff9a9e 0%, #fecfef 50%, #fede7f 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-                /* Gravity-style: thick layered black outline */
-                -webkit-text-stroke: 6px black;
-                filter:
-                    drop-shadow(0px 10px 0px #e6628c)
-                    drop-shadow(4px 4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(-4px -4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(4px -4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(-4px 4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(0 20px 30px rgba(0,0,0,0.5));
-                letter-spacing: 2px;
-            }
-
-            .title-logo-sub {
-                font-size: clamp(2.5rem, 10vw, 6rem);
-                font-weight: 900;
-                text-transform: uppercase;
-                margin: -10px 0 0 0;
-                line-height: 1;
-                background: linear-gradient(to bottom, #fdcb6e 0%, #ffeaa7 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-                -webkit-text-stroke: 6px black;
-                filter:
-                    drop-shadow(0px 10px 0px #e17055)
-                    drop-shadow(4px 4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(-4px -4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(4px -4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(-4px 4px 0px rgba(0,0,0,0.85))
-                    drop-shadow(0 20px 30px rgba(0,0,0,0.5));
-                letter-spacing: 4px;
-            }
-
-            .title-start-btn {
-                background: linear-gradient(to bottom, #74b9ff, #0984e3);
-                border: 4px solid white;
-                border-radius: 50px;
-                padding: 15px 50px;
-                color: white;
-                font-size: clamp(1.2rem, 4vw, 2rem);
-                font-weight: 800;
-                text-transform: uppercase;
-                box-shadow: 0 10px 0 #005f9e, 0 15px 20px rgba(0,0,0,0.3);
-                cursor: pointer;
-                transition: transform 0.1s;
-                animation: pulseStart 2s infinite;
-            }
-
-            .title-start-btn:active {
-                transform: translateY(10px);
-                box-shadow: 0 0px 0 #005f9e, 0 5px 10px rgba(0,0,0,0.3);
-            }
-
-            @keyframes floatLogo {
-                0%, 100% { transform: translateY(0) rotate(-1deg); }
-                50% { transform: translateY(-15px) rotate(1deg); }
-            }
-
-            @keyframes pulseStart {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.05); }
-            }
-
-            .aesthetic-sparkle {
-                position: absolute;
-                width: 30px; height: 30px;
-                background: radial-gradient(circle, white 20%, transparent 60%);
-                clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
-                animation: twinkle 1.5s infinite alternate;
-            }
-            .s1 { top: 25%; left: 25%; transform: scale(1.5); animation-delay: 0s; }
-            .s2 { top: 30%; right: 28%; transform: scale(1); animation-delay: 0.5s; }
-            .s3 { bottom: 35%; left: 35%; transform: scale(1.2); animation-delay: 1s; }
-            .s4 { bottom: 40%; right: 30%; transform: scale(0.8); animation-delay: 0.2s; }
-            .s5 { top: 15%; right: 15%; transform: scale(2); background: radial-gradient(circle, #ffeaa7 20%, transparent 60%); }
-
-            @keyframes twinkle {
-                0% { opacity: 0.2; transform: scale(0.5) rotate(0deg); }
-                100% { opacity: 1; transform: scale(1.2) rotate(45deg); }
+            #title-screen canvas {
+                display: block; width: 100%; height: 100%;
             }
         `;
-        if (!document.getElementById('title-screen-style')) {
-            document.head.appendChild(style);
-        }
-    }
+        if (!document.getElementById('title-screen-style')) document.head.appendChild(style);
 
-    private buildUI() {
-        // Font
         const fontLink = document.createElement('link');
-        fontLink.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap';
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@800;900&display=swap';
         fontLink.rel = 'stylesheet';
         document.head.appendChild(fontLink);
-
-        // Dynamic Background Elements
-        const bgLayer = document.createElement('div');
-        bgLayer.className = 'aesthetic-bg-elements';
-
-        // Create 12 falling stars with unique properties
-        const starColors = [
-            ['rgba(255,255,255,0.9)', 'rgba(255,255,200,0.6)'],
-            ['rgba(255,200,255,0.9)', 'rgba(200,150,255,0.5)'],
-            ['rgba(200,230,255,0.9)', 'rgba(100,180,255,0.5)'],
-            ['rgba(255,240,180,0.9)', 'rgba(255,200,100,0.5)'],
-        ];
-
-        for (let i = 0; i < 18; i++) {
-            const star = document.createElement('div');
-            star.className = 'falling-star';
-            const [starTop, starTail] = starColors[i % starColors.length];
-            const starHeight = 60 + Math.random() * 180;
-            const angle = 10 + Math.random() * 25; // degrees, slight left-right tilt
-
-            star.style.setProperty('--angle', `${angle}deg`);
-            star.style.left = `${Math.random() * 110 - 5}vw`;
-            star.style.top = `-${starHeight}px`;
-            star.style.height = `${starHeight}px`;
-            star.style.background = `linear-gradient(to bottom, ${starTop}, ${starTail}, transparent)`;
-            star.style.boxShadow = `0 0 6px 2px ${starTop}`;
-            star.style.animationDuration = `${2.5 + Math.random() * 4}s`;
-            star.style.animationDelay = `${-Math.random() * 8}s`;
-            bgLayer.appendChild(star);
-        }
-
-        // Create 10 bubbles
-        for (let i = 0; i < 10; i++) {
-            const bubble = document.createElement('div');
-            bubble.className = 'float-bubble';
-            const size = 20 + Math.random() * 60;
-            bubble.style.width = `${size}px`;
-            bubble.style.height = `${size}px`;
-            bubble.style.left = `${Math.random() * 100}vw`;
-            bubble.style.top = `${Math.random() * 100}vh`;
-            bubble.style.animationDuration = `${3 + Math.random() * 4}s`;
-            bubble.style.animationDelay = `${-Math.random() * 4}s`;
-            bgLayer.appendChild(bubble);
-        }
-
-        this.container.appendChild(bgLayer);
-
-        // Version Badge
-        const versionBadge = document.createElement('div');
-        versionBadge.className = 'title-version';
-        versionBadge.innerHTML = `<span>🎮</span> VERSION 1.0`;
-        this.container.appendChild(versionBadge);
-
-        // Logo
-        const logoContainer = document.createElement('div');
-        logoContainer.className = 'title-logo-container';
-
-        const logoTop = document.createElement('h1');
-        logoTop.className = 'title-logo';
-        logoTop.textContent = 'RHYTHM';
-
-        const logoBottom = document.createElement('h2');
-        logoBottom.className = 'title-logo-sub';
-        logoBottom.textContent = 'MASTER';
-
-        logoContainer.appendChild(logoTop);
-        logoContainer.appendChild(logoBottom);
-        this.container.appendChild(logoContainer);
-
-        // Start Button
-        const startBtn = document.createElement('div');
-        startBtn.className = 'title-start-btn';
-        startBtn.textContent = 'PRESS START';
-        this.container.appendChild(startBtn);
-
-        // Sparkles
-        ['s1', 's2', 's3', 's4', 's5'].forEach(c => {
-            const sp = document.createElement('div');
-            sp.className = `aesthetic-sparkle ${c}`;
-            this.container.appendChild(sp);
-        });
-
-        // Click Handler
-        this.container.addEventListener('click', () => {
-            // Play a sound effect if possible here
-            this.startTransition();
-        });
-
-        // Touch Handler
-        this.container.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // prevent double firing with click
-            this.startTransition();
-        });
     }
 
-    private startTransition() {
+    private handleStart(e: Event) {
+        e.preventDefault();
+        if (this.isTransitioning) return;
+        this.isTransitioning = true;
+
         // Flash white effect
         const flash = document.createElement('div');
         flash.style.position = 'fixed';
-        flash.style.top = '0';
-        flash.style.left = '0';
-        flash.style.width = '100vw';
-        flash.style.height = '100vh';
+        flash.style.top = '0'; flash.style.left = '0';
+        flash.style.width = '100vw'; flash.style.height = '100vh';
         flash.style.backgroundColor = 'white';
         flash.style.opacity = '0';
-        flash.style.transition = 'opacity 0.3s ease-out';
+        flash.style.transition = 'opacity 0.4s ease-in, transform 0.4s ease-in';
         flash.style.zIndex = '10001';
-        this.container.appendChild(flash);
+        flash.style.transform = 'scale(1)';
+        document.body.appendChild(flash);
 
-        // Trigger reflow
         void flash.offsetWidth;
         flash.style.opacity = '1';
+        flash.style.transform = 'scale(1.05)';
 
-        // Clean up and start
         setTimeout(() => {
             this.destroy();
             this.onStart();
-        }, 300);
+            setTimeout(() => {
+                flash.style.opacity = '0';
+                setTimeout(() => flash.remove(), 400);
+            }, 100);
+        }, 400);
+    }
+
+    private loop() {
+        this.time += 0.016;
+        this.render();
+        if (!this.isTransitioning) {
+            this.rafId = requestAnimationFrame(this.loop.bind(this));
+        }
+    }
+
+    private render() {
+        const { ctx, width: w, height: h, time } = this;
+
+        // Clear the canvas to show the global background behind it
+        ctx.clearRect(0, 0, w, h);
+
+        // 4. Version Badge (Top Left)
+        ctx.save();
+        ctx.font = '800 16px "Nunito"';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.textAlign = 'left';
+        ctx.fillText('v1.0.0 EARLY ACCESS', 20, 30);
+        ctx.restore();
+
+        // 5. Main Logo Render
+        const centerY = h * 0.4 + Math.sin(time * 1.5) * 10;
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Set up variables for text to compute bubble size
+        // Limit font sizes by BOTH width and height to prevent bleeding on short/wide screens
+        const logoSizeTop = Math.min(w * 0.10, h * 0.10, 90);
+        const title1 = "NexusSphere:";
+        const logoSizeBot = Math.min(w * 0.14, h * 0.14, 120);
+        const title2 = "RHYTHM";
+
+        ctx.font = `900 ${logoSizeTop}px "Nunito"`;
+        const width1 = ctx.measureText(title1).width;
+        ctx.font = `900 ${logoSizeBot}px "Nunito"`;
+        const width2 = ctx.measureText(title2).width;
+
+        const padX = w > 600 ? 50 : 20 + w * 0.02; // Adjusted padding (half of previous)
+        const padY = padX * 0.6; // Vertical padding for stability
+        const textTop = centerY - logoSizeTop * 1.0;
+        const textBottom = centerY + logoSizeBot * 1.0;
+
+        const bubbleW = Math.max(width1, width2) + padX * 2;
+        const bubbleH = (textBottom - textTop) + padY * 2;
+        const bubbleX = w / 2 - bubbleW / 2;
+        const bubbleY = textTop - padY;
+
+        // 5a. Draw Speech Bubble Background (Glassmorphism)
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.95)'; // Stronger drop shadow
+        ctx.shadowOffsetY = 25;
+        ctx.shadowBlur = 20;
+
+        const bubbleGrad = ctx.createLinearGradient(0, bubbleY, 0, bubbleY + bubbleH + 35);
+        // Higher transparency
+        bubbleGrad.addColorStop(0, 'rgba(40, 20, 60, 0.20)');
+        bubbleGrad.addColorStop(1, 'rgba(15, 5, 30, 0.05)');
+        ctx.fillStyle = bubbleGrad;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 10;
+
+        const r = Math.min(40, bubbleH / 4);
+        ctx.beginPath();
+        ctx.moveTo(bubbleX + r, bubbleY);
+        ctx.lineTo(bubbleX + bubbleW - r, bubbleY);
+        ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY, bubbleX + bubbleW, bubbleY + r);
+        ctx.lineTo(bubbleX + bubbleW, bubbleY + bubbleH - r);
+        ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY + bubbleH, bubbleX + bubbleW - r, bubbleY + bubbleH);
+
+        // Tail
+        const tailSize = Math.min(35, h * 0.08); // Responsive tail size
+        ctx.lineTo(w / 2 + 25, bubbleY + bubbleH);
+        ctx.lineTo(w / 2, bubbleY + bubbleH + tailSize); // Point of the tail
+        ctx.lineTo(w / 2 - 25, bubbleY + bubbleH);
+
+        ctx.lineTo(bubbleX + r, bubbleY + bubbleH);
+        ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleH, bubbleX, bubbleY + bubbleH - r);
+        ctx.lineTo(bubbleX, bubbleY + r);
+        ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + r, bubbleY);
+        ctx.closePath();
+
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        // --- NexusSphere ---
+        ctx.font = `900 ${logoSizeTop}px "Nunito"`;
+
+        // Deep drop shadow for NexusSphere
+        ctx.shadowColor = 'rgba(0,0,0,0.95)';
+        ctx.shadowOffsetY = 15;
+        ctx.shadowBlur = 25;
+
+        // Gradient Fill
+        const topGrad = ctx.createLinearGradient(0, centerY - logoSizeTop, 0, centerY);
+        topGrad.addColorStop(0, '#ff9a9e');
+        topGrad.addColorStop(0.5, '#fecfef');
+        topGrad.addColorStop(1, '#fede7f');
+        ctx.fillStyle = topGrad;
+
+        // Heavy inner glow/stroke trick without black outline
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = 'rgba(233, 30, 140, 0.4)';
+        ctx.lineJoin = 'round';
+        ctx.strokeText(title1, w / 2, centerY - logoSizeTop * 0.4);
+
+        ctx.shadowColor = 'transparent';
+        ctx.fillText(title1, w / 2, centerY - logoSizeTop * 0.4);
+
+        // White core highlight
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.strokeText(title1, w / 2, centerY - logoSizeTop * 0.4);
+
+        // --- Rhythm ---
+        ctx.font = `900 ${logoSizeBot}px "Nunito"`;
+
+        ctx.shadowColor = 'rgba(0,0,0,0.95)';
+        ctx.shadowOffsetY = 15;
+        ctx.shadowBlur = 25;
+
+        const botGrad = ctx.createLinearGradient(0, centerY, 0, centerY + logoSizeBot);
+        botGrad.addColorStop(0, '#fdcb6e');
+        botGrad.addColorStop(1, '#ffeaa7');
+        ctx.fillStyle = botGrad;
+
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = 'rgba(240, 147, 43, 0.5)';
+        ctx.strokeText(title2, w / 2, centerY + logoSizeBot * 0.5);
+
+        ctx.shadowColor = 'transparent';
+        ctx.fillText(title2, w / 2, centerY + logoSizeBot * 0.5);
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.strokeText(title2, w / 2, centerY + logoSizeBot * 0.5);
+
+        ctx.restore();
+
+        // 6. Interaction Prompt (Press Start)
+        const promptPulse = Math.sin(time * 3) * 0.5 + 0.5; // 0 to 1
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Glowing pill background
+        const btnW = Math.min(w * 0.6, 300);
+        const btnH = Math.min(60, h * 0.12); // Responsive button height
+
+        // Ensure promptY doesn't overlap bubble
+        const bubbleBottom = (centerY + logoSizeBot * 1.0 + padY) + tailSize;
+
+        // dynamic positioning between bubble and bottom of screen
+        const availableSpace = h - bubbleBottom;
+        let finalPromptY = bubbleBottom + availableSpace * 0.5;
+
+        // At minimum, be somewhat below the bubble, at maximum don't go off screen
+        finalPromptY = Math.max(finalPromptY, bubbleBottom + btnH);
+        finalPromptY = Math.min(finalPromptY, h - btnH * 0.8);
+
+        const btnX = w / 2 - btnW / 2;
+        const btnY = finalPromptY - btnH / 2;
+
+        ctx.shadowColor = `rgba(0, 188, 212, ${0.4 + promptPulse * 0.4})`;
+        ctx.shadowBlur = 20 + promptPulse * 15;
+        ctx.fillStyle = `rgba(0, 188, 212, ${0.1 + promptPulse * 0.1})`;
+        ctx.beginPath();
+        ctx.roundRect(btnX, btnY, btnW, btnH, btnH / 2);
+        ctx.fill();
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = `rgba(0, 234, 255, ${0.4 + promptPulse * 0.6})`;
+        ctx.stroke();
+
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 2;
+        ctx.fillStyle = '#ffffff';
+        const fontSize = Math.min(24, btnH * 0.45);
+        ctx.font = `800 ${fontSize}px "Nunito"`;
+        ctx.letterSpacing = '2px';
+        ctx.fillText('TAP TO START', w / 2, finalPromptY);
+
+        ctx.restore();
     }
 
     public destroy() {
+        cancelAnimationFrame(this.rafId);
+        window.removeEventListener('resize', this.resize.bind(this));
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }

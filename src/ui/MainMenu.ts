@@ -1,5 +1,6 @@
 import { UIManager } from '../core/ui/UIManager';
 import { SettingsUI } from './SettingsUI';
+import { ThemeManager } from '../core/ThemeManager';
 
 export class MainMenu {
     private ui: UIManager;
@@ -7,6 +8,9 @@ export class MainMenu {
     private settingsUI: SettingsUI | null = null;
 
     constructor(onStartGame: (mode: string) => void) {
+        // Set context to menu to trigger Pattern change
+        ThemeManager.getInstance().setContext('menu');
+
         this.ui = UIManager.getInstance();
         this.onStartGame = onStartGame;
     }
@@ -18,9 +22,7 @@ export class MainMenu {
                 .mm-container {
                     position: fixed;
                     top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: linear-gradient(135deg, #2b5876 0%, #4e4376 100%);
-                    background-size: 400% 400%;
-                    animation: gradientBG 15s ease infinite;
+                    background: transparent;
                     font-family: 'Nunito', 'Segoe UI', sans-serif;
                     display: flex;
                     flex-direction: column;
@@ -30,46 +32,6 @@ export class MainMenu {
                     z-index: 50;
                     user-select: none;
                     box-sizing: border-box;
-                }
-
-                @keyframes gradientBG {
-                    0% { background-position: 0% 50%; }
-                    50% { background-position: 100% 50%; }
-                    100% { background-position: 0% 50%; }
-                }
-
-                /* Animated Lines / Particles Container */
-                .mm-bg-elements {
-                    position: absolute;
-                    top: 0; left: 0; width: 100vw; height: 100vh;
-                    pointer-events: none;
-                    z-index: 0;
-                    overflow: hidden;
-                }
-                .mm-float-line {
-                    position: absolute;
-                    width: 150vw;
-                    height: 2px;
-                    background: rgba(255, 255, 255, 0.4);
-                    transform: rotate(-45deg);
-                    animation: slideLine linear infinite;
-                    box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.3), 0 0 20px 5px rgba(100, 200, 255, 0.2);
-                }
-                @keyframes slideLine {
-                    0% { transform: rotate(-45deg) translateY(-100vh) translateX(-100vw); opacity: 0; }
-                    10% { opacity: 1; }
-                    90% { opacity: 1; }
-                    100% { transform: rotate(-45deg) translateY(200vh) translateX(200vw); opacity: 0; }
-                }
-                .mm-float-bubble {
-                    position: absolute;
-                    border-radius: 50%;
-                    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0.2) 60%, transparent 100%);
-                    animation: floatUp ease-in-out infinite alternate;
-                }
-                @keyframes floatUp {
-                    0% { transform: translateY(0) scale(1); opacity: 0.5; }
-                    100% { transform: translateY(-100px) scale(1.1); opacity: 0.8; }
                 }
 
                 /* Top HUD */
@@ -107,8 +69,8 @@ export class MainMenu {
 
                 /* Ribbon Title */
                 .mm-ribbon-container {
-                    position: absolute;
-                    top: clamp(8%, 12%, 15%);
+                    position: relative;
+                    margin-top: clamp(2vh, 4vh, 6vh);
                     width: 100%;
                     display: flex;
                     justify-content: center;
@@ -141,12 +103,12 @@ export class MainMenu {
                 }
                 .mm-ribbon h1 {
                     margin: 0;
-                    font-size: clamp(1.5rem, 6vw, 3rem);
+                    font-size: clamp(1.2rem, 5vw, 2.5rem);
                     font-weight: 900;
                     color: white;
                     text-transform: uppercase;
                     text-shadow: 0 3px 0 #c2314a, 0 5px 10px rgba(0,0,0,0.5);
-                    letter-spacing: 3px;
+                    letter-spacing: 2px;
                 }
 
                 /* Center Buttons */
@@ -158,14 +120,14 @@ export class MainMenu {
                     flex: 1;
                     flex-wrap: wrap;
                     z-index: 2;
-                    margin-top: 8vh;
+                    margin-top: 2vh;
                     padding: 0 clamp(8px, 3vw, 30px);
                     max-width: 100%;
                 }
                 .mm-big-btn {
                     position: relative;
-                    width: clamp(90px, 22vw, 170px);
-                    height: clamp(90px, 22vw, 170px);
+                    width: clamp(80px, 20vw, 150px);
+                    height: clamp(80px, 20vw, 150px);
                     border-radius: 25px;
                     border: 3px solid rgba(255, 255, 255, 0.8);
                     display: flex;
@@ -243,14 +205,14 @@ export class MainMenu {
                 }
                 
                 .mm-big-btn .icon {
-                    font-size: clamp(2.2rem, 7vw, 4rem);
-                    margin-bottom: clamp(6px, 1.5vw, 12px);
+                    font-size: clamp(2rem, 6vw, 3.5rem);
+                    margin-bottom: clamp(6px, 1.5vw, 10px);
                     filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
                     position: relative; z-index: 1;
                 }
                 .mm-big-btn .label {
                     color: white;
-                    font-size: clamp(0.75rem, 2.5vw, 1.4rem);
+                    font-size: clamp(0.7rem, 2vw, 1.2rem);
                     font-weight: 900;
                     text-shadow: 0 3px 5px rgba(0,0,0,0.4);
                     text-transform: uppercase;
@@ -293,9 +255,6 @@ export class MainMenu {
             </style>
 
             <div class="mm-container">
-                <!-- BG Elements (populated by JS) -->
-                <div class="mm-bg-elements" id="mm-bg-layer"></div>
-
                 <div class="mm-top-hud">
                     <div class="mm-badge"><span>🎮</span> VERSION 1.0</div>
                     <div class="mm-stats">
@@ -351,31 +310,6 @@ export class MainMenu {
         `;
 
         this.ui.createOverlay('main-menu', html);
-
-        // Populate BG elements
-        const bgLayer = document.getElementById('mm-bg-layer');
-        if (bgLayer) {
-            for (let i = 0; i < 5; i++) {
-                const line = document.createElement('div');
-                line.className = 'mm-float-line';
-                line.style.top = `${Math.random() * 100}vh`;
-                line.style.animationDuration = `${8 + Math.random() * 7}s`;
-                line.style.animationDelay = `${-Math.random() * 5}s`;
-                bgLayer.appendChild(line);
-            }
-            for (let i = 0; i < 10; i++) {
-                const bubble = document.createElement('div');
-                bubble.className = 'mm-float-bubble';
-                const size = 20 + Math.random() * 60;
-                bubble.style.width = `${size}px`;
-                bubble.style.height = `${size}px`;
-                bubble.style.left = `${Math.random() * 100}vw`;
-                bubble.style.top = `${Math.random() * 100}vh`;
-                bubble.style.animationDuration = `${3 + Math.random() * 4}s`;
-                bubble.style.animationDelay = `${-Math.random() * 4}s`;
-                bgLayer.appendChild(bubble);
-            }
-        }
 
         document.getElementById('btn-rhythm')?.addEventListener('click', () => {
             this.hide();

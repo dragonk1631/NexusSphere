@@ -1,4 +1,5 @@
 import { BaseGame } from '../../core/BaseGame';
+import { ThemeManager } from '../../core/ThemeManager';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { MidiParser } from '../../core/audio/MidiParser';
 import type { ParsedMidi } from '../../core/audio/MidiParser';
@@ -146,6 +147,10 @@ export class RhythmGame extends BaseGame {
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
+
+        // Notify ThemeManager we are in the game screen
+        ThemeManager.getInstance().setContext('game');
+
         // Bind input methods properly
         this.handleKeyDown = this.handleKeyDown.bind(this);
         this.handleKeyUp = this.handleKeyUp.bind(this);
@@ -1419,6 +1424,25 @@ export class RhythmGame extends BaseGame {
 
         // this.render(currentTime); // Render is now called by main loop separate from update
 
+        // Optimized Particle Update (Swap-and-Pop)
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vx *= 0.9; // Friction
+            p.rotation += p.rotationSpeed;
+            p.vy += 0.2; // Gravity
+            p.alpha -= 0.04; // Fade
+
+            if (p.alpha <= 0) {
+                // Replace current with last and pop
+                if (i < this.particles.length - 1) {
+                    this.particles[i] = this.particles[this.particles.length - 1];
+                }
+                this.particles.pop();
+            }
+        }
+
         // Check Game Over (with 3s protection + 2s lead-in = 5s total safety)
         if (this.scoreManager?.isDead()) {
             // Safety: No HP Game Over and during lead-in or the first 3 seconds of the song
@@ -1665,9 +1689,11 @@ export class RhythmGame extends BaseGame {
 
             // Side Rails
             const railWidth = 12; // Thinned from 20
+            const theme = ThemeManager.getInstance().getCurrentTheme();
             const outerGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-            outerGrad.addColorStop(0, '#606080'); // Slightly brighter rails
-            outerGrad.addColorStop(1, '#a0a0ff');
+            // Blend from theme color2 to color3
+            outerGrad.addColorStop(0, theme.color2);
+            outerGrad.addColorStop(1, theme.color3);
             ctx.fillStyle = outerGrad;
             ctx.beginPath();
             ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
@@ -2877,29 +2903,9 @@ export class RhythmGame extends BaseGame {
 
     private drawAtmosphere(width: number, height: number): void {
         const ctx = this.ctx;
-
-        // 1. Twilight Gradient Background
-        const grad = ctx.createLinearGradient(0, 0, width, height);
-        grad.addColorStop(0, '#2b5876');
-        grad.addColorStop(1, '#4e4376');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, width, height);
-
-        // 2. Floating Bubbles
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        this.particles.forEach(p => {
-            p.y -= 1; // Ambient upward float
-            p.x += Math.sin(this.menuAnimationTimer * 0.5 + p.y * 0.01) * 0.5;
-
-            if (p.y < 0) {
-                p.y = height;
-                p.x = Math.random() * width;
-            }
-
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * 5, 0, Math.PI * 2);
-            ctx.fill();
-        });
+        // Background layer is now managed by global BackgroundRenderer
+        // We just clear this canvas so it shows through
+        ctx.clearRect(0, 0, width, height);
     }
 
     private drawCuteTile(x: number, y: number, w: number, h: number, color: string, isActive: boolean = false): void {

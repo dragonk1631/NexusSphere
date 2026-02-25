@@ -6,9 +6,11 @@ import { LayoutEditor } from './games/editor/LayoutEditor';
 import { MainMenu } from './ui/MainMenu';
 import { TitleScreen } from './ui/TitleScreen';
 import { UIManager } from './core/ui/UIManager';
+import { BackgroundRenderer } from './core/graphics/BackgroundRenderer';
 
-// Initialize UI Manager
+// Initialize Global Managers
 UIManager.getInstance();
+BackgroundRenderer.getInstance();
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
