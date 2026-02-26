@@ -1,4 +1,4 @@
-import { ThemeManager } from '../core/ThemeManager';
+import { ScreenUtils } from '../core/utils/ScreenUtils';
 
 export class TitleScreen {
     private container: HTMLDivElement;
@@ -20,13 +20,10 @@ export class TitleScreen {
         this.ctx = this.canvas.getContext('2d') as CanvasRenderingContext2D; // Make it transparent
         this.container.appendChild(this.canvas);
 
-        ThemeManager.getInstance().setContext('title');
-
         this.applyStyles();
         document.body.appendChild(this.container);
 
         this.resize();
-        window.addEventListener('resize', this.resize.bind(this));
 
         this.container.addEventListener('pointerdown', this.handleStart.bind(this));
 
@@ -35,9 +32,10 @@ export class TitleScreen {
         this.loop();
     }
 
-    private resize() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
+    public resize() {
+        const { width, height } = ScreenUtils.getVirtualDimensions();
+        this.width = width;
+        this.height = height;
         this.canvas.width = this.width;
         this.canvas.height = this.height;
     }
@@ -125,18 +123,32 @@ export class TitleScreen {
 
         // Set up variables for text to compute bubble size
         // Limit font sizes by BOTH width and height to prevent bleeding on short/wide screens
-        const logoSizeTop = Math.min(w * 0.10, h * 0.10, 90);
+        const logoSizeTopBase = Math.min(w * 0.10, h * 0.10, 90);
         const title1 = "NexusSphere:";
-        const logoSizeBot = Math.min(w * 0.14, h * 0.14, 120);
+        const logoSizeBotBase = Math.min(w * 0.14, h * 0.14, 120);
         const title2 = "RHYTHM";
+
+        ctx.font = `900 ${logoSizeTopBase}px "Nunito"`;
+        const width1Base = ctx.measureText(title1).width;
+        ctx.font = `900 ${logoSizeBotBase}px "Nunito"`;
+        const width2Base = ctx.measureText(title2).width;
+
+        // Scale factors to ensure text fits within 90% of screen width (esp for portrait)
+        const maxWidth = w * 0.9;
+        const maxTextWidth = Math.max(width1Base, width2Base);
+        const scale = maxTextWidth > maxWidth ? maxWidth / maxTextWidth : 1;
+
+        const logoSizeTop = logoSizeTopBase * scale;
+        const logoSizeBot = logoSizeBotBase * scale;
 
         ctx.font = `900 ${logoSizeTop}px "Nunito"`;
         const width1 = ctx.measureText(title1).width;
         ctx.font = `900 ${logoSizeBot}px "Nunito"`;
         const width2 = ctx.measureText(title2).width;
 
-        const padX = w > 600 ? 50 : 20 + w * 0.02; // Adjusted padding (half of previous)
+        const padX = w > 600 ? 50 * scale : (20 + w * 0.02) * scale;
         const padY = padX * 0.6; // Vertical padding for stability
+
         const textTop = centerY - logoSizeTop * 1.0;
         const textBottom = centerY + logoSizeBot * 1.0;
 
@@ -287,7 +299,6 @@ export class TitleScreen {
 
     public destroy() {
         cancelAnimationFrame(this.rafId);
-        window.removeEventListener('resize', this.resize.bind(this));
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }

@@ -148,9 +148,6 @@ export class RhythmGame extends BaseGame {
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
 
-        // Notify ThemeManager we are in the game screen
-        ThemeManager.getInstance().setContext('game');
-
         // Bind input methods properly
         this.handleKeyDown = this.handleKeyDown.bind(this);
         this.handleKeyUp = this.handleKeyUp.bind(this);
@@ -575,7 +572,7 @@ export class RhythmGame extends BaseGame {
         // 4. Check Song List (Click to select immediately)
         const listHitX = rightPanelX + 10;
         const listHitMaxX = width - Math.min(width * 0.02, 20) - 10;
-        const visibleCount = Math.floor(listH / (height * 0.08));
+        const visibleCount = 7;
         const itemHeight = (listH - 20) / visibleCount;
         const maxScrollOffset = Math.max(0, this.songList.length - visibleCount);
 
@@ -2473,7 +2470,7 @@ export class RhythmGame extends BaseGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const titleSize = Math.min(width * 0.035, radius * 0.45); // Smaller to allow 2 lines
+        const titleSize = Math.min(width * 0.045, radius * 0.55); // Larger for mobile readability
         ctx.font = `900 ${titleSize}px "Nunito"`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -2575,8 +2572,8 @@ export class RhythmGame extends BaseGame {
         const c1X = col1X + optW / 2;
         const c2X = col2X + optW / 2;
 
-        const valueSize = Math.max(11, optH * 0.32);
-        const labelSize = Math.max(8, optH * 0.2);
+        const valueSize = Math.max(14, optH * 0.38);
+        const labelSize = Math.max(10, optH * 0.24);
 
         // Pink gradient option frames matching OPTIONS badge color
         const drawOptFrame = (fx: number, fy: number, fw: number, fh: number) => {
@@ -2642,8 +2639,8 @@ export class RhythmGame extends BaseGame {
         }
 
         const listInnerY = listY + 26 + 10; // below tab
-        // Song list: 9 items + bottom play button
-        const visibleCount = 9;
+        // Song list: 7 items + bottom play button
+        const visibleCount = 7;
         const btnAreaH = Math.max(60, height * 0.09);
         const listBtnGap = Math.max(10, height * 0.015); // gap between last item and play button
         // listAvailH accounts for tab(26+10), gap, and button area so itemHeight is correct
@@ -2742,13 +2739,13 @@ export class RhythmGame extends BaseGame {
 
             // Index
             const idxColor = isSelected ? '#fff' : 'rgba(160, 185, 255, 0.7)';
-            this.drawCuteLabel((index + 1).toString().padStart(2, '0'), 25, itemHeight * 0.5, 'left', itemHeight * 0.38, idxColor, false, '"Nunito", sans-serif');
+            this.drawCuteLabel((index + 1).toString().padStart(2, '0'), 25, itemHeight * 0.5, 'left', itemHeight * 0.42, idxColor, false, '"Nunito", sans-serif');
 
             let songTitle = song.name;
             const maxTitleW = listContentW * (isSelected ? 0.6 : 0.82) - 90;
 
             // Critical fix: set sophisticated font before measuring
-            ctx.font = `700 ${itemHeight * 0.42}px "Nunito", sans-serif`;
+            ctx.font = `700 ${itemHeight * 0.46}px "Nunito", sans-serif`;
 
             if (ctx.measureText(songTitle).width > maxTitleW) {
                 while (ctx.measureText(songTitle + "...").width > maxTitleW && songTitle.length > 0) {
@@ -2758,7 +2755,7 @@ export class RhythmGame extends BaseGame {
             }
 
             const songColor = isSelected ? '#fff' : 'rgba(220, 230, 255, 0.95)';
-            this.drawCuteLabel(songTitle, 70, itemHeight * 0.5, 'left', itemHeight * 0.42, songColor, isSelected, '"Nunito", sans-serif');
+            this.drawCuteLabel(songTitle, 70, itemHeight * 0.5, 'left', itemHeight * 0.46, songColor, isSelected, '"Nunito", sans-serif');
 
             if (isSelected) {
                 this.drawCuteLabel("◀◀", listContentW - 20, itemHeight * 0.5, 'right', itemHeight * 0.35, '#fff', false, '"Nunito", sans-serif');

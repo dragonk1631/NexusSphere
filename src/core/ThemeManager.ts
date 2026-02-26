@@ -10,17 +10,9 @@ export interface ThemeConfig {
     bubblePulseGrad: string[]; // For UI bubbles like MainMenu
 }
 
-export type ScreenContext = 'title' | 'menu' | 'game' | 'settings';
-
 export class ThemeManager {
     private static instance: ThemeManager | null = null;
-    private currentContext: ScreenContext = 'title';
-    private themeSelections: Record<ScreenContext, string> = {
-        title: 'deep-space',
-        menu: 'vaporwave',
-        game: 'cyber-neon',
-        settings: 'golden-hour'
-    };
+    private currentThemeId: string = 'deep-space';
     private listeners: Array<(theme: ThemeConfig) => void> = [];
 
     // The 10 Curated Cyber-Pop & Space Themes
@@ -138,16 +130,16 @@ export class ThemeManager {
     ];
 
     private constructor() {
-        // Load saved themes
+        // Load saved theme
         try {
-            const saved = localStorage.getItem('nexus_themes_v2');
+            const saved = localStorage.getItem('nexus_global_theme');
             if (saved) {
-                this.themeSelections = JSON.parse(saved);
+                this.currentThemeId = saved;
             }
         } catch (e) {
             console.warn("Could not load themes", e);
         }
-        this.applyToCSS(); // Apply initial CSS vars for 'title' context
+        this.applyToCSS();
     }
 
     public static getInstance(): ThemeManager {
@@ -157,42 +149,18 @@ export class ThemeManager {
         return ThemeManager.instance;
     }
 
-    public getContext(): ScreenContext {
-        return this.currentContext;
-    }
-
-    public setContext(ctx: ScreenContext): void {
-        this.currentContext = ctx;
-        this.applyToCSS();
-        this.notifyListeners();
-    }
-
-    public getThemeForContext(ctx: ScreenContext): ThemeConfig {
-        const id = this.themeSelections[ctx];
-        return ThemeManager.THEMES.find(t => t.id === id) || ThemeManager.THEMES[0];
-    }
-
     public getCurrentTheme(): ThemeConfig {
-        return this.getThemeForContext(this.currentContext);
+        return ThemeManager.THEMES.find(t => t.id === this.currentThemeId) || ThemeManager.THEMES[0];
     }
 
-    public setThemeForContext(ctx: ScreenContext, themeId: string): void {
+    public setTheme(themeId: string): void {
         const exists = ThemeManager.THEMES.some(t => t.id === themeId);
         if (exists) {
-            this.themeSelections[ctx] = themeId;
-            localStorage.setItem('nexus_themes_v2', JSON.stringify(this.themeSelections));
-
-            // If we updated the currently active context, apply it immediately
-            if (ctx === this.currentContext) {
-                this.applyToCSS();
-                this.notifyListeners();
-            }
+            this.currentThemeId = themeId;
+            localStorage.setItem('nexus_global_theme', this.currentThemeId);
+            this.applyToCSS();
+            this.notifyListeners();
         }
-    }
-
-    // Legacy helper: sets theme for CURRENT context
-    public setTheme(themeId: string): void {
-        this.setThemeForContext(this.currentContext, themeId);
     }
 
     public getAllThemes(): ThemeConfig[] {

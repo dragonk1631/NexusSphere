@@ -1,6 +1,5 @@
 import { UIManager } from '../core/ui/UIManager';
 import { SettingsUI } from './SettingsUI';
-import { ThemeManager } from '../core/ThemeManager';
 
 export class MainMenu {
     private ui: UIManager;
@@ -8,9 +7,6 @@ export class MainMenu {
     private settingsUI: SettingsUI | null = null;
 
     constructor(onStartGame: (mode: string) => void) {
-        // Set context to menu to trigger Pattern change
-        ThemeManager.getInstance().setContext('menu');
-
         this.ui = UIManager.getInstance();
         this.onStartGame = onStartGame;
     }

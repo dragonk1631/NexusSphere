@@ -1,0 +1,16 @@
+{
+    "name": "NexusSphere Portal",
+    "short_name": "NexusSphere",
+    "start_url": "./",
+    "display": "fullscreen",
+    "orientation": "landscape",
+    "background_color": "#111111",
+    "theme_color": "#00ffcc",
+    "icons": [
+        {
+            "src": "favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        }
+    ]
+}

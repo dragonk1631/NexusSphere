@@ -5,8 +5,10 @@ import { EditorGame } from './games/editor/EditorGame';
 import { LayoutEditor } from './games/editor/LayoutEditor';
 import { MainMenu } from './ui/MainMenu';
 import { TitleScreen } from './ui/TitleScreen';
+import { MobileStartScreen } from './ui/MobileStartScreen';
 import { UIManager } from './core/ui/UIManager';
 import { BackgroundRenderer } from './core/graphics/BackgroundRenderer';
+import { ScreenUtils } from './core/utils/ScreenUtils';
 
 // Initialize Global Managers
 UIManager.getInstance();
@@ -138,27 +140,151 @@ function gameLoop(timestamp: number) {
   }
 }
 
-async function launchGame(GameClass: any) {
-  // Ensure we are in landscape mode on mobile (user gesture confirmed here)
-  enforceLandscape(true);
+// Help prevent multiple simultaneous launch calls
+let isLaunching = false;
 
-  loopCounter++; // Increment to invalidate previous loops
-
-  // Clear ALL UI before switching
-  UIManager.getInstance().clear();
-
-  // Reset Canvas State
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+function updateCanvasSize() {
+  const { width, height } = ScreenUtils.getVirtualDimensions();
+  canvas.width = width;
+  canvas.height = height;
 
   if (currentGame) {
-    currentGame.destroy();
-    currentGame = null;
+    currentGame.resize?.(width, height);
   }
 
-  currentGame = new GameClass(canvas);
+  BackgroundRenderer.getInstance().resize();
+  if (titleScreen) {
+    titleScreen.resize();
+  }
+}
+
+// --- Mobile Orientation & Navigation Guard ---
+async function enforceLandscape(isUserGesture: boolean = false) {
+  if (!ScreenUtils.isMobile()) return;
+
+  const isStandalone = ScreenUtils.isStandalone();
 
   try {
+    // 1. Fullscreen - STRICTLY REQUIRES USER GESTURE
+    // Skip if already in standalone (PWA) mode as it's already "fullscreen-like"
+    if (!isStandalone && isUserGesture && document.fullscreenEnabled && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen().catch((err) => {
+        // Log but don't crash; CSS fallback will handle orientation
+        console.warn("Fullscreen request failed (expected on some mobile browsers):", err);
+      });
+
+      // Small delay to allow browser to transition before locking
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    // 2. Screen Orientation Lock - USUALLY REQUIRES FULLSCREEN
+    if (screen.orientation && (screen.orientation as any).lock) {
+      await (screen.orientation as any).lock('landscape').catch(() => {
+        // Fallback to CSS is already active via media queries
+      });
+    }
+  } catch (e) {
+    // Quietly ignore
+  }
+}
+
+// Global Interaction Monitor for Fullscreen/Orientation
+function setupGlobalInteraction() {
+  const handleInteraction = () => {
+    enforceLandscape(true);
+    // Remove after first success or attempt
+    window.removeEventListener('click', handleInteraction);
+  };
+
+  window.addEventListener('click', handleInteraction, { once: true });
+}
+
+// History Guard: Prevent Back Button from exiting the app
+function enableHistoryGuard() {
+  if (!window.history.state || window.history.state.page !== 'guard') {
+    history.pushState({ page: 'guard' }, '', '');
+  }
+
+  window.addEventListener('popstate', () => {
+    history.pushState({ page: 'guard' }, '', '');
+  });
+}
+
+// Start with Title Screen or Mobile Start Screen
+let titleScreen: TitleScreen | null = null;
+if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
+  new MobileStartScreen(() => {
+    titleScreen = new TitleScreen(() => {
+      titleScreen = null;
+      mainMenu = new MainMenu(handleGameStart);
+      mainMenu.show();
+    });
+  });
+} else {
+  titleScreen = new TitleScreen(() => {
+    titleScreen = null;
+    mainMenu = new MainMenu(handleGameStart);
+    mainMenu.show();
+  });
+}
+
+// --- Mobile Initialization ---
+const initMobile = () => {
+  if (ScreenUtils.isMobile()) {
+    if (ScreenUtils.isStandalone()) {
+      setupGlobalInteraction();
+      enableHistoryGuard();
+    }
+
+    // Initial size update
+    updateCanvasSize();
+
+    window.addEventListener('resize', () => {
+      updateCanvasSize();
+      // Only orientation lock without gesture if we're already fullscreen
+      if (document.fullscreenElement && ScreenUtils.isStandalone()) {
+        enforceLandscape(false);
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && document.fullscreenElement && ScreenUtils.isStandalone()) {
+        enforceLandscape(false);
+      }
+    });
+  } else {
+    window.addEventListener('resize', updateCanvasSize);
+  }
+};
+
+initMobile();
+
+// Global Resize Handler
+window.addEventListener('resize', updateCanvasSize);
+
+async function launchGame(GameClass: any) {
+  if (isLaunching) return;
+  isLaunching = true;
+
+  try {
+    // Ensure we are in landscape mode on mobile (user gesture confirmed here)
+    await enforceLandscape(true);
+
+    loopCounter++; // Increment to invalidate previous loops
+
+    // Clear ALL UI before switching
+    UIManager.getInstance().clear();
+
+    // Reset Canvas State with Virtual Dimensions
+    updateCanvasSize();
+
+    if (currentGame) {
+      currentGame.destroy();
+      currentGame = null;
+    }
+
+    currentGame = new GameClass(canvas);
+
     console.log(`Initializing ${GameClass.name}...`);
     await currentGame.init();
 
@@ -172,11 +298,12 @@ async function launchGame(GameClass: any) {
     lastTime = performance.now();
     fpsFrameCount = 0;
 
-    // Slight delay to align first frame
     requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error("Game launch failed:", error);
     returnToMenu();
+  } finally {
+    isLaunching = false;
   }
 }
 
@@ -218,95 +345,5 @@ window.addEventListener('switch-game', (e: any) => {
     launchGame(EditorGame);
   } else {
     returnToMenu();
-  }
-});
-
-// --- Mobile Orientation & Navigation Guard ---
-async function enforceLandscape(isUserGesture: boolean = false) {
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    // Optimization: Don't Spam API if already correct
-    if (window.innerWidth > window.innerHeight && document.fullscreenElement) {
-      return;
-    }
-
-    try {
-      // 1. Fullscreen (User interaction required usually)
-      if (isUserGesture && !document.fullscreenElement && document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen().catch(() => { });
-      }
-
-      // 2. Screen Orientation Lock
-      if (screen.orientation && (screen.orientation as any).lock) {
-        // Only lock if not already landscape
-        if (screen.orientation.type.startsWith('portrait')) {
-          await (screen.orientation as any).lock('landscape').catch(() => {
-            console.warn("Orientation lock failed/rejected - relying on CSS fallback");
-          });
-        }
-      }
-    } catch (e) {
-      // Ignore errors (e.g. user denied)
-    }
-  }
-}
-
-// History Guard: Prevent Back Button from exiting the app
-function enableHistoryGuard() {
-  // Push a dummy state so "Back" just pops this state but stays on page
-  history.pushState({ page: 'guard' }, '', '');
-
-  window.addEventListener('popstate', () => {
-    // User pressed back — push state again to "trap" them
-    history.pushState({ page: 'guard' }, '', '');
-    // Optional: Show a toast "Press Back again to exit" if needed, 
-    // but for now we just keep them here.
-  });
-}
-
-// Start with Title Screen
-new TitleScreen(() => {
-  mainMenu = new MainMenu(handleGameStart);
-  mainMenu.show();
-});
-
-// --- Mobile Initialization ---
-if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-  // 1. Initial Lock Attempt
-  window.addEventListener('load', () => {
-    setTimeout(() => enforceLandscape(false), 1000);
-    enableHistoryGuard();
-  });
-
-  // 2. Persistent Lock on Interface Change (Rotation/Resize)
-  window.addEventListener('resize', () => {
-    // Debounce slightly or just call (it has internal checks now)
-    enforceLandscape(false);
-  });
-
-  // 3. Re-lock on Visibility Change (e.g. switching back from other apps)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      enforceLandscape(false); // Some browsers don't consider visibilitychange a user gesture
-    }
-  });
-} else {
-  // Desktop: Just handle resize normally
-  window.addEventListener('resize', () => {
-    if (currentGame) {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      currentGame.resize?.(window.innerWidth, window.innerHeight);
-    }
-  });
-}
-
-// Global Resize Handler (Mobile needs this too for rotation updates)
-window.addEventListener('resize', () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  currentGame?.resize?.(window.innerWidth, window.innerHeight);
-  // Re-enforce on resize (rotation)
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    enforceLandscape(false);
   }
 });

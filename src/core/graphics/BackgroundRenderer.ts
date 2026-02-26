@@ -1,4 +1,5 @@
 import { ThemeManager, type ThemeConfig } from '../ThemeManager';
+import { ScreenUtils } from '../utils/ScreenUtils';
 
 interface Particle {
     x: number;
@@ -25,8 +26,6 @@ export class BackgroundRenderer {
         this.canvas = document.getElementById('global-bg') as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
 
-        window.addEventListener('resize', this.resize.bind(this));
-
         // Initial setup
         setTimeout(() => {
             this.resize();
@@ -42,10 +41,11 @@ export class BackgroundRenderer {
         return BackgroundRenderer.instance;
     }
 
-    private resize() {
+    public resize() {
         if (!this.canvas) return;
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        const { width, height } = ScreenUtils.getVirtualDimensions();
+        this.canvas.width = width;
+        this.canvas.height = height;
         // Force re-init of pattern on resize
         this.activePattern = '';
     }
@@ -303,7 +303,7 @@ export class BackgroundRenderer {
                 p.x = Math.random() * w;
             }
 
-            const life = p.y / h; // 1 at bottom, 0 at top
+            const life = Math.max(0, p.y / h); // 1 at bottom, 0 at top (clamped)
             this.ctx.globalAlpha = life;
 
             this.ctx.beginPath();
