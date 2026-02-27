@@ -1,25 +1,28 @@
-
+import { NoteSkinManager } from '../../../core/NoteSkinManager';
 
 export class RenderCache {
     private static instance: RenderCache;
 
     // Cached Canvases
-    public notes: HTMLCanvasElement[] = []; // Expanded for per-lane coloring
+    public notes: HTMLCanvasElement[] = [];
+    public longNoteBodies: HTMLCanvasElement[] = [];
+    public receptors: HTMLCanvasElement[] = [];
+    public receptorsActive: HTMLCanvasElement[] = [];
     public particleGlow: HTMLCanvasElement | null = null;
     public highwayBackground: HTMLCanvasElement | null = null;
 
-    // Constants (Must match Game Logic)
-    private readonly NOTE_WIDTH = 100; // Max width reference
-    private readonly NOTE_HEIGHT = 50; // Increased from 40 for better visibility
+    // Constants
+    private readonly NOTE_WIDTH = 100;
+    private readonly NOTE_HEIGHT = 50;
     private readonly GLOW_RADIUS = 30;
 
     private readonly COLORS = [
-        ['#ff0066', '#ff3385'], // Lane 0: Neon Pink
-        ['#ffcc00', '#ffdb4d'], // Lane 1: Electric Gold
-        ['#00ff99', '#33ffad'], // Lane 2: Spring Green
-        ['#00e5ff', '#33ebff'], // Lane 3: Cyber Cyan
-        ['#2979ff', '#5393ff'], // Lane 4: Azure Blue
-        ['#aa00ff', '#bb33ff'], // Lane 5: Electric Purple
+        ['#ff0066', '#ff3385'], // Lane 0
+        ['#ffcc00', '#ffdb4d'], // Lane 1
+        ['#00ff99', '#33ffad'], // Lane 2
+        ['#00e5ff', '#33ebff'], // Lane 3
+        ['#2979ff', '#5393ff'], // Lane 4
+        ['#aa00ff', '#bb33ff'], // Lane 5
     ];
 
     private constructor() { }
@@ -31,68 +34,23 @@ export class RenderCache {
         return RenderCache.instance;
     }
 
-    // Cached Long Note Textures
-    public longNoteBodies: HTMLCanvasElement[] = [];
-
     public init(): void {
         console.log("[RenderCache] Generating static assets...");
+        const skinId = NoteSkinManager.getInstance().getCurrentSkin().id;
 
-        // 1. Cache Notes for all 6 lanes
-        this.notes = this.COLORS.map(colors => this.createCachedNote(colors));
+        this.notes = this.COLORS.map(colors => this.createCachedNote(colors, skinId));
+        this.longNoteBodies = this.COLORS.map(colors => this.createLongNoteBody(colors, skinId));
 
-        // 1.5 Cache Long Note Bodies
-        this.longNoteBodies = this.COLORS.map(colors => this.createLongNoteBody(colors));
+        this.receptors = this.COLORS.map(colors => this.createCachedReceptor(colors, skinId, false));
+        this.receptorsActive = this.COLORS.map(colors => this.createCachedReceptor(colors, skinId, true));
 
-        // 2. Cache Particles (Generic White Glow)
         this.particleGlow = this.createGlowParticle();
-
-        // 3. Cache Highway (Optional: Needs lane config, passing generic for now)
-        // For dynamic resizing, highway might need re-generation on resize.
-        // We will implement a method to generate it on demand.
     }
 
-    private createLongNoteBody(colors: string[]): HTMLCanvasElement {
-        const w = 64; // Power of 2 width for texture repeating if needed
-        const h = 256;
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d')!;
-
-        const baseColor = colors[1]; // Bright color
-
-        // 1. Base Gradient (Fade out towards tail, but head is bright)
-        // Actually, for a scrolling texture, we might want a seamless pattern or a solid gradient.
-        // Let's make a vertical gradient that looks like a "beam".
-        const grad = ctx.createLinearGradient(0, 0, w, 0);
-        grad.addColorStop(0, 'rgba(255,255,255,0)');
-        grad.addColorStop(0.2, this.hexToRgba(baseColor, 0.4));
-        grad.addColorStop(0.5, this.hexToRgba(baseColor, 0.8));
-        grad.addColorStop(0.8, this.hexToRgba(baseColor, 0.4));
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, w, h);
-
-        // 2. Scanlines
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        for (let y = 0; y < h; y += 4) {
-            ctx.fillRect(0, y, w, 1);
-        }
-
-        return canvas;
-    }
-
-    private hexToRgba(hex: string, alpha: number): string {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-
-    private createCachedNote(colors: string[]): HTMLCanvasElement {
+    private createCachedNote(colors: string[], skinId: string): HTMLCanvasElement {
         const w = this.NOTE_WIDTH;
         const h = this.NOTE_HEIGHT;
-        const padding = 10; // Reduced padding (was 20)
+        const padding = 15;
         const canvas = document.createElement('canvas');
         canvas.width = w + padding * 2;
         canvas.height = h + padding * 2;
@@ -103,40 +61,314 @@ export class RenderCache {
         const baseColor = colors[1];
         const darkColor = colors[0];
 
-        // 1. Outer Glow (Reduced for sharpness)
-        ctx.shadowBlur = 8; // Reduced from 15 to avoid ghosting trails
+        ctx.shadowBlur = 10;
         ctx.shadowColor = baseColor;
-        ctx.fillStyle = baseColor;
-        ctx.beginPath();
-        ctx.roundRect(x + 2, y + 2, w - 4, h - 4, h / 3);
-        ctx.fill();
-        ctx.shadowBlur = 0; // Reset
+        ctx.lineJoin = 'round';
 
-        // 2. Base Body (High Contrast Gradient)
-        const grad = ctx.createLinearGradient(x, y, x, y + h);
-        grad.addColorStop(0, baseColor);
-        grad.addColorStop(1, darkColor);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, h / 3);
-        ctx.fill();
-
-        // 3. Glass Shine (Sharper)
-        const innerGrad = ctx.createLinearGradient(x, y, x, y + h / 2);
-        innerGrad.addColorStop(0, 'rgba(255,255,255,0.95)'); // More opaque
-        innerGrad.addColorStop(1, 'rgba(255,255,255,0.1)');
-        ctx.fillStyle = innerGrad;
-        ctx.beginPath();
-        ctx.roundRect(x + 2, y + 2, w - 4, h / 2 - 2, h / 3);
-        ctx.fill();
-
-        // 4. Core Highlight (Solid)
-        ctx.fillStyle = 'rgba(255,255,255,0.95)';
-        ctx.beginPath();
-        ctx.ellipse(x + w / 2, y + h * 0.3, w * 0.4, h * 0.15, 0, 0, Math.PI * 2);
-        ctx.fill();
+        switch (skinId) {
+            case 'cyber-neon':
+                ctx.strokeStyle = baseColor;
+                ctx.lineWidth = 6;
+                ctx.strokeRect(x, y, w, h);
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillRect(x + w * 0.2, y + h * 0.4, w * 0.6, h * 0.2);
+                break;
+            case 'retro-blocks':
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = darkColor;
+                ctx.fillRect(x, y, w, h);
+                ctx.fillStyle = baseColor;
+                ctx.fillRect(x + 5, y + 5, w - 10, h - 10);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 10, y + 10, 15, 10);
+                break;
+            case 'orb-lights':
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                ctx.ellipse(x + w / 2, y + h / 2, Math.min(w, h * 1.5) / 2, h / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.ellipse(x + w / 2, y + h * 0.3, Math.min(w, h * 1.5) * 0.3, h * 0.15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+                break;
+            case 'diamond-stars':
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                ctx.moveTo(x + w / 2, y);
+                ctx.lineTo(x + w, y + h / 2);
+                ctx.lineTo(x + w / 2, y + h);
+                ctx.lineTo(x, y + h / 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                break;
+            case 'minimal-bars':
+                ctx.fillStyle = baseColor;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = baseColor;
+                ctx.fillRect(x, y + h * 0.3, w, h * 0.4);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x, y + h * 0.4, w, h * 0.2);
+                break;
+            case 'glass-spheres':
+                const radGrad = ctx.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, h);
+                radGrad.addColorStop(0, 'rgba(255,255,255,0.9)');
+                radGrad.addColorStop(0.3, baseColor);
+                radGrad.addColorStop(1, darkColor);
+                ctx.fillStyle = radGrad;
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, h / 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.beginPath();
+                ctx.roundRect(x + w * 0.1, y + 2, w * 0.8, h * 0.3, h / 4);
+                ctx.fill();
+                break;
+            case 'laser-blades':
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                ctx.moveTo(x + 10, y + h / 2);
+                ctx.lineTo(x + w / 2, y + 5);
+                ctx.lineTo(x + w - 10, y + h / 2);
+                ctx.lineTo(x + w / 2, y + h - 5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(x, y + h / 2);
+                ctx.lineTo(x + w, y + h / 2);
+                ctx.stroke();
+                break;
+            case 'hologram':
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`;
+                ctx.strokeStyle = baseColor;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+                for (let i = 0; i < h; i += 4) {
+                    ctx.fillRect(x, y + i, w, 2);
+                }
+                break;
+            case 'heart-beats':
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                const hw = Math.min(w, h * 1.5);
+                const hx = x + w / 2;
+                const hl = hx - hw / 2, hr = hx + hw / 2;
+                ctx.moveTo(hx, y + h * 0.3);
+                ctx.bezierCurveTo(hx, y - h * 0.1, hl, y - h * 0.1, hl, y + h * 0.4);
+                ctx.bezierCurveTo(hl, y + h * 0.8, hx, y + h * 0.9, hx, y + h);
+                ctx.bezierCurveTo(hx, y + h * 0.9, hr, y + h * 0.8, hr, y + h * 0.4);
+                ctx.bezierCurveTo(hr, y - h * 0.1, hx, y - h * 0.1, hx, y + h * 0.3);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.beginPath();
+                ctx.ellipse(x + w * 0.3, y + h * 0.3, w * 0.1, h * 0.1, Math.PI / 4, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            case 'classic-gel':
+            default:
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                ctx.roundRect(x + 2, y + 2, w - 4, h - 4, h / 3);
+                ctx.fill();
+                const grad = ctx.createLinearGradient(x, y, x, y + h);
+                grad.addColorStop(0, baseColor);
+                grad.addColorStop(1, darkColor);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, h / 3);
+                ctx.fill();
+                const innerGrad = ctx.createLinearGradient(x, y, x, y + h / 2);
+                innerGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
+                innerGrad.addColorStop(1, 'rgba(255,255,255,0.1)');
+                ctx.fillStyle = innerGrad;
+                ctx.beginPath();
+                ctx.roundRect(x + 2, y + 2, w - 4, h / 2 - 2, h / 3);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.95)';
+                ctx.beginPath();
+                ctx.ellipse(x + w / 2, y + h * 0.3, w * 0.4, h * 0.15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+        }
 
         return canvas;
+    }
+
+    private createCachedReceptor(colors: string[], skinId: string, isActive: boolean): HTMLCanvasElement {
+        const w = this.NOTE_WIDTH;
+        const h = this.NOTE_HEIGHT;
+        const padding = 20;
+        const canvas = document.createElement('canvas');
+        canvas.width = w + padding * 2;
+        canvas.height = h + padding * 2;
+        const ctx = canvas.getContext('2d')!;
+
+        const x = padding;
+        const y = padding;
+        const baseColor = colors[1];
+
+        ctx.lineJoin = 'round';
+
+        if (isActive) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = baseColor;
+            ctx.fillStyle = baseColor;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+        } else {
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.strokeStyle = `rgba(255, 255, 255, 0.5)`;
+            ctx.lineWidth = 1;
+        }
+
+        switch (skinId) {
+            case 'cyber-neon':
+                ctx.strokeRect(x, y, w, h);
+                if (isActive) ctx.fillRect(x, y, w, h);
+                break;
+            case 'retro-blocks':
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeRect(x, y, w, h);
+                break;
+            case 'diamond-stars':
+                ctx.beginPath();
+                ctx.moveTo(x + w / 2, y);
+                ctx.lineTo(x + w, y + h / 2);
+                ctx.lineTo(x + w / 2, y + h);
+                ctx.lineTo(x, y + h / 2);
+                ctx.closePath();
+                if (isActive) ctx.fill();
+                ctx.stroke();
+                break;
+            case 'minimal-bars':
+                ctx.fillRect(x, y + h * 0.4, w, h * 0.2);
+                break;
+            case 'orb-lights':
+                ctx.beginPath();
+                ctx.ellipse(x + w / 2, y + h / 2, Math.min(w, h * 1.5) / 2, h / 2, 0, 0, Math.PI * 2);
+                if (isActive) ctx.fill();
+                ctx.stroke();
+                break;
+            case 'hologram':
+                ctx.strokeRect(x, y, w, h);
+                if (!isActive) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                }
+                for (let i = 0; i < h; i += 4) {
+                    ctx.fillRect(x, y + i, w, 2);
+                }
+                if (isActive) {
+                    ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`;
+                    ctx.fillRect(x, y, w, h);
+                }
+                break;
+            case 'heart-beats':
+                ctx.beginPath();
+                const rhw = Math.min(w, h * 1.5);
+                const rhx = x + w / 2;
+                const rhl = rhx - rhw / 2, rhr = rhx + rhw / 2;
+                ctx.moveTo(rhx, y + h * 0.3);
+                ctx.bezierCurveTo(rhx, y - h * 0.1, rhl, y - h * 0.1, rhl, y + h * 0.4);
+                ctx.bezierCurveTo(rhl, y + h * 0.8, rhx, y + h * 0.9, rhx, y + h);
+                ctx.bezierCurveTo(rhx, y + h * 0.9, rhr, y + h * 0.8, rhr, y + h * 0.4);
+                ctx.bezierCurveTo(rhr, y - h * 0.1, rhx, y - h * 0.1, rhx, y + h * 0.3);
+                if (isActive) ctx.fill();
+                ctx.stroke();
+                break;
+            case 'laser-blades':
+                ctx.beginPath();
+                ctx.moveTo(x + 10, y + h / 2);
+                ctx.lineTo(x + w / 2, y + 5);
+                ctx.lineTo(x + w - 10, y + h / 2);
+                ctx.lineTo(x + w / 2, y + h - 5);
+                ctx.closePath();
+                if (isActive) ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x, y + h / 2);
+                ctx.lineTo(x + w, y + h / 2);
+                ctx.stroke();
+                break;
+            case 'glass-spheres':
+            case 'classic-gel':
+            default:
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, h / 3);
+                if (isActive) ctx.fill();
+                ctx.stroke();
+                if (!isActive) {
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.roundRect(x + 4, y + 4, w - 8, h - 8, h / 3);
+                    ctx.stroke();
+                }
+                break;
+        }
+
+        return canvas;
+    }
+
+    private createLongNoteBody(colors: string[], skinId: string): HTMLCanvasElement {
+        const w = 64;
+        const h = 256;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+
+        const baseColor = colors[1];
+
+        switch (skinId) {
+            case 'cyber-neon':
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.3)`;
+                ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = baseColor;
+                ctx.lineWidth = 4;
+                ctx.strokeRect(0, 0, w, h);
+                break;
+            case 'hologram':
+            case 'matrix-grid':
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                for (let y = 0; y < h; y += 8) {
+                    ctx.fillRect(0, y, w, 2);
+                }
+                break;
+            default:
+                const grad = ctx.createLinearGradient(0, 0, w, 0);
+                grad.addColorStop(0, 'rgba(255,255,255,0)');
+                grad.addColorStop(0.2, `rgba(${this.hexToRgbaParams(baseColor)}, 0.4)`);
+                grad.addColorStop(0.5, `rgba(${this.hexToRgbaParams(baseColor)}, 0.8)`);
+                grad.addColorStop(0.8, `rgba(${this.hexToRgbaParams(baseColor)}, 0.4)`);
+                grad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                for (let y = 0; y < h; y += 4) {
+                    ctx.fillRect(0, y, w, 1);
+                }
+                break;
+        }
+
+        return canvas;
+    }
+
+    private hexToRgbaParams(hex: string): string {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `${r}, ${g}, ${b}`;
     }
 
     private createGlowParticle(): HTMLCanvasElement {
@@ -146,7 +378,6 @@ export class RenderCache {
         canvas.height = r * 2;
         const ctx = canvas.getContext('2d')!;
 
-        // Radial Gradient for soft glow
         const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
         grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
         grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.2)');
@@ -158,34 +389,30 @@ export class RenderCache {
         return canvas;
     }
 
-    /**
-     * Generates a static image of the highway. 
-     * call this on resize or init.
-     */
-    public renderHighwayToCache(
+    public renderHighwayBackground(
         width: number,
         height: number,
         horizonY: number,
         bottomY: number,
         laneCount: number,
-        getPerspectiveX: (lane: number, y: number) => number
+        getPerspectiveX: (lane: number, y: number) => number,
+        themeColor1: string,
+        themeColor2: string
     ): HTMLCanvasElement {
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d')!;
 
-        // Reuse the drawing logic from RhythmGame (minus active lane)
         const tl = { x: getPerspectiveX(0, horizonY), y: horizonY };
         const tr = { x: getPerspectiveX(laneCount, horizonY), y: horizonY };
         const bl = { x: getPerspectiveX(0, bottomY), y: bottomY };
         const br = { x: getPerspectiveX(laneCount, bottomY), y: bottomY };
 
-        // 1. Side Rails
-        const railWidth = 12; // Thinned from 20
+        const railWidth = 12;
         const outerGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        outerGrad.addColorStop(0, '#606080');
-        outerGrad.addColorStop(1, '#a0a0ff');
+        outerGrad.addColorStop(0, themeColor1);
+        outerGrad.addColorStop(1, themeColor2);
         ctx.fillStyle = outerGrad;
         ctx.beginPath();
         ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
@@ -194,7 +421,6 @@ export class RenderCache {
         ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y); ctx.lineTo(br.x, br.y);
         ctx.fill();
 
-        // 2. Road Body (Electric Cyber Mix)
         const roadGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
         roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.9)');
         roadGrad.addColorStop(0.5, 'rgba(30, 10, 60, 0.8)');
@@ -204,15 +430,15 @@ export class RenderCache {
         ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
         ctx.fill();
 
-        // 3. Dividers
-        ctx.lineWidth = 1; // Thinned from 2
+        ctx.lineWidth = 2;
         for (let i = 1; i < laneCount; i++) {
             const topX = getPerspectiveX(i, horizonY);
             const botX = getPerspectiveX(i, bottomY);
             const divGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-            divGrad.addColorStop(0, 'rgba(0, 255, 255, 0)');
-            divGrad.addColorStop(0.5, 'rgba(0, 255, 255, 0.5)');
-            divGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+            divGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            divGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.6)');
+            divGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.8)');
+            divGrad.addColorStop(1, 'rgba(255, 255, 255, 0.4)');
             ctx.strokeStyle = divGrad;
             ctx.beginPath();
             ctx.moveTo(topX, horizonY); ctx.lineTo(botX, bottomY);
@@ -221,5 +447,12 @@ export class RenderCache {
 
         this.highwayBackground = canvas;
         return canvas;
+    }
+
+    public getPreviewDataURL(skinId: string): string {
+        // Use Lane 3 (Cyber Cyan) colors for preview mapping
+        const colorSet = this.COLORS[3];
+        const canvas = this.createCachedNote(colorSet, skinId);
+        return canvas.toDataURL();
     }
 }

@@ -1,7 +1,9 @@
 import { UIManager } from '../core/ui/UIManager';
 import { ThemeManager } from '../core/ThemeManager';
+import { NoteSkinManager } from '../core/NoteSkinManager';
+import { RenderCache } from '../games/rhythm/graphics/RenderCache';
 
-type Tab = 'visual' | 'audio' | 'gameplay';
+type Tab = 'visual' | 'skin' | 'audio' | 'gameplay';
 
 export class SettingsUI {
     private ui: UIManager;
@@ -111,7 +113,10 @@ export class SettingsUI {
                     display: flex; flex-direction: column; flex: 1;
                     width: 100%; box-sizing: border-box;
                     min-width: 0; align-self: stretch;
+                    overflow-y: auto; padding-right: 5px;
                 }
+                .settings-section::-webkit-scrollbar { width: 8px; }
+                .settings-section::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
 
                 /* Theme Grid */
                 .theme-grid {
@@ -206,6 +211,7 @@ export class SettingsUI {
                 <div class="settings-window">
                     <div class="settings-tabs" id="settings-tabs">
                         <button class="tab-btn tab-visual active" data-tab="visual">VISUAL</button>
+                        <button class="tab-btn tab-skin" data-tab="skin">SKIN</button>
                         <button class="tab-btn tab-audio" data-tab="audio">AUDIO</button>
                         <button class="tab-btn tab-gameplay" data-tab="gameplay">GAMEPLAY</button>
                         <button id="btn-back" class="tab-btn btn-return">← APPLY & RETURN</button>
@@ -238,7 +244,8 @@ export class SettingsUI {
         if (panel) {
             let borderColor = '#00F0FF';
             let boxShadow = '0 0 40px rgba(0, 240, 255, 0.3)';
-            if (this.activeTab === 'audio') { borderColor = '#FF007F'; boxShadow = '0 0 40px rgba(255, 0, 127, 0.3)'; }
+            if (this.activeTab === 'skin') { borderColor = '#FFD700'; boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)'; }
+            else if (this.activeTab === 'audio') { borderColor = '#FF007F'; boxShadow = '0 0 40px rgba(255, 0, 127, 0.3)'; }
             else if (this.activeTab === 'gameplay') { borderColor = '#A1C4FD'; boxShadow = '0 0 40px rgba(161, 196, 253, 0.3)'; }
             panel.style.borderColor = borderColor;
             panel.style.boxShadow = `${boxShadow}, inset 0 0 30px ${borderColor}66`;
@@ -247,6 +254,8 @@ export class SettingsUI {
         // 3. Build only the inner content
         const themeManager = ThemeManager.getInstance();
         const currentThemeId = themeManager.getCurrentTheme().id;
+        const skinManager = NoteSkinManager.getInstance();
+        const currentSkinId = skinManager.getCurrentSkin().id;
 
         if (this.activeTab === 'visual') {
             const themes = themeManager.getAllThemes();
@@ -256,14 +265,38 @@ export class SettingsUI {
                     <span class="theme-name">${t.name}</span>
                 </button>
             `).join('');
+
             contentEl.innerHTML = `
                 <div class="settings-section" style="width:100%;box-sizing:border-box;">
-                    <div class="theme-grid" style="width:100%;box-sizing:border-box;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 20px; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">Game Background Theme</h3>
+                    <div class="theme-grid" style="width:100%;box-sizing:border-box; margin-bottom: 24px;">
                         ${themesHtml}
                     </div>
                 </div>
             `;
             this.attachThemeListeners();
+        } else if (this.activeTab === 'skin') {
+            const renderCache = RenderCache.getInstance();
+            const skins = skinManager.getAllSkins();
+            const skinsHtml = skins.map(s => {
+                const previewUrl = renderCache.getPreviewDataURL(s.id);
+                return `
+                <button class="theme-btn skin-btn ${s.id === currentSkinId ? 'active' : ''}" data-skin="${s.id}"
+                        style="background: linear-gradient(135deg, #333340, #1a1a25); border-color: #555566; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;" title="${s.description}">
+                    <img src="${previewUrl}" alt="${s.name}" style="height: 30px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
+                    <span class="theme-name">${s.name}</span>
+                </button>
+            `}).join('');
+
+            contentEl.innerHTML = `
+                <div class="settings-section" style="width:100%;box-sizing:border-box;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 20px; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">Note & Receptor Skin</h3>
+                    <div class="theme-grid" style="width:100%;box-sizing:border-box; margin-bottom: 24px;">
+                        ${skinsHtml}
+                    </div>
+                </div>
+            `;
+            this.attachSkinListeners();
         } else if (this.activeTab === 'audio') {
             contentEl.innerHTML = `
                 <div class="settings-section" style="width:100%;box-sizing:border-box;">
@@ -313,13 +346,26 @@ export class SettingsUI {
 
     /** Attach listeners for theme buttons (re-attached when visual tab content is swapped). */
     private attachThemeListeners(): void {
-        document.querySelectorAll('.theme-btn').forEach(btn => {
+        document.querySelectorAll('.theme-btn:not(.skin-btn)').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 const themeId = target.getAttribute('data-theme');
                 if (themeId) {
                     ThemeManager.getInstance().setTheme(themeId);
                     this.updateTabContent(); // Only updates inner content
+                }
+            });
+        });
+    }
+
+    private attachSkinListeners(): void {
+        document.querySelectorAll('.skin-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget as HTMLElement;
+                const skinId = target.getAttribute('data-skin');
+                if (skinId) {
+                    NoteSkinManager.getInstance().setSkin(skinId);
+                    this.updateTabContent();
                 }
             });
         });

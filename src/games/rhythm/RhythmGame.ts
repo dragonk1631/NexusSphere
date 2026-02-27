@@ -75,11 +75,8 @@ export class RhythmGame extends BaseGame {
     private preGameTimer = 0;
     private targetStartTime = 0; // Target audio start time to sync visuals
     private isAudioStarted = false;
-    private bgGradient: CanvasGradient | null = null;
     private lastNoteIndex = 0;
-    private laneGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
     private beamGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
-
 
     // FPS Counter
     private lastFpsTime = 0;
@@ -182,18 +179,8 @@ export class RhythmGame extends BaseGame {
         this.laneBottomWidth = totalHighwayWidthBottom / this.laneCount;
         this.laneTopWidth = totalHighwayWidthTop / this.laneCount;
 
-        // PRE-CACHE Lane Gradients (Performance)
-        const ctxPre = this.ctx;
-        this.laneGradients = this.COLORS.LANES.map(colorSet => {
-            const grad = ctxPre.createLinearGradient(0, this.horizonY, 0, this.hitLineY);
-            const color = colorSet[1];
-            grad.addColorStop(0, this.hexToRgba(color, 0.0));
-            grad.addColorStop(0.2, this.hexToRgba(color, 0.4));
-            grad.addColorStop(0.8, this.hexToRgba(color, 0.6));
-            grad.addColorStop(1, this.hexToRgba(color, 0.9));
-            return grad;
-        });
 
+        const ctxPre = this.ctx;
         this.beamGradients = this.COLORS.LANES.map(colorSet => {
             const grad = ctxPre.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
             const color = colorSet[1];
@@ -204,11 +191,13 @@ export class RhythmGame extends BaseGame {
 
         // Re-generate Highway Cache on resize
         if (this.renderCache) {
-            this.renderCache.renderHighwayToCache(
+            this.renderCache.renderHighwayBackground(
                 width, height,
                 this.horizonY, this.bottomY,
                 this.laneCount,
-                this.getPerspectiveX.bind(this)
+                this.getPerspectiveX.bind(this),
+                ThemeManager.getInstance().getCurrentTheme().color1,
+                ThemeManager.getInstance().getCurrentTheme().color2
             );
         }
     }
@@ -1607,36 +1596,8 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
-        // 1. Warp Speed Background
-        if (!this.bgGradient) {
-            this.bgGradient = ctx.createRadialGradient(
-                this.canvas.width / 2, this.canvas.height / 2, 0,
-                this.canvas.width / 2, this.canvas.height / 2, this.canvas.height
-            );
-            this.bgGradient.addColorStop(0, '#1a0033'); // Deep Center
-            this.bgGradient.addColorStop(0.4, '#440066'); // Mid Purple
-            this.bgGradient.addColorStop(1, '#000000'); // Black edges
-        }
-        ctx.fillStyle = this.bgGradient;
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Speed Lines (Warp Effect) - Desktop only (too expensive on mobile)
-        if (!this.isMobile) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            const centerX = this.canvas.width / 2;
-            const centerY = this.canvas.height / 2;
-            const baseAngle = Date.now() * 0.0005;
-            for (let i = 0; i < 12; i++) {
-                const angle = baseAngle + i * 0.523;
-                const cos = Math.cos(angle);
-                const sin = Math.sin(angle);
-                ctx.moveTo(centerX + cos * 50, centerY + sin * 50);
-                ctx.lineTo(centerX + cos * 800, centerY + sin * 800);
-            }
-            ctx.stroke();
-        }
+        // 1. Clear Canvas to show Global Background (BackgroundRenderer)
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         const _p0 = performance.now();
 
         // 2. Draw Perspective Highway
@@ -1745,11 +1706,13 @@ export class RhythmGame extends BaseGame {
 
             // Try to force cache generation for next frame
             if (this.renderCache && this.laneBottomWidth > 0) {
-                this.renderCache.renderHighwayToCache(
+                this.renderCache.renderHighwayBackground(
                     this.canvas.width, this.canvas.height,
                     this.horizonY, this.bottomY,
                     this.laneCount,
-                    this.getPerspectiveX.bind(this)
+                    this.getPerspectiveX.bind(this),
+                    ThemeManager.getInstance().getCurrentTheme().color1,
+                    ThemeManager.getInstance().getCurrentTheme().color2
                 );
             }
         }
@@ -1936,39 +1899,23 @@ export class RhythmGame extends BaseGame {
             const laneWidth = this.getPerspectiveWidth(this.hitLineY);
             const height = 50;
             const x = this.getPerspectiveX(i, this.hitLineY);
-            const colorSet = this.COLORS.LANES[i] || this.COLORS.LANES[0];
-            const baseColor = colorSet[1];
 
-            if (this.keyState[i]) {
-                ctx.fillStyle = baseColor;
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2; // FIX: Prevent lineWidth leakage from previous draw calls
-                // shadowBlur is extremely expensive on mobile
-                if (!this.isMobile) {
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = baseColor;
-                }
-                ctx.beginPath();
-                ctx.roundRect(x, this.hitLineY, laneWidth, height, height / 3);
-                ctx.fill();
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-            } else {
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + pulseAlpha * 0.3})`;
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // slightly darker for contrast
-                ctx.lineWidth = 1; // FIX: Prevent lineWidth leakage for normal state
-                ctx.shadowBlur = 0;
-                ctx.beginPath();
-                ctx.roundRect(x, this.hitLineY, laneWidth, height, height / 3);
-                ctx.fill();
-                ctx.stroke();
-                if (!this.isMobile) {
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.roundRect(x + 4, this.hitLineY + 4, laneWidth - 8, height - 8, height / 3);
-                    ctx.stroke();
-                }
+            const receptorImg = this.keyState[i]
+                ? this.renderCache?.receptorsActive[i]
+                : this.renderCache?.receptors[i];
+
+            if (receptorImg) {
+                // Scale based on RenderCache configuration (NOTE_WIDTH=100, NOTE_HEIGHT=50, Padding=20)
+                const scaleX = laneWidth / 100;
+                const scaleY = height / 50;
+                const drawW = receptorImg.width * scaleX;
+                const drawH = receptorImg.height * scaleY;
+                const drawX = x - 20 * scaleX;
+                const drawY = this.hitLineY - 20 * scaleY;
+
+                ctx.globalAlpha = this.keyState[i] ? 1.0 : (0.7 + pulseAlpha * 0.3);
+                ctx.drawImage(receptorImg, drawX, drawY, drawW, drawH);
+                ctx.globalAlpha = 1.0;
             }
         }
         ctx.restore();
@@ -2003,8 +1950,8 @@ export class RhythmGame extends BaseGame {
             // Stop loop since sorted
             if (noteTimeMs > windowEnd) break;
 
-            // Skip notes that already passed or are processed (non-hold)
-            if (note.isProcessed && !note.isHold) continue;
+            // Skip notes that already passed or are fully processed
+            if (note.isProcessed) continue;
             if (noteEndMs < windowStart) continue;
 
             const timeDiff = noteTimeMs - currentTime;
@@ -2045,113 +1992,122 @@ export class RhythmGame extends BaseGame {
                 // Calculate Tail Y
                 const pTail = tailProgress / (perspectiveDepth - (perspectiveDepth - 1) * tailProgress);
                 const tailY = this.horizonY + (this.hitLineY - this.horizonY) * pTail;
+                const tailH = 50 * pTail;
 
-                this.drawLongNote(note.lane, noteX, noteY, noteWidth, noteHeight, tailY, note.isHolding, alpha);
+                this.drawLongNote(note.lane, noteX, noteY, noteWidth, noteHeight, tailY, tailH, note.isHolding, alpha);
             } else {
                 this.drawGelNote(noteX, noteY, noteWidth, noteHeight, note.lane, alpha);
             }
         }
     }
 
-    private drawLongNote(lane: number, headX: number, headY: number, headW: number, headH: number, tailY: number, isHolding: boolean, globalAlpha: number = 1.0): void {
+    private drawLongNote(lane: number, headX: number, headY: number, headW: number, headH: number, tailY: number, tailH: number, isHolding: boolean, globalAlpha: number = 1.0): void {
         const ctx = this.ctx;
         if (!this.renderCache) return;
 
-        // 1. Draw Body
-        // Perspective Polygon: We need widths at top (Head) and bottom (Tail)
-        // Actually, Head is 'Top' visually if note is approaching, BUT wait.
-        // Notes move  Horizon -> Bottom. 
-        // So Head is "Lower Y" (closer to bottom of screen) than Tail (closer to horizon).
-        // WAIT. 
-        // Note Y is calculated based on "Time Diff". 
-        // If Time Diff is small (close to 0), Progress is 1. Y is HitLine.
-        // Tail is "Later" in time. So Time Diff is larger. Progress is Smaller. Y is closer to Horizon.
-        // CORRECT: Head is at Higher Y value (Screen Bottom), Tail is Lower Y value (Screen Top).
-
-        // headY passed here is the "Start Time" Y. (The leading edge).
-        // tailY is the End Time Y. 
-
-        // Check Visibility
-        if (tailY > headY) return; // Should not happen in this perspective unless passed?
-        // logic check: Head is closer to hit line (larger Y). Tail is further back (smaller Y).
-        // So TailY < HeadY.
+        // Check Visibility: Head is at higher Y (bottom), Tail at lower Y (top)
+        if (tailY > headY) return;
 
         const tailW = this.getPerspectiveWidth(tailY);
         const tailX = this.getPerspectiveX(lane, tailY);
 
-        const bodyImg = this.renderCache.longNoteBodies[lane];
-        if (bodyImg) {
+        // === BODY: narrower than notes, perfectly centered to notes ===
+        const bodyRatio = 0.35; // Narrower to ensure it never pokes out the sides of shaped notes
+
+        // Perfectly target the exact visual centers of the rendered 2D notes to fix leaning
+        const tailCenterY = tailY + tailH * 0.5;
+        const headCenterY = headY + headH * 0.5;
+
+        // Give a slight margin inside so the flat end stays fully masked by the note's opaque center
+        // e.g. instead of going exactly center, go slightly past center if drawing underneath?
+        // Actually, exactly center is best to prevent leaking on the other end.
+        const bodyTopY = tailCenterY;
+        const bodyBotY = headCenterY;
+
+        let alpha = isHolding ? 0.9 : 0.6;
+        if (isHolding) {
+            const flash = Math.sin(performance.now() * 0.02) * 0.1 + 0.9;
+            alpha = flash;
+        }
+
+        // If notes overlap cleanly (very short hold), skip body
+        if (bodyTopY < bodyBotY) {
+            // Calculate widths based on depth to maintain perspective tapering
+            const bTopW = this.getPerspectiveWidth(bodyTopY);
+            const bBotW = this.getPerspectiveWidth(bodyBotY);
+
+            // Calculate the exact horizontal center of the drawn 2D note image
+            const topCenterX = tailX + tailW * 0.5;
+            const botCenterX = headX + headW * 0.5;
+
+            // Half-widths of the body at top and bottom
+            const halfTop = (bTopW * bodyRatio) * 0.5;
+            const halfBot = (bBotW * bodyRatio) * 0.5;
+
+            // Trapezoid points ensuring perfect centered alignment with the notes
+            const pTopLeft = topCenterX - halfTop;
+            const pTopRight = topCenterX + halfTop;
+            const pBotLeft = botCenterX - halfBot;
+            const pBotRight = botCenterX + halfBot;
+
+            const laneColors = this.COLORS.LANES[lane] || this.COLORS.LANES[0];
+
             ctx.save();
+            ctx.globalAlpha = alpha * globalAlpha;
 
-            // Draw Central Energy Rod (가운데 봉) underneath the body pattern
+            // Main body fill (simple trapezoid)
             ctx.beginPath();
-            ctx.moveTo(headX + headW / 2, headY);
-            ctx.lineTo(tailX + tailW / 2, tailY);
-            ctx.lineWidth = 12 * (headW / this.laneBottomWidth); // Scale thickness
-            ctx.strokeStyle = `rgba(255, 255, 255, ${isHolding ? 0.9 : 0.4})`;
-            if (!this.isMobile && isHolding) {
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = '#ffffff';
-            }
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-
-            // Prepare Clipping Path for the polygon body
-            ctx.beginPath();
-            ctx.moveTo(headX, headY + headH * 0.5); // Center of head vertically?
-            ctx.lineTo(headX + headW, headY + headH * 0.5);
-            ctx.lineTo(tailX + tailW, tailY);
-            ctx.lineTo(tailX, tailY);
+            ctx.moveTo(pBotLeft, bodyBotY);
+            ctx.lineTo(pBotRight, bodyBotY);
+            ctx.lineTo(pTopRight, bodyTopY);
+            ctx.lineTo(pTopLeft, bodyTopY);
             ctx.closePath();
 
-            // Clip to this shape and draw pattern
-            ctx.clip();
-
-            // Draw stretched texture or tiled
-            // Dynamic scrolling effects
-
-            let alpha = isHolding ? 0.9 : 0.6;
-            // Flash Effect if holding (Math only, no shadowBlur here for performance)
-            if (isHolding) {
-                const flash = Math.sin(performance.now() * 0.02) * 0.1 + 0.9;
-                alpha = flash;
-            }
-
-            ctx.globalAlpha = alpha * globalAlpha;
-            ctx.drawImage(bodyImg, 0, 0, bodyImg.width, bodyImg.height, headX, tailY, Math.max(headW, tailW), headY - tailY);
-
-            // Use Pre-cached Gradient Fill 
-            const cachedGrad = this.laneGradients[lane];
-            if (cachedGrad) {
-                ctx.fillStyle = cachedGrad;
-                ctx.fill();
-            }
-
-            // 3. Redesigned Tail Cap (Distinct Glow Bar)
-            // Use a bright horizontal bar that matches the tail width
-            const capHeight = 8;
-            ctx.fillStyle = '#ffffff';
-            if (!this.isMobile) {
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = this.COLORS.LANES[lane] ? this.COLORS.LANES[lane][1] : '#ffffff';
-            }
-
-            ctx.beginPath();
-            ctx.roundRect(tailX, tailY - capHeight / 2, tailW, capHeight, capHeight / 2);
+            const bodyGrad = ctx.createLinearGradient(0, bodyTopY, 0, bodyBotY);
+            bodyGrad.addColorStop(0, this.hexToRgba(laneColors[0], 0.35));
+            bodyGrad.addColorStop(0.5, this.hexToRgba(laneColors[1], 0.65));
+            bodyGrad.addColorStop(1, this.hexToRgba(laneColors[0], 0.85));
+            ctx.fillStyle = bodyGrad;
             ctx.fill();
 
-            // Draw a slightly darker inner line for contrast
-            ctx.fillStyle = this.COLORS.LANES[lane] ? this.COLORS.LANES[lane][0] : '#aaaaaa';
+            // Edge glow lines
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = this.hexToRgba(laneColors[1], isHolding ? 0.7 : 0.35);
             ctx.beginPath();
-            ctx.roundRect(tailX + 2, tailY - 1, tailW - 4, 2, 1);
+            ctx.moveTo(pBotLeft, bodyBotY);
+            ctx.lineTo(pTopLeft, bodyTopY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pBotRight, bodyBotY);
+            ctx.lineTo(pTopRight, bodyTopY);
+            ctx.stroke();
+
+            // White center highlight (narrower trapezoid)
+            const hlHalfTop = (bTopW * 0.1) * 0.5;
+            const hlHalfBot = (bBotW * 0.1) * 0.5;
+
+            ctx.beginPath();
+            ctx.moveTo(botCenterX - hlHalfBot, bodyBotY);
+            ctx.lineTo(botCenterX + hlHalfBot, bodyBotY);
+            ctx.lineTo(topCenterX + hlHalfTop, bodyTopY);
+            ctx.lineTo(topCenterX - hlHalfTop, bodyTopY);
+            ctx.closePath();
+
+            const hlGrad = ctx.createLinearGradient(0, bodyTopY, 0, bodyBotY);
+            hlGrad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
+            hlGrad.addColorStop(0.5, `rgba(255, 255, 255, ${isHolding ? 0.4 : 0.15})`);
+            hlGrad.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
+            ctx.fillStyle = hlGrad;
             ctx.fill();
 
-            ctx.shadowBlur = 0; // Reset
             ctx.restore();
         }
 
-        // 2. Draw Head (The standard note)
-        this.drawGelNote(headX, headY, headW, headH, lane);
+        // Draw Tail Note ON TOP (covers body top edge completely, opaque to hide body end)
+        this.drawGelNote(tailX, tailY, tailW, tailH, lane, globalAlpha);
+
+        // Draw Head Note ON TOP (covers body bottom edge completely)
+        this.drawGelNote(headX, headY, headW, headH, lane, globalAlpha);
     }
 
     private hexToRgba(hex: string, alpha: number): string {
@@ -2169,7 +2125,15 @@ export class RhythmGame extends BaseGame {
         if (noteImg) {
             this.ctx.save();
             this.ctx.globalAlpha = alpha;
-            this.ctx.drawImage(noteImg, x, y, w, h);
+            // Pad compensation: NOTE_WIDTH=100, NOTE_HEIGHT=50, padding=15
+            const scaleX = w / 100;
+            const scaleY = h / 50;
+            const drawW = noteImg.width * scaleX;
+            const drawH = noteImg.height * scaleY;
+            const drawX = x - 15 * scaleX;
+            const drawY = y - 15 * scaleY;
+
+            this.ctx.drawImage(noteImg, drawX, drawY, drawW, drawH);
             this.ctx.restore();
         }
     }
@@ -2186,68 +2150,136 @@ export class RhythmGame extends BaseGame {
         ctx.textBaseline = 'top';
 
         // --- HUD BACKGROUND PANELS (Cyberpunk Arcade Style) ---
-        // HP Panel (Top Left)
-        ctx.fillStyle = 'rgba(10, 10, 15, 0.7)';
+        const panelTopY = 10;
+        const panelBotY = 70;
+
+        // Margin from the actual lane edge
+        const hMargin = 15;
+
+        // Left Panel (HP) coordinates
+        let hpInnerTopX = this.getPerspectiveX(0, panelTopY) - hMargin;
+        let hpInnerBotX = this.getPerspectiveX(0, panelBotY) - hMargin;
+
+        // Fallback for extremely narrow screens or excessive tilt
+        if (hpInnerBotX > width * 0.45) {
+            const diff = hpInnerBotX - width * 0.45;
+            hpInnerBotX -= diff;
+            hpInnerTopX -= diff;
+        }
+
+        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
         ctx.strokeStyle = '#ff0066'; // Neon pink border
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.moveTo(0, 10);
-        ctx.lineTo(340, 10);
-        ctx.lineTo(320, 60);
-        ctx.lineTo(0, 60);
+        ctx.moveTo(0, panelTopY);
+        ctx.lineTo(hpInnerTopX, panelTopY);
+        ctx.lineTo(hpInnerBotX, panelBotY);
+        ctx.lineTo(0, panelBotY);
         ctx.fill();
         ctx.stroke();
 
-        // Score Panel (Top Right)
-        ctx.fillStyle = 'rgba(10, 10, 15, 0.7)';
+        // Right Panel (Score) coordinates
+        let scoreInnerTopX = this.getPerspectiveX(this.laneCount, panelTopY) + hMargin;
+        let scoreInnerBotX = this.getPerspectiveX(this.laneCount, panelBotY) + hMargin;
+
+        if (scoreInnerBotX < width * 0.55) {
+            const diff = width * 0.55 - scoreInnerBotX;
+            scoreInnerBotX += diff;
+            scoreInnerTopX += diff;
+        }
+
+        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
         ctx.strokeStyle = '#00ffff'; // Cyan border
         ctx.beginPath();
-        ctx.moveTo(width, 10);
-        ctx.lineTo(width - 240, 10);
-        ctx.lineTo(width - 220, 60);
-        ctx.lineTo(width, 60);
+        ctx.moveTo(width, panelTopY);
+        ctx.lineTo(scoreInnerTopX, panelTopY);
+        ctx.lineTo(scoreInnerBotX, panelBotY);
+        ctx.lineTo(width, panelBotY);
         ctx.fill();
         ctx.stroke();
 
         // --- HP Bar ---
-        const hpX = 15, hpY = 20, hpWidth = 280, hpHeight = 25;
-        // Background track
+        // Use ratio-based positioning so bar angle matches panel angle exactly
+        const hpBgTopY = panelTopY + 10;
+        const hpBgBotY = panelBotY - 10;
+        const hpBarInset = 10; // Inset from panel edges
+
+        // HP bar left edge: straight vertical (flush with screen left + inset)
+        const hpBarLeftX = hpBarInset;
+
+        // HP bar right edge: interpolate panel inner edge at bar's top/bottom Y
+        // This ensures the bar's right angle exactly matches the panel's slope
+        const panelSlope = (hpInnerBotX - hpInnerTopX) / (panelBotY - panelTopY);
+        const hpBarRightTopX = hpInnerTopX + panelSlope * (hpBgTopY - panelTopY) - hpBarInset;
+        const hpBarRightBotX = hpInnerTopX + panelSlope * (hpBgBotY - panelTopY) - hpBarInset;
+
+        // Background track (Parallelogram with angle matching panel exactly)
         ctx.beginPath();
-        ctx.moveTo(hpX, hpY); ctx.lineTo(hpX + hpWidth, hpY); ctx.lineTo(hpX + hpWidth - 20, hpY + hpHeight); ctx.lineTo(hpX, hpY + hpHeight);
+        ctx.moveTo(hpBarLeftX, hpBgTopY);
+        ctx.lineTo(hpBarRightTopX, hpBgTopY);
+        ctx.lineTo(hpBarRightBotX, hpBgBotY);
+        ctx.lineTo(hpBarLeftX, hpBgBotY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
         const maxHp = this.scoreManager.getMaxHealth();
         const currentHp = this.scoreManager.getHealth();
-        const hpPercent = currentHp / maxHp;
+        const hpPercent = Math.max(0, Math.min(1, currentHp / maxHp));
 
-        const fillW = (hpWidth - 20) * hpPercent;
-        if (fillW > 0) {
-            const hpGrad = ctx.createLinearGradient(hpX, hpY, hpX + hpWidth, hpY);
+        if (hpPercent > 0) {
+            const hpGrad = ctx.createLinearGradient(hpBarLeftX, hpBgTopY, hpBarRightTopX, hpBgTopY);
             if (hpPercent < 0.3) {
-                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(1, '#880000');
+                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(1, '#ff4444');
             } else {
-                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(0.5, '#ffff00'); hpGrad.addColorStop(1, '#00ff00');
+                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(0.5, '#ffff00'); hpGrad.addColorStop(1, '#00ffcc');
             }
+
+            // Angled fill: lerp between left and right edges by hpPercent
+            const fillRightTopX = hpBarLeftX + (hpBarRightTopX - hpBarLeftX) * hpPercent;
+            const fillRightBotX = hpBarLeftX + (hpBarRightBotX - hpBarLeftX) * hpPercent;
 
             ctx.fillStyle = hpGrad;
             ctx.beginPath();
-            ctx.moveTo(hpX + 2, hpY + 2); ctx.lineTo(hpX + fillW, hpY + 2); ctx.lineTo(hpX + fillW - 20 * hpPercent, hpY + hpHeight - 2); ctx.lineTo(hpX + 2, hpY + hpHeight - 2);
+            ctx.moveTo(hpBarLeftX + 2, hpBgTopY + 2);
+            ctx.lineTo(fillRightTopX - 2, hpBgTopY + 2);
+            ctx.lineTo(fillRightBotX - 2, hpBgBotY - 2);
+            ctx.lineTo(hpBarLeftX + 2, hpBgBotY - 2);
+            ctx.closePath();
             ctx.fill();
         }
-        ctx.fillStyle = '#fff'; ctx.font = 'italic bold 20px "Orbitron"'; ctx.fillText("HP", hpX + 5, hpY + 32);
+
+        // HP label: below panel, left-aligned, with spacing from border
+        ctx.textAlign = 'left';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#ff0066';
+        ctx.fillStyle = '#fff';
+        ctx.font = 'italic bold 20px "Orbitron"';
+        ctx.fillText("HP", 10, panelBotY + 8);
+        ctx.shadowBlur = 0;
 
         // --- Score ---
+        // Score number: right-aligned inside the right panel
         ctx.textAlign = 'right';
         if (!this.isMobile) {
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 15;
             ctx.shadowColor = '#00ffff';
         }
         ctx.fillStyle = '#fff';
-        ctx.font = 'italic 16px "Orbitron"';
-        ctx.fillText("SCORE", width - 15, 15);
         ctx.font = 'italic bold 32px "Orbitron"';
-        ctx.fillText(score.toLocaleString(), width - 15, 32);
+        ctx.fillText(score.toLocaleString(), width - 20, (panelTopY + panelBotY) / 2 - 10);
+        ctx.shadowBlur = 0;
+
+        // SCORE label: below panel, right-aligned, with spacing from border
+        ctx.textAlign = 'right';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#00ffff';
+        ctx.fillStyle = '#fff';
+        ctx.font = 'italic bold 20px "Orbitron"';
+        ctx.fillText("SCORE", width - 10, panelBotY + 8);
         ctx.shadowBlur = 0;
 
         // Combo
