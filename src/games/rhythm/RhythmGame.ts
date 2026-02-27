@@ -273,7 +273,6 @@ export class RhythmGame extends BaseGame {
                 this.isTestMode = true;
                 this.transitionData = data;
                 // Data is stored. launchGame will call load() → create() through the normal path.
-                // Audio settings (solo/mute) will be applied in create() after loading.
                 console.log("[RhythmGame] Test Mode data stored. Proceeding with normal load sequence.");
                 return;
             }
@@ -510,6 +509,13 @@ export class RhythmGame extends BaseGame {
         const btnH = Math.max(65, height * 0.1);
         const btnX = width - padding - btnW;
         const btnY = height - padding - btnH;
+
+        // 0. Main Menu Button Hitbox (Top Right)
+        // More forgiving hitbox for vertical range [0, 40]
+        if (x >= width - padding - 116 && x <= width - padding && y >= 0 && y <= 40) {
+            this.returnToMainMenu();
+            return;
+        }
 
         if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
             // Stop preview before starting
@@ -1025,6 +1031,14 @@ export class RhythmGame extends BaseGame {
 
         this.loadingPromise = (async () => {
             console.log("[RhythmGame] Loading assets...");
+
+            // CRITICAL FIX: Prevent Data Leak between songs.
+            // Clear any previous beatmap data or transition data so the new song doesn't use old configs.
+            this.beatmapData = null;
+            if (!this.isTestMode) {
+                this.transitionData = null;
+            }
+
             // CRITICAL: Reset time state before init.
             // CoreAudioEngine is a singleton — if EditorGame was playing (e.g. at t=45s),
             // lastReportedTime stays at 45s. Without this reset, getPreciseTime() returns 45s
@@ -1124,8 +1138,8 @@ export class RhythmGame extends BaseGame {
             } else if (this.beatmapData?.channelConfig) {
                 console.warn(`[RhythmGame] WARNING: Old beatmap format detected. Ignoring old channelConfig.`);
             } else if (this.beatmapData?.gameChannels && this.beatmapData.gameChannels.length > 0) {
-                forcedChannels = this.beatmapData.gameChannels.map((ch: number) => ch - 1);
-                console.log(`[RhythmGame] Using Beatmap Channels (Adjusted): ${forcedChannels?.join(', ')}`);
+                console.warn(`[RhythmGame] WARNING: Old beatmap format (v1.0 gameChannels) detected. Ignoring to force Smart Analysis (parity with Editor).`);
+                // forcedChannels remains null, forcing NoteFactory to use MelodyAnalyzer
             }
 
             let difficulty = this.transitionData?.settings?.difficulty;
@@ -1238,8 +1252,6 @@ export class RhythmGame extends BaseGame {
         if (now - this.lastFpsTime >= 1000) {
             this.frameCount = 0;
             this.lastFpsTime = now;
-            // Debug Log every second
-            console.log(`[RhythmGame] State: ${this.currentState}, AudioStarted: ${this.isAudioStarted}, PreGame: ${this.preGameTimer.toFixed(0)}, Time: ${(this.audioEngine?.getPreciseTime() || 0).toFixed(2)}s`);
         }
         this.frameCount++;
 
@@ -1502,16 +1514,11 @@ export class RhythmGame extends BaseGame {
         }
     }
 
-    private isReturningToEditor = false;
-
     private returnToEditor(): void {
-        if (!this.isTestMode || this.isReturningToEditor) return;
-        this.isReturningToEditor = true;
+        this.audioEngine.stop();
+        if (this.previewTimeout) clearTimeout(this.previewTimeout);
 
-        console.log("[RhythmGame] Test Mode Finished. Dispatching return to editor...");
-
-        // Return Data to Editor to restore state
-        if (this.transitionData) {
+        if (this.visualNotes.length > 0 && this.transitionData?.midiBuffer) {
             GameTransition.set({
                 ...this.transitionData,
                 source: 'rhythm'
@@ -1523,11 +1530,23 @@ export class RhythmGame extends BaseGame {
         }));
     }
 
-    /**
-     * Enforce Mute Compliance (The "Hammer" Fix)
-     * Checks all channels every frame in Test Mode. If a channel is supposed to be muted/ignored,
-     * absolutely FORCE it to be silent, overriding any leaked MIDI events.
-     */
+    private returnToMainMenu(): void {
+        console.log("[RhythmGame] Returning to Main Menu...");
+        if (this.previewTimeout) clearTimeout(this.previewTimeout);
+        this.audioEngine.stop();
+
+        // CRITICAL FIX: Ensure clean state when returning to menu. 
+        // Prevents getting stuck in 'Test Mode' visually or logically.
+        this.isTestMode = false;
+        this.beatmapData = null;
+        this.transitionData = null;
+        GameTransition.clear();
+
+        window.dispatchEvent(new CustomEvent('switch-game', {
+            detail: { targetMode: 'menu' }
+        }));
+    }
+
     private enforceMuteCompliance(): void {
         if (!this.transitionData?.settings) return;
 
@@ -1653,7 +1672,6 @@ export class RhythmGame extends BaseGame {
             `Hwy:${(_p1 - _p0).toFixed(1)} Hit:${(_p2 - _p1).toFixed(1)} ` +
             `Notes:${(_p3 - _p2).toFixed(1)} Exp:${(_p4 - _p3).toFixed(1)} ` +
             `HUD:${(_p5 - _p4).toFixed(1)} Total:${(_p5 - _p0).toFixed(1)}ms`;
-
     }
 
     private getPerspectiveX(laneIndex: number, y: number): number {
@@ -1924,6 +1942,7 @@ export class RhythmGame extends BaseGame {
             if (this.keyState[i]) {
                 ctx.fillStyle = baseColor;
                 ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2; // FIX: Prevent lineWidth leakage from previous draw calls
                 // shadowBlur is extremely expensive on mobile
                 if (!this.isMobile) {
                     ctx.shadowBlur = 15;
@@ -1937,6 +1956,7 @@ export class RhythmGame extends BaseGame {
             } else {
                 ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + pulseAlpha * 0.3})`;
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // slightly darker for contrast
+                ctx.lineWidth = 1; // FIX: Prevent lineWidth leakage for normal state
                 ctx.shadowBlur = 0;
                 ctx.beginPath();
                 ctx.roundRect(x, this.hitLineY, laneWidth, height, height / 3);
@@ -2328,6 +2348,7 @@ export class RhythmGame extends BaseGame {
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;
+        const padding = Math.min(width * 0.02, 20); // Define padding here for scope
         const time = this.menuAnimationTimer;
 
         // Test Mode: Show a simple "TAP TO START" screen instead of the full menu
@@ -2375,7 +2396,6 @@ export class RhythmGame extends BaseGame {
         const bpm = currentSong.bpm || 120;
 
         // Layout Config (Landscape Only)
-        const padding = Math.min(width * 0.02, 20);
         const leftPanelWidth = width * 0.46;
         const rightPanelX = width * 0.5;
 
@@ -2449,9 +2469,10 @@ export class RhythmGame extends BaseGame {
             ctx.restore();
         };
 
-        drawPanelWithTab(padding, padding + TAB_H, leftPanelWidth - padding, visPanelH - TAB_H, 'SONG INFO', '#FFD700');
-        drawPanelWithTab(padding, infoY + TAB_H, leftPanelWidth - padding, infoH - TAB_H, 'OPTIONS', '#e91e8c');
-        drawPanelWithTab(listX, listY + TAB_H, listW, listH - TAB_H, 'SONG LIST', '#00bcd4');
+        const PANEL_Y_OFFSET = 12; // Adjusted for better screen utilization
+        drawPanelWithTab(padding, padding + PANEL_Y_OFFSET, leftPanelWidth - padding, visPanelH - PANEL_Y_OFFSET, 'SONG INFO', '#FFD700');
+        drawPanelWithTab(padding, infoY + PANEL_Y_OFFSET, leftPanelWidth - padding, infoH - PANEL_Y_OFFSET, 'OPTIONS', '#e91e8c');
+        drawPanelWithTab(listX, listY + PANEL_Y_OFFSET, listW, listH - PANEL_Y_OFFSET, 'SONG LIST', '#00bcd4');
 
         // Sort Text (right side of song list panel)
         const sortText = `SORT: ${this.currentSortMode.toUpperCase()}`;
@@ -2460,8 +2481,8 @@ export class RhythmGame extends BaseGame {
 
         // --- CONTENT: VISUALIZER ---
         const cx = padding + (leftPanelWidth - padding) * 0.5;
-        const cy = (padding + TAB_H) + (visPanelH - TAB_H) * 0.5 + 10;
-        const radius = Math.min(leftPanelWidth * 0.4, (visPanelH - TAB_H) * 0.35);
+        const cy = (padding + PANEL_Y_OFFSET) + (visPanelH - PANEL_Y_OFFSET) * 0.5 + 8;
+        const radius = Math.min(leftPanelWidth * 0.4, (visPanelH - PANEL_Y_OFFSET) * 0.35);
 
         this.drawVisualizer(cx, cy, radius, time, seedColor, bpm);
 
@@ -2812,6 +2833,36 @@ export class RhythmGame extends BaseGame {
 
         const fontSize2 = Math.min(24, Math.max(16, btnH2 * 0.45));
         this.drawCuteLabel('▶  PLAY NOW  ▶', btnX2 + btnW2 / 2, btnY2 + btnH2 / 2, 'center', fontSize2, '#fff', true);
+        ctx.restore();
+
+        // --- DRAW BACK BUTTON (Top Right) ---
+        // 최상단 렌더링을 위해 메서드 끝에서 실행
+        ctx.save();
+        const backBtnW = 116;
+        const backBtnH = 24;
+        const backBtnX = width - padding - backBtnW;
+        const backBtnY = 6;
+
+        // Compact Neon Glow Effect
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(255, 0, 255, 0.6)';
+        ctx.fillStyle = 'rgba(20, 0, 40, 0.85)';
+        ctx.strokeStyle = '#ff00ff';
+        ctx.lineWidth = 1.8;
+
+        ctx.beginPath();
+        ctx.roundRect(backBtnX, backBtnY, backBtnW, backBtnH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Compact font for the smaller button
+        ctx.shadowBlur = 3;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillStyle = '#fff';
+        ctx.font = '900 12px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🏠 MAIN MENU', backBtnX + backBtnW / 2, backBtnY + backBtnH / 2 + 1);
         ctx.restore();
     }
     private handleMenuInput(e: KeyboardEvent): void {

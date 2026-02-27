@@ -114,7 +114,7 @@ export class NoteFactory {
         let notesToProcess = finalNotes.sort((a, b) => a.ticks - b.ticks);
 
         if (notesToProcess.length === 0) {
-            console.error("[NoteFactory] Failed to find any notes for charting. Returning empty list.");
+            console.warn("[NoteFactory] Failed to find any notes for charting. Returning empty list (Fallback Triggered).");
             return [];
         }
 

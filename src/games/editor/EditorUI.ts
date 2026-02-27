@@ -101,6 +101,9 @@ export class EditorUI {
                     </div>
 
                     <div class="extra-tools" style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
+                        <button id="btn-main-menu" title="Return to Main Menu" style="background:#673AB7; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            🏠 MENU
+                        </button>
                         <button id="btn-save-config" title="Save to LocalStorage" style="background:#FF9800; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
                             💾 SAVE
                         </button>
@@ -244,6 +247,11 @@ export class EditorUI {
         q('#btn-end')?.addEventListener('click', () => this.onTransportClick('end'));
         q('#btn-test-play')?.addEventListener('click', () => this.onTransportClick('test'));
         q('#btn-save-config')?.addEventListener('click', () => this.onSaveConfig());
+        q('#btn-main-menu')?.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('switch-game', {
+                detail: { targetMode: 'menu' }
+            }));
+        });
         q('#btn-reset-config')?.addEventListener('click', () => {
             if (confirm("Are you sure you want to delete ALL manual configurations? This cannot be undone.")) {
                 this.onResetConfig();

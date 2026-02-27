@@ -105,19 +105,9 @@ function gameLoop(timestamp: number) {
 
     // --- PROFILING: Log every 2 seconds (using SEPARATE timer) ---
     if (timestamp - profLastLogTime >= 2000 && profFrameCount > 0) {
-      const elapsed2 = (timestamp - profLastLogTime) / 1000;
-      const avgUpdate = (profUpdateTotal / profFrameCount).toFixed(2);
-      const avgRender = (profRenderTotal / profFrameCount).toFixed(2);
-      const avgTotal = ((profUpdateTotal + profRenderTotal) / profFrameCount).toFixed(2);
-      const avgJitter = (profRafJitterTotal / profFrameCount).toFixed(2);
-      const renderDetail = (currentGame as any)?._lastRenderProfile || 'N/A';
-      console.log(
-        `[PERF] FPS:${(profFrameCount / elapsed2).toFixed(0)} | ` +
-        `Avg: U=${avgUpdate}ms R=${avgRender}ms T=${avgTotal}ms | ` +
-        `Max:${profMaxFrameTime.toFixed(1)}ms | ` +
-        `Drop:${profDroppedFrames} | Jitter:${avgJitter}ms | ` +
-        `${renderDetail}`
-      );
+      // Data collection logic remains if needed for other features, 
+      // but console logging is disabled for runtime performance.
+
       // Reset
       profUpdateTotal = 0;
       profRenderTotal = 0;
@@ -312,6 +302,13 @@ function returnToMenu(): void {
     currentGame.destroy();
     currentGame = null;
   }
+
+  // Clear Game Canvas to prevent overlap/ghosting
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
   UIManager.getInstance().clear();
   mainMenu = new MainMenu(handleGameStart);
   mainMenu.show();
