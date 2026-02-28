@@ -305,6 +305,8 @@ export class RhythmGame extends BaseGame {
     }
 
     // Touch Handling (Pointer-Based)
+    private isTouchDown: boolean = false;
+
     private handleTouchStart(e: TouchEvent): void {
         e.preventDefault();
 
@@ -319,8 +321,15 @@ export class RhythmGame extends BaseGame {
             } else {
                 // Normal Mode: Handle menu touch (includes audio unlock for START button)
                 const touch = e.changedTouches[0];
-                this.touchStartY = touch.clientY;
-                this.handleMenuPointer(touch.clientX, touch.clientY);
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const x = (touch.clientX - rect.left) * scaleX;
+                const y = (touch.clientY - rect.top) * scaleY;
+
+                this.isTouchDown = true;
+                this.touchStartY = y;
+                this.handleMenuPointer(x, y);
             }
             return;
         }
@@ -331,6 +340,7 @@ export class RhythmGame extends BaseGame {
             } else {
                 this.currentState = GameState.MENU;
                 this.scoreManager?.reset();
+                this.playPreview();
             }
             return;
         }
@@ -393,6 +403,7 @@ export class RhythmGame extends BaseGame {
             } else {
                 this.currentState = GameState.MENU;
                 this.scoreManager?.reset();
+                this.playPreview();
             }
             return;
         }
@@ -419,10 +430,13 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState === GameState.MENU && this.isMouseDown) {
             const diffY = y - this.touchStartY;
-            if (Math.abs(diffY) > 25) {
-                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
-                else this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
-                this.touchStartY = y;
+            // Simple 30px threshold for snappy scrolling that matches finger speed
+            const threshold = 30;
+            const shift = Math.trunc(diffY / threshold);
+            if (shift !== 0) {
+                this.selectedSongIndex = (this.selectedSongIndex + shift) % this.songList.length;
+                if (this.selectedSongIndex < 0) this.selectedSongIndex += this.songList.length;
+                this.touchStartY = y - (diffY % threshold);
                 this.playPreview();
             }
             return;
@@ -468,56 +482,70 @@ export class RhythmGame extends BaseGame {
     }
 
     private handleMenuPointer(x: number, y: number): void {
+        console.log(`[MenuPointer] touch(${x.toFixed(0)},${y.toFixed(0)})`);
         const width = this.canvas.width;
         const height = this.canvas.height;
         const padding = Math.min(width * 0.02, 20);
 
         const leftPanelWidth = width * 0.46;
         const rightPanelX = width * 0.5;
-        const visPanelH = height * 0.48; // Match renderMenu
+        const visPanelH = height * 0.48;
         const infoY = visPanelH + padding + 10;
-        const infoH = height - infoY - Math.max(padding, 10);
+        const infoH = height - infoY - padding; // match renderMenu line 2691
 
-        const listX = rightPanelX;
+        // MUST exactly match renderMenu (lines 2693-2697)
+        const listX = rightPanelX - 25;       // rendering: rightPanelX - 25
         const listY = padding;
-        const listW = width - rightPanelX - padding;
-        const listH = height - 2.5 * padding - 40;
-        const listInnerY = padding + 10;
+        const listW = width - listX - padding; // rendering: width - listX - padding
+        const listH = height - listY - padding; // rendering: height - listY - padding
 
-        // Button Hitboxes
-        const btnW = Math.max(260, width * 0.2);
-        const btnH = Math.max(65, height * 0.1);
-        const btnX = width - padding - btnW;
-        const btnY = height - padding - btnH;
+        // CRITICAL: Must match renderMenu exactly (line 2949 in rendering)
+        // listInnerY = listY + TAB_H(26) + 10 (below tab)
+        const listInnerY = listY + 26 + 10;
+
+        // Song list layout — must match renderMenu exactly
+        const visibleCount = 7;
+        const btnAreaH = Math.max(60, height * 0.09);
+        const listBtnGap = Math.max(10, height * 0.015);
+        const listAvailH = listH - 26 - 10 - listBtnGap - btnAreaH - 8;
+        const itemHeight = listAvailH / visibleCount;
+
+        // Play Now Button position — must match renderMenu exactly (lines 3076-3082)
+        const btnMargin = 6;
+        const btnH2 = btnAreaH;
+        const btnX2 = listX + btnMargin;
+        const btnW2 = listW - btnMargin * 2;
+        const btnY2Natural = listInnerY + visibleCount * itemHeight + listBtnGap;
+        const btnY2Max = listY + listH - btnH2 - btnMargin;
+        const btnY2 = Math.min(btnY2Natural, btnY2Max);
 
         // 0. Main Menu Button Hitbox (Top Right)
-        // More forgiving hitbox for vertical range [0, 40]
+        console.log(`[MenuPointer] btn hitbox y(${btnY2.toFixed(0)}-${(btnY2 + btnH2).toFixed(0)}) listInnerY=${listInnerY.toFixed(0)} itemH=${itemHeight.toFixed(1)}`);
         if (x >= width - padding - 116 && x <= width - padding && y >= 0 && y <= 40) {
             this.returnToMainMenu();
             return;
         }
 
-        if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
-            // Stop preview before starting
+        // 1. Play Now Button
+        if (x >= btnX2 && x <= btnX2 + btnW2 && y >= btnY2 && y <= btnY2 + btnH2) {
+            console.log(`[MenuPointer] PLAY BUTTON HIT! touch(${x.toFixed(0)},${y.toFixed(0)})`);
             if (this.previewTimeout) clearTimeout(this.previewTimeout);
             this.audioEngine.stop();
 
-            // Mobile-First: Unlock audio IN this touch handler, BEFORE any async work
             this.audioEngine.resume().then(() => {
-                console.log(`[RhythmGame] Audio unlocked (state: ${this.audioEngine.isAudioUnlocked() ? 'running' : 'suspended'}). Loading song...`);
+                console.log(`[RhythmGame] Audio unlocked. Loading song...`);
                 this.shouldAutoStart = true;
                 this.load().then(() => this.create());
             });
             return;
         }
 
-        // 2. Check Difficulty & Speed Controls (Row 2 positions)
+        // 2. Difficulty & Speed Controls
         const row2Y = infoY + infoH * 0.52;
         const statsCenterX = padding + (leftPanelWidth - padding) * 0.5;
-        const hitWidth = 60; // Reasonable tap area for arrows
+        const hitWidth = 60;
         const hitHeight = 50;
 
-        // Difficulty Left/Right
         const diffX = statsCenterX - leftPanelWidth * 0.2;
         if (y > row2Y - hitHeight && y < row2Y + hitHeight) {
             if (Math.abs(x - (diffX - hitWidth)) < hitWidth) {
@@ -531,7 +559,6 @@ export class RhythmGame extends BaseGame {
             }
         }
 
-        // Speed Left/Right
         const speedX = statsCenterX + leftPanelWidth * 0.2;
         if (y > row2Y - hitHeight && y < row2Y + hitHeight) {
             if (Math.abs(x - (speedX - hitWidth)) < hitWidth) {
@@ -545,7 +572,7 @@ export class RhythmGame extends BaseGame {
             }
         }
 
-        // 3. Check Sort Button Hit
+        // 3. Sort Button
         if (y > listY && y < listY + 30 && x > listX + listW - 100) {
             const modes: ('name' | 'bpm' | 'duration' | 'noteCount')[] = ['name', 'bpm', 'duration', 'noteCount'];
             const idx = modes.indexOf(this.currentSortMode);
@@ -555,29 +582,13 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
-        // 4. Check Song List (Click to select immediately)
-        const listHitX = rightPanelX + 10;
-        const listHitMaxX = width - Math.min(width * 0.02, 20) - 10;
-        const visibleCount = 7;
-        const itemHeight = (listH - 20) / visibleCount;
+        // 4. Song List (Click to select)
+        // Match rendering: content starts at listInnerX = listX + scrollbarW(28) + 14
+        const scrollbarW = 28;
+        const listContentX = listX + scrollbarW + 14;
+        const listHitMaxX = listX + listW - 10;
         const maxScrollOffset = Math.max(0, this.songList.length - visibleCount);
 
-        const scrollbarW = 10;
-        const scrollbarX = leftPanelWidth + (width * 0.5 - leftPanelWidth - scrollbarW) / 2;
-
-        // Scrollbar Click Interaction (Padding hitbox with 10 extra pixels around the track for easier touch)
-        if (x >= scrollbarX - 10 && x <= scrollbarX + scrollbarW + 10 && y >= listInnerY && y <= listInnerY + (itemHeight * visibleCount)) {
-            const scrollPercentage = (y - listInnerY) / (itemHeight * visibleCount);
-            const targetVisibleStart = Math.min(maxScrollOffset, Math.max(0, Math.round(scrollPercentage * maxScrollOffset)));
-
-            // Map to the middle of the new visible window
-            this.selectedSongIndex = Math.min(this.songList.length - 1, targetVisibleStart + Math.floor(visibleCount / 2));
-            this.playPreview();
-            return;
-        }
-
-        // List Content Interaction
-        const listContentX = listHitX;
         if (x > listContentX && x < listHitMaxX && y > listInnerY && y < listInnerY + (itemHeight * visibleCount)) {
             const relativeY = y - listInnerY;
             const clickedIndexOffset = Math.floor(relativeY / itemHeight);
@@ -591,7 +602,7 @@ export class RhythmGame extends BaseGame {
                 if (targetIndex >= 0 && targetIndex < this.songList.length) {
                     this.selectedSongIndex = targetIndex;
                     this.playPreview();
-                    return; // Prevent fallthrough
+                    return;
                 }
             }
         }
@@ -601,13 +612,21 @@ export class RhythmGame extends BaseGame {
         e.preventDefault();
 
         if (this.currentState === GameState.MENU) {
-            // ... existing menu logic ...
+            if (!this.isTouchDown) return; // Prevent phantom scroll from lingering touches
+
             const touch = e.changedTouches[0];
-            const diffY = touch.clientY - this.touchStartY;
-            if (Math.abs(diffY) > 25) {
-                if (diffY > 0) this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
-                else this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
-                this.touchStartY = touch.clientY;
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleY = this.canvas.height / rect.height;
+            const y = (touch.clientY - rect.top) * scaleY;
+
+            const diffY = y - this.touchStartY;
+            // Simple 30px threshold for snappy scrolling that matches finger speed
+            const threshold = 30;
+            const shift = Math.trunc(diffY / threshold);
+            if (shift !== 0) {
+                this.selectedSongIndex = (this.selectedSongIndex + shift) % this.songList.length;
+                if (this.selectedSongIndex < 0) this.selectedSongIndex += this.songList.length;
+                this.touchStartY = y - (diffY % threshold);
                 this.playPreview();
             }
             return;
@@ -642,6 +661,7 @@ export class RhythmGame extends BaseGame {
 
     private handleTouchEnd(e: TouchEvent): void {
         e.preventDefault();
+        this.isTouchDown = false;
         const currentTimeMs = this.audioEngine.getPreciseTime() * 1000;
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
@@ -1199,6 +1219,11 @@ export class RhythmGame extends BaseGame {
         this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
 
         this.renderHUD();
+
+        // Auto-play the first song preview when entering Menu Mode manually
+        if (this.currentState === GameState.MENU && !this.isTestMode) {
+            this.playPreview();
+        }
     }
 
     private start() {
@@ -3041,7 +3066,8 @@ export class RhythmGame extends BaseGame {
             this.drawCuteLabel(songTitle, 70, itemHeight * 0.5, 'left', itemHeight * 0.46, songColor, isSelected, '"Nunito", sans-serif');
 
             if (isSelected) {
-                this.drawCuteLabel("◀◀", listContentW - 20, itemHeight * 0.5, 'right', itemHeight * 0.35, '#fff', false, '"Nunito", sans-serif');
+                const animOffset = Math.sin(time * 6) * 4; // Bobs left and right
+                this.drawCuteLabel("▶▶", listContentW - 24 + animOffset, itemHeight * 0.5, 'right', itemHeight * 0.40, '#fff', false, '"Nunito", sans-serif');
             }
             ctx.restore();
         }
@@ -3094,7 +3120,7 @@ export class RhythmGame extends BaseGame {
         ctx.stroke();
 
         const fontSize2 = Math.min(24, Math.max(16, btnH2 * 0.45));
-        this.drawCuteLabel('▶  PLAY NOW  ▶', btnX2 + btnW2 / 2, btnY2 + btnH2 / 2, 'center', fontSize2, '#fff', true);
+        this.drawCuteLabel('PLAY NOW', btnX2 + btnW2 / 2, btnY2 + btnH2 / 2, 'center', fontSize2, '#fff', true);
         ctx.restore();
 
         // --- DRAW BACK BUTTON (Top Right) ---

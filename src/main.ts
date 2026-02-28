@@ -9,6 +9,7 @@ import { MobileStartScreen } from './ui/MobileStartScreen';
 import { UIManager } from './core/ui/UIManager';
 import { BackgroundRenderer } from './core/graphics/BackgroundRenderer';
 import { ScreenUtils } from './core/utils/ScreenUtils';
+import { MenuMusicManager } from './core/audio/MenuMusicManager';
 
 // Initialize Global Managers
 UIManager.getInstance();
@@ -257,6 +258,8 @@ async function launchGame(GameClass: any) {
   isLaunching = true;
 
   try {
+    MenuMusicManager.getInstance().stopMusic();
+
     // Ensure we are in landscape mode on mobile (user gesture confirmed here)
     await enforceLandscape(true);
 

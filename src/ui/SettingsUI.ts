@@ -2,6 +2,7 @@ import { UIManager } from '../core/ui/UIManager';
 import { ThemeManager } from '../core/ThemeManager';
 import { NoteSkinManager } from '../core/NoteSkinManager';
 import { RenderCache } from '../games/rhythm/graphics/RenderCache';
+import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 
 type Tab = 'visual' | 'skin' | 'audio' | 'gameplay';
 
@@ -19,6 +20,7 @@ export class SettingsUI {
     public show(): void {
         this.createShell();
         this.updateTabContent();
+        MenuMusicManager.getInstance().playMusic('options');
     }
 
     /** Build the full overlay shell (once). Tabs & panel frame stay fixed. */
@@ -381,5 +383,6 @@ export class SettingsUI {
         if (el) el.remove();
         const root = document.getElementById('settings-ui-root');
         if (root) root.remove();
+        MenuMusicManager.getInstance().playMusic('main');
     }
 }

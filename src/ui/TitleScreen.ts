@@ -1,4 +1,5 @@
 import { ScreenUtils } from '../core/utils/ScreenUtils';
+import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 
 export class TitleScreen {
     private container: HTMLDivElement;
@@ -27,7 +28,15 @@ export class TitleScreen {
 
         this.container.addEventListener('pointerdown', this.handleStart.bind(this));
 
-        // removed particle init
+        const unlockAudio = () => {
+            if (!this.isTransitioning) {
+                MenuMusicManager.getInstance().playMusic('title');
+            }
+            window.removeEventListener('pointerdown', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+        };
+        window.addEventListener('pointerdown', unlockAudio);
+        window.addEventListener('keydown', unlockAudio);
 
         this.loop();
     }

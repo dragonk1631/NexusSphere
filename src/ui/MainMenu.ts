@@ -1,5 +1,6 @@
 import { UIManager } from '../core/ui/UIManager';
 import { SettingsUI } from './SettingsUI';
+import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 
 export class MainMenu {
     private ui: UIManager;
@@ -12,6 +13,7 @@ export class MainMenu {
     }
 
     public show(): void {
+        MenuMusicManager.getInstance().playMusic('main');
         const html = `
             <style>
                 /* Base Reset specific to Main Menu to avoid bleeding */
