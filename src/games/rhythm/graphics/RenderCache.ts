@@ -213,26 +213,53 @@ export class RenderCache {
         const x = padding;
         const y = padding;
         const baseColor = colors[1];
+        const darkColor = colors[0];
 
         ctx.lineJoin = 'round';
 
         if (isActive) {
+            // Vibrant Note-Matching Gradient for Active State
+            const activeGrad = ctx.createLinearGradient(x, y, x, y + h);
+            activeGrad.addColorStop(0, '#fff');
+            activeGrad.addColorStop(0.2, baseColor);
+            activeGrad.addColorStop(1, darkColor || baseColor);
+
             ctx.shadowBlur = 15;
             ctx.shadowColor = baseColor;
-            ctx.fillStyle = baseColor;
+            ctx.fillStyle = activeGrad;
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 3;
         } else {
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.strokeStyle = `rgba(255, 255, 255, 0.5)`;
-            ctx.lineWidth = 1;
+            // High-Quality Idle State: Subtle tinted gradient, glowing outline
+            const r = parseInt(baseColor.slice(1, 3), 16) || 128;
+            const g = parseInt(baseColor.slice(3, 5), 16) || 128;
+            const b = parseInt(baseColor.slice(5, 7), 16) || 128;
+
+            const idleGrad = ctx.createLinearGradient(x, y, x, y + h);
+            // Darker at top, slightly tinted at bottom
+            idleGrad.addColorStop(0, `rgba(${Math.floor(r * 0.1)}, ${Math.floor(g * 0.1)}, ${Math.floor(b * 0.1)}, 0.6)`);
+            idleGrad.addColorStop(0.5, `rgba(${Math.floor(r * 0.2)}, ${Math.floor(g * 0.2)}, ${Math.floor(b * 0.2)}, 0.8)`);
+            idleGrad.addColorStop(1, `rgba(${Math.floor(r * 0.4)}, ${Math.floor(g * 0.4)}, ${Math.floor(b * 0.4)}, 0.95)`);
+
+            // Subtle Glow Effect for Idle
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
+
+            ctx.fillStyle = idleGrad;
+            ctx.strokeStyle = `rgba(${Math.floor(r * 0.8)}, ${Math.floor(g * 0.8)}, ${Math.floor(b * 0.8)}, 1.0)`;
+            ctx.lineWidth = 2.5; // Thicker outline
         }
 
         switch (skinId) {
             case 'cyber-neon':
+                if (!isActive) {
+                    ctx.globalAlpha = 0.4;
+                    ctx.fillRect(x, y, w, h);
+                    ctx.globalAlpha = 1.0;
+                } else {
+                    ctx.fillRect(x, y, w, h);
+                }
                 ctx.strokeRect(x, y, w, h);
-                if (isActive) ctx.fillRect(x, y, w, h);
                 break;
             case 'retro-blocks':
                 ctx.fillRect(x, y, w, h);
@@ -245,7 +272,7 @@ export class RenderCache {
                 ctx.lineTo(x + w / 2, y + h);
                 ctx.lineTo(x, y + h / 2);
                 ctx.closePath();
-                if (isActive) ctx.fill();
+                ctx.fill();
                 ctx.stroke();
                 break;
             case 'minimal-bars':
@@ -254,7 +281,7 @@ export class RenderCache {
             case 'orb-lights':
                 ctx.beginPath();
                 ctx.ellipse(x + w / 2, y + h / 2, Math.min(w, h * 1.5) / 2, h / 2, 0, 0, Math.PI * 2);
-                if (isActive) ctx.fill();
+                ctx.fill();
                 ctx.stroke();
                 break;
             case 'hologram':
@@ -280,7 +307,7 @@ export class RenderCache {
                 ctx.bezierCurveTo(rhl, y + h * 0.8, rhx, y + h * 0.9, rhx, y + h);
                 ctx.bezierCurveTo(rhx, y + h * 0.9, rhr, y + h * 0.8, rhr, y + h * 0.4);
                 ctx.bezierCurveTo(rhr, y - h * 0.1, rhx, y - h * 0.1, rhx, y + h * 0.3);
-                if (isActive) ctx.fill();
+                ctx.fill();
                 ctx.stroke();
                 break;
             case 'laser-blades':
@@ -290,7 +317,7 @@ export class RenderCache {
                 ctx.lineTo(x + w - 10, y + h / 2);
                 ctx.lineTo(x + w / 2, y + h - 5);
                 ctx.closePath();
-                if (isActive) ctx.fill();
+                ctx.fill();
                 ctx.stroke();
                 ctx.beginPath();
                 ctx.moveTo(x, y + h / 2);
@@ -302,7 +329,7 @@ export class RenderCache {
             default:
                 ctx.beginPath();
                 ctx.roundRect(x, y, w, h, h / 3);
-                if (isActive) ctx.fill();
+                ctx.fill();
                 ctx.stroke();
                 if (!isActive) {
                     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
@@ -397,7 +424,8 @@ export class RenderCache {
         laneCount: number,
         getPerspectiveX: (lane: number, y: number) => number,
         themeColor1: string,
-        themeColor2: string
+        themeColor2: string,
+        hitLineY: number = bottomY
     ): HTMLCanvasElement {
         const canvas = document.createElement('canvas');
         canvas.width = width;
@@ -409,17 +437,76 @@ export class RenderCache {
         const bl = { x: getPerspectiveX(0, bottomY), y: bottomY };
         const br = { x: getPerspectiveX(laneCount, bottomY), y: bottomY };
 
-        const railWidth = 12;
-        const outerGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        outerGrad.addColorStop(0, themeColor1);
-        outerGrad.addColorStop(1, themeColor2);
-        ctx.fillStyle = outerGrad;
+        // --- Side Rails (enhanced with gradient + inner highlight) ---
+        const railWidth = 14;
+
+        // Left Rail
+        const leftRailGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
+        leftRailGrad.addColorStop(0, themeColor1);
+        leftRailGrad.addColorStop(0.4, themeColor2);
+        leftRailGrad.addColorStop(1, themeColor1);
+        ctx.fillStyle = leftRailGrad;
         ctx.beginPath();
         ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
         ctx.fill();
+
+        // Left Rail: inner edge highlight (bright line along the lane edge)
+        const leftHlGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
+        leftHlGrad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
+        leftHlGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.6)');
+        leftHlGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.8)');
+        leftHlGrad.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
+        ctx.strokeStyle = leftHlGrad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y);
+        ctx.stroke();
+
+        // Left Rail: outer border line (gradient)
+        const leftOuterGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
+        leftOuterGrad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
+        leftOuterGrad.addColorStop(0.3, themeColor2);
+        leftOuterGrad.addColorStop(0.7, themeColor1);
+        leftOuterGrad.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
+        ctx.strokeStyle = leftOuterGrad;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
+        ctx.stroke();
+
+        // Right Rail
+        const rightRailGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
+        rightRailGrad.addColorStop(0, themeColor1);
+        rightRailGrad.addColorStop(0.4, themeColor2);
+        rightRailGrad.addColorStop(1, themeColor1);
+        ctx.fillStyle = rightRailGrad;
         ctx.beginPath();
         ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y); ctx.lineTo(br.x, br.y);
         ctx.fill();
+
+        // Right Rail: inner edge highlight
+        const rightHlGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
+        rightHlGrad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
+        rightHlGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.6)');
+        rightHlGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.8)');
+        rightHlGrad.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
+        ctx.strokeStyle = rightHlGrad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(tr.x, tr.y); ctx.lineTo(br.x, br.y);
+        ctx.stroke();
+
+        // Right Rail: outer border line (gradient)
+        const rightOuterGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
+        rightOuterGrad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
+        rightOuterGrad.addColorStop(0.3, themeColor2);
+        rightOuterGrad.addColorStop(0.7, themeColor1);
+        rightOuterGrad.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
+        ctx.strokeStyle = rightOuterGrad;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y);
+        ctx.stroke();
 
         const roadGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
         roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.9)');
@@ -430,18 +517,19 @@ export class RenderCache {
         ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
         ctx.fill();
 
-        ctx.lineWidth = 2;
+        // Dividers: fade from horizon and stop at hit line (no overlap with judgment area)
+        ctx.lineWidth = 1.5;
         for (let i = 1; i < laneCount; i++) {
             const topX = getPerspectiveX(i, horizonY);
-            const botX = getPerspectiveX(i, bottomY);
-            const divGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
+            const botX = getPerspectiveX(i, hitLineY);
+            const divGrad = ctx.createLinearGradient(0, horizonY, 0, hitLineY);
             divGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-            divGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.6)');
-            divGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.8)');
-            divGrad.addColorStop(1, 'rgba(255, 255, 255, 0.4)');
+            divGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.35)');
+            divGrad.addColorStop(0.85, 'rgba(255, 255, 255, 0.25)');
+            divGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
             ctx.strokeStyle = divGrad;
             ctx.beginPath();
-            ctx.moveTo(topX, horizonY); ctx.lineTo(botX, bottomY);
+            ctx.moveTo(topX, horizonY); ctx.lineTo(botX, hitLineY);
             ctx.stroke();
         }
 

@@ -97,6 +97,8 @@ export class RhythmGame extends BaseGame {
     private laneTopWidth = 10;     // Narrow at horizon
 
     private renderCache: RenderCache | null = null;
+    private _cachedHudPalette: typeof RhythmGame.HUD_PALETTES[string] | null = null;
+    private _cachedThemeId: string = '';
 
     // Visual Assets / Constants
     private readonly COLORS = {
@@ -197,7 +199,8 @@ export class RhythmGame extends BaseGame {
                 this.laneCount,
                 this.getPerspectiveX.bind(this),
                 ThemeManager.getInstance().getCurrentTheme().color1,
-                ThemeManager.getInstance().getCurrentTheme().color2
+                ThemeManager.getInstance().getCurrentTheme().color2,
+                this.hitLineY
             );
         }
     }
@@ -223,21 +226,9 @@ export class RhythmGame extends BaseGame {
         // Initial Resize (Now RenderCache is ready to generate textures)
         this.resize(this.canvas.width, this.canvas.height);
 
-        // Input Handling
-        window.addEventListener('keydown', this.handleKeyDown);
-        window.addEventListener('keyup', this.handleKeyUp);
+        // Initial Resize (Now RenderCache is ready to generate textures)
+        this.resize(this.canvas.width, this.canvas.height);
 
-        // Mobile Touch Support
-        this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
-        this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-        this.canvas.addEventListener('touchend', this.handleTouchEnd, { passive: false });
-
-        // Mouse Support
-        this.canvas.addEventListener('mousedown', this.handleMouseDown);
-        this.canvas.addEventListener('mousemove', this.handleMouseMove);
-        this.canvas.addEventListener('mouseup', this.handleMouseUp);
-        this.canvas.addEventListener('mouseleave', this.handleMouseUp);
-        this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
 
         // Create Initial Particles
         for (let i = 0; i < 30; i++) {
@@ -991,24 +982,28 @@ export class RhythmGame extends BaseGame {
         ctx.save();
         ctx.translate(width / 2, height * 0.45);
         ctx.scale(scale, scale);
-        ctx.globalAlpha = alpha;
+        // Lower opacity to make judgment text less distracting
+        ctx.globalAlpha = alpha * 0.6;
 
         ctx.fillStyle = this.lastJudgment.color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // Use a thick, cool font
-        ctx.font = 'italic 900 60px "Orbitron", sans-serif';
+        // Reduced size (40px -> 28px)
+        ctx.font = 'italic 900 28px "Orbitron", sans-serif';
+
         // shadowBlur is expensive on mobile — only apply on desktop
         if (!this.isMobile) {
             ctx.shadowColor = this.lastJudgment.color;
-            ctx.shadowBlur = 20;
+            ctx.shadowBlur = 10;
         }
-        ctx.fillText(this.lastJudgment.text, 0, 0);
 
-        // Stroke for readability
+        // Stroke for readability (drawn first so it's behind the fill)
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 5;
         ctx.strokeText(this.lastJudgment.text, 0, 0);
+
+        // Fill text
+        ctx.fillText(this.lastJudgment.text, 0, 0);
 
         ctx.restore();
     }
@@ -1125,9 +1120,9 @@ export class RhythmGame extends BaseGame {
                 measureConfig = this.beatmapData.measureConfig;
                 console.log(`[RhythmGame] Using Beatmap MeasureConfig`);
             } else if (this.beatmapData?.channelConfig) {
-                console.warn(`[RhythmGame] WARNING: Old beatmap format detected. Ignoring old channelConfig.`);
+                console.debug(`[RhythmGame] Old beatmap channelConfig ignored. Using Smart Analysis.`);
             } else if (this.beatmapData?.gameChannels && this.beatmapData.gameChannels.length > 0) {
-                console.warn(`[RhythmGame] WARNING: Old beatmap format (v1.0 gameChannels) detected. Ignoring to force Smart Analysis (parity with Editor).`);
+                console.debug(`[RhythmGame] Old beatmap v1.0 gameChannels ignored. Using Smart Analysis.`);
                 // forcedChannels remains null, forcing NoteFactory to use MelodyAnalyzer
             }
 
@@ -1188,6 +1183,22 @@ export class RhythmGame extends BaseGame {
                 }, 150);
             }
         }
+
+        // --- Post-Creation Input Handling ---
+        // Register listeners ONLY after assets (SoundFont, RenderCache) and game objects are ready.
+        // This prevents early user gestures from triggering "Sequencer not initialized" errors.
+        window.addEventListener('keydown', this.handleKeyDown);
+        window.addEventListener('keyup', this.handleKeyUp);
+        this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+        this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+        this.canvas.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+        this.canvas.addEventListener('mousedown', this.handleMouseDown);
+        this.canvas.addEventListener('mousemove', this.handleMouseMove);
+        this.canvas.addEventListener('mouseup', this.handleMouseUp);
+        this.canvas.addEventListener('mouseleave', this.handleMouseUp);
+        this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+
+        this.renderHUD();
     }
 
     private start() {
@@ -1343,12 +1354,12 @@ export class RhythmGame extends BaseGame {
                 // 2. Visual Update
                 note.isHolding = true;
 
-                // 3. Tick Combo (4 Combo / Sec)
+                // 3. Tick Combo (6 Combo / Sec)
                 // Initialize accumulator if undefined
                 if (typeof note.accumulatedHoldTime === 'undefined') note.accumulatedHoldTime = 0;
 
                 note.accumulatedHoldTime += delta;
-                const tickInterval = 250; // 250ms = 4 combo/sec
+                const tickInterval = 166; // approx 166ms = 6 combo/sec
 
                 if (note.accumulatedHoldTime >= tickInterval) {
                     if (this.scoreManager) {
@@ -1361,9 +1372,11 @@ export class RhythmGame extends BaseGame {
 
                 if (this.frameCount % 4 === 0) { // Throttle
                     const laneX = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
+                    // Center the shatter effect on the receptor by adding half its height (approx 15px logic, but we'll use hitLineY + 15 to center it inside the diamond roughly)
+                    const centerY = this.hitLineY + (this.laneBottomWidth * 0.2); // Proportional center offset
                     // Use Lane Color
                     const color = this.COLORS.LANES[lane] ? this.COLORS.LANES[lane][1] : '#ffffff';
-                    this.createShatterEffect(laneX, this.hitLineY, color, true);
+                    this.createShatterEffect(laneX, centerY, color, true);
                 }
             }
         });
@@ -1469,11 +1482,13 @@ export class RhythmGame extends BaseGame {
 
     private triggerExplosion(lane: number, _time: number): void {
         const x = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
+        // Move Y slightly down so it overlaps the center of the drawn receptor diamond
+        const y = this.hitLineY + (this.laneBottomWidth * 0.2);
         const colorSet = this.COLORS.LANES[lane] || this.COLORS.LANES[0];
 
         this.explosions.push({
             x: x,
-            y: this.hitLineY,
+            y: y,
             radius: 50, // Larger explosions (was 25)
             alpha: 1.0,
             color: colorSet[1]
@@ -1653,9 +1668,11 @@ export class RhythmGame extends BaseGame {
     private renderHighway(): void {
         const ctx = this.ctx;
 
-        // 1. Draw Static Highway from Cache
+        // 1. Draw Static Highway from Cache (slightly transparent to let background peek through)
         if (this.renderCache && this.renderCache.highwayBackground) {
+            ctx.globalAlpha = 0.78;
             ctx.drawImage(this.renderCache.highwayBackground, 0, 0);
+            ctx.globalAlpha = 1.0;
         } else {
             // Fallback: Dynamic Rendering (if cache is missing)
             const tl = { x: this.getPerspectiveX(0, this.horizonY), y: this.horizonY };
@@ -1663,20 +1680,53 @@ export class RhythmGame extends BaseGame {
             const bl = { x: this.getPerspectiveX(0, this.bottomY), y: this.bottomY };
             const br = { x: this.getPerspectiveX(this.laneCount, this.bottomY), y: this.bottomY };
 
-            // Side Rails
-            const railWidth = 12; // Thinned from 20
+            // Side Rails (enhanced with gradient + highlight)
+            const railWidth = 14;
             const theme = ThemeManager.getInstance().getCurrentTheme();
-            const outerGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
-            // Blend from theme color2 to color3
-            outerGrad.addColorStop(0, theme.color2);
-            outerGrad.addColorStop(1, theme.color3);
-            ctx.fillStyle = outerGrad;
+
+            // Left Rail
+            const leftGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
+            leftGrad.addColorStop(0, theme.color2);
+            leftGrad.addColorStop(0.4, theme.color3);
+            leftGrad.addColorStop(1, theme.color2);
+            ctx.fillStyle = leftGrad;
             ctx.beginPath();
             ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
             ctx.fill();
+            // Left highlight
+            const leftHl = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
+            leftHl.addColorStop(0, 'rgba(255,255,255,0)');
+            leftHl.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+            leftHl.addColorStop(0.7, 'rgba(255,255,255,0.8)');
+            leftHl.addColorStop(1, 'rgba(255,255,255,0.5)');
+            ctx.strokeStyle = leftHl; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.stroke();
+            // Left outer border
+            ctx.strokeStyle = theme.color1;
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y); ctx.stroke();
+
+            // Right Rail
+            const rightGrad = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
+            rightGrad.addColorStop(0, theme.color2);
+            rightGrad.addColorStop(0.4, theme.color3);
+            rightGrad.addColorStop(1, theme.color2);
+            ctx.fillStyle = rightGrad;
             ctx.beginPath();
             ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y); ctx.lineTo(br.x, br.y);
             ctx.fill();
+            // Right highlight
+            const rightHl = ctx.createLinearGradient(0, this.horizonY, 0, this.bottomY);
+            rightHl.addColorStop(0, 'rgba(255,255,255,0)');
+            rightHl.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+            rightHl.addColorStop(0.7, 'rgba(255,255,255,0.8)');
+            rightHl.addColorStop(1, 'rgba(255,255,255,0.5)');
+            ctx.strokeStyle = rightHl; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.stroke();
+            // Right outer border
+            ctx.strokeStyle = theme.color1;
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y); ctx.stroke();
 
             // Road (Cyberpunk DJMax Style)
             // Brighter, more vibrant, less muddy
@@ -1712,7 +1762,8 @@ export class RhythmGame extends BaseGame {
                     this.laneCount,
                     this.getPerspectiveX.bind(this),
                     ThemeManager.getInstance().getCurrentTheme().color1,
-                    ThemeManager.getInstance().getCurrentTheme().color2
+                    ThemeManager.getInstance().getCurrentTheme().color2,
+                    this.hitLineY
                 );
             }
         }
@@ -1884,10 +1935,16 @@ export class RhythmGame extends BaseGame {
             ctx.fillRect(0, this.hitLineY - bandHeight / 2, width, bandHeight);
 
             // Strong glowing line directly under the hit zone
-            ctx.strokeStyle = `rgba(0, 255, 255, ${0.5 + pulseAlpha * 0.5})`;
-            ctx.lineWidth = 2 + pulseAlpha * 3;
+            // Gradient across the line using palette colors
+            const pal = this.getHudPalette();
+            const lineGrad = ctx.createLinearGradient(0, 0, width, 0);
+            lineGrad.addColorStop(0, pal.hpPanel);
+            lineGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.9)');
+            lineGrad.addColorStop(1, pal.scorePanel);
+            ctx.strokeStyle = lineGrad;
+            ctx.lineWidth = 3 + pulseAlpha * 3;
             ctx.shadowBlur = 10 + pulseAlpha * 20;
-            ctx.shadowColor = '#00ffff';
+            ctx.shadowColor = '#ffffff';
             ctx.beginPath();
             ctx.moveTo(0, this.hitLineY + 25); // Center of hit zones
             ctx.lineTo(width, this.hitLineY + 25);
@@ -2011,8 +2068,8 @@ export class RhythmGame extends BaseGame {
         const tailW = this.getPerspectiveWidth(tailY);
         const tailX = this.getPerspectiveX(lane, tailY);
 
-        // === BODY: narrower than notes, perfectly centered to notes ===
-        const bodyRatio = 0.35; // Narrower to ensure it never pokes out the sides of shaped notes
+        // === BODY: as wide as notes, perfectly centered to notes ===
+        const bodyRatio = 0.92; // Widened to closely match the note width without leaking past rounded corners
 
         // Perfectly target the exact visual centers of the rendered 2D notes to fix leaning
         const tailCenterY = tailY + tailH * 0.5;
@@ -2104,7 +2161,10 @@ export class RhythmGame extends BaseGame {
         }
 
         // Draw Tail Note ON TOP (covers body top edge completely, opaque to hide body end)
-        this.drawGelNote(tailX, tailY, tailW, tailH, lane, globalAlpha);
+        // Make the tail visually distinct by reducing its height (squashing it)
+        const distinctTailH = tailH * 0.4;
+        const distinctTailY = tailY + (tailH * 0.3); // Maintain the visual center alignment
+        this.drawGelNote(tailX, distinctTailY, tailW, distinctTailH, lane, globalAlpha);
 
         // Draw Head Note ON TOP (covers body bottom edge completely)
         this.drawGelNote(headX, headY, headW, headH, lane, globalAlpha);
@@ -2138,12 +2198,137 @@ export class RhythmGame extends BaseGame {
         }
     }
 
+    // --- Curated HUD Color Palettes ---
+    // Each theme gets a hand-picked palette designed using color theory principles:
+    // - Complementary/Split-complementary accents for panel borders
+    // - High-contrast label colors against their respective backgrounds
+    // - HP bar gradients that flow naturally within the palette
+    // - Combo text with proper outline + glow for maximum impact
+    private static readonly HUD_PALETTES: Record<string, {
+        hpPanel: string;       // Left panel border (HP side)
+        scorePanel: string;    // Right panel border (Score side)
+        hpBarMid: string;      // HP bar gradient midpoint
+        hpBarEnd: string;      // HP bar gradient endpoint
+        hpBarStart: string;    // HP bar gradient start (added)
+        labelFill: string;     // "HP" and "SCORE" label text fill
+        labelShadow: string;   // Label text shadow/glow color
+        comboFill: string;     // Combo number text fill
+        comboOutline: string;  // Combo thick outline
+        comboGlow: string;     // Combo neon glow color
+        comboGradTop: string;  // Combo gradient top color
+        comboGradBot: string;  // Combo gradient bottom color
+        scoreFill: string;     // Score number text fill inside dark panel
+        scoreGlow: string;     // Score number glow
+    }> = {
+            'deep-space': {
+                hpPanel: '#e056a0',      // Rose pink — warm accent against cold indigo
+                scorePanel: '#00e5ff',   // Electric cyan — complementary pop
+                hpBarMid: '#e056a0', hpBarEnd: '#00e5ff', hpBarStart: '#4a6cf7',
+                labelFill: '#e8daef', labelShadow: '#9b59b6',
+                comboFill: '#ffffff', comboOutline: '#1a1a2e', comboGlow: '#00e5ff',
+                comboGradTop: '#00e5ff', comboGradBot: '#e056a0',
+                scoreFill: '#ffffff', scoreGlow: '#00e5ff',
+            },
+            'cyber-neon': {
+                hpPanel: '#FF0055',      // Hot magenta — on-theme
+                scorePanel: '#00F0FF',   // Cyan — on-theme complementary
+                hpBarMid: '#FF0055', hpBarEnd: '#00F0FF', hpBarStart: '#7000FF',
+                labelFill: '#e0e0e0', labelShadow: '#FF0055',
+                comboFill: '#ffffff', comboOutline: '#0a0a1a', comboGlow: '#00F0FF',
+                comboGradTop: '#00F0FF', comboGradBot: '#FF0055',
+                scoreFill: '#ffffff', scoreGlow: '#00F0FF',
+            },
+            'sunset-overdrive': {
+                hpPanel: '#FF416C',      // Coral rose — warm on-theme
+                scorePanel: '#FFD700',   // Gold — triadic accent
+                hpBarMid: '#FF6B6B', hpBarEnd: '#FFD700', hpBarStart: '#FF8E53',
+                labelFill: '#fff5e6', labelShadow: '#FF416C',
+                comboFill: '#ffffff', comboOutline: '#2d1b2e', comboGlow: '#FFD700',
+                comboGradTop: '#FFD700', comboGradBot: '#FF416C',
+                scoreFill: '#ffffff', scoreGlow: '#FFD700',
+            },
+            'matrix-grid': {
+                hpPanel: '#00CC66',      // Matrix green — on-theme saturated
+                scorePanel: '#00FF00',   // Neon green — on-theme bright
+                hpBarMid: '#00CC66', hpBarEnd: '#00FF00', hpBarStart: '#003300',
+                labelFill: '#b8f5d0', labelShadow: '#009933',
+                comboFill: '#00FF00', comboOutline: '#001a00', comboGlow: '#00FF00',
+                comboGradTop: '#88FF88', comboGradBot: '#00CC00',
+                scoreFill: '#00FF00', scoreGlow: '#00FF00',
+            },
+            'vaporwave': {
+                hpPanel: '#FF80CC',      // Soft pink — on-theme
+                scorePanel: '#00FFFF',   // Cyan — classic vaporwave complement
+                hpBarMid: '#b388ff', hpBarEnd: '#00FFFF', hpBarStart: '#FF00FF',
+                labelFill: '#e8d5f5', labelShadow: '#9c27b0',
+                comboFill: '#ffffff', comboOutline: '#1a0a2e', comboGlow: '#00FFFF',
+                comboGradTop: '#00FFFF', comboGradBot: '#FF80CC',
+                scoreFill: '#ffffff', scoreGlow: '#00FFFF',
+            },
+            'midnight-ocean': {
+                hpPanel: '#1F8A70',      // Teal — analogous to deep ocean
+                scorePanel: '#BFDB38',   // Lime — split-complementary pop
+                hpBarMid: '#1F8A70', hpBarEnd: '#BFDB38', hpBarStart: '#004D40',
+                labelFill: '#d4efdf', labelShadow: '#117a65',
+                comboFill: '#ffffff', comboOutline: '#001a12', comboGlow: '#BFDB38',
+                comboGradTop: '#BFDB38', comboGradBot: '#1F8A70',
+                scoreFill: '#ffffff', scoreGlow: '#BFDB38',
+            },
+            'crimson-flare': {
+                hpPanel: '#FF6600',      // Deep orange — analogous warm
+                scorePanel: '#FFCC00',   // Amber gold — triadic warm accent
+                hpBarMid: '#FF6600', hpBarEnd: '#FFCC00', hpBarStart: '#8B0000',
+                labelFill: '#ffe0b2', labelShadow: '#bf360c',
+                comboFill: '#ffffff', comboOutline: '#1a0000', comboGlow: '#FFCC00',
+                comboGradTop: '#FFCC00', comboGradBot: '#FF6600',
+                scoreFill: '#ffffff', scoreGlow: '#FFCC00',
+            },
+            'golden-hour': {
+                hpPanel: '#C96123',      // Burnt sienna — on-theme
+                scorePanel: '#FFCA3A',   // Gold — on-theme bright
+                hpBarMid: '#e67e22', hpBarEnd: '#FFCA3A', hpBarStart: '#6D2B05',
+                labelFill: '#2c1810', labelShadow: 'rgba(255, 202, 58, 0.6)',
+                comboFill: '#2c1810', comboOutline: '#ffffff', comboGlow: '#FFCA3A',
+                comboGradTop: '#FFCA3A', comboGradBot: '#C96123',
+                scoreFill: '#ffffff', scoreGlow: '#FFCA3A',
+            },
+            'monochrome-tech': {
+                hpPanel: '#888888',      // Mid gray — on-theme
+                scorePanel: '#DDDDDD',   // Light gray — high contrast
+                hpBarMid: '#888888', hpBarEnd: '#DDDDDD', hpBarStart: '#333333',
+                labelFill: '#cccccc', labelShadow: '#555555',
+                comboFill: '#ffffff', comboOutline: '#111111', comboGlow: '#DDDDDD',
+                comboGradTop: '#ffffff', comboGradBot: '#999999',
+                scoreFill: '#ffffff', scoreGlow: '#DDDDDD',
+            },
+            'bubblegum-pop': {
+                hpPanel: '#D63384',      // Deep rose — high contrast vs pastel pink bg
+                scorePanel: '#4A6CF7',   // Royal blue — complementary to warm pastels
+                hpBarMid: '#D63384', hpBarEnd: '#4A6CF7', hpBarStart: '#681D43',
+                labelFill: '#2b1055', labelShadow: 'rgba(255, 255, 255, 0.7)',
+                comboFill: '#2b1055', comboOutline: '#ffffff', comboGlow: '#D63384',
+                comboGradTop: '#D63384', comboGradBot: '#4A6CF7',
+                scoreFill: '#ffffff', scoreGlow: '#4A6CF7',
+            },
+        };
+
+    private getHudPalette(): typeof RhythmGame.HUD_PALETTES[string] {
+        const theme = ThemeManager.getInstance().getCurrentTheme();
+        if (this._cachedThemeId !== theme.id) {
+            this._cachedThemeId = theme.id;
+            this._cachedHudPalette = RhythmGame.HUD_PALETTES[theme.id] || RhythmGame.HUD_PALETTES['deep-space'];
+        }
+        return this._cachedHudPalette!;
+    }
+
     private renderHUD(): void {
         if (!this.scoreManager) return;
         const ctx = this.ctx;
         const width = this.canvas.width;
         const score = Math.floor(this.scoreManager.getScore());
         const combo = this.scoreManager.getCombo();
+
+        const pal = this.getHudPalette();
 
         ctx.save();
         ctx.font = 'bold 24px "Orbitron", sans-serif';
@@ -2167,9 +2352,9 @@ export class RhythmGame extends BaseGame {
             hpInnerTopX -= diff;
         }
 
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-        ctx.strokeStyle = '#ff0066'; // Neon pink border
-        ctx.lineWidth = 4;
+        ctx.fillStyle = 'rgba(10, 10, 20, 0.88)';
+        ctx.strokeStyle = pal.hpPanel;
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(0, panelTopY);
         ctx.lineTo(hpInnerTopX, panelTopY);
@@ -2188,8 +2373,9 @@ export class RhythmGame extends BaseGame {
             scoreInnerTopX += diff;
         }
 
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
-        ctx.strokeStyle = '#00ffff'; // Cyan border
+        ctx.fillStyle = 'rgba(10, 10, 20, 0.88)';
+        ctx.strokeStyle = pal.scorePanel;
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(width, panelTopY);
         ctx.lineTo(scoreInnerTopX, panelTopY);
@@ -2222,8 +2408,8 @@ export class RhythmGame extends BaseGame {
         ctx.closePath();
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
         const maxHp = this.scoreManager.getMaxHealth();
@@ -2235,7 +2421,9 @@ export class RhythmGame extends BaseGame {
             if (hpPercent < 0.3) {
                 hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(1, '#ff4444');
             } else {
-                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(0.5, '#ffff00'); hpGrad.addColorStop(1, '#00ffcc');
+                hpGrad.addColorStop(0, pal.hpBarStart);
+                hpGrad.addColorStop(0.5, pal.hpBarMid);
+                hpGrad.addColorStop(1, pal.hpBarEnd);
             }
 
             // Angled fill: lerp between left and right edges by hpPercent
@@ -2252,51 +2440,93 @@ export class RhythmGame extends BaseGame {
             ctx.fill();
         }
 
-        // HP label: below panel, left-aligned, with spacing from border
+        // HP label: below panel, left-aligned
         ctx.textAlign = 'left';
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = '#ff0066';
-        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = pal.labelShadow;
+        ctx.fillStyle = pal.labelFill;
         ctx.font = 'italic bold 20px "Orbitron"';
         ctx.fillText("HP", 10, panelBotY + 8);
         ctx.shadowBlur = 0;
 
-        // --- Score ---
-        // Score number: right-aligned inside the right panel
+        // Score number: right-aligned inside the dark panel
         ctx.textAlign = 'right';
         if (!this.isMobile) {
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = pal.scoreGlow;
         }
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = pal.scoreFill;
         ctx.font = 'italic bold 32px "Orbitron"';
         ctx.fillText(score.toLocaleString(), width - 20, (panelTopY + panelBotY) / 2 - 10);
         ctx.shadowBlur = 0;
 
-        // SCORE label: below panel, right-aligned, with spacing from border
+        // SCORE label: below panel, right-aligned
         ctx.textAlign = 'right';
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = '#00ffff';
-        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = pal.labelShadow;
+        ctx.fillStyle = pal.labelFill;
         ctx.font = 'italic bold 20px "Orbitron"';
         ctx.fillText("SCORE", width - 10, panelBotY + 8);
         ctx.shadowBlur = 0;
 
         // Combo
         if (combo > 0) {
-            ctx.textAlign = 'center';
-            ctx.shadowBlur = 20 + this.comboAnim * 20;
-            ctx.shadowColor = '#00ffff';
-            ctx.fillStyle = '#fff';
-
-            const scale = 1 + this.comboAnim * 0.4;
             ctx.save();
             ctx.translate(this.canvas.width / 2, this.canvas.height * 0.15);
+
+            const scale = 1 + this.comboAnim * 0.4;
             ctx.scale(scale, scale);
 
-            // Combo Count
-            ctx.font = 'italic bold 70px "Orbitron"';
-            ctx.fillText(`${combo} `, 0, 0);
+            // --- Number ---
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'italic 900 64px "Orbitron", sans-serif';
+
+            const comboText = `${combo}`;
+
+            // 1. Thick dark outline (crisp edge definition)
+            ctx.lineJoin = 'round';
+            ctx.miterLimit = 2;
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = pal.comboOutline;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+            ctx.shadowOffsetY = 4;
+            ctx.shadowBlur = 8;
+            ctx.strokeText(comboText, 0, 0);
+
+            // 2. Thin glow accent outline (neon rim)
+            ctx.shadowOffsetY = 0;
+            ctx.shadowColor = pal.comboGlow;
+            ctx.shadowBlur = 14 + this.comboAnim * 14;
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = pal.comboGlow;
+            ctx.strokeText(comboText, 0, 0);
+
+            // 3. Gradient fill (fully opaque, vivid)
+            ctx.shadowBlur = 0;
+            const comboGrad = ctx.createLinearGradient(0, -36, 0, 36);
+            comboGrad.addColorStop(0, pal.comboGradTop);
+            comboGrad.addColorStop(0.5, pal.comboFill);
+            comboGrad.addColorStop(1, pal.comboGradBot);
+            ctx.fillStyle = comboGrad;
+            ctx.fillText(comboText, 0, 0);
+
+            // --- "COMBO" sublabel ---
+            ctx.font = 'italic 900 18px "Orbitron", sans-serif';
+            ctx.letterSpacing = '6px';
+            // Outline for sublabel
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = pal.comboOutline;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowOffsetY = 2;
+            ctx.shadowBlur = 4;
+            ctx.strokeText('C O M B O', 0, 42);
+            // Glow fill for sublabel
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+            ctx.fillStyle = pal.comboGlow;
+            ctx.fillText('C O M B O', 0, 42);
+
             ctx.restore();
         }
 

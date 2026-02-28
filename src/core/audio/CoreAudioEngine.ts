@@ -14,6 +14,7 @@ export class CoreAudioEngine {
     private isReady: boolean = false;
     private isSoundFontLoaded: boolean = false;
     private isResuming: boolean = false;
+    private initPromise: Promise<void> | null = null;
 
     private constructor() {
         // Optimization: Use 'balanced' for stutter-free audio on all platforms
@@ -33,61 +34,86 @@ export class CoreAudioEngine {
     }
 
     public async init(soundFontUrl: string): Promise<void> {
-        if (this.isReady) return;
+        if (this.initPromise) return this.initPromise;
 
-        try {
-            // @ts-ignore
-            const { WorkletSynthesizer, Sequencer } = await import(SPESSA_LIB_URL);
-            await this.ctx.audioWorklet.addModule(PROCESSOR_URL);
-
-            this.synth = new WorkletSynthesizer(this.ctx, {
-                reverbEnabled: true,
-                chorusEnabled: true,
-                interpolationType: 'linear',
-                sampleRate: this.ctx.sampleRate
-            });
-
-            // Phase 3: EQ Filter Chain (Low, Mid, High)
-            this.setupEQChain();
-
-            await this.synth.isReady;
+        this.initPromise = (async () => {
+            if (this.isReady) return;
 
             try {
-                const sfRes = await fetch(soundFontUrl);
-                if (!sfRes.ok) throw new Error(`HTTP ${sfRes.status}`);
+                // @ts-ignore
+                const { WorkletSynthesizer, Sequencer } = await import(SPESSA_LIB_URL);
+                await this.ctx.audioWorklet.addModule(PROCESSOR_URL);
 
-                const sfData = await sfRes.arrayBuffer();
+                this.synth = new WorkletSynthesizer(this.ctx, {
+                    reverbEnabled: true,
+                    chorusEnabled: true,
+                    interpolationType: 'linear',
+                    sampleRate: this.ctx.sampleRate
+                });
 
-                // RIFF 헤더 검증 (Vite 404.html 반환 방지)
-                const header = new TextDecoder().decode(new Uint8Array(sfData.slice(0, 4)));
-                if (header.toLowerCase() !== 'riff') {
-                    throw new Error("Invalid SoundFont header (Expected RIFF)");
+                // Phase 3: EQ Filter Chain (Low, Mid, High)
+                this.setupEQChain();
+
+                await this.synth.isReady;
+
+                try {
+                    const sfRes = await fetch(soundFontUrl);
+                    if (!sfRes.ok) throw new Error(`HTTP ${sfRes.status}`);
+
+                    const sfData = await sfRes.arrayBuffer();
+
+                    // RIFF 헤더 검증 (Vite 404.html 반환 방지)
+                    const header = new TextDecoder().decode(new Uint8Array(sfData.slice(0, 4)));
+                    if (header.toLowerCase() !== 'riff') {
+                        throw new Error("Invalid SoundFont header (Expected RIFF)");
+                    }
+
+                    await this.synth.soundBankManager.addSoundBank(sfData);
+                    this.sequencer = new Sequencer(this.synth);
+                    this.isReady = true;
+                    this.isSoundFontLoaded = true;
+                    console.log("[CoreAudioEngine] Ready with SoundFont");
+                } catch (sfError) {
+                    console.warn(`[CoreAudioEngine] SoundFont loading failed: ${sfError}. Running in silent mode.`);
+                    this.sequencer = new Sequencer(this.synth);
+                    this.isReady = true;
+                    this.isSoundFontLoaded = false;
                 }
+            } catch (e) {
+                console.error("[CoreAudioEngine] Critical Init failed:", e);
+                if (!window.isSecureContext) {
+                    const errorMsg = "[CoreAudioEngine] This is a non-secure context (HTTP). AudioWorklets REQUIRE HTTPS or localhost to function on mobile.";
+                    console.error(errorMsg);
+                    throw new Error(errorMsg);
+                }
+                throw e;
+            }
+        })();
 
-                await this.synth.soundBankManager.addSoundBank(sfData);
-                this.sequencer = new Sequencer(this.synth);
-                this.isReady = true;
-                this.isSoundFontLoaded = true;
-                console.log("[CoreAudioEngine] Ready with SoundFont");
-            } catch (sfError) {
-                console.warn(`[CoreAudioEngine] SoundFont loading failed: ${sfError}. Running in silent mode.`);
-                this.sequencer = new Sequencer(this.synth);
-                this.isReady = true;
-                this.isSoundFontLoaded = false;
+        return this.initPromise;
+    }
+
+    /**
+     * Ensures that the engine is fully initialized (SoundFont loaded, Sequencer created)
+     * before proceeding with audio operations.
+     */
+    public async ensureReady(): Promise<void> {
+        if (this.initPromise) {
+            await this.initPromise;
+        } else if (!this.isReady) {
+            // If init() hasn't even been called, we might need to wait or throw.
+            // In our architecture, RhythmGame always calls init() at start.
+            console.warn("[CoreAudioEngine] ensureReady called before init(). Waiting...");
+            // Polling fallback just in case
+            while (!this.isReady) {
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
-        } catch (e) {
-            console.error("[CoreAudioEngine] Critical Init failed:", e);
-            if (!window.isSecureContext) {
-                const errorMsg = "[CoreAudioEngine] This is a non-secure context (HTTP). AudioWorklets REQUIRE HTTPS or localhost to function on mobile.";
-                console.error(errorMsg);
-                throw new Error(errorMsg);
-            }
-            throw e;
         }
     }
 
     public async loadMidi(buffer: ArrayBuffer): Promise<void> {
-        if (!this.sequencer) throw new Error("Sequencer not initialized");
+        await this.ensureReady();
+        if (!this.sequencer) throw new Error("Sequencer not initialized - Initialization may have failed.");
         await this.sequencer.loadNewSongList([{ binary: buffer }]);
 
         // CRITICAL: Ensure sequencer doesn't auto-play and starts at 0
