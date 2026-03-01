@@ -7,11 +7,14 @@ export class LaneAllocator {
      */
     public static assignLanes(segments: PatternSegment[], laneCount: number = 6, difficulty: string = 'NORMAL'): VisualNote[] {
         const result: VisualNote[] = [];
-        if (laneCount < 2) laneCount = 6; // Safety validation
+        if (laneCount !== 4 && laneCount !== 6) laneCount = 6; // Default to 6
 
-        // Split lanes into Hand Groups: Left (0, 1, 2) and Right (3, 4, 5)
-        let lastLeftLane = 1;  // Middle of left group
-        let lastRightLane = 4; // Middle of right group
+        const totalLanes = 6; // Always 6 physical lanes, but active ones vary
+        const leftLanes = (laneCount === 4) ? [1, 2] : [0, 1, 2];
+        const rightLanes = (laneCount === 4) ? [3, 4] : [3, 4, 5];
+
+        let lastLeftLane = leftLanes[Math.floor(leftLanes.length / 2)];
+        let lastRightLane = rightLanes[Math.floor(rightLanes.length / 2)];
 
         // LIMIT: 1 for EASY/NORMAL, 2 for HARD (as requested)
         const maxChordSize = (difficulty === 'HARD') ? 2 : 1;
@@ -22,7 +25,7 @@ export class LaneAllocator {
         const FATIGUE_THRESHOLD = 3; // Max consecutive notes per hand for single notes
 
         // Track when each lane will be free (end tick of last note)
-        const laneBusyUntil = new Array(laneCount).fill(0);
+        const laneBusyUntil = new Array(totalLanes).fill(0);
 
         segments.forEach(segment => {
             const { type, notes } = segment;
@@ -71,20 +74,23 @@ export class LaneAllocator {
                     if (tick >= laneBusyUntil[preferred]) return preferred;
 
                     // Search outwards from center of hand
-                    const range = (hand === 'left') ? [1, 0, 2] : [4, 3, 5];
-                    for (const l of range) {
+                    const range = (hand === 'left') ? leftLanes : rightLanes;
+                    // Sort range by distance to preferred to pick closest free lane
+                    const sortedRange = [...range].sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
+
+                    for (const l of sortedRange) {
                         if (tick >= laneBusyUntil[l]) return l;
                     }
 
                     // If all busy, fallback to preferred (overlap is unavoidable or handled by engine)
-                    // But we should try to avoid. Let's try ANY free lane? 
-                    // No, stick to hand constraints for now.
                     return preferred;
                 };
 
                 if (activeNotes.length === 2) {
                     // CHORDS: Enforce Symmetrical / Opposite side play
-                    const options = [
+                    const options = (laneCount === 4) ? [
+                        [1, 4], [2, 3], [1, 3], [2, 4]
+                    ] : [
                         [1, 4], [0, 5], [2, 3],
                         [0, 4], [1, 5], [2, 4],
                     ];
@@ -140,7 +146,9 @@ export class LaneAllocator {
                     if (useLeftHand) {
                         const move = (Math.random() > 0.5) ? 1 : -1;
                         let preferred = lastLeftLane + move;
-                        if (preferred < 0 || preferred > 2) preferred = (lastLeftLane === 1) ? (Math.random() > 0.5 ? 0 : 2) : 1;
+                        if (!leftLanes.includes(preferred)) {
+                            preferred = leftLanes[Math.floor(Math.random() * leftLanes.length)];
+                        }
 
                         lane = findFreeLane(preferred, 'left');
                         lastLeftLane = lane;
@@ -150,7 +158,9 @@ export class LaneAllocator {
                     } else {
                         const move = (Math.random() > 0.5) ? 1 : -1;
                         let preferred = lastRightLane + move;
-                        if (preferred < 3 || preferred > 5) preferred = (lastRightLane === 4) ? (Math.random() > 0.5 ? 3 : 5) : 4;
+                        if (!rightLanes.includes(preferred)) {
+                            preferred = rightLanes[Math.floor(Math.random() * rightLanes.length)];
+                        }
 
                         lane = findFreeLane(preferred, 'right');
                         lastRightLane = lane;

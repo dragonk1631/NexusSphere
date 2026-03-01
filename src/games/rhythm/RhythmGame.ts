@@ -69,6 +69,7 @@ export class RhythmGame extends BaseGame {
     // Settings
     private scrollSpeed = 1.0; // Default 1.0x
     private laneCount = 6;
+    private keyMode: 4 | 6 = 4; // 4K or 6K mode
     private endGameTimer = 0;
     private lastCombo = 0;
     private comboAnim = 0; // 0 to 1 anim factor
@@ -540,14 +541,20 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
-        // 2. Difficulty & Speed Controls
-        const row2Y = infoY + infoH * 0.52;
+        // 2. Difficulty, Speed & Mode Controls
+        const padUI = Math.min((infoH - 26) * 0.045, 12);
+        const numRows = 4;
+        const optH = ((infoH - 26) - padUI * (numRows + 1)) / numRows;
+
+        const row2CenterY = infoY + 26 + padUI * 2 + optH + optH * 0.5;
+        const row3CenterY = infoY + 26 + padUI * 3 + optH * 2 + optH * 0.5;
+
         const statsCenterX = padding + (leftPanelWidth - padding) * 0.5;
         const hitWidth = 60;
-        const hitHeight = 50;
+        const hitHeight = optH * 0.8;
 
         const diffX = statsCenterX - leftPanelWidth * 0.2;
-        if (y > row2Y - hitHeight && y < row2Y + hitHeight) {
+        if (Math.abs(y - row2CenterY) < hitHeight) {
             if (Math.abs(x - (diffX - hitWidth)) < hitWidth) {
                 this.selectedDifficultyIndex = Math.max(0, this.selectedDifficultyIndex - 1);
                 this.playPreview();
@@ -560,7 +567,7 @@ export class RhythmGame extends BaseGame {
         }
 
         const speedX = statsCenterX + leftPanelWidth * 0.2;
-        if (y > row2Y - hitHeight && y < row2Y + hitHeight) {
+        if (Math.abs(y - row2CenterY) < hitHeight) {
             if (Math.abs(x - (speedX - hitWidth)) < hitWidth) {
                 this.selectedSpeedIndex = Math.max(0, this.selectedSpeedIndex - 1);
                 this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
@@ -568,6 +575,15 @@ export class RhythmGame extends BaseGame {
             } else if (Math.abs(x - (speedX + hitWidth)) < hitWidth) {
                 this.selectedSpeedIndex = Math.min(this.speedOptions.length - 1, this.selectedSpeedIndex + 1);
                 this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
+                return;
+            }
+        }
+
+        // Mode (4K / 6K) toggle
+        if (Math.abs(y - row3CenterY) < hitHeight) {
+            // mode uses full width (bestX / bestW from render), which spans the middle
+            if (x > padding && x < leftPanelWidth) {
+                this.keyMode = this.keyMode === 4 ? 6 : 4;
                 return;
             }
         }
@@ -779,11 +795,18 @@ export class RhythmGame extends BaseGame {
     }
 
     private getLaneFromKey(code: string): number {
-        const keyMap: { [key: string]: number } = {
+        if (this.keyMode === 4) {
+            const keyMap4: { [key: string]: number } = {
+                'KeyD': 1, 'KeyF': 2, 'KeyJ': 3, 'KeyK': 4
+            };
+            return keyMap4.hasOwnProperty(code) ? keyMap4[code] : -1;
+        }
+
+        const keyMap6: { [key: string]: number } = {
             'KeyS': 0, 'KeyD': 1, 'KeyF': 2,
             'KeyJ': 3, 'KeyK': 4, 'KeyL': 5
         };
-        return keyMap.hasOwnProperty(code) ? keyMap[code] : -1;
+        return keyMap6.hasOwnProperty(code) ? keyMap6[code] : -1;
     }
 
     // Judgement State
@@ -1157,7 +1180,7 @@ export class RhythmGame extends BaseGame {
             if (!difficulty) difficulty = 'NORMAL';
 
             // Generate Visual Notes through NoteFactory (Smart Charting inside if forcedChannels is null)
-            this.visualNotes = NoteFactory.createNotes(this.midiData, this.laneCount, forcedChannels, difficulty, measureConfig);
+            this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, forcedChannels, difficulty, measureConfig);
 
             console.log(`[RhythmGame] Created ${this.visualNotes.length} notes on ${difficulty} difficulty.`);
             if (this.scoreManager) {
@@ -1790,6 +1813,63 @@ export class RhythmGame extends BaseGame {
                     ThemeManager.getInstance().getCurrentTheme().color2,
                     this.hitLineY
                 );
+            }
+        }
+
+        // Locked Lanes Overlay (4K Mode)
+        if (this.keyMode === 4) {
+            const lockedLanes = [0, 5];
+            for (const lane of lockedLanes) {
+                const lX1 = this.getPerspectiveX(lane, this.horizonY);
+                const rX1 = this.getPerspectiveX(lane + 1, this.horizonY);
+                const lX2 = this.getPerspectiveX(lane, this.bottomY);
+                const rX2 = this.getPerspectiveX(lane + 1, this.bottomY);
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(lX1, this.horizonY); ctx.lineTo(rX1, this.horizonY);
+                ctx.lineTo(rX2, this.bottomY); ctx.lineTo(lX2, this.bottomY);
+
+                // Dark tint
+                ctx.fillStyle = 'rgba(10, 0, 0, 0.55)';
+                ctx.fill();
+
+                // Clip for stripes & text
+                ctx.clip();
+
+                // Diagonal warning stripes
+                ctx.lineWidth = 12;
+                ctx.strokeStyle = 'rgba(255, 50, 50, 0.15)';
+                const laneW = Math.max(rX1 - lX1, rX2 - lX2);
+                for (let y = this.horizonY - laneW; y < this.bottomY + laneW; y += 50) {
+                    ctx.beginPath();
+                    // Draw diagonal line across the clipped area
+                    ctx.moveTo(lX2 - laneW, y);
+                    ctx.lineTo(rX2 + laneW, y + laneW * 2);
+                    ctx.stroke();
+                }
+
+                // "LOCKED" Text near the bottom
+                const textY = this.bottomY - 80;
+                // For x, we interpolate between left and right boundaries at textY
+                const lTextX = this.getPerspectiveX(lane, textY);
+                const rTextX = this.getPerspectiveX(lane + 1, textY);
+                const textX = (lTextX + rTextX) / 2;
+
+                ctx.font = 'bold 20px "Orbitron", sans-serif';
+                ctx.fillStyle = 'rgba(255, 50, 50, 0.4)';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // Rotate text slightly to match perspective if we wanted, 
+                // but direct text is fine and readable.
+                // We'll draw it vertically along the lane
+                ctx.translate(textX, textY);
+                ctx.rotate(-Math.PI / 2);
+                ctx.letterSpacing = '8px';
+                ctx.fillText('LOCKED', 0, 0);
+
+                ctx.restore();
             }
         }
 
@@ -2861,7 +2941,7 @@ export class RhythmGame extends BaseGame {
         const infoPanelH = infoH - 26;
 
         const pad = Math.min(infoPanelH * 0.045, 12);
-        const numRows = 3;
+        const numRows = 4;
         const optH = (infoPanelH - pad * (numRows + 1)) / numRows;
 
         // Two columns that strictly fit within left panel width minus outer padding
@@ -2873,6 +2953,7 @@ export class RhythmGame extends BaseGame {
         const row1Y = infoPanelY + pad;
         const row2Y = row1Y + optH + pad;
         const row3Y = row2Y + optH + pad;
+        const row4Y = row3Y + optH + pad;
 
         const bestW = optW * 2 + pad;
         const bestX = padding + pad;
@@ -2907,6 +2988,7 @@ export class RhythmGame extends BaseGame {
         drawOptFrame(col1X, row2Y, optW, optH);
         drawOptFrame(col2X, row2Y, optW, optH);
         drawOptFrame(bestX, row3Y, bestW, optH);
+        drawOptFrame(bestX, row4Y, bestW, optH);
 
         // High contrast values — vertically centered within each frame
         const textYOffset = optH * 0.62;
@@ -2932,18 +3014,23 @@ export class RhythmGame extends BaseGame {
         this.drawCuteLabel(`◀  x${this.scrollSpeed.toFixed(1)}  ▶`, c2X, row2Y + textYOffset, 'center', valueSize, '#a29bfe', true);
         this.drawCuteLabel("SPEED", c2X, row2Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
+        // Mode (4K / 6K)
+        const bX = bestX + bestW / 2;
+        const modeColor = this.keyMode === 4 ? '#00cec9' : '#e84393';
+        this.drawCuteLabel(`◀  ${this.keyMode}K MODE  ▶`, bX, row3Y + textYOffset, 'center', valueSize, modeColor, true);
+        this.drawCuteLabel("KEY SETTING", bX, row3Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
+
         // High Score
         const highScore = this.scoreManager?.getHighScore(currentSong.url);
-        const bX = bestX + bestW / 2;
 
         if (highScore) {
             const gradeColor = (highScore.grade === 'F' || highScore.grade === 'D') ? '#ff7675' : (highScore.grade.includes('S') ? '#74b9ff' : '#55efc4');
-            this.drawCuteLabel(highScore.grade, bX - 60, row3Y + optH / 2, 'right', valueSize * 1.5, gradeColor, true);
-            this.drawCuteLabel(highScore.score.toLocaleString(), bX + 20, row3Y + textYOffset, 'left', valueSize, '#fff', true);
-            this.drawCuteLabel("BEST RECORD", bX + 20, row3Y + labelYOffset, 'left', labelSize, '#ffd32a', true);
+            this.drawCuteLabel(highScore.grade, bX - 60, row4Y + optH / 2, 'right', valueSize * 1.5, gradeColor, true);
+            this.drawCuteLabel(highScore.score.toLocaleString(), bX + 20, row4Y + textYOffset, 'left', valueSize, '#fff', true);
+            this.drawCuteLabel("BEST RECORD", bX + 20, row4Y + labelYOffset, 'left', labelSize, '#ffd32a', true);
         } else {
-            this.drawCuteLabel("NO DATA", bX, row3Y + textYOffset, 'center', valueSize * 0.8, '#b2bec3', true);
-            this.drawCuteLabel("BEST RECORD", bX, row3Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
+            this.drawCuteLabel("NO DATA", bX, row4Y + textYOffset, 'center', valueSize * 0.8, '#b2bec3', true);
+            this.drawCuteLabel("BEST RECORD", bX, row4Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
         }
 
         const listInnerY = listY + 26 + 10; // below tab
