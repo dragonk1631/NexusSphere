@@ -38,8 +38,8 @@ export default defineConfig(({ command }) => ({
         host: true, // Listen on all addresses, including LAN IP
         strictPort: true,
         hmr: {
-            host: 'localhost',
             protocol: 'wss',
+            // Removed host: 'localhost' so mobile devices can connect to the dev server IP
         }
     },
     build: {

@@ -6,6 +6,8 @@
 const SPESSA_LIB_URL = 'https://esm.sh/spessasynth_lib@4.0.20';
 const PROCESSOR_URL = 'https://esm.sh/spessasynth_lib@4.0.20/dist/spessasynth_processor.min.js';
 
+import { ScreenUtils } from '../utils/ScreenUtils';
+
 export class CoreAudioEngine {
     private static instance: CoreAudioEngine;
     private ctx: AudioContext;
@@ -44,10 +46,16 @@ export class CoreAudioEngine {
                 const { WorkletSynthesizer, Sequencer } = await import(SPESSA_LIB_URL);
                 await this.ctx.audioWorklet.addModule(PROCESSOR_URL);
 
+                const isMobile = ScreenUtils.isMobile();
+                if (isMobile) {
+                    console.log(`[CoreAudioEngine] Mobile detected. Disabling Reverb and Chorus to prevent CPU starvation.`);
+                }
+
                 this.synth = new WorkletSynthesizer(this.ctx, {
-                    reverbEnabled: true,
-                    chorusEnabled: true,
-                    interpolationType: 'linear',
+                    reverbEnabled: !isMobile,
+                    chorusEnabled: !isMobile,
+                    voicesAmount: isMobile ? 100 : 400, // Hard-cap polyphony on mobile to prevent CPU stalling
+                    interpolationType: 'linear',  // Keep linear for core instrument quality
                     sampleRate: this.ctx.sampleRate
                 });
 
@@ -113,7 +121,35 @@ export class CoreAudioEngine {
 
     public async loadMidi(buffer: ArrayBuffer): Promise<void> {
         await this.ensureReady();
-        if (!this.sequencer) throw new Error("Sequencer not initialized - Initialization may have failed.");
+
+        // CRITICAL: Re-create Sequencer for every song load.
+        // This prevents state contamination (Tempo, TimeSig, or "Song End" flag) 
+        // from previous sessions that could cause audio to cut off prematurely.
+        if (this.sequencer) {
+            try { this.sequencer.pause(); } catch (e) { }
+            // SpessaSynth Sequencers might have 'stop()' or just 'pause()' 
+            // We ensure it's not holding references before we orphan it.
+        }
+
+        // @ts-ignore
+        const { Sequencer } = await import(SPESSA_LIB_URL);
+        this.sequencer = new Sequencer(this.synth);
+
+        // Add Diagnostic Listeners (Help investigate "Audio Cutoff" issue)
+        const eventHandler = this.sequencer.eventHandler;
+
+        eventHandler.addEvent("songEnded", "rhythm-game-song-end", () => {
+            console.warn(`[CoreAudioEngine] Sequencer songEnded event triggered at ${this.currentTime.toFixed(2)}s / ${this.duration.toFixed(2)}s`);
+        });
+
+        // Track Meta Events near the cutoff (e.g. Marker, Text)
+        eventHandler.addEvent("metaEvent", "rhythm-game-meta-diagnostic", (event: any) => {
+            // Log only markers or potential "End of Track" events if they appear early
+            if (event.type === 0x06 || event.type === 0x01 || event.type === 0x2F) {
+                console.log(`[CoreAudioEngine] MIDI Meta: type=${event.type.toString(16)}, time=${this.currentTime.toFixed(2)}s`);
+            }
+        });
+
         await this.sequencer.loadNewSongList([{ binary: buffer }]);
 
         // CRITICAL: Ensure sequencer doesn't auto-play and starts at 0
@@ -121,16 +157,7 @@ export class CoreAudioEngine {
         this.sequencer.currentTime = 0;
         this.setPreciseTime(0);
 
-        // Debugging: 시퀀서가 인식하는 트랙 정보 및 객체 속성 전수 조사
-        const tracks = this.sequencer.tracks || (this.sequencer.song && this.sequencer.song.tracks);
-        if (tracks) {
-            console.log(`[CoreAudioEngine] MIDI Loaded (Paused at 0). Sequencer Tracks: ${tracks.length}`);
-            tracks.forEach((t: any, i: number) => {
-                const keys = Object.keys(t);
-                console.log(`[Sequencer-Track-${i}] name: ${t.name}, ch: ${t.channel}, keys: ${keys.join(', ')}`);
-                console.log(`[Sequencer-Track-${i}] values - userMute: ${t.userMute}, disabled: ${t.disabled}`);
-            });
-        }
+        console.log(`[CoreAudioEngine] Fresh Sequencer created and MIDI Loaded. Duration: ${this.duration.toFixed(2)}s`);
     }
 
     public async play(): Promise<void> {

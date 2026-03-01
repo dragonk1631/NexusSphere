@@ -13,7 +13,8 @@ import { GameTransition } from '../../core/GameTransition';
 const GameState = {
     MENU: 0,
     PLAYING: 1,
-    RESULT: 2
+    RESULT: 2,
+    GAMEOVER: 3
 } as const;
 type GameState = typeof GameState[keyof typeof GameState];
 
@@ -64,6 +65,13 @@ export class RhythmGame extends BaseGame {
     }[] = [];
     private explosions: Explosion[] = [];
     private holdingLanes: (VisualNote | null)[] = [null, null, null, null, null, null];
+
+    // Transition State
+    private transitionAlpha: number = 0;
+    private transitionDirection: 'in' | 'out' = 'out';
+    private transitionStyle: 'fade' | 'glitch' = 'fade';
+    private isTransitioning: boolean = false;
+    private onTransitionMidpoint: (() => void) | null = null;
 
 
     // Settings
@@ -130,8 +138,22 @@ export class RhythmGame extends BaseGame {
     private lastRenderTime: number = 0;
     private muteEnforceCounter: number = 0;
 
+    // RGBA Cache optimization - Use a Map for faster lookup and less string fragmentation
+    private rgbaCache: Map<string, string> = new Map();
+
+    // Pre-calculated Gradients to avoid per-frame allocation
+    private cachedHpGradient: CanvasGradient | null = null;
+    private cachedScoreGradient: CanvasGradient | null = null;
+    private cachedComboGradient: CanvasGradient | null = null;
+
+    // Mobile performance: hard cap on simultaneous particles to avoid GC spikes
+    private readonly MAX_PARTICLES = 300; // Restored high-quality particle cap
+
     // Touch Tracking (PointerID -> Lane Index)
     private pointerLanes: Map<number, number> = new Map();
+
+    // Zombie Audio Protection: Cancellation token for playPreview
+    private currentPreviewId: number = 0;
 
     // Audio Latency Calibration
     // Measured once at game start from AudioContext.outputLatency + baseLatency.
@@ -140,10 +162,12 @@ export class RhythmGame extends BaseGame {
     // We shift the judgment window forward by 50ms so the player can hit on what they hear.
     private outputLatencyMs: number = 0;
 
-    // Silence Skipping Compensation
-    // Some synthesizers (SpessaSynth) skip leading silence in MIDI files.
     // effectiveStartTime stores the ACTUAL position where audio playback starts.
     private effectiveStartTime: number = 0;
+
+    // Performance & Lag Protection
+    private lagSpikeInvincibility: number = 0; // ms remaining
+    private cachedNow: number = 0; // performance.now() cached once per frame
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
@@ -191,6 +215,29 @@ export class RhythmGame extends BaseGame {
             grad.addColorStop(1, this.hexToRgba(color, 0.0));
             return grad;
         });
+
+        // Pre-calculate HUD Gradients (Avoid per-frame allocation)
+        const pal = this.getHudPalette();
+
+        // HP Bar Gradient
+        const hpGrad = ctxPre.createLinearGradient(10, 0, 400, 0); // Approx max width
+        hpGrad.addColorStop(0, pal.hpBarStart);
+        hpGrad.addColorStop(0.5, pal.hpBarMid);
+        hpGrad.addColorStop(1, pal.hpBarEnd);
+        this.cachedHpGradient = hpGrad;
+
+        // Score Panel Gradient
+        const scoreGrad = ctxPre.createLinearGradient(width - 400, 0, width - 10, 0);
+        scoreGrad.addColorStop(0, pal.scoreFill);
+        scoreGrad.addColorStop(1, pal.scoreGlow);
+        this.cachedScoreGradient = scoreGrad;
+
+        // Combo Gradient
+        const comboGrad = ctxPre.createLinearGradient(0, -36, 0, 36);
+        comboGrad.addColorStop(0, pal.comboGradTop);
+        comboGrad.addColorStop(0.5, pal.comboFill);
+        comboGrad.addColorStop(1, pal.comboGradBot);
+        this.cachedComboGradient = comboGrad;
 
         // Re-generate Highway Cache on resize
         if (this.renderCache) {
@@ -311,6 +358,15 @@ export class RhythmGame extends BaseGame {
     private handleTouchStart(e: TouchEvent): void {
         e.preventDefault();
 
+        if (this.currentState === GameState.GAMEOVER) {
+            const touch = e.changedTouches[0];
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            this.handleGameOverPointer((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
+            return;
+        }
+
         if (this.currentState === GameState.MENU) {
             if (this.isTestMode && this.shouldAutoStart) {
                 // Test Mode: First touch unlocks audio and starts the game (same as normal mode START button)
@@ -336,13 +392,17 @@ export class RhythmGame extends BaseGame {
         }
 
         if (this.currentState === GameState.RESULT) {
-            if (this.isTestMode) {
-                this.returnToEditor();
-            } else {
-                this.currentState = GameState.MENU;
-                this.scoreManager?.reset();
-                this.playPreview();
-            }
+            if (this.isTransitioning) return;
+
+            this.startTransition(() => {
+                if (this.isTestMode) {
+                    this.returnToEditor();
+                } else {
+                    this.currentState = GameState.MENU;
+                    this.scoreManager?.reset();
+                    this.playPreview();
+                }
+            });
             return;
         }
 
@@ -384,6 +444,11 @@ export class RhythmGame extends BaseGame {
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
+        if (this.currentState === GameState.GAMEOVER) {
+            this.handleGameOverPointer(x, y);
+            return;
+        }
+
         if (this.currentState === GameState.MENU) {
             if (this.isTestMode && this.shouldAutoStart) {
                 this.audioEngine.resume().then(() => {
@@ -399,13 +464,17 @@ export class RhythmGame extends BaseGame {
         }
 
         if (this.currentState === GameState.RESULT) {
-            if (this.isTestMode) {
-                this.returnToEditor();
-            } else {
-                this.currentState = GameState.MENU;
-                this.scoreManager?.reset();
-                this.playPreview();
-            }
+            if (this.isTransitioning) return;
+
+            this.startTransition(() => {
+                if (this.isTestMode) {
+                    this.returnToEditor();
+                } else {
+                    this.currentState = GameState.MENU;
+                    this.scoreManager?.reset();
+                    this.playPreview();
+                }
+            });
             return;
         }
 
@@ -531,6 +600,7 @@ export class RhythmGame extends BaseGame {
         if (x >= btnX2 && x <= btnX2 + btnW2 && y >= btnY2 && y <= btnY2 + btnH2) {
             console.log(`[MenuPointer] PLAY BUTTON HIT! touch(${x.toFixed(0)},${y.toFixed(0)})`);
             if (this.previewTimeout) clearTimeout(this.previewTimeout);
+            this.currentPreviewId++; // Invalidate any pending background previews
             this.audioEngine.stop();
 
             this.audioEngine.resume().then(() => {
@@ -754,6 +824,15 @@ export class RhythmGame extends BaseGame {
     private keyState: boolean[] = [false, false, false, false, false, false];
 
     private handleKeyDown(event: KeyboardEvent): void {
+        if (this.currentState === GameState.GAMEOVER) {
+            if (event.code === 'Enter' || event.code === 'Space') {
+                this.handleGameOverPointer(this.canvas.width / 2, this.canvas.height * 0.62); // Retry
+            } else if (event.code === 'Escape' || event.code === 'Backspace') {
+                this.handleGameOverPointer(this.canvas.width / 2, this.canvas.height * 0.77); // Select
+            }
+            return;
+        }
+
         if (this.currentState === GameState.MENU) {
             if (this.isTestMode && this.shouldAutoStart) {
                 // Test Mode: Space or Enter starts the game (desktop equivalent of TAP TO START)
@@ -769,12 +848,17 @@ export class RhythmGame extends BaseGame {
 
         if (this.currentState === GameState.RESULT) {
             if (event.code === 'Enter' || event.code === 'Space' || event.code === 'Escape') {
-                if (this.isTestMode) {
-                    this.returnToEditor();
-                } else {
-                    this.currentState = GameState.MENU;
-                    this.scoreManager?.reset();
-                }
+                if (this.isTransitioning) return;
+
+                this.startTransition(() => {
+                    if (this.isTestMode) {
+                        this.returnToEditor();
+                    } else {
+                        this.currentState = GameState.MENU;
+                        this.scoreManager?.reset();
+                        this.playPreview();
+                    }
+                });
             }
             return;
         }
@@ -925,11 +1009,15 @@ export class RhythmGame extends BaseGame {
         }
     }
 
-    private triggerMiss(note: VisualNote): void {
+    public triggerMiss(note: VisualNote, noDamage: boolean = false): void {
+        if (note.isProcessed) return;
         note.isProcessed = true;
-        if (this.scoreManager) {
+        note.isHolding = false;
+
+        if (this.scoreManager && !noDamage) {
             this.scoreManager.addHit(0, 'MISS');
         }
+
         this.showJudgment('MISS', '#ff0000');
     }
 
@@ -937,19 +1025,32 @@ export class RhythmGame extends BaseGame {
         this.lastJudgment = {
             text: text,
             color: color,
-            time: performance.now()
+            time: this.cachedNow || performance.now()
         };
     }
 
     private triggerJudgment(lane: number, judgment: string, _diff: number): void {
         let score = 0;
         let color = '#fff';
+        const theme = ThemeManager.getInstance().getCurrentTheme();
 
         switch (judgment) {
-            case 'PERFECT': score = 100; color = '#00ffff'; break;
-            case 'GREAT': score = 80; color = '#00ff00'; break;
-            case 'GOOD': score = 50; color = '#ffff00'; break;
-            case 'MISS': score = 0; color = '#ff0000'; break;
+            case 'PERFECT':
+                score = 100;
+                color = theme.particleColor;
+                break;
+            case 'GREAT':
+                score = 80;
+                color = theme.color2;
+                break;
+            case 'GOOD':
+                score = 50;
+                color = theme.color3;
+                break;
+            case 'MISS':
+                score = 0;
+                color = '#ff3333';
+                break;
         }
 
         if (this.scoreManager) {
@@ -999,7 +1100,7 @@ export class RhythmGame extends BaseGame {
                     // Safety: Limit number of misses per frame to prevent instant Game Over 
                     // on huge clock jumps (Sync Catch-up).
                     if (missCountThisFrame < 10) {
-                        this.triggerMiss(note);
+                        this.triggerMiss(note, this.lagSpikeInvincibility > 0);
                         missCountThisFrame++;
                     } else {
                         // Silent Process: Just mark as processed without damaging further
@@ -1015,7 +1116,7 @@ export class RhythmGame extends BaseGame {
     private renderJudgment(ctx: CanvasRenderingContext2D, width: number, height: number): void {
         if (!this.lastJudgment) return;
 
-        const now = performance.now();
+        const now = this.cachedNow || performance.now();
         const age = now - this.lastJudgment.time;
 
         if (age > this.JUDGMENT_DURATION) {
@@ -1023,38 +1124,106 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
+        const theme = ThemeManager.getInstance().getCurrentTheme();
         const alpha = 1 - (age / this.JUDGMENT_DURATION);
-        // Pop effect: Start large (1.5x) and settle to 1.0x quickly
+
+        // Elastic "Bounce-Pop" Scale
         let scale = 1.0;
-        if (age < 100) {
-            scale = 1.0 + (100 - age) / 100 * 0.5; // 1.5 -> 1.0
+        const entryTime = 180;
+        if (age < entryTime) {
+            const t = age / entryTime;
+            scale = 1.0 + Math.sin(t * Math.PI) * 0.35;
         }
 
         ctx.save();
-        ctx.translate(width / 2, height * 0.45);
+        ctx.translate(width / 2, height * 0.42);
         ctx.scale(scale, scale);
-        // Lower opacity to make judgment text less distracting
-        ctx.globalAlpha = alpha * 0.6;
 
-        ctx.fillStyle = this.lastJudgment.color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // Reduced size (40px -> 28px)
-        ctx.font = 'italic 900 28px "Orbitron", sans-serif';
 
-        // shadowBlur is expensive on mobile — only apply on desktop
-        if (!this.isMobile) {
-            ctx.shadowColor = this.lastJudgment.color;
-            ctx.shadowBlur = 10;
+        const baseColor = this.lastJudgment.color;
+        const text = this.lastJudgment.text;
+
+        ctx.globalAlpha = alpha;
+
+        // --- THEME-SPECIFIC CLEAN RENDERING ---
+        switch (theme.id) {
+            case 'cyber-neon':
+                // Neon Glitch
+                ctx.font = '900 italic 34px "Orbitron", sans-serif';
+                ctx.shadowColor = baseColor;
+                ctx.shadowBlur = 15;
+                ctx.strokeStyle = baseColor;
+                ctx.lineWidth = 4;
+                ctx.strokeText(text, 0, 0);
+
+                if (Math.random() > 0.85) {
+                    ctx.fillStyle = '#ff007b';
+                    ctx.fillText(text, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 4);
+                }
+
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(text, 0, 0);
+                break;
+
+            case 'matrix-grid':
+                // Digital Terminal
+                ctx.font = '900 32px "Courier New", monospace';
+                ctx.fillStyle = baseColor;
+                ctx.shadowColor = baseColor;
+                ctx.shadowBlur = 10;
+                ctx.fillText(text, 0, 0);
+
+                ctx.globalAlpha = alpha * 0.3;
+                ctx.fillStyle = '#ffffff';
+                for (let i = -16; i < 16; i += 4) {
+                    ctx.fillRect(-80, i, 160, 1);
+                }
+                break;
+
+            case 'deep-space':
+                // Ethereal Starfield
+                ctx.font = '200 italic 36px "Orbitron", sans-serif';
+                ctx.letterSpacing = '10px';
+                ctx.shadowColor = baseColor;
+                ctx.shadowBlur = 25;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(text, 0, 0);
+
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 1;
+                ctx.strokeText(text, 0, 0);
+                break;
+
+            case 'vaporwave':
+                // Dreamy Duotone
+                ctx.font = '900 italic 36px "Orbitron", sans-serif';
+                ctx.fillStyle = '#ff00ff';
+                ctx.fillText(text, -3, -1);
+                ctx.fillStyle = '#00ffff';
+                ctx.fillText(text, 3, 1);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(text, 0, 0);
+                break;
+
+            default:
+                // Premium Sharp
+                ctx.font = '900 italic 36px "Orbitron", sans-serif';
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 6;
+                ctx.strokeText(text, 0, 0);
+
+                const grad = ctx.createLinearGradient(0, -15, 0, 15);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.5, baseColor);
+                grad.addColorStop(1, this.hexToRgba(baseColor, 0.7));
+                ctx.fillStyle = grad;
+                ctx.fillText(text, 0, 0);
+                break;
         }
-
-        // Stroke for readability (drawn first so it's behind the fill)
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 5;
-        ctx.strokeText(this.lastJudgment.text, 0, 0);
-
-        // Fill text
-        ctx.fillText(this.lastJudgment.text, 0, 0);
 
         ctx.restore();
     }
@@ -1298,13 +1467,43 @@ export class RhythmGame extends BaseGame {
     }
 
     public update(delta: number): void {
-        // Prevent massive time jumps due to lag spikes (e.g. initialization lag, tab backgrounding).
-        // If delta is excessively large, cap it to a standard frame duration (16ms) to keep visual 
-        // countdowns like preGameTimer smooth and prevent notes from teleporting mid-screen on start.
-        if (delta > 100) delta = 16;
+        this.cachedNow = performance.now();
+        const now = this.cachedNow;
+
+        // --- 0. Handle System Transitions ---
+        if (this.isTransitioning) {
+            const step = delta * 0.0025; // ~400ms duration
+            if (this.transitionDirection === 'out') {
+                this.transitionAlpha += step;
+                if (this.transitionAlpha >= 1.0) {
+                    this.transitionAlpha = 1.0;
+                    this.transitionDirection = 'in';
+                    if (this.onTransitionMidpoint) {
+                        this.onTransitionMidpoint();
+                        this.onTransitionMidpoint = null;
+                    }
+                }
+            } else {
+                this.transitionAlpha -= step;
+                if (this.transitionAlpha <= 0) {
+                    this.transitionAlpha = 0;
+                    this.isTransitioning = false;
+                }
+            }
+        }
+
+        // Lag Spike Protection: If delta > 200ms, start 500ms invincibility
+        if (delta > 200) {
+            this.lagSpikeInvincibility = 500;
+        } else if (this.lagSpikeInvincibility > 0) {
+            this.lagSpikeInvincibility -= delta;
+        }
+
+        // REMOVED: delta capping (delta > 100 ? 16)
+        // Capping delta causes "Cumulative Lag" where logic falls behind audio permanently.
+        // We now rely on 'missCountThisFrame' cap and lagSpikeInvincibility for safety.
 
         // FPS Calculation (counted here, displayed via main.ts global overlay)
-        const now = performance.now();
         if (now - this.lastFpsTime >= 1000) {
             this.frameCount = 0;
             this.lastFpsTime = now;
@@ -1426,11 +1625,10 @@ export class RhythmGame extends BaseGame {
                     this.comboAnim = 0.5;
                 }
 
-                if (this.frameCount % 4 === 0) { // Throttle
+                // Restored continuous hold particles for all devices
+                if (this.frameCount % 4 === 0) { // Slightly increased density (was 8)
                     const laneX = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
-                    // Center the shatter effect on the receptor by adding half its height (approx 15px logic, but we'll use hitLineY + 15 to center it inside the diamond roughly)
-                    const centerY = this.hitLineY + (this.laneBottomWidth * 0.2); // Proportional center offset
-                    // Use Lane Color
+                    const centerY = this.hitLineY + (this.laneBottomWidth * 0.2);
                     const color = this.COLORS.LANES[lane] ? this.COLORS.LANES[lane][1] : '#ffffff';
                     this.createShatterEffect(laneX, centerY, color, true);
                 }
@@ -1490,25 +1688,7 @@ export class RhythmGame extends BaseGame {
         }
 
         // this.render(currentTime); // Render is now called by main loop separate from update
-
-        // Optimized Particle Update (Swap-and-Pop)
-        for (let i = this.particles.length - 1; i >= 0; i--) {
-            const p = this.particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vx *= 0.9; // Friction
-            p.rotation += p.rotationSpeed;
-            p.vy += 0.2; // Gravity
-            p.alpha -= 0.04; // Fade
-
-            if (p.alpha <= 0) {
-                // Replace current with last and pop
-                if (i < this.particles.length - 1) {
-                    this.particles[i] = this.particles[this.particles.length - 1];
-                }
-                this.particles.pop();
-            }
-        }
+        // NOTE: Second particle loop was removed here — it was a copy-paste duplicate causing double physics updates.
 
         // Check Game Over (with 3s protection + 2s lead-in = 5s total safety)
         if (this.scoreManager?.isDead()) {
@@ -1540,38 +1720,63 @@ export class RhythmGame extends BaseGame {
         const x = this.getPerspectiveX(lane, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
         // Move Y slightly down so it overlaps the center of the drawn receptor diamond
         const y = this.hitLineY + (this.laneBottomWidth * 0.2);
+        const theme = ThemeManager.getInstance().getCurrentTheme();
         const colorSet = this.COLORS.LANES[lane] || this.COLORS.LANES[0];
+
+        // Explode color should be a mix of lane color and theme particle color
+        const explosionColor = this.hexToRgba(colorSet[1], 0.8);
 
         this.explosions.push({
             x: x,
             y: y,
-            radius: 50, // Larger explosions (was 25)
+            radius: 40,
             alpha: 1.0,
-            color: colorSet[1]
+            color: explosionColor
         });
+
+        // Add extra theme-specific decorative particles
+        const particleColor = theme.particleColor;
+        this.createShatterEffect(x, y, particleColor, false);
     }
 
     private finishGame(reason: string = "Unknown"): void {
-        this.currentState = GameState.RESULT;
-        this.audioEngine.stop();
+        // Prevent double finish OR overlapping transition
+        if (this.currentState === GameState.RESULT || this.currentState === GameState.GAMEOVER || this.isTransitioning) return;
 
-        // Save High Score (Only if NOT in Test Mode)
-        if (this.scoreManager && !this.isTestMode) {
-            const currentSong = this.songList[this.selectedSongIndex];
-            const isNewRecord = this.scoreManager.saveHighScore(currentSong.url);
-            if (isNewRecord) {
-                console.log("[RhythmGame] New High Score Saved!");
+        const isGameOver = reason.includes("HP Depleted");
+        const style = isGameOver ? 'glitch' : 'fade';
+        const targetState = isGameOver ? GameState.GAMEOVER : GameState.RESULT;
+
+        this.startTransition(() => {
+            this.currentState = targetState;
+            this.audioEngine.stop();
+
+            // Save High Score (Only if NOT in Test Mode/Death)
+            if (!isGameOver && this.scoreManager && !this.isTestMode) {
+                const currentSong = this.songList[this.selectedSongIndex];
+                const isNewRecord = this.scoreManager.saveHighScore(currentSong.url);
+                if (isNewRecord) {
+                    console.log("[RhythmGame] New High Score Saved!");
+                }
             }
-        }
+        }, style);
 
-        console.log(`[RhythmGame] Finished. Reason: ${reason}`);
+        console.log(`[RhythmGame] Finishing. Reason: ${reason}`);
 
         if (this.isTestMode) {
-            // Simple timeout to auto-exit for now
+            // Simple timeout for test mode
             setTimeout(() => {
                 this.returnToEditor();
-            }, 3000); // 3 seconds to see score then return
+            }, 3000);
         }
+    }
+
+    private startTransition(midpointCallback: () => void, style: 'fade' | 'glitch' = 'fade'): void {
+        this.isTransitioning = true;
+        this.transitionAlpha = 0;
+        this.transitionDirection = 'out';
+        this.transitionStyle = style;
+        this.onTransitionMidpoint = midpointCallback;
     }
 
     private returnToEditor(): void {
@@ -1593,6 +1798,7 @@ export class RhythmGame extends BaseGame {
     private returnToMainMenu(): void {
         console.log("[RhythmGame] Returning to Main Menu...");
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
+        this.currentPreviewId++; // Invalidate any pending background previews
         this.audioEngine.stop();
 
         // CRITICAL FIX: Ensure clean state when returning to menu. 
@@ -1657,53 +1863,51 @@ export class RhythmGame extends BaseGame {
             return;
         }
 
+        let _p0 = 0, _p1 = 0, _p2 = 0, _p3 = 0, _p4 = 0;
+
         if (this.currentState === GameState.MENU) {
             this.renderMenu();
-            return;
-        }
-
-        if (this.currentState === GameState.RESULT) {
+        } else if (this.currentState === GameState.RESULT) {
             this.renderResult();
-            return;
+        } else if (this.currentState === GameState.GAMEOVER) {
+            this.renderGameOver();
+        } else {
+            // Gameplay Rendering Logic
+            _p0 = performance.now();
+            ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.renderHighway();
+            _p1 = performance.now();
+            this.holdingLanes.forEach((note, lane) => {
+                if (note) this.drawLaneBeam(lane);
+            });
+            this.renderHitZone(currentTime);
+            _p2 = performance.now();
+            this.renderNotes(currentTime);
+            _p3 = performance.now();
+            this.renderExplosions();
+            _p4 = performance.now();
+            this.renderParticles(ctx);
+            this.renderHUD();
         }
-
-        // 1. Clear Canvas to show Global Background (BackgroundRenderer)
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        const _p0 = performance.now();
-
-        // 2. Draw Perspective Highway
-        this.renderHighway();
-        const _p1 = performance.now();
-
-        // 2.5 Draw Lane Beams (Hold Feedback)
-        this.holdingLanes.forEach((note, lane) => {
-            if (note) this.drawLaneBeam(lane);
-        });
-
-        // 3. Draw Hit Zone (Glowing Pads & Pulse)
-        this.renderHitZone(currentTime);
-        const _p2 = performance.now();
-
-        // 4. Render Notes
-        this.renderNotes(currentTime);
-        const _p3 = performance.now();
-
-        // 5. Explosions
-        this.renderExplosions();
-        const _p4 = performance.now();
-
-        // 5.5 Draw Particles
-        this.renderParticles(ctx);
-
-        // 6. HUD
-        this.renderHUD();
         const _p5 = performance.now();
 
+        // 7. Transition Overlay
+        if (this.isTransitioning || this.transitionAlpha > 0) {
+            if (this.transitionStyle === 'glitch') {
+                this.renderGlitchTransition(ctx, width, height, this.transitionAlpha);
+            } else {
+                ctx.fillStyle = `rgba(10, 0, 20, ${this.transitionAlpha})`;
+                ctx.fillRect(0, 0, width, height);
+            }
+        }
+
         // === RENDER PROFILE (exposed to main.ts profiler) ===
-        (this as any)._lastRenderProfile =
-            `Hwy:${(_p1 - _p0).toFixed(1)} Hit:${(_p2 - _p1).toFixed(1)} ` +
-            `Notes:${(_p3 - _p2).toFixed(1)} Exp:${(_p4 - _p3).toFixed(1)} ` +
-            `HUD:${(_p5 - _p4).toFixed(1)} Total:${(_p5 - _p0).toFixed(1)}ms`;
+        if (this.currentState === GameState.PLAYING) {
+            (this as any)._lastRenderProfile =
+                `Hwy:${(_p1 - _p0).toFixed(1)} Hit:${(_p2 - _p1).toFixed(1)} ` +
+                `Notes:${(_p3 - _p2).toFixed(1)} Exp:${(_p4 - _p3).toFixed(1)} ` +
+                `HUD:${(_p5 - _p4).toFixed(1)} Total:${(_p5 - _p0).toFixed(1)}ms`;
+        }
     }
 
     private getPerspectiveX(laneIndex: number, y: number): number {
@@ -1890,15 +2094,11 @@ export class RhythmGame extends BaseGame {
                 const rX2 = this.getPerspectiveX(i + 1, this.bottomY);
                 ctx.beginPath();
                 ctx.moveTo(lX1, this.horizonY); ctx.lineTo(rX1, this.horizonY); ctx.lineTo(rX2, this.bottomY); ctx.lineTo(lX2, this.bottomY);
-                if (this.isMobile) {
-                    // Mobile: flat color, no gradient (createLinearGradient is expensive)
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-                } else {
-                    const lightGrad = ctx.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
-                    lightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
-                    lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    ctx.fillStyle = lightGrad;
-                }
+                // Restored high-quality lane beam gradient (was simplified to flat white on mobile)
+                const lightGrad = ctx.createLinearGradient(0, this.hitLineY, 0, this.horizonY);
+                lightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+                lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = lightGrad;
                 ctx.fill();
             }
         }
@@ -1998,6 +2198,112 @@ export class RhythmGame extends BaseGame {
         ctx.globalAlpha = 1.0;
     }
 
+    private renderGameOver(): void {
+        const ctx = this.ctx;
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+
+        this.drawAtmosphere(width, height);
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // High-Quality Glitchy "GAME OVER"
+        const glitchVal = this.transitionStyle === 'glitch' ? this.transitionAlpha : Math.sin(Date.now() * 0.01) * 0.2;
+        const xOffset = (Math.random() - 0.5) * 15 * glitchVal;
+
+        ctx.font = '900 italic 82px "Orbitron", sans-serif';
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#ff003c';
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = '#000';
+        ctx.strokeText("GAME OVER", width / 2 + xOffset, height * 0.38);
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ff4757';
+        ctx.fillText("GAME OVER", width / 2 + xOffset, height * 0.38);
+
+        // Scanline interference
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#ff7675';
+        for (let i = 0; i < height; i += 6) {
+            if (Math.random() > 0.45) ctx.fillRect(0, i, width, 2);
+        }
+        ctx.globalAlpha = 1.0;
+
+        // Interactive Options
+        const btnW = 320;
+        const btnH = 65;
+        const centerX = width / 2;
+        const retryY = height * 0.62;
+        const selectY = height * 0.77;
+
+        // Button Styles
+        this.drawCuteTile(centerX - btnW / 2, retryY - btnH / 2, btnW, btnH, '#2ed573', true);
+        this.drawCuteLabel("RETRY (Enter)", centerX, retryY, 'center', 26, '#fff', true);
+
+        this.drawCuteTile(centerX - btnW / 2, selectY - btnH / 2, btnW, btnH, '#1e90ff', true);
+        this.drawCuteLabel("SONG SELECTION (Esc)", centerX, selectY, 'center', 26, '#fff', true);
+
+        ctx.restore();
+    }
+
+    private handleGameOverPointer(x: number, y: number): void {
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        const btnW = 320;
+        const btnH = 65;
+        const centerX = width / 2;
+        const retryY = height * 0.62;
+        const selectY = height * 0.77;
+
+        // Retry Flow: Smooth transition back into gameplay
+        if (x >= centerX - btnW / 2 && x <= centerX + btnW / 2 && y >= retryY - btnH / 2 && y <= retryY + btnH / 2) {
+            if (this.isTransitioning) return;
+            this.shouldAutoStart = true; // CRITICAL: Ensure game starts after load
+            this.startTransition(() => {
+                this.scoreManager?.reset();
+                this.load().then(() => this.create());
+            }, 'fade');
+        }
+
+        // Return Flow: Return to list
+        if (x >= centerX - btnW / 2 && x <= centerX + btnW / 2 && y >= selectY - btnH / 2 && y <= selectY + btnH / 2) {
+            if (this.isTransitioning) return;
+            this.startTransition(() => {
+                this.currentState = GameState.MENU;
+                this.scoreManager?.reset();
+                this.playPreview();
+            }, 'fade');
+        }
+    }
+
+    private renderGlitchTransition(ctx: CanvasRenderingContext2D, width: number, height: number, alpha: number): void {
+        // Severe tinting
+        ctx.fillStyle = `rgba(215, 0, 40, ${alpha * 0.5})`;
+        ctx.fillRect(0, 0, width, height);
+
+        // Chaos horizontal slices
+        const sliceCount = Math.floor(alpha * 25);
+        for (let i = 0; i < sliceCount; i++) {
+            const h = Math.random() * 25 + 5;
+            const y = Math.random() * (height - h);
+            const xShift = (Math.random() - 0.5) * 120 * alpha;
+
+            ctx.fillStyle = `rgba(0, 240, 255, ${0.3 * alpha})`; // Cyan split
+            ctx.fillRect(xShift, y, width, h);
+
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.15 * alpha})`; // Brightness pop
+            ctx.fillRect(0, y, width, h / 2);
+        }
+
+        if (alpha > 0.96) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+        }
+    }
+
     private renderExplosions(): void {
         const ctx = this.ctx;
         const particleImg = this.renderCache?.particleGlow;
@@ -2036,34 +2342,35 @@ export class RhythmGame extends BaseGame {
         const pulseAlpha = Math.max(0, 1 - (beatCycle * 1.5));
 
         ctx.save();
-        if (!this.isMobile) {
-            // Draw a glowing energy band behind the hit zone
-            const bandHeight = 70;
-            const bandGrad = ctx.createLinearGradient(0, this.hitLineY - bandHeight / 2, 0, this.hitLineY + bandHeight / 2);
-            bandGrad.addColorStop(0, 'rgba(0, 255, 255, 0)');
-            bandGrad.addColorStop(0.5, `rgba(0, 255, 255, ${0.1 + pulseAlpha * 0.3})`);
-            bandGrad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+        const theme = ThemeManager.getInstance().getCurrentTheme();
+        const pal = this.getHudPalette();
 
-            ctx.fillStyle = bandGrad;
-            ctx.fillRect(0, this.hitLineY - bandHeight / 2, width, bandHeight);
+        // Draw a glowing energy band behind the hit zone matching theme
+        const bandHeight = 70;
+        const colorBase = theme.color2; // Mid gradient for glow color
+        const bandGrad = ctx.createLinearGradient(0, this.hitLineY - bandHeight / 2, 0, this.hitLineY + bandHeight / 2);
+        bandGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        bandGrad.addColorStop(0.5, this.hexToRgba(colorBase, 0.15 + pulseAlpha * 0.35));
+        bandGrad.addColorStop(1, 'rgba(0,0,0,0)');
 
-            // Strong glowing line directly under the hit zone
-            // Gradient across the line using palette colors
-            const pal = this.getHudPalette();
-            const lineGrad = ctx.createLinearGradient(0, 0, width, 0);
-            lineGrad.addColorStop(0, pal.hpPanel);
-            lineGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.9)');
-            lineGrad.addColorStop(1, pal.scorePanel);
-            ctx.strokeStyle = lineGrad;
-            ctx.lineWidth = 3 + pulseAlpha * 3;
-            ctx.shadowBlur = 10 + pulseAlpha * 20;
-            ctx.shadowColor = '#ffffff';
-            ctx.beginPath();
-            ctx.moveTo(0, this.hitLineY + 25); // Center of hit zones
-            ctx.lineTo(width, this.hitLineY + 25);
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        }
+        ctx.fillStyle = bandGrad;
+        ctx.fillRect(0, this.hitLineY - bandHeight / 2, width, bandHeight);
+
+        // Strong glowing line directly under the hit zone
+        const lineGrad = ctx.createLinearGradient(0, 0, width, 0);
+        lineGrad.addColorStop(0, pal.hpPanel);
+        lineGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
+        lineGrad.addColorStop(1, pal.scorePanel);
+
+        ctx.strokeStyle = lineGrad;
+        ctx.lineWidth = 2 + pulseAlpha * 4;
+        ctx.shadowBlur = 10 + pulseAlpha * 25;
+        ctx.shadowColor = theme.particleColor;
+        ctx.beginPath();
+        ctx.moveTo(0, this.hitLineY + 25);
+        ctx.lineTo(width, this.hitLineY + 25);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
 
         for (let i = 0; i < this.laneCount; i++) {
             const laneWidth = this.getPerspectiveWidth(this.hitLineY);
@@ -2125,9 +2432,8 @@ export class RhythmGame extends BaseGame {
     private renderNotes(currentTime: number): void {
         const timeToReachHitLine = 2000 / this.scrollSpeed;
         const windowStart = currentTime - 500; // Miss buffer
-        // EXTENDED DRAW DISTANCE: Look further ahead to catch notes engaging at horizon
-        // Mobile Optimization: Use 1.5x lookahead to save performance, 2.0x for desktop
-        const lookAheadMultiplier = this.isMobile ? 1.5 : 2.0;
+        // Restored high-quality draw distance (3.0x lookahead)
+        const lookAheadMultiplier = 3.0;
         const windowEnd = currentTime + timeToReachHitLine * lookAheadMultiplier;
 
         // OPTIMIZATION: Advance lastNoteIndex to skip notes that are completely passed
@@ -2227,7 +2533,7 @@ export class RhythmGame extends BaseGame {
 
         let alpha = isHolding ? 0.9 : 0.6;
         if (isHolding) {
-            const flash = Math.sin(performance.now() * 0.02) * 0.1 + 0.9;
+            const flash = Math.sin((this.cachedNow || performance.now()) * 0.02) * 0.1 + 0.9;
             alpha = flash;
         }
 
@@ -2264,12 +2570,36 @@ export class RhythmGame extends BaseGame {
             ctx.lineTo(pTopLeft, bodyTopY);
             ctx.closePath();
 
-            const bodyGrad = ctx.createLinearGradient(0, bodyTopY, 0, bodyBotY);
-            bodyGrad.addColorStop(0, this.hexToRgba(laneColors[0], 0.35));
-            bodyGrad.addColorStop(0.5, this.hexToRgba(laneColors[1], 0.65));
-            bodyGrad.addColorStop(1, this.hexToRgba(laneColors[0], 0.85));
-            ctx.fillStyle = bodyGrad;
-            ctx.fill();
+            // Use high-performance RenderCache for long note bodies instead of per-frame gradients
+            const cachedBody = this.renderCache.longNoteBodies[lane];
+            if (cachedBody) {
+                // Scaling calculation to map the cached (patterned) texture to the trapezoid area
+                const drawH = bodyBotY - bodyTopY;
+
+                // Draw stretched patterned body (cached texture is much more performant than per-frame gradients)
+                // We use a trapezoid path clip to maintain perspective
+                ctx.beginPath();
+                ctx.moveTo(pBotLeft, bodyBotY);
+                ctx.lineTo(pBotRight, bodyBotY);
+                ctx.lineTo(pTopRight, bodyTopY);
+                ctx.lineTo(pTopLeft, bodyTopY);
+                ctx.closePath();
+                ctx.clip();
+
+                // Note: pTopLeft and pBotLeft are centers, no, they are actual left bounds.
+                // Draw stretched from top-most left bound to bottom-most right bound in a bounding box, then clipped.
+                const minX = Math.min(pTopLeft, pBotLeft);
+                const maxX = Math.max(pTopRight, pBotRight);
+                ctx.drawImage(cachedBody, minX, bodyTopY, maxX - minX, drawH);
+            } else {
+                // Fallback to basic gradient if cache missing (shouldn't happen)
+                const bodyGrad = ctx.createLinearGradient(0, bodyTopY, 0, bodyBotY);
+                bodyGrad.addColorStop(0, this.hexToRgba(laneColors[0], 0.35));
+                bodyGrad.addColorStop(0.5, this.hexToRgba(laneColors[1], 0.65));
+                bodyGrad.addColorStop(1, this.hexToRgba(laneColors[0], 0.85));
+                ctx.fillStyle = bodyGrad;
+                ctx.fill();
+            }
 
             // Edge glow lines
             ctx.lineWidth = 1.5;
@@ -2294,6 +2624,7 @@ export class RhythmGame extends BaseGame {
             ctx.lineTo(topCenterX - hlHalfTop, bodyTopY);
             ctx.closePath();
 
+            // Performance Optimized Highlight
             const hlGrad = ctx.createLinearGradient(0, bodyTopY, 0, bodyBotY);
             hlGrad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
             hlGrad.addColorStop(0.5, `rgba(255, 255, 255, ${isHolding ? 0.4 : 0.15})`);
@@ -2315,10 +2646,21 @@ export class RhythmGame extends BaseGame {
     }
 
     private hexToRgba(hex: string, alpha: number): string {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        // Fast path: avoid string templates if possible
+        const key = hex + alpha;
+        const cached = this.rgbaCache.get(key);
+        if (cached) return cached;
+
+        const r = parseInt(hex.substring(1, 3), 16);
+        const g = parseInt(hex.substring(3, 5), 16);
+        const b = parseInt(hex.substring(5, 7), 16);
+        const val = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+
+        // Cap cache size to avoid memory leak if alpha is highly variable
+        if (this.rgbaCache.size > 200) this.rgbaCache.clear();
+
+        this.rgbaCache.set(key, val);
+        return val;
     }
 
     private drawGelNote(x: number, y: number, w: number, h: number, lane: number, alpha: number = 1.0): void {
@@ -2327,8 +2669,11 @@ export class RhythmGame extends BaseGame {
 
         const noteImg = this.renderCache.notes[lane];
         if (noteImg) {
-            this.ctx.save();
-            this.ctx.globalAlpha = alpha;
+            // Optimization: Skip save/restore for the most frequent draw call in the game.
+            // Bypassing the state stack significantly reduces CPU overhead on mobile.
+            const oldAlpha = this.ctx.globalAlpha;
+            if (alpha !== oldAlpha) this.ctx.globalAlpha = alpha;
+
             // Pad compensation: NOTE_WIDTH=100, NOTE_HEIGHT=50, padding=15
             const scaleX = w / 100;
             const scaleY = h / 50;
@@ -2338,7 +2683,9 @@ export class RhythmGame extends BaseGame {
             const drawY = y - 15 * scaleY;
 
             this.ctx.drawImage(noteImg, drawX, drawY, drawW, drawH);
-            this.ctx.restore();
+
+            // Restore alpha only if changed
+            if (alpha !== oldAlpha) this.ctx.globalAlpha = oldAlpha;
         }
     }
 
@@ -2561,20 +2908,12 @@ export class RhythmGame extends BaseGame {
         const hpPercent = Math.max(0, Math.min(1, currentHp / maxHp));
 
         if (hpPercent > 0) {
-            const hpGrad = ctx.createLinearGradient(hpBarLeftX, hpBgTopY, hpBarRightTopX, hpBgTopY);
-            if (hpPercent < 0.3) {
-                hpGrad.addColorStop(0, '#ff0000'); hpGrad.addColorStop(1, '#ff4444');
-            } else {
-                hpGrad.addColorStop(0, pal.hpBarStart);
-                hpGrad.addColorStop(0.5, pal.hpBarMid);
-                hpGrad.addColorStop(1, pal.hpBarEnd);
-            }
-
             // Angled fill: lerp between left and right edges by hpPercent
             const fillRightTopX = hpBarLeftX + (hpBarRightTopX - hpBarLeftX) * hpPercent;
             const fillRightBotX = hpBarLeftX + (hpBarRightBotX - hpBarLeftX) * hpPercent;
 
-            ctx.fillStyle = hpGrad;
+            // Restored high-quality HP bar gradient
+            ctx.fillStyle = this.cachedHpGradient || pal.hpBarMid;
             ctx.beginPath();
             ctx.moveTo(hpBarLeftX + 2, hpBgTopY + 2);
             ctx.lineTo(fillRightTopX - 2, hpBgTopY + 2);
@@ -2595,11 +2934,10 @@ export class RhythmGame extends BaseGame {
 
         // Score number: right-aligned inside the dark panel
         ctx.textAlign = 'right';
-        if (!this.isMobile) {
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = pal.scoreGlow;
-        }
-        ctx.fillStyle = pal.scoreFill;
+        // Restored high-quality score number shadow and gradient
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = pal.scoreGlow;
+        ctx.fillStyle = this.cachedScoreGradient || pal.scoreFill;
         ctx.font = 'italic bold 32px "Orbitron"';
         ctx.fillText(score.toLocaleString(), width - 20, (panelTopY + panelBotY) / 2 - 10);
         ctx.shadowBlur = 0;
@@ -2633,12 +2971,14 @@ export class RhythmGame extends BaseGame {
             ctx.miterLimit = 2;
             ctx.lineWidth = 10;
             ctx.strokeStyle = pal.comboOutline;
+            // Restored high-quality combo outline shadow
             ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
             ctx.shadowOffsetY = 4;
             ctx.shadowBlur = 8;
             ctx.strokeText(comboText, 0, 0);
 
             // 2. Thin glow accent outline (neon rim)
+            // Restored high-quality combo glow outline
             ctx.shadowOffsetY = 0;
             ctx.shadowColor = pal.comboGlow;
             ctx.shadowBlur = 14 + this.comboAnim * 14;
@@ -2648,11 +2988,8 @@ export class RhythmGame extends BaseGame {
 
             // 3. Gradient fill (fully opaque, vivid)
             ctx.shadowBlur = 0;
-            const comboGrad = ctx.createLinearGradient(0, -36, 0, 36);
-            comboGrad.addColorStop(0, pal.comboGradTop);
-            comboGrad.addColorStop(0.5, pal.comboFill);
-            comboGrad.addColorStop(1, pal.comboGradBot);
-            ctx.fillStyle = comboGrad;
+            // Restored high-quality combo fill gradient
+            ctx.fillStyle = this.cachedComboGradient || pal.comboFill;
             ctx.fillText(comboText, 0, 0);
 
             // --- "COMBO" sublabel ---
@@ -2661,6 +2998,7 @@ export class RhythmGame extends BaseGame {
             // Outline for sublabel
             ctx.lineWidth = 4;
             ctx.strokeStyle = pal.comboOutline;
+            // Restored high-quality combo sublabel shadow
             ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
             ctx.shadowOffsetY = 2;
             ctx.shadowBlur = 4;
@@ -2682,33 +3020,57 @@ export class RhythmGame extends BaseGame {
 
     // --- Visual Helpers ---
 
-    private createShatterEffect(x: number, y: number, color: string, isSmall: boolean = false): void {
-        const count = isSmall ? 8 : 25; // More particles!
-        const speed = isSmall ? 20 : 40; // Faster!
+    public createShatterEffect(x: number, y: number, color: string, isSmall: boolean = false): void {
+        const count = isSmall ? 10 : 35; // Increased slightly for impact
+        const cap = this.MAX_PARTICLES;
+        const theme = ThemeManager.getInstance().getCurrentTheme();
 
-        // Add to main explosion list for the expanding ring/glow
+        // Explosion Logic remains (visual ring)
         this.explosions.push({
             x: x,
             y: y,
-            radius: isSmall ? 10 : 20, // Start bigger
+            radius: isSmall ? 12 : 25,
             alpha: 1.0,
             color: color
         });
 
         for (let i = 0; i < count; i++) {
-            // Mix of shards and sparks
-            const isSpark = Math.random() > 0.5;
+            // Optimized cap check: Avoid shift() O(N). If full, don't spawn.
+            if (this.particles.length >= cap) break;
+
+            const isSpark = Math.random() > 0.6;
+
+            // PHYSICS TWEAK: Increase upward initial velocity for "cheerful" pop
+            // vy: -6 to -15 for large, -3 to -8 for small
+            const vyBase = isSmall ? -3 - Math.random() * 5 : -6 - Math.random() * 9;
+            const vxBase = (Math.random() - 0.5) * (isSmall ? 5 : 10);
+
             this.particles.push({
                 x: x,
                 y: y,
-                vx: (Math.random() - 0.5) * speed * 0.8, // Wider spread
-                vy: (Math.random() * -0.5 - 0.2) * speed, // Shoot higher
-                alpha: 1.0,
-                size: Math.random() * (isSmall ? 3 : (isSpark ? 6 : 4)) + 2, // Larger, more varied
-                color: isSpark ? '#ffffff' : color, // Mix white sparks in
+                vx: vxBase,
+                vy: vyBase,
+                alpha: 1.0 + Math.random() * 0.4, // Over-bright alpha for sparkle
+                size: Math.random() * (isSmall ? 2.5 : (isSpark ? 5 : 4)) + 1.5,
+                color: isSpark ? '#ffffff' : color,
                 rotation: Math.random() * Math.PI * 2,
-                rotationSpeed: (Math.random() - 0.5) * 1.5
+                rotationSpeed: (Math.random() - 0.5) * 2.0, // Faster rotation for energetic feel
             });
+
+            // Extra Sparkle Bits for Deep Space or Neon
+            if (!isSmall && (theme.id === 'deep-space' || theme.id === 'cyber-neon') && Math.random() > 0.8) {
+                this.particles.push({
+                    x: x,
+                    y: y,
+                    vx: vxBase * 1.5,
+                    vy: vyBase * 0.5,
+                    alpha: 0.8,
+                    size: 1.5,
+                    color: '#fff',
+                    rotation: 0,
+                    rotationSpeed: 0
+                });
+            }
         }
     }
 
@@ -2733,20 +3095,52 @@ export class RhythmGame extends BaseGame {
     }
 
     private renderParticles(ctx: CanvasRenderingContext2D): void {
+        // Optimization: Save base transform once
+        ctx.save();
+        const baseTransform = ctx.getTransform();
+
+        const theme = ThemeManager.getInstance().getCurrentTheme();
+        const isRetro = theme.id === 'sunset-overdrive' || theme.id === 'retro-blocks';
+        const isMatrix = theme.id === 'matrix-grid';
+        const isDeep = theme.id === 'deep-space';
+
         this.particles.forEach(p => {
             ctx.globalAlpha = p.alpha;
             ctx.fillStyle = p.color;
-            ctx.save();
+
+            ctx.setTransform(baseTransform);
             ctx.translate(p.x, p.y);
-            ctx.rotate(p.rotation);
+
+            // Motion-relative tilt for dynamic look
+            const motionAngle = Math.atan2(p.vy, p.vx) * 0.1;
+            ctx.rotate(p.rotation + motionAngle);
+
             ctx.beginPath();
-            // Draw Triangle Shard
-            ctx.moveTo(0, -p.size);
-            ctx.lineTo(p.size, p.size);
-            ctx.lineTo(-p.size, p.size);
+            if (isRetro) {
+                ctx.rect(-p.size, -p.size, p.size * 2, p.size * 2);
+            } else if (isMatrix) {
+                ctx.rect(-p.size * 0.25, -p.size * 1.5, p.size * 0.5, p.size * 3);
+            } else if (isDeep) {
+                ctx.rect(-p.size, -p.size * 0.2, p.size * 2, p.size * 0.4);
+                ctx.rect(-p.size * 0.2, -p.size, p.size * 0.4, p.size * 2);
+            } else {
+                ctx.moveTo(0, -p.size * 1.2);
+                ctx.lineTo(p.size, p.size * 0.8);
+                ctx.lineTo(-p.size, p.size * 0.8);
+            }
             ctx.fill();
-            ctx.restore();
+
+            // Add a small glow outline for premium look
+            if (!this.isMobile && p.alpha > 0.5) {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
         });
+
+        // Restore to base transform and cleanup
+        ctx.setTransform(baseTransform);
+        ctx.restore();
         ctx.globalAlpha = 1.0;
     }
 
@@ -3348,12 +3742,15 @@ export class RhythmGame extends BaseGame {
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
         this.audioEngine.stop();
 
+        // Increment Token: Any previous playPreview tasks will now be considered 'stale'
+        const myId = ++this.currentPreviewId;
+
         this.previewTimeout = setTimeout(async () => {
-            if (this.currentState !== GameState.MENU) return;
+            if (this.currentState !== GameState.MENU || this.currentPreviewId !== myId) return;
 
             try {
                 const song = this.songList[this.selectedSongIndex];
-                console.log(`[RhythmGame] Loading preview: ${song.name} `);
+                console.log(`[RhythmGame] Loading preview: ${song.name} (id:${myId})`);
 
                 // 1. Check Cache
                 if (this.cachedMidi && this.cachedMidi.url === song.url) {
@@ -3361,18 +3758,25 @@ export class RhythmGame extends BaseGame {
                     await this.audioEngine.loadMidi(this.cachedMidi.buffer);
                 } else {
                     const res = await fetch(song.url);
-                    if (this.currentState !== GameState.MENU) return;
+                    // Check if stale after fetch
+                    if (this.currentState !== GameState.MENU || this.currentPreviewId !== myId) return;
 
                     const buffer = await res.arrayBuffer();
+                    // Check if stale after arrayBuffer
+                    if (this.currentState !== GameState.MENU || this.currentPreviewId !== myId) return;
+
                     await this.audioEngine.loadMidi(buffer);
 
                     // Parse and Cache for subsequent Start
                     const parser = new MidiParser();
                     const parsed = await parser.parse(buffer);
+                    // Final check before committing to cache and playing
+                    if (this.currentState !== GameState.MENU || this.currentPreviewId !== myId) return;
+
                     this.cachedMidi = { url: song.url, buffer: buffer, parsed: parsed };
                 }
 
-                if (this.currentState === GameState.MENU) {
+                if (this.currentState === GameState.MENU && this.currentPreviewId === myId) {
                     this.audioEngine.play();
                 }
             } catch (e) {
