@@ -126,34 +126,47 @@ export class NoteFactory {
         const seenCounts = new Map<string, number>();
         const maxLimit = (difficulty === 'HARD') ? 2 : 1;
 
+        // EASY Mode Throttle: Scale minimum gap based on BPM
+        let easyMinGap = midi.ppq / 2; // Default 1/8 note
+        if (midi.bpm >= 180) {
+            easyMinGap = midi.ppq * 2; // 1/2 note for very fast songs
+        } else if (midi.bpm >= 110) {
+            easyMinGap = midi.ppq; // 1/4 note for fast/medium songs
+        }
+
+        let lastAcceptedTick = -99999;
+
         quantized.forEach(n => {
-            const key = `${n.channel}_${n.quantizedStartTick}`;
+            if (difficulty === 'EASY') {
+                // Drop notes that are too fast
+                // IMPORTANT: Do NOT drop notes that are strictly simultaneous (gap = 0).
+                const tickDiff = n.quantizedStartTick - lastAcceptedTick;
+                if (tickDiff > 0 && tickDiff < easyMinGap) {
+                    return;
+                }
+            }
+
+            // EASY mode: strictly 1 note per tick across ALL channels to guarantee no chords
+            const key = difficulty === 'EASY'
+                ? `GLOBAL_${n.quantizedStartTick}`
+                : `${n.channel}_${n.quantizedStartTick}`;
+
             const count = seenCounts.get(key) || 0;
             if (count < maxLimit) {
                 collapsed.push(n);
                 seenCounts.set(key, count + 1);
+                lastAcceptedTick = n.quantizedStartTick;
             }
         });
 
         // 3. Apply Time Correction (Sync Fix)
         RhythmQuantizer.applyTimeCorrection(collapsed, midi);
 
-        // 4. Pattern & Lane Analysis
-        const patterns = PatternAnalyzer.analyze(collapsed);
-        const result = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
-
-        // Post-process to map Long Note data
-        // We need to re-attach duration info since LaneAllocator might strictly deal with patterns
-        // But since VisualNote extends GameNote, and GameNote has duration/durationTicks, we can calculate it.
-        // However, LaneAllocator returns VisualNote[]. We should iterate and set isHold based on duration.
-
-        // Use Musical Threshold: 1/2 Beat
+        // Pre-calculate isHold so PatternAnalyzer and LaneAllocator know about holds
         const beatDurationMs = 60000 / midi.bpm;
-        const holdThresholdMs = beatDurationMs * 0.5;
+        const holdThresholdMs = beatDurationMs * 0.75; // Increased threshold
 
-        const finalResult = result.map(n => {
-            // Use existing duration (from MidiParser or RhythmQuantizer) for accuracy
-            // This handles variable tempo changes correctly
+        const preparedNotes = collapsed.map(n => {
             const durationMs = n.duration * 1000;
             const isHold = durationMs >= holdThresholdMs;
 
@@ -164,9 +177,15 @@ export class NoteFactory {
                 endTick: n.ticks + n.durationTicks,
                 isHolding: false,
                 accumulatedHoldTime: 0,
-                type: isHold ? 'HOLD' : 'TAP'
+                type: isHold ? 'HOLD' : 'TAP',
+                lane: -1,
+                isProcessed: false
             } as VisualNote;
         });
+
+        // 4. Pattern & Lane Analysis
+        const patterns = PatternAnalyzer.analyze(preparedNotes as any[]);
+        const finalResult = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
 
         console.log(`[NoteFactory] Charted ${finalResult.length} notes (Holds: ${finalResult.filter(n => n.isHold).length}).`);
         if (finalResult.length > 0) {

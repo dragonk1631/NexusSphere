@@ -82,7 +82,15 @@ export class LaneAllocator {
                         if (tick >= laneBusyUntil[l]) return l;
                     }
 
-                    // If all busy, fallback to preferred (overlap is unavoidable or handled by engine)
+                    // Hand is full. Try the other hand's lanes before giving up
+                    const otherRange = (hand === 'left') ? rightLanes : leftLanes;
+                    const sortedOtherRange = [...otherRange].sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
+
+                    for (const l of sortedOtherRange) {
+                        if (tick >= laneBusyUntil[l]) return l;
+                    }
+
+                    // If all busy, fallback to preferred (but the caller MUST check and drop the note)
                     return preferred;
                 };
 
@@ -94,32 +102,36 @@ export class LaneAllocator {
                         [1, 4], [0, 5], [2, 3],
                         [0, 4], [1, 5], [2, 4],
                     ];
-                    // Filter options where at least one lane is free? 
-                    // Or just pick one and force it?
-                    // Let's filter for fully free pairs if possible
+                    // Filter options where at least one lane is free
                     const validOptions = options.filter(pair =>
                         tick >= laneBusyUntil[pair[0]] && tick >= laneBusyUntil[pair[1]]
                     );
 
-                    const chosenPair = (validOptions.length > 0)
-                        ? validOptions[Math.floor(Math.random() * validOptions.length)]
-                        : options[Math.floor(Math.random() * options.length)];
+                    if (validOptions.length > 0) {
+                        const chosenPair = validOptions[Math.floor(Math.random() * validOptions.length)];
 
-                    activeNotes.forEach((note, idx) => {
-                        const lane = chosenPair[idx];
+                        activeNotes.forEach((note, idx) => {
+                            const lane = chosenPair[idx];
 
-                        // Update Busy State
-                        // We need durationTicks. VisualNote doesn't exist yet, but GameNote does.
-                        const duration = note.durationTicks || 0;
-                        laneBusyUntil[lane] = tick + duration; // Mark busy until end of note
+                            // Update Busy State
+                            const isHold = (note as any).isHold;
+                            // Add a small 60-tick buffer (approx 1/16th beat) so notes don't spawn exactly as the hold ends
+                            const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
+                            laneBusyUntil[lane] = tick + duration; // Mark busy until end of note
 
-                        result.push({ ...note, lane, isProcessed: false } as VisualNote);
-                        if (lane <= 2) lastLeftLane = lane;
-                        else lastRightLane = lane;
-                    });
-                    lastHand = null; // Reset fatigue after chord
-                    consecutiveSameHand = 0;
-                } else if (activeNotes.length === 1) {
+                            result.push({ ...note, lane, isProcessed: false } as VisualNote);
+                            if (lane <= 2) lastLeftLane = lane;
+                            else lastRightLane = lane;
+                        });
+                        lastHand = null; // Reset fatigue after chord
+                        consecutiveSameHand = 0;
+                    } else {
+                        // Downgrade chord to a single note to prevent overlaps
+                        activeNotes = [activeNotes[0]];
+                    }
+                }
+
+                if (activeNotes.length === 1) {
                     const note = activeNotes[0];
                     let useLeftHand = true;
 
@@ -151,10 +163,6 @@ export class LaneAllocator {
                         }
 
                         lane = findFreeLane(preferred, 'left');
-                        lastLeftLane = lane;
-
-                        if (lastHand === 'left') consecutiveSameHand++;
-                        else { lastHand = 'left'; consecutiveSameHand = 1; }
                     } else {
                         const move = (Math.random() > 0.5) ? 1 : -1;
                         let preferred = lastRightLane + move;
@@ -163,14 +171,29 @@ export class LaneAllocator {
                         }
 
                         lane = findFreeLane(preferred, 'right');
-                        lastRightLane = lane;
+                    }
 
+                    if (tick < laneBusyUntil[lane]) {
+                        // ALL active lanes are completely full (occupied by long notes).
+                        // Strictly DROP the note to prevent physically impossible overlaps.
+                        return;
+                    }
+
+                    // Update states for next notes
+                    if (lane <= 2) {
+                        lastLeftLane = lane;
+                        if (lastHand === 'left') consecutiveSameHand++;
+                        else { lastHand = 'left'; consecutiveSameHand = 1; }
+                    } else {
+                        lastRightLane = lane;
                         if (lastHand === 'right') consecutiveSameHand++;
                         else { lastHand = 'right'; consecutiveSameHand = 1; }
                     }
 
                     // Update Busy State
-                    const duration = note.durationTicks || 0;
+                    const isHold = (note as any).isHold;
+                    // Add a small 60-tick buffer (approx 1/16th beat) so notes don't spawn exactly as the hold ends
+                    const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
                     laneBusyUntil[lane] = tick + duration;
 
                     result.push({ ...note, lane, isProcessed: false } as VisualNote);

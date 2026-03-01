@@ -543,46 +543,54 @@ export class RhythmGame extends BaseGame {
 
         // 2. Difficulty, Speed & Mode Controls
         const padUI = Math.min((infoH - 26) * 0.045, 12);
-        const numRows = 4;
+        const numRows = 3; // Matched with renderMenu
+        const numCols = 2;
         const optH = ((infoH - 26) - padUI * (numRows + 1)) / numRows;
 
-        const row2CenterY = infoY + 26 + padUI * 2 + optH + optH * 0.5;
-        const row3CenterY = infoY + 26 + padUI * 3 + optH * 2 + optH * 0.5;
+        const innerW = (leftPanelWidth - padding) - 2 * padUI; // panel width minus equal side margins
+        const optW = (innerW - (numCols - 1) * padUI) / numCols;
 
-        const statsCenterX = padding + (leftPanelWidth - padding) * 0.5;
-        const hitWidth = 60;
-        const hitHeight = optH * 0.8;
+        // Centers of the columns
+        const col1CenterX = padding + padUI + optW / 2;
+        const col2CenterX = col1CenterX + optW + padUI;
 
-        const diffX = statsCenterX - leftPanelWidth * 0.2;
+        // Centers of the rows
+        const row1CenterY = infoY + 26 + padUI + optH / 2;
+        const row2CenterY = row1CenterY + optH + padUI;
+        const row3CenterY = row2CenterY + optH + padUI;
+
+        const hitWidth = optW * 0.45; // Generous hit width within the frame
+        const hitHeight = optH * 0.45; // Generous hit height within the frame
+
+        // Difficulty (Row 2, Col 1)
         if (Math.abs(y - row2CenterY) < hitHeight) {
-            if (Math.abs(x - (diffX - hitWidth)) < hitWidth) {
+            if (Math.abs(x - (col1CenterX - hitWidth)) < hitWidth * 0.5) {
                 this.selectedDifficultyIndex = Math.max(0, this.selectedDifficultyIndex - 1);
                 this.playPreview();
                 return;
-            } else if (Math.abs(x - (diffX + hitWidth)) < hitWidth) {
+            } else if (Math.abs(x - (col1CenterX + hitWidth)) < hitWidth * 0.5) {
                 this.selectedDifficultyIndex = Math.min(this.difficultyOptions.length - 1, this.selectedDifficultyIndex + 1);
                 this.playPreview();
                 return;
             }
         }
 
-        const speedX = statsCenterX + leftPanelWidth * 0.2;
+        // Speed (Row 2, Col 2)
         if (Math.abs(y - row2CenterY) < hitHeight) {
-            if (Math.abs(x - (speedX - hitWidth)) < hitWidth) {
+            if (Math.abs(x - (col2CenterX - hitWidth)) < hitWidth * 0.5) {
                 this.selectedSpeedIndex = Math.max(0, this.selectedSpeedIndex - 1);
                 this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
                 return;
-            } else if (Math.abs(x - (speedX + hitWidth)) < hitWidth) {
+            } else if (Math.abs(x - (col2CenterX + hitWidth)) < hitWidth * 0.5) {
                 this.selectedSpeedIndex = Math.min(this.speedOptions.length - 1, this.selectedSpeedIndex + 1);
                 this.scrollSpeed = this.speedOptions[this.selectedSpeedIndex];
                 return;
             }
         }
 
-        // Mode (4K / 6K) toggle
+        // Mode: 4K / 6K toggle (Row 3, Col 1)
         if (Math.abs(y - row3CenterY) < hitHeight) {
-            // mode uses full width (bestX / bestW from render), which spans the middle
-            if (x > padding && x < leftPanelWidth) {
+            if (Math.abs(x - col1CenterX) < hitWidth) {
                 this.keyMode = this.keyMode === 4 ? 6 : 4;
                 return;
             }
@@ -2076,7 +2084,38 @@ export class RhythmGame extends BaseGame {
                 const drawY = this.hitLineY - 20 * scaleY;
 
                 ctx.globalAlpha = this.keyState[i] ? 1.0 : (0.7 + pulseAlpha * 0.3);
+
+                // If 4K mode and it's an outer lane, draw it very dimly
+                const isLocked = this.keyMode === 4 && (i === 0 || i === 5);
+                if (isLocked) {
+                    ctx.globalAlpha = 0.2;
+                }
+
                 ctx.drawImage(receptorImg, drawX, drawY, drawW, drawH);
+
+                // Draw Locked Overlay on Receptor
+                if (isLocked) {
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(255, 50, 50, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.fillStyle = 'rgba(10, 0, 0, 0.6)';
+
+                    // Draw a pill-shape over the receptor
+                    ctx.beginPath();
+                    ctx.roundRect(drawX + 10 * scaleX, drawY + 10 * scaleY, drawW - 20 * scaleX, drawH - 20 * scaleY, 10);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Tiny "LOCKED" text inside the pill
+                    ctx.font = `bold ${10 * scaleX}px "Orbitron", sans-serif`;
+                    ctx.fillStyle = 'rgba(255, 50, 50, 0.6)';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.letterSpacing = '3px';
+                    ctx.fillText('LOCKED', drawX + drawW / 2, drawY + drawH / 2);
+                    ctx.restore();
+                }
+
                 ctx.globalAlpha = 1.0;
             }
         }
@@ -2858,13 +2897,12 @@ export class RhythmGame extends BaseGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const titleSize = Math.min(width * 0.045, radius * 0.55); // Larger for mobile readability
-        ctx.font = `900 ${titleSize}px "Nunito"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        let titleSizeActual = Math.min(width * 0.06, radius * 0.7);
+        ctx.font = `900 ${titleSizeActual}px "Nunito"`;
 
         const MAX_TITLE_CHARS = 20;
-        const maxTitleWidth = radius * 1.45;
+        // Title may fill the full SONG INFO panel width, not just the inner circle
+        const maxTitleWidth = (leftPanelWidth - padding) * 0.88;
 
         // Build lines: split by spaces, keep original case
         const rawName = currentSong.name; // original case preserved
@@ -2894,7 +2932,16 @@ export class RhythmGame extends BaseGame {
             return l;
         });
 
-        const lineHeight = titleSize * 1.2;
+        // Auto-shrink font until all lines fit within the circle
+        while (titleSizeActual > 10) {
+            ctx.font = `900 ${titleSizeActual}px "Nunito"`;
+            const allFit = lines.every(l => ctx.measureText(l).width <= maxTitleWidth);
+            if (allFit) break;
+            titleSizeActual -= 1;
+        }
+        ctx.font = `900 ${titleSizeActual}px "Nunito"`;
+
+        const lineHeight = titleSizeActual * 1.2;
         const startY = -(lines.length - 1) * lineHeight / 2;
 
         for (let i = 0; i < lines.length; i++) {
@@ -2903,7 +2950,7 @@ export class RhythmGame extends BaseGame {
             ctx.save(); // isolate per-line state
 
             // Per-line gradient: each line has its own full gradient from top to bottom
-            const lineGrad = ctx.createLinearGradient(0, yOffset - titleSize * 0.6, 0, yOffset + titleSize * 0.6);
+            const lineGrad = ctx.createLinearGradient(0, yOffset - titleSizeActual * 0.6, 0, yOffset + titleSizeActual * 0.6);
             lineGrad.addColorStop(0, '#c0001a');  // deep crimson at top
             lineGrad.addColorStop(0.3, '#ff3a00');  // vivid orange-red
             lineGrad.addColorStop(0.65, '#ffd700');  // gold
@@ -2941,22 +2988,22 @@ export class RhythmGame extends BaseGame {
         const infoPanelH = infoH - 26;
 
         const pad = Math.min(infoPanelH * 0.045, 12);
-        const numRows = 4;
+
+        // 3x2 Grid Layout (3 rows, 2 columns)
+        const numRows = 3;
+        const numCols = 2;
         const optH = (infoPanelH - pad * (numRows + 1)) / numRows;
 
         // Two columns that strictly fit within left panel width minus outer padding
-        const innerW = (leftPanelWidth - padding) - padding; // total usable width = leftPanelWidth - 2*padding
-        const optW = (innerW - pad) / 2;
+        const innerW = (leftPanelWidth - padding) - 2 * pad; // panel width minus equal side margins
+        const optW = (innerW - (numCols - 1) * pad) / numCols;
 
         const col1X = padding + pad;
         const col2X = col1X + optW + pad;
+
         const row1Y = infoPanelY + pad;
         const row2Y = row1Y + optH + pad;
         const row3Y = row2Y + optH + pad;
-        const row4Y = row3Y + optH + pad;
-
-        const bestW = optW * 2 + pad;
-        const bestX = padding + pad;
 
         const c1X = col1X + optW / 2;
         const c2X = col2X + optW / 2;
@@ -2983,54 +3030,75 @@ export class RhythmGame extends BaseGame {
             ctx.restore();
         };
 
+        // Row 1: BPM, DUR
         drawOptFrame(col1X, row1Y, optW, optH);
         drawOptFrame(col2X, row1Y, optW, optH);
+
+        // Row 2: DIFFICULTY, SPEED
         drawOptFrame(col1X, row2Y, optW, optH);
         drawOptFrame(col2X, row2Y, optW, optH);
-        drawOptFrame(bestX, row3Y, bestW, optH);
-        drawOptFrame(bestX, row4Y, bestW, optH);
 
-        // High contrast values — vertically centered within each frame
-        const textYOffset = optH * 0.62;
-        const labelYOffset = optH * 0.28;
+        // Row 3: KEY SETTING, BEST RECORD
+        drawOptFrame(col1X, row3Y, optW, optH);
+        drawOptFrame(col2X, row3Y, optW, optH);
 
+        // High contrast values — vertically centered within each frame as a group
+        // Total text block height is approx (valueSize + labelSize). Center the block in optH.
+        const labelYOffset = optH * 0.32;
+        const textYOffset = optH * 0.70;
+
+        // BPM (Row 1, Col 1)
         this.drawCuteLabel(`${bpm} `, c1X, row1Y + textYOffset, 'center', valueSize, '#fff', true);
         this.drawCuteLabel("BPM", c1X, row1Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
+        // DUR (Row 1, Col 2)
         const totalSeconds = Math.floor(currentSong.duration || 120);
         const durMin = Math.floor(totalSeconds / 60);
         const durSec = (totalSeconds % 60).toString().padStart(2, '0');
         this.drawCuteLabel(`${durMin}:${durSec} `, c2X, row1Y + textYOffset, 'center', valueSize, '#fff', true);
         this.drawCuteLabel("DUR", c2X, row1Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
-        // Difficulty & Speed 
+        // Difficulty (Row 2, Col 1)
         const currentDiff = this.difficultyOptions[this.selectedDifficultyIndex];
         let diffColor = (currentDiff === 'HARD') ? '#ff7675' : (currentDiff === 'EASY' ? '#55efc4' : '#ffeaa7');
 
         this.drawCuteLabel(`◀  ${currentDiff}  ▶`, c1X, row2Y + textYOffset, 'center', valueSize, diffColor, true);
         this.drawCuteLabel("DIFFICULTY", c1X, row2Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
-        // Speed 
+        // Speed (Row 2, Col 2)
         this.drawCuteLabel(`◀  x${this.scrollSpeed.toFixed(1)}  ▶`, c2X, row2Y + textYOffset, 'center', valueSize, '#a29bfe', true);
         this.drawCuteLabel("SPEED", c2X, row2Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
-        // Mode (4K / 6K)
-        const bX = bestX + bestW / 2;
+        // Mode (4K / 6K) (Row 3, Col 1)
         const modeColor = this.keyMode === 4 ? '#00cec9' : '#e84393';
-        this.drawCuteLabel(`◀  ${this.keyMode}K MODE  ▶`, bX, row3Y + textYOffset, 'center', valueSize, modeColor, true);
-        this.drawCuteLabel("KEY SETTING", bX, row3Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
+        this.drawCuteLabel(`◀  ${this.keyMode}K  ▶`, c1X, row3Y + textYOffset, 'center', valueSize, modeColor, true);
+        this.drawCuteLabel("KEY SETTING", c1X, row3Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
 
-        // High Score
+        // High Score (Row 3, Col 2)
         const highScore = this.scoreManager?.getHighScore(currentSong.url);
 
         if (highScore) {
             const gradeColor = (highScore.grade === 'F' || highScore.grade === 'D') ? '#ff7675' : (highScore.grade.includes('S') ? '#74b9ff' : '#55efc4');
-            this.drawCuteLabel(highScore.grade, bX - 60, row4Y + optH / 2, 'right', valueSize * 1.5, gradeColor, true);
-            this.drawCuteLabel(highScore.score.toLocaleString(), bX + 20, row4Y + textYOffset, 'left', valueSize, '#fff', true);
-            this.drawCuteLabel("BEST RECORD", bX + 20, row4Y + labelYOffset, 'left', labelSize, '#ffd32a', true);
+
+            // Draw grade + score as a single centered group
+            const scoreStr = highScore.score.toLocaleString();
+
+            // Measure text widths to build a centered composite layout
+            ctx.save();
+            ctx.font = `bold ${valueSize}px "Orbitron", sans-serif`;
+            const gradeW = ctx.measureText(highScore.grade).width;
+            const gapW = valueSize * 0.4;
+            const scoreW = ctx.measureText(scoreStr).width;
+            const totalW = gradeW + gapW + scoreW;
+            const startX = c2X - totalW / 2;
+            ctx.restore();
+
+            this.drawCuteLabel(highScore.grade, startX + gradeW / 2, row3Y + textYOffset, 'center', valueSize, gradeColor, true);
+            this.drawCuteLabel(scoreStr, startX + gradeW + gapW + scoreW / 2, row3Y + textYOffset, 'center', valueSize * 0.9, '#fff', true);
+            this.drawCuteLabel("BEST RECORD", c2X, row3Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
         } else {
-            this.drawCuteLabel("NO DATA", bX, row4Y + textYOffset, 'center', valueSize * 0.8, '#b2bec3', true);
-            this.drawCuteLabel("BEST RECORD", bX, row4Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
+            this.drawCuteLabel("NO DATA", c2X, row3Y + textYOffset, 'center', valueSize * 0.8, '#b2bec3', true);
+            this.drawCuteLabel("BEST RECORD", c2X, row3Y + labelYOffset, 'center', labelSize, '#ffd32a', true);
         }
 
         const listInnerY = listY + 26 + 10; // below tab
@@ -3132,15 +3200,19 @@ export class RhythmGame extends BaseGame {
                 ctx.restore();
             }
 
-            // Index
+            // Index number - proportional to itemHeight
+            const idxFontSize = itemHeight * 0.38;
+            const idxW = idxFontSize * 2.2; // Width budget for the index column
             const idxColor = isSelected ? '#fff' : 'rgba(160, 185, 255, 0.7)';
-            this.drawCuteLabel((index + 1).toString().padStart(2, '0'), 25, itemHeight * 0.5, 'left', itemHeight * 0.42, idxColor, false, '"Nunito", sans-serif');
+            this.drawCuteLabel((index + 1).toString().padStart(2, '0'), idxW / 2 + 6, itemHeight * 0.5, 'center', idxFontSize, idxColor, false, '"Nunito", sans-serif');
 
             let songTitle = song.name;
-            const maxTitleW = listContentW * (isSelected ? 0.6 : 0.82) - 90;
+            const titleX = idxW + 18; // Song name starts right after the number column with a gap
+            const maxTitleW = listContentW * (isSelected ? 0.6 : 0.82) - titleX;
 
             // Critical fix: set sophisticated font before measuring
-            ctx.font = `700 ${itemHeight * 0.46}px "Nunito", sans-serif`;
+            const titleFontSize = itemHeight * 0.45;
+            ctx.font = `700 ${titleFontSize}px "Nunito", sans-serif`;
 
             if (ctx.measureText(songTitle).width > maxTitleW) {
                 while (ctx.measureText(songTitle + "...").width > maxTitleW && songTitle.length > 0) {
@@ -3150,7 +3222,7 @@ export class RhythmGame extends BaseGame {
             }
 
             const songColor = isSelected ? '#fff' : 'rgba(220, 230, 255, 0.95)';
-            this.drawCuteLabel(songTitle, 70, itemHeight * 0.5, 'left', itemHeight * 0.46, songColor, isSelected, '"Nunito", sans-serif');
+            this.drawCuteLabel(songTitle, titleX, itemHeight * 0.5, 'left', titleFontSize, songColor, isSelected, '"Nunito", sans-serif');
 
             if (isSelected) {
                 const animOffset = Math.sin(time * 6) * 4; // Bobs left and right
