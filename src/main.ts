@@ -25,7 +25,7 @@ let mainMenu: MainMenu;
 // FPS Counter Variables
 const fpsDiv = document.createElement('div');
 fpsDiv.id = 'fps-counter';
-fpsDiv.style.cssText = "position:fixed; top:5px; right:5px; background:rgba(0,0,0,0.5); color:#00ff00; padding:2px 6px; z-index:99999; font-size:14px; pointer-events:none; font-family:monospace; border-radius:4px; font-weight:bold;";
+fpsDiv.style.cssText = "position:fixed; top:5px; left:5px; background:rgba(0,0,0,0.5); color:#00ff00; padding:2px 6px; z-index:99999; font-size:14px; pointer-events:none; font-family:monospace; border-radius:4px; font-weight:bold;";
 fpsDiv.innerText = `FPS: --`;
 document.body.appendChild(fpsDiv);
 

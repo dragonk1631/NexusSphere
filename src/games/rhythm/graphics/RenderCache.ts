@@ -47,7 +47,7 @@ export class RenderCache {
         this.particleGlow = this.createGlowParticle();
     }
 
-    private createCachedNote(colors: string[], skinId: string): HTMLCanvasElement {
+    public createCachedNote(colors: string[], skinId: string): HTMLCanvasElement {
         const w = this.NOTE_WIDTH;
         const h = this.NOTE_HEIGHT;
         const padding = 15;
@@ -201,7 +201,7 @@ export class RenderCache {
         return canvas;
     }
 
-    private createCachedReceptor(colors: string[], skinId: string, isActive: boolean): HTMLCanvasElement {
+    public createCachedReceptor(colors: string[], skinId: string, isActive: boolean): HTMLCanvasElement {
         const w = this.NOTE_WIDTH;
         const h = this.NOTE_HEIGHT;
         const padding = 20;
@@ -344,7 +344,7 @@ export class RenderCache {
         return canvas;
     }
 
-    private createLongNoteBody(colors: string[], skinId: string): HTMLCanvasElement {
+    public createLongNoteBody(colors: string[], skinId: string): HTMLCanvasElement {
         const w = 64;
         const h = 256;
         const canvas = document.createElement('canvas');
@@ -398,7 +398,7 @@ export class RenderCache {
         return `${r}, ${g}, ${b}`;
     }
 
-    private createGlowParticle(): HTMLCanvasElement {
+    public createGlowParticle(): HTMLCanvasElement {
         const r = this.GLOW_RADIUS;
         const canvas = document.createElement('canvas');
         canvas.width = r * 2;

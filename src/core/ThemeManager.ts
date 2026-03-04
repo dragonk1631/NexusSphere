@@ -1,3 +1,18 @@
+export interface SemanticPalette {
+    /** Difficulty: EASY */
+    levelEasy: string;
+    /** Difficulty: NORMAL */
+    levelNormal: string;
+    /** Difficulty: HARD */
+    levelHard: string;
+    /** Difficulty: EXPERT */
+    levelExpert: string;
+    /** Scroll speed option accent */
+    speedOption: string;
+    /** Key mode option accent */
+    modeOption: string;
+}
+
 export interface ThemeConfig {
     id: string;
     name: string;
@@ -8,6 +23,7 @@ export interface ThemeConfig {
     particleColor: string;
     gridColor: string;
     bubblePulseGrad: string[]; // For UI bubbles like MainMenu
+    semantic: SemanticPalette;
 }
 
 export class ThemeManager {
@@ -15,7 +31,7 @@ export class ThemeManager {
     private currentThemeId: string = 'deep-space';
     private listeners: Array<(theme: ThemeConfig) => void> = [];
 
-    // The 10 Curated Cyber-Pop & Space Themes
+    // The 10 Curated Themes — each with a distinct identity
     public static readonly THEMES: ThemeConfig[] = [
         {
             id: 'deep-space',
@@ -26,7 +42,15 @@ export class ThemeManager {
             color3: '#3A1050',
             particleColor: 'rgba(255, 255, 255, 1)',
             gridColor: 'rgba(0, 255, 255, 0.05)',
-            bubblePulseGrad: ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.2)']
+            bubblePulseGrad: ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.2)'],
+            semantic: {
+                levelEasy: '#00d2d3',
+                levelNormal: '#a29bfe',
+                levelHard: '#e056a0',
+                levelExpert: '#6c5ce7',
+                speedOption: '#00e5ff',
+                modeOption: '#e056a0',
+            }
         },
         {
             id: 'cyber-neon',
@@ -37,7 +61,15 @@ export class ThemeManager {
             color3: '#00F0FF',
             particleColor: '#00F0FF',
             gridColor: 'rgba(255, 0, 85, 0.1)',
-            bubblePulseGrad: ['rgba(0, 240, 255, 0.9)', 'rgba(255, 0, 85, 0.3)']
+            bubblePulseGrad: ['rgba(0, 240, 255, 0.9)', 'rgba(255, 0, 85, 0.3)'],
+            semantic: {
+                levelEasy: '#00F0FF',
+                levelNormal: '#7000FF',
+                levelHard: '#FF0055',
+                levelExpert: '#FF0000',
+                speedOption: '#00F0FF',
+                modeOption: '#FF0055',
+            }
         },
         {
             id: 'sunset-overdrive',
@@ -48,7 +80,15 @@ export class ThemeManager {
             color3: '#FF4B2B',
             particleColor: '#FFD700',
             gridColor: 'rgba(255, 75, 43, 0.1)',
-            bubblePulseGrad: ['rgba(255, 215, 0, 0.9)', 'rgba(255, 65, 108, 0.3)']
+            bubblePulseGrad: ['rgba(255, 215, 0, 0.9)', 'rgba(255, 65, 108, 0.3)'],
+            semantic: {
+                levelEasy: '#fd79a8',
+                levelNormal: '#FF8E53',
+                levelHard: '#FF416C',
+                levelExpert: '#8B0000',
+                speedOption: '#FFD700',
+                modeOption: '#FF4B2B',
+            }
         },
         {
             id: 'matrix-grid',
@@ -59,7 +99,15 @@ export class ThemeManager {
             color3: '#000000',
             particleColor: '#00FF00',
             gridColor: 'rgba(0, 255, 0, 0.15)',
-            bubblePulseGrad: ['rgba(0, 255, 0, 0.8)', 'rgba(0, 100, 0, 0.3)']
+            bubblePulseGrad: ['rgba(0, 255, 0, 0.8)', 'rgba(0, 100, 0, 0.3)'],
+            semantic: {
+                levelEasy: '#00FF00',
+                levelNormal: '#00CC66',
+                levelHard: '#009933',
+                levelExpert: '#006600',
+                speedOption: '#88FF88',
+                modeOption: '#00CC44',
+            }
         },
         {
             id: 'vaporwave',
@@ -70,7 +118,15 @@ export class ThemeManager {
             color3: '#FF80CC',
             particleColor: '#00FFFF',
             gridColor: 'rgba(255, 128, 204, 0.1)',
-            bubblePulseGrad: ['rgba(0, 255, 255, 0.9)', 'rgba(255, 128, 204, 0.3)']
+            bubblePulseGrad: ['rgba(0, 255, 255, 0.9)', 'rgba(255, 128, 204, 0.3)'],
+            semantic: {
+                levelEasy: '#FF80CC',   // Bubblegum pink
+                levelNormal: '#b388ff', // Soft lavender
+                levelHard: '#ea00d9',   // Vivid magenta
+                levelExpert: '#FF00FF', // Deep neon purple
+                speedOption: '#FF80CC',
+                modeOption: '#b388ff',
+            }
         },
         {
             id: 'midnight-ocean',
@@ -81,7 +137,15 @@ export class ThemeManager {
             color3: '#1F8A70',
             particleColor: '#BFDB38',
             gridColor: 'rgba(31, 138, 112, 0.1)',
-            bubblePulseGrad: ['rgba(191, 219, 56, 0.9)', 'rgba(0, 66, 90, 0.3)']
+            bubblePulseGrad: ['rgba(191, 219, 56, 0.9)', 'rgba(0, 66, 90, 0.3)'],
+            semantic: {
+                levelEasy: '#64ffda',   // Aqua Teal
+                levelNormal: '#4dd0e1', // Teal Cyan
+                levelHard: '#1F8A70',   // Ocean Green
+                levelExpert: '#004D40', // Deep Teal
+                speedOption: '#4dd0e1',
+                modeOption: '#64ffda',
+            }
         },
         {
             id: 'crimson-flare',
@@ -92,18 +156,35 @@ export class ThemeManager {
             color3: '#8E0000',
             particleColor: '#FFCC00',
             gridColor: 'rgba(255, 204, 0, 0.08)',
-            bubblePulseGrad: ['rgba(255, 204, 0, 0.9)', 'rgba(142, 0, 0, 0.3)']
+            bubblePulseGrad: ['rgba(255, 204, 0, 0.9)', 'rgba(142, 0, 0, 0.3)'],
+            semantic: {
+                levelEasy: '#FFCC00', // Flame tip (yellow)
+                levelNormal: '#FF8C00', // Orange flame
+                levelHard: '#FF3300', // Red-orange flame
+                levelExpert: '#8B0000', // Deep ember
+                speedOption: '#FFCC00',
+                modeOption: '#FF6600',
+            }
         },
+        // Märchen replaces Golden Hour — pastel pink fairy-tale aesthetic
         {
-            id: 'golden-hour',
-            name: 'Golden Hour',
-            pattern: 'bokeh',
-            color1: '#7B2C1B',
-            color2: '#C96123',
-            color3: '#FFCA3A',
-            particleColor: '#FFFFFF',
-            gridColor: 'rgba(255, 202, 58, 0.1)',
-            bubblePulseGrad: ['rgba(255, 255, 255, 0.9)', 'rgba(201, 97, 35, 0.3)']
+            id: 'marchen',
+            name: 'Märchen',
+            pattern: 'floating',
+            color1: '#2D0A2E',
+            color2: '#7B3F8C',
+            color3: '#F9A8D4',
+            particleColor: '#FF9FBB',
+            gridColor: 'rgba(249, 168, 212, 0.12)',
+            bubblePulseGrad: ['rgba(255, 182, 220, 0.9)', 'rgba(123, 63, 140, 0.35)'],
+            semantic: {
+                levelEasy: '#f8c8da',   // Petal pink
+                levelNormal: '#f48fb1', // Rose pink
+                levelHard: '#e91e8c',   // Vivid fuchsia
+                levelExpert: '#880e4f', // Deep magenta
+                speedOption: '#f48fb1',
+                modeOption: '#ce93d8',
+            }
         },
         {
             id: 'monochrome-tech',
@@ -114,19 +195,36 @@ export class ThemeManager {
             color3: '#555555',
             particleColor: '#DDDDDD',
             gridColor: 'rgba(255, 255, 255, 0.05)',
-            bubblePulseGrad: ['rgba(221, 221, 221, 0.9)', 'rgba(85, 85, 85, 0.3)']
+            bubblePulseGrad: ['rgba(221, 221, 221, 0.9)', 'rgba(85, 85, 85, 0.3)'],
+            semantic: {
+                levelEasy: '#DDDDDD',
+                levelNormal: '#AAAAAA',
+                levelHard: '#888888',
+                levelExpert: '#555555',
+                speedOption: '#DDDDDD',
+                modeOption: '#AAAAAA',
+            }
         },
+        // Winter Snow replaces Bubblegum Pop — icy whites, cyans and deep navy
         {
-            id: 'bubblegum-pop',
-            name: 'Bubblegum',
-            pattern: 'floating',
-            color1: '#FF9A9E',
-            color2: '#FECFEF',
-            color3: '#A1C4FD',
-            particleColor: '#FFFFFF',
-            gridColor: 'rgba(255, 255, 255, 0.2)',
-            bubblePulseGrad: ['rgba(255, 255, 255, 0.9)', 'rgba(255, 154, 158, 0.4)']
-        }
+            id: 'winter-snow',
+            name: 'Winter Snow',
+            pattern: 'stars',
+            color1: '#05122C',
+            color2: '#0A2558',
+            color3: '#1A4080',
+            particleColor: '#E0F7FA',
+            gridColor: 'rgba(176, 230, 255, 0.07)',
+            bubblePulseGrad: ['rgba(224, 247, 250, 0.9)', 'rgba(10, 37, 88, 0.3)'],
+            semantic: {
+                levelEasy: '#b2ebf2',   // Ice blue
+                levelNormal: '#4fc3f7', // Sky cyan
+                levelHard: '#0288d1',   // Arctic blue
+                levelExpert: '#01579b', // Deep ice
+                speedOption: '#80deea',
+                modeOption: '#4fc3f7',
+            }
+        },
     ];
 
     private constructor() {
