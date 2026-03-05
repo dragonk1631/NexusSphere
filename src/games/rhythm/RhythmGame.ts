@@ -317,7 +317,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             transitionData: this.transitionData, scoreManager: this.scoreManager,
             // EQ Visualizer data: parsed MIDI and current playback position
             previewMidi: this.menuManager.previewMidi,
-            previewTime: this.audioEngine.getPreciseTime()
+            previewTime: this.audioEngine.getPreciseTime() - this.audioEngine.getOutputLatency()
         };
     }
 
