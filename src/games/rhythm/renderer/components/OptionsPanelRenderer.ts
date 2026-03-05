@@ -1,7 +1,6 @@
 import { type MenuLayoutResult } from '../MenuLayout';
 import { type MenuRenderState } from '../../types/GameTypes';
 import { MENU_LAYOUT } from '../MenuLayoutConfig';
-import { ThemeManager } from '../../../../core/ThemeManager';
 import {
     hexToRgb,
     drawTrackedText,
@@ -16,22 +15,34 @@ export class OptionsPanelRenderer {
         // "OPTIONS" Panel - Use infoH to match bottom height of Song List
         drawPremiumPanel(ctx, padding, infoY, leftPanelWidth, infoH, "OPTION", c1, c2, sf);
 
-        // Use theme's semantic palette for full tone-and-manner cohesion (Batch 18)
-        const theme = ThemeManager.getInstance().getCurrentTheme();
-        const sem = theme.semantic;
-
+        // Theme-independent Colors (Value-based)
         const getDifficultyColor = (diff: string) => {
-            if (diff === 'EASY') return sem.levelEasy;
-            if (diff === 'NORMAL') return sem.levelNormal;
-            if (diff === 'HARD') return sem.levelHard;
-            if (diff === 'EXPERT') return sem.levelExpert;
+            if (diff === 'EASY') return '#2ecc71';   // Green
+            if (diff === 'NORMAL') return '#3498db'; // Blue
+            if (diff === 'HARD') return '#e74c3c';   // Red
+            if (diff === 'EXPERT') return '#9b59b6'; // Purple
             return '#c8d6e5';
         };
 
+        const getSpeedColor = (speed: number) => {
+            if (speed < 2.0) return '#1abc9c'; // Teal
+            if (speed < 5.0) return '#f1c40f'; // Yellow
+            return '#e67e22'; // Orange
+        };
+
+        const getModeColor = (mode: number) => {
+            if (mode === 4) return '#00d2d3'; // Cyan for 4K
+            if (mode === 6) return '#ff9ff3'; // Pink for 6K
+            return '#feca57'; // Yellow for others
+        };
+
+        const speedValue = state.scrollSpeed;
+        const modeValue = state.keyMode;
+
         const items = [
             { label: "LEVEL", value: state.difficultyOptions[state.selectedDifficultyIndex], color: getDifficultyColor(state.difficultyOptions[state.selectedDifficultyIndex]) },
-            { label: "SPEED", value: state.scrollSpeed.toFixed(1) + "X", color: sem.speedOption },
-            { label: "MODE", value: state.keyMode + "KEYS", color: sem.modeOption }
+            { label: "SPEED", value: speedValue.toFixed(1) + "X", color: getSpeedColor(speedValue) },
+            { label: "MODE", value: modeValue + "KEYS", color: getModeColor(modeValue) }
         ];
 
         const centers = [col1CenterX, col2CenterX, col3CenterX];
@@ -47,20 +58,26 @@ export class OptionsPanelRenderer {
 
             ctx.save();
 
-            // ── 1. TITLE TAB (colored with item's accent) ──
+            // ── 1. TITLE TAB (matched with redesigned main headers) ──
             const tabY = baseY;
             const tabGrad = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
-            // Batch 15: Deep Sophisticated Gradient (Eye-friendly & Premium)
+            // Redesigned: Sophisticated, translucent, and darker bottom
             tabGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.4)`);
-            tabGrad.addColorStop(1, `rgba(15, 15, 25, 0.85)`);
+            tabGrad.addColorStop(0.15, `rgba(${hexToRgb(c1)}, 0.55)`);
+            tabGrad.addColorStop(1, `rgba(15, 15, 25, 0.9)`);
 
             ctx.fillStyle = tabGrad;
             ctx.lineWidth = 1 * sf;
-            ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.8)`;
+            ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.7)`;
             ctx.beginPath();
             ctx.roundRect(cx - tabW / 2, tabY, tabW, tabH, 4 * sf);
             ctx.fill();
             ctx.stroke();
+
+            // Divider Line consistent with panels
+            ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.25)`;
+            ctx.lineWidth = 0.5 * sf;
+            ctx.beginPath(); ctx.moveTo(cx - tabW / 2, tabY + tabH); ctx.lineTo(cx + tabW / 2, tabY + tabH); ctx.stroke();
 
             // Centralized Header Text (Batch 5)
             drawTrackedText(ctx, item.label, cx, tabY + tabH / 2 + 1 * sf, 11 * sf, 4 * sf, '#fff', 'center', 'rgba(0,0,0,0.5)');
@@ -101,8 +118,9 @@ export class OptionsPanelRenderer {
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 0.5 * sf;
             ctx.beginPath(); ctx.moveTo(cx - tw / 2 + 8 * sf, boxY + 1 * sf); ctx.lineTo(cx + tw / 2 - 8 * sf, boxY + 1 * sf); ctx.stroke();
 
-            let valSize = 25 * sf;
-            if (i === 1) valSize = 22 * sf;
+            // Standardized Typography Size
+            const valSize = 22 * sf;
+
             ctx.font = `800 ${Math.floor(valSize)}px "Orbitron"`;
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'center';

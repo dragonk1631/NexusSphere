@@ -160,25 +160,35 @@ export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: 
     ctx.shadowBlur = 0;
 
     const borderGrad = ctx.createLinearGradient(px, py, px + pw, py + ph);
-    borderGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.5)`);
-    borderGrad.addColorStop(1, `rgba(${hexToRgb(c2)}, 0.4)`);
+    borderGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.8)`);
+    borderGrad.addColorStop(1, `rgba(${hexToRgb(c2)}, 0.6)`);
     ctx.strokeStyle = borderGrad;
-    ctx.lineWidth = 2.5 * sf;
+    ctx.lineWidth = 1.8 * sf; // Sharper border
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    // Subtle Inner Dark Shadow for depth
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
     ctx.lineWidth = 0.5 * sf;
-    ctx.beginPath(); ctx.roundRect(px + 3 * sf, py + 3 * sf, pw - 6 * sf, ph - 6 * sf, 7 * sf); ctx.stroke();
+    ctx.strokeRect(px + 1 * sf, py + 1 * sf, pw - 2 * sf, ph - 2 * sf);
 
     const headerH = MENU_LAYOUT.HEADER_HEIGHT * sf;
     const hGrad = ctx.createLinearGradient(px, py, px, py + headerH);
-    hGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.65)`);
-    hGrad.addColorStop(1, `rgba(12, 12, 18, 0.95)`);
+    hGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.45)`); // More transparent top
+    hGrad.addColorStop(0.15, `rgba(${hexToRgb(c1)}, 0.6)`);
+    hGrad.addColorStop(1, `rgba(10, 10, 20, 0.9)`); // Darker bottom
 
     ctx.fillStyle = hGrad;
     ctx.beginPath();
     ctx.roundRect(px, py, pw, headerH, [MENU_LAYOUT.PANEL_HEADER_RADIUS[0] * sf, MENU_LAYOUT.PANEL_HEADER_RADIUS[1] * sf, 0, 0]);
     ctx.fill();
+
+    // Header Separator Line
+    ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.3)`;
+    ctx.lineWidth = 1 * sf;
+    ctx.beginPath();
+    ctx.moveTo(px, py + headerH);
+    ctx.lineTo(px + pw, py + headerH);
+    ctx.stroke();
 
     ctx.fillStyle = '#fff';
     ctx.shadowBlur = 10 * sf; ctx.shadowColor = '#fff';

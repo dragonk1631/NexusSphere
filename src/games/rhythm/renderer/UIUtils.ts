@@ -22,11 +22,11 @@ const EQ_CONFIG = {
     DECAY_RATE: 0.003,        // bar height decay per millisecond (faster for snappier look)
     PEAK_HOLD_MS: 600,        // how long peak indicator stays at top
     PEAK_DECAY_RATE: 0.002,   // peak indicator decay per ms after hold
-    BAR_GAP_RATIO: 0.35,      // gap between channel columns as fraction of column width
-    SEGMENT_COUNT: 24,        // number of vertical blocks in the main bar
-    SEGMENT_GAP_RATIO: 0.25,  // gap between vertical blocks as fraction of block height
-    REFLECTION_RATIO: 0.20,   // portion of Eq area height dedicated to reflection (Batch 5: 8:2 split)
-    REFLECTION_ALPHA: 0.55,   // starting opacity of reflection (Batch 3)
+    BAR_GAP_RATIO: 0.20,      // reduced gap for wider columns (was 0.35)
+    SEGMENT_COUNT: 40,        // increased segments for high density (was 24)
+    SEGMENT_GAP_RATIO: 0.15,  // reduced vertical gap for 'packed' look (was 0.25)
+    REFLECTION_RATIO: 0.20,   // 8:2 split (was 0.42)
+    REFLECTION_ALPHA: 0.70,   // restored higher opacity for reflection feel
     BG_BAR_ALPHA: 0.10,       // faint unlit blocks in background (Batch 3)
     PEAK_COLOR: 'rgba(255, 255, 255, 0.95)',
 };
@@ -74,7 +74,7 @@ export function drawMidiChannelEQ(
 
     // Inner padding for bars
     const innerPadX = 12 * sf;
-    const innerPadY = 12 * sf;
+    const innerPadY = 6 * sf; // Reduced padding to fill space
     const plotX = x + innerPadX;
     const plotY = y + innerPadY;
     const plotW = w - innerPadX * 2;
@@ -190,7 +190,8 @@ export function drawMidiChannelEQ(
 
         // Draw Reflection (mirrored downwards below mainH)
         // Reflection base is separated by a tiny gap
-        const reflectBasline = plotY + mainH + segGap * 2;
+        // reflection baseline moved further down to accommodate the 8:2 split and separator
+        const reflectBasline = plotY + mainH + segGap * 1.5;
 
         // ── Batch 7: Beat-Responsive Separation Line ──
         if (ch === 0) {
@@ -222,7 +223,8 @@ export function drawMidiChannelEQ(
             const fade = Math.max(0, 1 - (i / (numSeg * EQ_CONFIG.REFLECTION_RATIO)));
             if (fade <= 0) break;
 
-            ctx.fillStyle = `hsla(${Math.floor(hue)}, 100%, 55%, ${EQ_CONFIG.REFLECTION_ALPHA * fade})`;
+            // Reduced saturation (70%) and slightly darker lightness (45%) for a pure "shadow reflection" look
+            ctx.fillStyle = `hsla(${Math.floor(hue)}, 70%, 45%, ${EQ_CONFIG.REFLECTION_ALPHA * fade})`;
             ctx.beginPath(); ctx.roundRect(bx, ry, barW, segH, cornerR); ctx.fill();
         }
     } // end for(ch)

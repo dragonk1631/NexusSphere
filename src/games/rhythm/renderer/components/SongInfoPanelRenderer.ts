@@ -4,7 +4,6 @@ import { MENU_LAYOUT } from '../MenuLayoutConfig';
 import { drawMidiChannelEQ } from '../UIUtils';
 import {
     drawPremiumPanel,
-    drawTrackedText,
     drawPremiumTypography
 } from '../MenuUIUtils';
 
@@ -30,13 +29,11 @@ export class SongInfoPanelRenderer {
         const eqAreaY = innerY;
         const eqAreaH = eqH;
 
-        drawTrackedText(ctx, "REALTIME MIDI SPECTRUM", padding + 15 * sf, eqAreaY + 15 * sf, 8 * sf, 2 * sf, c1, 'left');
-
         ctx.save();
-        ctx.translate(cx - (leftPanelWidth - 24 * sf) / 2, eqAreaY + 24 * sf);
+        ctx.translate(cx - (leftPanelWidth - 24 * sf) / 2, eqAreaY);
         drawMidiChannelEQ(
             ctx,
-            0, 0, leftPanelWidth - 24 * sf, eqAreaH - 34 * sf,
+            0, 0, leftPanelWidth - 24 * sf, eqAreaH,
             state.previewMidi ?? null,
             state.previewTime ?? 0,
             c1, c2, sf,
