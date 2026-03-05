@@ -263,9 +263,12 @@ export function drawMidiChannelEQ(
         }
 
         // Draw reflection segments
-        // GPU OPTIMIZATION: Avoid gradients or shadows here. Just hsla alpha.
+        // GPU OPTIMIZATION PHASE 2: Global Alpha Batching
         if (activeSegs > 0) {
-            ctx.beginPath();
+            ctx.save();
+            // Set base color ONCE per channel (saves hundreds of string allocations per frame)
+            ctx.fillStyle = `hsla(${Math.floor(hue)}, 70%, 45%, ${EQ_CONFIG.REFLECTION_ALPHA})`;
+
             for (let i = 0; i < activeSegs; i++) {
                 const ry = reflectBasline + i * (segH + segGap);
                 if (ry + segH > plotY + plotH) break;
@@ -273,11 +276,13 @@ export function drawMidiChannelEQ(
                 const fade = Math.max(0, 1 - (i / (numSeg * EQ_CONFIG.REFLECTION_RATIO)));
                 if (fade <= 0) break;
 
-                // Since we need different opacities per segment, we can't fully batch a single color, 
-                // but setting fillStyle is cheaper than roundRect + fill loops.
-                ctx.fillStyle = `hsla(${Math.floor(hue)}, 70%, 45%, ${EQ_CONFIG.REFLECTION_ALPHA * fade})`;
-                ctx.beginPath(); ctx.roundRect(bx, ry, barW, segH, cornerR); ctx.fill();
+                // Adjust transparency ONLY, reuse the solid color brush
+                ctx.globalAlpha = fade;
+                ctx.beginPath();
+                ctx.roundRect(bx, ry, barW, segH, cornerR);
+                ctx.fill();
             }
+            ctx.restore();
         }
     } // end for(ch)
 
