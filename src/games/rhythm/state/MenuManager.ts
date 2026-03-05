@@ -89,12 +89,35 @@ export class MenuManager {
             try {
                 const res = await fetch(currentSong.url);
                 const buffer = await res.arrayBuffer();
-                // Parse MIDI first so the EQ visualizer has data
-                this.previewMidi = await this._midiParser.parse(buffer.slice(0));
+
+                // 1. Parse MIDI
+                const parsedMidi = await this._midiParser.parse(buffer.slice(0));
+
+                // 2. Normalize MIDI (Shift first note to 0s to eliminate initial quiet gap/desync)
+                let firstNoteTime = Infinity;
+                for (const track of parsedMidi.tracks) {
+                    for (const note of track.notes) {
+                        if (note.time < firstNoteTime) firstNoteTime = note.time;
+                    }
+                }
+
+                if (firstNoteTime !== Infinity && firstNoteTime > 0) {
+                    console.log(`[MenuManager] Normalizing preview: shifting notes by -${firstNoteTime.toFixed(3)}s`);
+                    for (const track of parsedMidi.tracks) {
+                        for (const note of track.notes) {
+                            (note as any).time -= firstNoteTime;
+                        }
+                    }
+                }
+
+                // 3. Prepare Engine
                 await this.audioEngine.loadMidi(buffer);
-                // CRITICAL: Reset precise time anchor to 0 before playback starts.
-                // This ensures the EQ visualizer reads the correct playhead in sync.
+
+                // 4. ATOMIC UPDATE: Synchronize state switch
+                // We reset time and set MIDI data only when audio is actually ready to emit sound.
                 this.audioEngine.startPreciseTime(0);
+                this.previewMidi = parsedMidi; // Atomic switch: visualizer now sees the new, normalized data
+
                 this.audioEngine.play();
                 this._currentSongUrl = currentSong.url;
             } catch (e) {

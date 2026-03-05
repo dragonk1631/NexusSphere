@@ -134,6 +134,7 @@ export class CoreAudioEngine {
         // @ts-ignore
         const { Sequencer } = await import(SPESSA_LIB_URL);
         this.sequencer = new Sequencer(this.synth);
+        this.resetTimeState(); // Clear any stale lastReportedTime or anchors
 
         // Add Diagnostic Listeners (Help investigate "Audio Cutoff" issue)
         const eventHandler = this.sequencer.eventHandler;
