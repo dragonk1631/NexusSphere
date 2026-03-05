@@ -31,6 +31,14 @@ const EQ_CONFIG = {
     PEAK_COLOR: 'rgba(255, 255, 255, 0.95)',
 };
 
+// --- Optimization State for GPU and CPU ---
+let _bgCacheCanvas: HTMLCanvasElement | null = null;
+let _bgCacheSig: string = ""; // "width_height_sf" to invalidate cache on resize
+let _trackCursors: Int32Array | null = null;
+let _lastMidiHash: number = 0; // to detect when midi completely changes
+let _lastCursorPlayhead: number = -1; // to detect backwards jumps
+
+
 /**
  * Draws a 16-channel MIDI graphic equalizer.
  * Automatically decays bars between calls. Pass null for midi when no song is loaded.
@@ -95,31 +103,53 @@ export function drawMidiChannelEQ(
     const segH = (mainH - totalSegGap) / numSeg;
     const cornerR = Math.min(2 * sf, segH * 0.3);
 
-    // ── 2. Build target heights with simulated ADSR Envelope ──
+    // ── 2. CPU OPTIMIZATION: O(1) Note Cursor Tracking ──
     const targets = new Float32Array(N);
     if (midi) {
-        for (const track of midi.tracks) {
+        // Simple hash to detect new song load
+        const midiHash = midi.tracks.length + (midi.tracks[0]?.notes.length || 0);
+
+        // Reset cursors if song changed, or if time jumped backwards (e.g., restart)
+        if (midiHash !== _lastMidiHash || !_trackCursors || playheadSec < _lastCursorPlayhead) {
+            _trackCursors = new Int32Array(midi.tracks.length);
+            _lastMidiHash = midiHash;
+        }
+        _lastCursorPlayhead = playheadSec;
+
+        for (let i = 0; i < midi.tracks.length; i++) {
+            const track = midi.tracks[i];
             const ch = track.channel;
             if (ch < 0 || ch >= N) continue;
-            for (const note of track.notes as GameNote[]) {
-                if (note.time > playheadSec) break; // notes sorted by time
+
+            // Instead of looping all notes, start from the cursor
+            // The cursor strictly moves forward. 
+            let cursor = _trackCursors[i];
+            while (cursor < track.notes.length) {
+                const note = track.notes[cursor] as GameNote;
+
+                // If this note hasn't even started yet, stop looking in this track (since they are chronologically sorted)
+                if (note.time > playheadSec) break;
+
                 const noteEnd = note.time + note.duration;
-                if (noteEnd >= playheadSec) {
-                    // Note is active: simulate decay envelope
-                    let v = note.velocity / 127;
 
-                    // How long has the note been playing?
-                    // Audio usually strikes hard then decays. Even if a MIDI note is long, 
-                    // a visualizer looks best when it "bounces".
-                    const playedFor = playheadSec - note.time;
-
-                    // Fast attack, exponential decay based on duration
-                    // Decay curve: fast drop initially, then holds a sustain level
-                    const decayFactor = Math.max(0.1, 1 - (playedFor * 3)); // Rapid volume drop
-                    v = v * decayFactor;
-
-                    if (v > targets[ch]) targets[ch] = v;
+                // If this note has completely finished, permanently move the cursor forward!
+                if (noteEnd < playheadSec) {
+                    cursor++;
+                    _trackCursors[i] = cursor;
+                    continue; // Skip calculating envelope
                 }
+
+                // If we are here, the note is currently active
+                let v = note.velocity / 127;
+                const playedFor = playheadSec - note.time;
+                const decayFactor = Math.max(0.1, 1 - (playedFor * 3)); // Rapid volume drop
+                v = v * decayFactor;
+
+                if (v > targets[ch]) targets[ch] = v;
+
+                cursor++; // Check next note just in case multiple notes play simultaneously
+                // Note: we don't save this cursor increment back to `_trackCursors[i]` 
+                // because we still need to process these active notes next frame.
             }
         }
     }
@@ -145,87 +175,109 @@ export function drawMidiChannelEQ(
         }
     }
 
-    // ── 4. Draw Segmented Bars ──
+    // ── 4. GPU OPTIMIZATION: Draw Cached Background ──
+    // The unlit background segments require 16 * 40 = 640 path fills.
+    // By caching this into an offscreen canvas, we reduce 640 calls to exactly 1 drawImage.
+    const currentSig = `${Math.floor(plotW)}_${Math.floor(plotH)}_${sf}`;
+    if (!_bgCacheCanvas || _bgCacheSig !== currentSig) {
+        _bgCacheCanvas = document.createElement('canvas');
+        _bgCacheCanvas.width = plotW;
+        _bgCacheCanvas.height = plotH;
+        _bgCacheSig = currentSig;
+
+        const bgCtx = _bgCacheCanvas.getContext('2d')!;
+        bgCtx.fillStyle = `rgba(255,255,255,${EQ_CONFIG.BG_BAR_ALPHA})`;
+        bgCtx.beginPath(); // Batch all 640 paths into ONE draw call!
+        for (let ch = 0; ch < N; ch++) {
+            const bx = ch * (barW + colGap);
+            for (let i = 0; i < numSeg; i++) {
+                const sy = mainH - (i + 1) * segH - i * segGap;
+                bgCtx.roundRect(bx, sy, barW, segH, cornerR);
+            }
+        }
+        bgCtx.fill();
+    }
+    // Stamp the cached background instantly
+    ctx.drawImage(_bgCacheCanvas, plotX, plotY);
+
+
+    // ── 5. Draw Dynamic Foreground Elements (Batched) ──
     for (let ch = 0; ch < N; ch++) {
         const bx = plotX + ch * (barW + colGap);
 
         // Rainbow Hue Mapping: Purple(270) -> Red(0) -> Green(120) -> Blue(240)
-        // Wraps perfectly across the 16 channels to map the visual spectrum.
         const hue = (270 + ch * (330 / 15)) % 360;
         const colorStr = `hsl(${Math.floor(hue)}, 100%, 60%)`;
 
         const activeSegs = Math.ceil(_eqBarHeights[ch] * numSeg);
         const peakSegIdx = Math.min(numSeg - 1, Math.floor(_eqPeakHeights[ch] * numSeg));
 
-        // Draw unlit background segments
-        ctx.fillStyle = `rgba(255,255,255,${EQ_CONFIG.BG_BAR_ALPHA})`;
-        for (let i = 0; i < numSeg; i++) {
-            if (i < activeSegs) continue; // Will be drawn lit
-            const sy = plotY + mainH - (i + 1) * segH - i * segGap;
-            ctx.beginPath(); ctx.roundRect(bx, sy, barW, segH, cornerR); ctx.fill();
-        }
-
-        // Draw lit active segments
+        // GPU OPTIMIZATION: Batch lit active segments into a SINGLE path per channel
+        // Also: Remove shadowBlur from the loop, it's a massive performance killer.
         if (activeSegs > 0) {
             ctx.fillStyle = colorStr;
-            ctx.shadowColor = colorStr;
+            ctx.beginPath();
             for (let i = 0; i < activeSegs; i++) {
                 const sy = plotY + mainH - (i + 1) * segH - i * segGap;
-                // Add stronger glow to the top block
-                ctx.shadowBlur = (i === activeSegs - 1) ? 15 * sf : Math.max(1, 4 * sf);
-                ctx.beginPath(); ctx.roundRect(bx, sy, barW, segH, cornerR); ctx.fill();
+                ctx.roundRect(bx, sy, barW, segH, cornerR);
             }
+            ctx.fill();
+
+            // Draw a slightly brighter top block to simulate the glow, without using expensive shadowBlur
+            const topY = plotY + mainH - (activeSegs) * segH - (activeSegs - 1) * segGap;
+            ctx.fillStyle = `hsl(${Math.floor(hue)}, 100%, 80%)`;
+            ctx.beginPath(); ctx.roundRect(bx, topY, barW, segH, cornerR); ctx.fill();
         }
 
-        // Draw falling peak block
+        // Draw falling peak block (Only use shadowBlur here where it matters most, if at all. Kept low to save GPU)
         if (_eqPeakHeights[ch] > 0.02 && peakSegIdx >= activeSegs) {
             const py = plotY + mainH - (peakSegIdx + 1) * segH - peakSegIdx * segGap;
             ctx.fillStyle = EQ_CONFIG.PEAK_COLOR;
             ctx.shadowColor = '#fff';
-            ctx.shadowBlur = 8 * sf;
+            ctx.shadowBlur = 4 * sf; // Reduced blur radius for better performance
             ctx.beginPath(); ctx.roundRect(bx, py, barW, segH, cornerR); ctx.fill();
+            ctx.shadowBlur = 0; // instantly reset
         }
 
-        ctx.shadowBlur = 0;
-
         // Draw Reflection (mirrored downwards below mainH)
-        // Reflection base is separated by a tiny gap
-        // reflection baseline moved further down to accommodate the 8:2 split and separator
         const reflectBasline = plotY + mainH + segGap * 1.5;
 
-        // ── Batch 7: Beat-Responsive Separation Line ──
+        // ── Beat-Responsive Separation Line ──
         if (ch === 0) {
             ctx.save();
-            // Constant line opacity, pulsating bloom (Batch 8)
             const beatPulse = Math.pow(Math.max(0, Math.sin(playheadSec * (bpm / 60) * Math.PI)), 4);
 
-            ctx.strokeStyle = `rgba(255, 255, 255, 0.5)`; // Constant brightness
+            ctx.strokeStyle = `rgba(255, 255, 255, 0.5)`;
             ctx.lineWidth = 1 * sf;
 
-            // Fluorescent lamp pulsating effect around the line
+            // Keep bloom on the separator line as it's just one line, relatively cheap
             ctx.shadowBlur = (8 + beatPulse * 15) * sf;
             const bloomAlpha = 0.4 + beatPulse * 0.6;
             ctx.shadowColor = `rgba(255, 255, 255, ${bloomAlpha})`;
 
             ctx.beginPath();
-            ctx.moveTo(plotX, plotY + mainH + segGap);
-            ctx.lineTo(plotX + plotW, plotY + mainH + segGap);
+            ctx.moveTo(plotX, reflectBasline - segGap / 1.5); // position exact
+            ctx.lineTo(plotX + plotW, reflectBasline - segGap / 1.5);
             ctx.stroke();
             ctx.restore();
         }
 
-        for (let i = 0; i < activeSegs; i++) {
-            const ry = reflectBasline + i * (segH + segGap);
-            // Stop if reflection overflows the plot area
-            if (ry + segH > plotY + plotH) break;
+        // Draw reflection segments
+        // GPU OPTIMIZATION: Avoid gradients or shadows here. Just hsla alpha.
+        if (activeSegs > 0) {
+            ctx.beginPath();
+            for (let i = 0; i < activeSegs; i++) {
+                const ry = reflectBasline + i * (segH + segGap);
+                if (ry + segH > plotY + plotH) break;
 
-            // Opacity fades out the further down it goes
-            const fade = Math.max(0, 1 - (i / (numSeg * EQ_CONFIG.REFLECTION_RATIO)));
-            if (fade <= 0) break;
+                const fade = Math.max(0, 1 - (i / (numSeg * EQ_CONFIG.REFLECTION_RATIO)));
+                if (fade <= 0) break;
 
-            // Reduced saturation (70%) and slightly darker lightness (45%) for a pure "shadow reflection" look
-            ctx.fillStyle = `hsla(${Math.floor(hue)}, 70%, 45%, ${EQ_CONFIG.REFLECTION_ALPHA * fade})`;
-            ctx.beginPath(); ctx.roundRect(bx, ry, barW, segH, cornerR); ctx.fill();
+                // Since we need different opacities per segment, we can't fully batch a single color, 
+                // but setting fillStyle is cheaper than roundRect + fill loops.
+                ctx.fillStyle = `hsla(${Math.floor(hue)}, 70%, 45%, ${EQ_CONFIG.REFLECTION_ALPHA * fade})`;
+                ctx.beginPath(); ctx.roundRect(bx, ry, barW, segH, cornerR); ctx.fill();
+            }
         }
     } // end for(ch)
 
