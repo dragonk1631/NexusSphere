@@ -130,7 +130,7 @@ export const MAX_PARTICLES = 300;
 export const JUDGMENT_DURATION = 500;
 export const HORIZON_Y_RATIO = 0.0;
 export const BOTTOM_Y_RATIO = 1.0;
-export const HIT_LINE_Y_RATIO = 0.85;
+export const HIT_LINE_Y_RATIO = 0.88;
 
 export const LANE_BORDER = '#444444';
 export const HIT_LINE_GLOW = '#00ffff';

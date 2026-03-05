@@ -33,16 +33,6 @@ let fpsFrameCount = 0;
 let fpsLastTime = performance.now();
 let currentFps = 0;
 
-// === PERFORMANCE PROFILER ===
-let profUpdateTotal = 0;
-let profRenderTotal = 0;
-let profFrameCount = 0;
-let profDroppedFrames = 0;
-let profMaxFrameTime = 0;
-let profLastRafTime = 0;
-let profRafJitterTotal = 0;
-let profLastLogTime = performance.now(); // SEPARATE timer for profiling output
-
 function gameLoop(timestamp: number) {
   // Prevent potential undefined timestamp on first call
   if (!timestamp) timestamp = performance.now();
@@ -68,61 +58,33 @@ function gameLoop(timestamp: number) {
   // Closure capture of loopCounter to detect if a new loop was started
   const currentLoopId = loopCounter;
 
-  // Strict 60 FPS Logic
-  // We want to update AND render exactly 60 times per second.
-  // No variable rendering. This is the "Console Syle" loop.
+  // --- ACCUMULATOR-BASED FIXED STEP LOOP ---
   const INTERVAL = 1000 / 60; // 16.666ms
+  const MAX_ACCUMULATED_TIME = 200; // Panic threshold (200ms)
 
-  const elapsed = timestamp - lastTime;
+  if (!lastTime) lastTime = timestamp;
+  let elapsed = timestamp - lastTime;
 
-  if (elapsed >= INTERVAL) {
-    // --- PROFILING: Measure rAF jitter ---
-    if (profLastRafTime > 0) {
-      const rafDelta = timestamp - profLastRafTime;
-      profRafJitterTotal += Math.abs(rafDelta - INTERVAL);
-      if (rafDelta > 20) profDroppedFrames++; // >20ms = likely dropped
-    }
-    profLastRafTime = timestamp;
+  // Cap elapsed time to prevent "Spiral of Death"
+  if (elapsed > MAX_ACCUMULATED_TIME) {
+    elapsed = INTERVAL; // Force a jump/skip if lag is too extreme
+    lastTime = timestamp - INTERVAL;
+  }
 
-    // Update Logic
-    const t0 = performance.now();
+  // --- CATCH-UP LOGIC ---
+  // If lag occurs, we run multiple update steps but only ONE render step.
+  while (elapsed >= INTERVAL) {
     if (currentGame) {
-      currentGame.update(INTERVAL); // Always pass fixed delta
+      currentGame.update(INTERVAL);
     }
-    const t1 = performance.now();
+    elapsed -= INTERVAL;
+    lastTime += INTERVAL;
+  }
 
-    // Render Logic
-    if (currentGame) {
-      currentGame.render();
-      fpsFrameCount++;
-    }
-    const t2 = performance.now();
-
-    // Accumulate profiling data
-    profUpdateTotal += (t1 - t0);
-    profRenderTotal += (t2 - t1);
-    profMaxFrameTime = Math.max(profMaxFrameTime, t2 - t0);
-    profFrameCount++;
-
-    // --- PROFILING: Log every 2 seconds (using SEPARATE timer) ---
-    if (timestamp - profLastLogTime >= 2000 && profFrameCount > 0) {
-      // Data collection logic remains if needed for other features, 
-      // but console logging is disabled for runtime performance.
-
-      // Reset
-      profUpdateTotal = 0;
-      profRenderTotal = 0;
-      profFrameCount = 0;
-      profDroppedFrames = 0;
-      profMaxFrameTime = 0;
-      profRafJitterTotal = 0;
-      profLastLogTime = timestamp;
-    }
-
-    // Sync Time
-    // Modulo prevents drift, but we clamp to avoid spiral of death
-    const excess = elapsed % INTERVAL;
-    lastTime = timestamp - excess;
+  // --- RENDER ---
+  if (currentGame) {
+    currentGame.render();
+    fpsFrameCount++;
   }
 
   // Loop

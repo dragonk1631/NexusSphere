@@ -210,139 +210,263 @@ export class RenderCache {
         canvas.height = h + padding * 2;
         const ctx = canvas.getContext('2d')!;
 
-        const x = padding;
-        const y = padding;
         const baseColor = colors[1];
         const darkColor = colors[0];
 
         ctx.lineJoin = 'round';
 
+        // Match full lane width for seamless alignment
+        const drawW = w;
+        const drawH = h;
+        const drawX = padding;
+        const drawY = padding;
+
         if (isActive) {
-            // Vibrant Note-Matching Gradient for Active State
-            const activeGrad = ctx.createLinearGradient(x, y, x, y + h);
-            activeGrad.addColorStop(0, '#fff');
-            activeGrad.addColorStop(0.2, baseColor);
-            activeGrad.addColorStop(1, darkColor || baseColor);
-
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 20;
             ctx.shadowColor = baseColor;
-            ctx.fillStyle = activeGrad;
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 3;
+            ctx.globalAlpha = 1.0;
         } else {
-            // High-Quality Idle State: Subtle tinted gradient, glowing outline
-            const r = parseInt(baseColor.slice(1, 3), 16) || 128;
-            const g = parseInt(baseColor.slice(3, 5), 16) || 128;
-            const b = parseInt(baseColor.slice(5, 7), 16) || 128;
-
-            const idleGrad = ctx.createLinearGradient(x, y, x, y + h);
-            // Darker at top, slightly tinted at bottom
-            idleGrad.addColorStop(0, `rgba(${Math.floor(r * 0.1)}, ${Math.floor(g * 0.1)}, ${Math.floor(b * 0.1)}, 0.6)`);
-            idleGrad.addColorStop(0.5, `rgba(${Math.floor(r * 0.2)}, ${Math.floor(g * 0.2)}, ${Math.floor(b * 0.2)}, 0.8)`);
-            idleGrad.addColorStop(1, `rgba(${Math.floor(r * 0.4)}, ${Math.floor(g * 0.4)}, ${Math.floor(b * 0.4)}, 0.95)`);
-
-            // Subtle Glow Effect for Idle
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
-
-            ctx.fillStyle = idleGrad;
-            ctx.strokeStyle = `rgba(${Math.floor(r * 0.8)}, ${Math.floor(g * 0.8)}, ${Math.floor(b * 0.8)}, 1.0)`;
-            ctx.lineWidth = 2.5; // Thicker outline
+            // Idle state: Sophisticated "Glass Frame"
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.globalAlpha = 0.8;
         }
+
+        const strokeColor = isActive ? '#ffffff' : baseColor;
+        const lineWidth = isActive ? 3 : 2;
+        const halfLine = lineWidth / 2;
+
+        // Visual bounds adjustment for pixel-perfect alignment
+        const vX = drawX + halfLine;
+        const vY = drawY + halfLine;
+        const vW = drawW - lineWidth;
+        const vH = drawH - lineWidth;
 
         switch (skinId) {
             case 'cyber-neon':
-                if (!isActive) {
-                    ctx.globalAlpha = 0.4;
-                    ctx.fillRect(x, y, w, h);
-                    ctx.globalAlpha = 1.0;
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.strokeRect(vX, vY, vW, vH);
+                if (isActive) {
+                    const cnGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                    cnGrad.addColorStop(0, darkColor);
+                    cnGrad.addColorStop(1, baseColor);
+                    ctx.fillStyle = cnGrad;
+                    ctx.fillRect(vX, vY, vW, vH);
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.fillRect(vX + vW * 0.2, vY + vH * 0.4, vW * 0.6, vH * 0.2);
                 } else {
-                    ctx.fillRect(x, y, w, h);
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.fillRect(vX, vY, vW, vH);
                 }
-                ctx.strokeRect(x, y, w, h);
                 break;
             case 'retro-blocks':
-                ctx.fillRect(x, y, w, h);
-                ctx.strokeRect(x, y, w, h);
-                break;
-            case 'diamond-stars':
-                ctx.beginPath();
-                ctx.moveTo(x + w / 2, y);
-                ctx.lineTo(x + w, y + h / 2);
-                ctx.lineTo(x + w / 2, y + h);
-                ctx.lineTo(x, y + h / 2);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-                break;
-            case 'minimal-bars':
-                ctx.fillRect(x, y + h * 0.4, w, h * 0.2);
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.strokeRect(vX, vY, vW, vH);
+                if (isActive) {
+                    const rbGrad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + drawH);
+                    rbGrad.addColorStop(0, baseColor);
+                    rbGrad.addColorStop(1, darkColor);
+                    ctx.fillStyle = rbGrad;
+                    ctx.fillRect(drawX + 4, drawY + 4, drawW - 8, drawH - 8);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(drawX + 8, drawY + 8, drawW * 0.3, drawH * 0.3);
+                }
                 break;
             case 'orb-lights':
                 ctx.beginPath();
-                ctx.ellipse(x + w / 2, y + h / 2, Math.min(w, h * 1.5) / 2, h / 2, 0, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.ellipse(vX + vW / 2, vY + vH / 2, Math.min(vW, vH * 1.5) / 2, vH / 2, 0, 0, Math.PI * 2);
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
                 ctx.stroke();
+                if (isActive) {
+                    const orbGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
+                    orbGrad.addColorStop(0, '#fff');
+                    orbGrad.addColorStop(1, baseColor);
+                    ctx.fillStyle = orbGrad;
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.globalAlpha = 0.8;
+                    ctx.beginPath();
+                    ctx.ellipse(vX + vW / 2, vY + vH * 0.3, Math.min(vW, vH * 1.5) * 0.3, vH * 0.15, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.fill();
+                }
+                break;
+            case 'diamond-stars':
+                ctx.beginPath();
+                ctx.moveTo(vX + vW / 2, vY);
+                ctx.lineTo(vX + vW, vY + vH / 2);
+                ctx.lineTo(vX + vW / 2, vY + vH);
+                ctx.lineTo(vX, vY + vH / 2);
+                ctx.closePath();
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.stroke();
+                if (isActive) {
+                    const dsGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                    dsGrad.addColorStop(0, '#fff');
+                    dsGrad.addColorStop(1, darkColor);
+                    ctx.fillStyle = dsGrad;
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.fill();
+                }
+                break;
+            case 'minimal-bars':
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.strokeRect(vX, vY + vH * 0.3, vW, vH * 0.4);
+                if (isActive) {
+                    const mbGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                    mbGrad.addColorStop(0, baseColor);
+                    mbGrad.addColorStop(1, darkColor);
+                    ctx.fillStyle = mbGrad;
+                    ctx.fillRect(vX, vY + vH * 0.3, vW, vH * 0.4);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(vX, vY + vH * 0.4, vW, vH * 0.2);
+                }
+                break;
+            case 'glass-spheres':
+                ctx.beginPath();
+                ctx.roundRect(vX, vY, vW, vH, vH / 2);
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.stroke();
+                if (isActive) {
+                    const gsGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
+                    gsGrad.addColorStop(0, '#fff');
+                    gsGrad.addColorStop(0.3, baseColor);
+                    gsGrad.addColorStop(1, darkColor);
+                    ctx.fillStyle = gsGrad;
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.beginPath();
+                    ctx.roundRect(vX + vW * 0.1, vY + 2, vW * 0.8, vH * 0.3, vH / 4);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.fill();
+                }
+                break;
+            case 'laser-blades':
+                ctx.beginPath();
+                ctx.moveTo(vX + 10, vY + vH / 2);
+                ctx.lineTo(vX + vW / 2, vY + 5);
+                ctx.lineTo(vX + vW - 10, vY + vH / 2);
+                ctx.lineTo(vX + vW / 2, vY + vH - 5);
+                ctx.closePath();
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.stroke();
+                if (isActive) {
+                    const lbGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                    lbGrad.addColorStop(0, baseColor);
+                    lbGrad.addColorStop(1, darkColor);
+                    ctx.fillStyle = lbGrad;
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(vX, vY + vH / 2);
+                    ctx.lineTo(vX + vW, vY + vH / 2);
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.fill();
+                }
                 break;
             case 'hologram':
-                ctx.strokeRect(x, y, w, h);
-                if (!isActive) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                }
-                for (let i = 0; i < h; i += 4) {
-                    ctx.fillRect(x, y + i, w, 2);
-                }
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.strokeRect(vX, vY, vW, vH);
                 if (isActive) {
-                    ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`;
-                    ctx.fillRect(x, y, w, h);
+                    ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.8)`;
+                    for (let i = 0; i < vH; i += 4) {
+                        ctx.fillRect(vX, vY + i, vW, 2);
+                    }
                 }
                 break;
             case 'heart-beats':
                 ctx.beginPath();
-                const rhw = Math.min(w, h * 1.5);
-                const rhx = x + w / 2;
-                const rhl = rhx - rhw / 2, rhr = rhx + rhw / 2;
-                ctx.moveTo(rhx, y + h * 0.3);
-                ctx.bezierCurveTo(rhx, y - h * 0.1, rhl, y - h * 0.1, rhl, y + h * 0.4);
-                ctx.bezierCurveTo(rhl, y + h * 0.8, rhx, y + h * 0.9, rhx, y + h);
-                ctx.bezierCurveTo(rhx, y + h * 0.9, rhr, y + h * 0.8, rhr, y + h * 0.4);
-                ctx.bezierCurveTo(rhr, y - h * 0.1, rhx, y - h * 0.1, rhx, y + h * 0.3);
-                ctx.fill();
+                const hw = Math.min(vW, vH * 1.5);
+                const hx = vX + vW / 2;
+                const hl = hx - hw / 2, hr = hx + hw / 2;
+                ctx.moveTo(hx, vY + vH * 0.3);
+                ctx.bezierCurveTo(hx, vY - vH * 0.1, hl, vY - vH * 0.1, hl, vY + vH * 0.4);
+                ctx.bezierCurveTo(hl, vY + vH * 0.8, hx, vY + vH * 0.9, hx, vY + vH);
+                ctx.bezierCurveTo(hx, vY + vH * 0.9, hr, vY + vH * 0.8, hr, vY + vH * 0.4);
+                ctx.bezierCurveTo(hr, vY - vH * 0.1, hx, vY - vH * 0.1, hx, vY + vH * 0.3);
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
                 ctx.stroke();
+                if (isActive) {
+                    const hbGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
+                    hbGrad.addColorStop(0, '#fff');
+                    hbGrad.addColorStop(1, darkColor);
+                    ctx.fillStyle = hbGrad;
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.beginPath();
+                    ctx.ellipse(vX + vW * 0.3, vY + vH * 0.3, vW * 0.1, vH * 0.1, Math.PI / 4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.fill();
+                }
                 break;
-            case 'laser-blades':
-                ctx.beginPath();
-                ctx.moveTo(x + 10, y + h / 2);
-                ctx.lineTo(x + w / 2, y + 5);
-                ctx.lineTo(x + w - 10, y + h / 2);
-                ctx.lineTo(x + w / 2, y + h - 5);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(x, y + h / 2);
-                ctx.lineTo(x + w, y + h / 2);
-                ctx.stroke();
-                break;
-            case 'glass-spheres':
             case 'classic-gel':
             default:
                 ctx.beginPath();
-                ctx.roundRect(x, y, w, h, h / 3);
-                ctx.fill();
+                ctx.roundRect(vX, vY, vW, vH, vH / 3);
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
                 ctx.stroke();
-                if (!isActive) {
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                    ctx.lineWidth = 1;
+
+                if (isActive) {
+                    const cgBaseGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                    cgBaseGrad.addColorStop(0, baseColor);
+                    cgBaseGrad.addColorStop(1, darkColor);
+
+                    ctx.fillStyle = cgBaseGrad;
                     ctx.beginPath();
-                    ctx.roundRect(x + 4, y + 4, w - 8, h - 8, h / 3);
-                    ctx.stroke();
+                    ctx.roundRect(vX + 2, vY + 2, vW - 4, vH - 4, vH / 3);
+                    ctx.fill();
+
+                    ctx.fillStyle = cgBaseGrad;
+                    ctx.beginPath();
+                    ctx.roundRect(vX, vY, vW, vH, vH / 3);
+                    ctx.fill();
+
+                    const innerGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH / 2);
+                    innerGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
+                    innerGrad.addColorStop(1, 'rgba(255,255,255,0.1)');
+                    ctx.fillStyle = innerGrad;
+                    ctx.beginPath();
+                    ctx.roundRect(vX + 2, vY + 2, vW - 4, vH / 2 - 2, vH / 3);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+                    ctx.beginPath();
+                    ctx.ellipse(vX + vW / 2, vY + vH * 0.3, vW * 0.4, vH * 0.15, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.beginPath();
+                    ctx.roundRect(vX, vY, vW, vH, vH / 3);
+                    ctx.fill();
                 }
                 break;
         }
 
+        ctx.globalAlpha = 1.0;
         return canvas;
     }
+
 
     public createLongNoteBody(colors: string[], skinId: string): HTMLCanvasElement {
         const w = 64;

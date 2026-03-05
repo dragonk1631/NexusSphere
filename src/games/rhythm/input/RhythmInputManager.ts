@@ -82,7 +82,7 @@ export class RhythmInputManager {
                     this.keyState[lane] = true;
                     this.handler.onLanePress(lane, e.timeStamp);
                 }
-            } else if (state === GameState.MENU) {
+            } else if (state === GameState.MENU || state === GameState.PAUSED) {
                 this.handler.onMenuKey(code);
             } else if (state === GameState.GAMEOVER) {
                 this.handler.onGameOverKey(code);
@@ -117,6 +117,9 @@ export class RhythmInputManager {
                         this.pointerLanes.set(id, lane);
                         this.keyState[lane] = true;
                         this.handler.onLanePress(lane, performance.now());
+                    } else {
+                        // HUD Interaction during gameplay (e.g., Pause Button)
+                        this.handler.onMenuPointerDown(x, y);
                     }
                 } else if (type === 'move') {
                     const oldLane = this.pointerLanes.get(id) ?? -1;
@@ -139,7 +142,7 @@ export class RhythmInputManager {
                     }
                     this.pointerLanes.delete(id);
                 }
-            } else if (state === GameState.MENU) {
+            } else if (state === GameState.MENU || state === GameState.PAUSED) {
                 if (type === 'down') this.handler.onMenuPointerDown(x, y);
                 else if (type === 'move') this.handler.onMenuPointerMove(x, y);
                 else if (type === 'up') this.handler.onMenuPointerUp(x, y);

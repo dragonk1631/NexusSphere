@@ -132,7 +132,7 @@ export class GameplayManager {
      * Handles audio synchronization and time tracking.
      */
     public syncTime(judgmentLatency: number, lastRenderTime: number): number {
-        let currentTime = 100;
+        let currentTime = 0;
 
         if (this.shouldStartAudio()) {
             this.audioEngine.seek(this.targetStartTime);
@@ -140,9 +140,8 @@ export class GameplayManager {
             const actualStartTime = this.audioEngine.currentTime;
             this.audioEngine.startPreciseTime(actualStartTime);
             this.isAudioStarted = true;
-            currentTime = -judgmentLatency; // Reset sequence time to 0 (-latency)
+            currentTime = -judgmentLatency;
         } else if (this.preGameTimer > 0) {
-            // Count down from negative preGameTimer towards 0
             currentTime = -this.preGameTimer - judgmentLatency;
         } else if (!this.isAudioStarted) {
             this.audioEngine.seek(0);
@@ -150,11 +149,17 @@ export class GameplayManager {
             const actualStartTime = this.audioEngine.currentTime;
             this.audioEngine.startPreciseTime(actualStartTime);
             this.isAudioStarted = true;
-            currentTime = -judgmentLatency; // Reset sequence time to 0 (-latency)
+            currentTime = -judgmentLatency;
         } else {
             currentTime = (this.audioEngine.getPreciseTime() * 1000) - judgmentLatency;
-            if (currentTime < lastRenderTime - 5) {
-                currentTime = lastRenderTime;
+
+            // LAG GATING: If audio clock jumps too much (>100ms), 
+            // nudge it back to prevent visual teleportation.
+            const drift = currentTime - lastRenderTime;
+            if (drift > 100) {
+                currentTime = lastRenderTime + 33; // Limited "jump"
+            } else if (currentTime < lastRenderTime) {
+                currentTime = lastRenderTime; // Monotonicity
             }
         }
         return currentTime;

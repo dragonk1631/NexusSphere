@@ -16,7 +16,8 @@ export interface PerspectiveConfig {
 export function getPerspectiveX(laneIndex: number, y: number, config: PerspectiveConfig): number {
     const t = (y - config.horizonY) / (config.bottomY - config.horizonY);
     const laneWidthAtY = config.laneTopWidth + (config.laneBottomWidth - config.laneTopWidth) * t;
-    const startX = (config.width - (laneWidthAtY * config.laneCount)) / 2;
+    const totalWidthAtY = laneWidthAtY * config.laneCount;
+    const startX = Math.floor((config.width - totalWidthAtY) / 2);
     return startX + (laneIndex * laneWidthAtY);
 }
 

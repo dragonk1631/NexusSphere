@@ -3,7 +3,6 @@ import { ThemeManager } from '../../../core/ThemeManager';
 import {
     HUD_PALETTES,
     HUD_BG,
-    TEXT_GLOW,
     JUDGMENT_DURATION
 } from '../constants/GameConstants';
 import type { IThemeStrategy } from '../themes/IThemeStrategy';
@@ -20,10 +19,9 @@ export class HUDRenderer {
     private cachedThemeId: string | null = null;
     private cachedHudPalette: typeof HUD_PALETTES[string] | null = null;
     private hpGradient: CanvasGradient | null = null;
-    private scoreGradient: CanvasGradient | null = null;
     private comboGradient: CanvasGradient | null = null;
 
-    public onResize(ctx: CanvasRenderingContext2D, width: number, _height: number): void {
+    public onResize(ctx: CanvasRenderingContext2D, _width: number, _height: number): void {
         const theme = ThemeManager.getInstance().getCurrentTheme();
         const pal = HUD_PALETTES[theme.id] || HUD_PALETTES['deep-space'];
 
@@ -33,12 +31,6 @@ export class HUDRenderer {
         hpGrad.addColorStop(0.5, pal.hpBarMid);
         hpGrad.addColorStop(1, pal.hpBarEnd);
         this.hpGradient = hpGrad;
-
-        // Score Panel Gradient
-        const scoreGrad = ctx.createLinearGradient(width - 400, 0, width - 10, 0);
-        scoreGrad.addColorStop(0, pal.scoreFill);
-        scoreGrad.addColorStop(1, pal.scoreGlow);
-        this.scoreGradient = scoreGrad;
 
         // Combo Gradient
         const comboGrad = ctx.createLinearGradient(0, -36, 0, 36);
@@ -112,6 +104,26 @@ export class HUDRenderer {
         ctx.lineTo(state.width, panelBotY);
         ctx.fill();
         ctx.stroke();
+
+        // Pause Button Area (Square below score panel)
+        const pauseBtnSize = 50;
+        const pauseBtnX = state.width - 65;
+        const pauseBtnY = 100;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.strokeStyle = pal.scorePanel;
+        ctx.beginPath();
+        ctx.roundRect(pauseBtnX, pauseBtnY, pauseBtnSize, pauseBtnSize, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        // Pause Icon (Two vertical bars)
+        ctx.fillStyle = '#ffffff';
+        const barW = 6;
+        const barH = 20;
+        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 - 8, pauseBtnY + pauseBtnSize / 2 - 10, barW, barH);
+        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 + 2, pauseBtnY + pauseBtnSize / 2 - 10, barW, barH);
+
         ctx.restore();
     }
 
@@ -166,29 +178,39 @@ export class HUDRenderer {
 
         ctx.save();
         ctx.textAlign = 'left';
-        ctx.shadowBlur = 6;
+        ctx.textBaseline = 'top';
+        ctx.shadowBlur = 4;
         ctx.shadowColor = pal.labelShadow;
         ctx.fillStyle = pal.labelFill;
-        ctx.font = 'italic bold 20px "Orbitron"';
-        ctx.fillText("HP", 10, panelBotY + 8);
+        ctx.font = 'bold 12px "Orbitron"';
+        ctx.letterSpacing = '2px';
+        ctx.fillText("HP SYSTEM", 10, panelTopY + 2);
         ctx.restore();
     }
 
     private renderScore(ctx: CanvasRenderingContext2D, state: HUDRenderState, pal: any, score: number): void {
+        const panelTopY = 10;
         ctx.save();
-        ctx.textAlign = 'right';
-        ctx.shadowBlur = 4;
-        ctx.shadowColor = TEXT_GLOW;
-        ctx.fillStyle = this.scoreGradient || pal.scoreFill;
-        ctx.font = 'italic bold 32px "Orbitron"';
-        ctx.fillText(score.toLocaleString(), state.width - 20, 40);
-        ctx.shadowBlur = 0;
 
-        ctx.font = 'italic bold 20px "Orbitron"';
-        ctx.fillStyle = pal.labelFill;
-        ctx.shadowBlur = 6;
+        // 1. Value
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = pal.scoreGlow;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'italic bold 44px "Orbitron"';
+        ctx.fillText(score.toLocaleString(), state.width - 20, 48);
+
+        // 2. Label
+        ctx.shadowBlur = 4;
         ctx.shadowColor = pal.labelShadow;
-        ctx.fillText("SCORE", state.width - 10, 78);
+        ctx.fillStyle = pal.labelFill;
+        ctx.font = 'bold 12px "Orbitron"';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.letterSpacing = '2px';
+        ctx.fillText("TOTAL SCORE", state.width - 20, panelTopY + 2);
+
         ctx.restore();
     }
 

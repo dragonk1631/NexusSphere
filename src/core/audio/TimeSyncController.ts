@@ -1,83 +1,77 @@
 import { AudioEngineLogger } from './AudioEngineLogger';
+import { SmoothClock } from './SmoothClock';
 
 /**
  * TimeSyncController: Encapsulates the Dual-Clock precise timing logic.
- * Handles primary clock (AudioContext) and fallback clock (performance.now).
+ * v3.0: Uses SmoothClock (PLL) for jitter-free mobile performance.
  */
 export class TimeSyncController {
     private ctx: AudioContext;
-    private anchorCtxTime: number = 0;
-    private anchorPerfTime: number = 0;
+    private smoothClock: SmoothClock;
     private pausedTime: number = 0;
-    private lastReported: number = 0;
     private isPlaying: boolean = false;
 
     constructor(ctx: AudioContext) {
         this.ctx = ctx;
+        this.smoothClock = new SmoothClock();
     }
 
     public start(offset: number = 0) {
-        this.anchorCtxTime = this.ctx.currentTime;
-        this.anchorPerfTime = performance.now();
         this.pausedTime = offset;
-        this.lastReported = offset;
+        const anchor = this.ctx.state === 'running' ? this.ctx.currentTime : 0;
+        this.smoothClock.start(offset, anchor);
         this.isPlaying = true;
-        AudioEngineLogger.info(`TimeSync started at ${offset.toFixed(3)}s`);
+        AudioEngineLogger.info(`TimeSync started at ${offset.toFixed(3)}s (anchor: ${anchor.toFixed(3)})`);
     }
 
     public pause(playbackRate: number = 1) {
         if (!this.isPlaying) return;
-        this.pausedTime = this.calculateCurrentTime(playbackRate);
+        this.pausedTime = this.getPreciseTime(playbackRate);
+        this.smoothClock.stop();
         this.isPlaying = false;
         AudioEngineLogger.info(`TimeSync paused at ${this.pausedTime.toFixed(3)}s`);
     }
 
     public resume() {
         if (this.isPlaying) return;
-        this.anchorCtxTime = this.ctx.currentTime;
-        this.anchorPerfTime = performance.now();
-        this.lastReported = this.pausedTime;
+        const anchor = this.ctx.state === 'running' ? this.ctx.currentTime : 0;
+        this.smoothClock.start(this.pausedTime, anchor);
         this.isPlaying = true;
-        AudioEngineLogger.info(`TimeSync resumed at ${this.pausedTime.toFixed(3)}s`);
+        AudioEngineLogger.info(`TimeSync resumed at ${this.pausedTime.toFixed(3)}s (anchor: ${anchor.toFixed(3)})`);
     }
 
     public seek(time: number) {
         this.pausedTime = time;
-        this.anchorCtxTime = this.ctx.currentTime;
-        this.anchorPerfTime = performance.now();
-        this.lastReported = time;
+        const anchor = this.ctx.state === 'running' ? this.ctx.currentTime : 0;
+        this.smoothClock.seek(time);
+        // We also need to re-anchor on seek
+        this.smoothClock.start(time, anchor);
     }
 
     public reset() {
         this.isPlaying = false;
-        this.anchorCtxTime = 0;
-        this.anchorPerfTime = 0;
         this.pausedTime = 0;
-        this.lastReported = 0;
+        this.smoothClock.stop();
+        this.smoothClock.seek(0);
         AudioEngineLogger.info('TimeSync state reset to 0');
     }
 
     public getPreciseTime(playbackRate: number = 1): number {
         if (!this.isPlaying) return this.pausedTime;
-        const time = this.calculateCurrentTime(playbackRate);
 
-        // Safety guard against time reversal
-        if (time < this.lastReported - 0.001) {
-            return this.lastReported;
-        }
+        this.smoothClock.setPlaybackRate(playbackRate);
 
-        this.lastReported = time;
-        return time;
+        // Use AudioContext.currentTime as the anchor for the SmoothClock update
+        // On mobile, this will be steppy, but SmoothClock will interpolate it smoothly.
+        return this.smoothClock.update(this.calculateRawTime(playbackRate));
     }
 
-    private calculateCurrentTime(playbackRate: number): number {
+    private calculateRawTime(_playbackRate: number): number {
+        // This is the "noisy" anchor time
         if (this.ctx.state === 'running') {
-            const elapsed = (this.ctx.currentTime - this.anchorCtxTime) * playbackRate;
-            return this.pausedTime + elapsed;
+            return this.ctx.currentTime;
         } else {
-            // Fallback for suspended context
-            const elapsed = (performance.now() - this.anchorPerfTime) / 1000;
-            return this.pausedTime + (elapsed * playbackRate);
+            return this.pausedTime;
         }
     }
 
