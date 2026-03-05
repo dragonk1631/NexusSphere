@@ -1,31 +1,42 @@
-/**
- * Core Audio Engine - SpessaSynth 기반 고품질 MIDI 재생기
- */
+import { ScreenUtils } from '../utils/ScreenUtils';
+import { AudioEngineLogger, LogLevel } from './AudioEngineLogger';
+import { AudioMixer } from './AudioMixer';
+import { TimeSyncController } from './TimeSyncController';
+import type { ISynth, ISequencer } from './AudioTypes';
 
-// @ts-ignore: SpessaSynth does not have official types yet
 const SPESSA_LIB_URL = 'https://esm.sh/spessasynth_lib@4.0.20';
 const PROCESSOR_URL = 'https://esm.sh/spessasynth_lib@4.0.20/dist/spessasynth_processor.min.js';
 
-import { ScreenUtils } from '../utils/ScreenUtils';
-
+/**
+ * Core Audio Engine 2.0 - Encapsulated MIDI Engine
+ * v2.0 Architecture: Modular Facade with Type-Safe SpessaSynth integration.
+ */
 export class CoreAudioEngine {
     private static instance: CoreAudioEngine;
+
+    // Core Modules
     private ctx: AudioContext;
-    private synth: any = null;
-    private sequencer: any = null;
+    private mixer: AudioMixer;
+    private timer: TimeSyncController;
+
+    // Library Components
+    private synth: ISynth | null = null;
+    private sequencer: ISequencer | null = null;
+
+    // Internal State
     private isReady: boolean = false;
     private isSoundFontLoaded: boolean = false;
-    private isResuming: boolean = false;
-    private initPromise: Promise<void> | null = null;
+    private initializing: Promise<void> | null = null;
 
     private constructor() {
-        // Optimization: Use 'balanced' for stutter-free audio on all platforms
-        // 'interactive' is too aggressive and causes buffer underruns (noise) on constrained systems.
-        // The engine handles jitter via delta clamping and precise time anchoring.
         this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
-            latencyHint: 'balanced' // Changed from 'interactive' to reduce noise/stutter
+            latencyHint: 'balanced'
         });
-        console.log(`[CoreAudioEngine] Context initialized with 'balanced' latency hint.`);
+        this.mixer = new AudioMixer(this.ctx);
+        this.timer = new TimeSyncController(this.ctx);
+
+        AudioEngineLogger.setLevel(LogLevel.INFO);
+        AudioEngineLogger.info("Engine Core initialized with 'balanced' latency.");
     }
 
     public static getInstance(): CoreAudioEngine {
@@ -35,168 +46,134 @@ export class CoreAudioEngine {
         return CoreAudioEngine.instance;
     }
 
+    /**
+     * Initializes the engine and loads the SoundFont.
+     */
     public async init(soundFontUrl: string): Promise<void> {
-        if (this.initPromise) return this.initPromise;
+        if (this.initializing) return this.initializing;
 
-        this.initPromise = (async () => {
+        this.initializing = (async () => {
             if (this.isReady) return;
 
             try {
-                // @ts-ignore
+                // Dynamic Load SpessaSynth
                 const { WorkletSynthesizer, Sequencer } = await import(SPESSA_LIB_URL);
                 await this.ctx.audioWorklet.addModule(PROCESSOR_URL);
 
                 const isMobile = ScreenUtils.isMobile();
                 if (isMobile) {
-                    console.log(`[CoreAudioEngine] Mobile detected. Disabling Reverb and Chorus to prevent CPU starvation.`);
+                    AudioEngineLogger.info("Mobile optimization active: Reverb/Chorus disabled, polyphony capped.");
                 }
 
+                // Instantiate Synth
                 this.synth = new WorkletSynthesizer(this.ctx, {
                     reverbEnabled: !isMobile,
                     chorusEnabled: !isMobile,
-                    voicesAmount: isMobile ? 100 : 400, // Hard-cap polyphony on mobile to prevent CPU stalling
-                    interpolationType: 'linear',  // Keep linear for core instrument quality
+                    voicesAmount: isMobile ? 100 : 400,
+                    interpolationType: 'linear',
                     sampleRate: this.ctx.sampleRate
-                });
+                }) as ISynth;
 
-                // Phase 3: EQ Filter Chain (Low, Mid, High)
-                this.setupEQChain();
+                // Connect Synth to Mixer
+                this.mixer.connectSource(this.synth as any);
 
                 await this.synth.isReady;
 
+                // Load SoundFont
                 try {
                     const sfRes = await fetch(soundFontUrl);
                     if (!sfRes.ok) throw new Error(`HTTP ${sfRes.status}`);
 
                     const sfData = await sfRes.arrayBuffer();
 
-                    // RIFF 헤더 검증 (Vite 404.html 반환 방지)
+                    // Validate RIFF
                     const header = new TextDecoder().decode(new Uint8Array(sfData.slice(0, 4)));
-                    if (header.toLowerCase() !== 'riff') {
-                        throw new Error("Invalid SoundFont header (Expected RIFF)");
-                    }
+                    if (header.toLowerCase() !== 'riff') throw new Error("Invalid SoundFont header");
 
                     await this.synth.soundBankManager.addSoundBank(sfData);
-                    this.sequencer = new Sequencer(this.synth);
+                    this.sequencer = new Sequencer(this.synth) as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = true;
-                    console.log("[CoreAudioEngine] Ready with SoundFont");
+                    AudioEngineLogger.info("Engine Ready with SoundFont");
                 } catch (sfError) {
-                    console.warn(`[CoreAudioEngine] SoundFont loading failed: ${sfError}. Running in silent mode.`);
-                    this.sequencer = new Sequencer(this.synth);
+                    AudioEngineLogger.warn(`SoundFont load failed: ${sfError}. Running in silent mode.`);
+                    this.sequencer = new Sequencer(this.synth) as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = false;
                 }
             } catch (e) {
-                console.error("[CoreAudioEngine] Critical Init failed:", e);
-                if (!window.isSecureContext) {
-                    const errorMsg = "[CoreAudioEngine] This is a non-secure context (HTTP). AudioWorklets REQUIRE HTTPS or localhost to function on mobile.";
-                    console.error(errorMsg);
-                    throw new Error(errorMsg);
-                }
+                AudioEngineLogger.error("Critical Engine Init failed:", e);
                 throw e;
             }
         })();
 
-        return this.initPromise;
+        return this.initializing;
     }
 
     /**
-     * Ensures that the engine is fully initialized (SoundFont loaded, Sequencer created)
-     * before proceeding with audio operations.
+     * Precise initialization guard using the initPromise directly. (GC Friendly)
      */
     public async ensureReady(): Promise<void> {
-        if (this.initPromise) {
-            await this.initPromise;
-        } else if (!this.isReady) {
-            // If init() hasn't even been called, we might need to wait or throw.
-            // In our architecture, RhythmGame always calls init() at start.
-            console.warn("[CoreAudioEngine] ensureReady called before init(). Waiting...");
-            // Polling fallback just in case
-            while (!this.isReady) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-        }
+        if (this.initializing) return this.initializing;
+        if (!this.isReady) throw new Error("Audio Engine must be initialized first.");
     }
 
+    /**
+     * Loads a MIDI binary and prepares the sequencer.
+     */
     public async loadMidi(buffer: ArrayBuffer): Promise<void> {
         await this.ensureReady();
 
-        // CRITICAL: Re-create Sequencer for every song load.
-        // This prevents state contamination (Tempo, TimeSig, or "Song End" flag) 
-        // from previous sessions that could cause audio to cut off prematurely.
+        // Safe cleanup of legacy sequencer
         if (this.sequencer) {
             try { this.sequencer.pause(); } catch (e) { }
-            // SpessaSynth Sequencers might have 'stop()' or just 'pause()' 
-            // We ensure it's not holding references before we orphan it.
         }
 
-        // @ts-ignore
         const { Sequencer } = await import(SPESSA_LIB_URL);
-        this.sequencer = new Sequencer(this.synth);
-        this.resetTimeState(); // Clear any stale lastReportedTime or anchors
+        this.sequencer = new Sequencer(this.synth) as ISequencer;
+        this.timer.reset();
 
-        // Add Diagnostic Listeners (Help investigate "Audio Cutoff" issue)
-        const eventHandler = this.sequencer.eventHandler;
-
-        eventHandler.addEvent("songEnded", "rhythm-game-song-end", () => {
-            console.warn(`[CoreAudioEngine] Sequencer songEnded event triggered at ${this.currentTime.toFixed(2)}s / ${this.duration.toFixed(2)}s`);
-        });
-
-        // Track Meta Events near the cutoff (e.g. Marker, Text)
-        eventHandler.addEvent("metaEvent", "rhythm-game-meta-diagnostic", (event: any) => {
-            // Log only markers or potential "End of Track" events if they appear early
-            if (event.type === 0x06 || event.type === 0x01 || event.type === 0x2F) {
-                console.log(`[CoreAudioEngine] MIDI Meta: type=${event.type.toString(16)}, time=${this.currentTime.toFixed(2)}s`);
-            }
+        // Add Diagnostics
+        this.sequencer.eventHandler.addEvent("songEnded", "engine-song-end", () => {
+            AudioEngineLogger.info(`Song ended at ${this.currentTime.toFixed(2)}s`);
         });
 
         await this.sequencer.loadNewSongList([{ binary: buffer }]);
-
-        // CRITICAL: Ensure sequencer doesn't auto-play and starts at 0
         this.sequencer.pause();
         this.sequencer.currentTime = 0;
-        this.setPreciseTime(0);
+        this.timer.seek(0);
 
-        console.log(`[CoreAudioEngine] Fresh Sequencer created and MIDI Loaded. Duration: ${this.duration.toFixed(2)}s`);
+        AudioEngineLogger.info(`MIDI Loaded. Duration: ${this.duration.toFixed(2)}s`);
     }
 
     public async play(): Promise<void> {
         if (!this.isSoundFontLoaded) return;
 
-        // Mobile-First: Context MUST already be unlocked before play() is called.
-        // If suspended, log error but don't defer — the caller is responsible for
-        // calling resume() in a user gesture handler BEFORE calling play().
         if (this.ctx.state === 'suspended') {
-            console.error(`[CoreAudioEngine] play() called while context is suspended! Call resume() in a touch handler first.`);
-            // Attempt resume as a last resort, but this may fail outside user gesture
-            try { await this.ctx.resume(); } catch (e) { /* ignore */ }
+            AudioEngineLogger.warn("Attempting play while context is suspended. Make sure to resume() on user gesture.");
+            try { await this.ctx.resume(); } catch (e) { }
         }
 
-        this.resumePreciseTime();
+        this.timer.resume();
         this.sequencer?.play();
-        console.log(`[CoreAudioEngine] Playback started. Time: ${this.currentTime.toFixed(3)}s`);
     }
 
     public pause(): void {
-        this.pausePreciseTime();
+        this.timer.pause(this.sequencer?.playbackRate || 1);
         this.sequencer?.pause();
     }
 
     public stop(): void {
         if (this.sequencer) {
-            this.pausePreciseTime();
+            this.timer.pause();
             this.sequencer.pause();
             this.sequencer.currentTime = 0;
             this.stopAllNotes();
-            this.setPreciseTime(0);
-            console.log("[CoreAudioEngine] Sequencer stopped and fully reset to 0.");
+            this.timer.seek(0);
+            AudioEngineLogger.info("Playback stopped and reset.");
         }
     }
 
-    /**
-     * 모든 채널의 소리를 즉시 차단합니다. (MIDI Panic)
-     */
     public stopAllNotes(): void {
         if (!this.synth || !this.isReady) return;
         for (let i = 0; i < 16; i++) {
@@ -204,449 +181,147 @@ export class CoreAudioEngine {
         }
     }
 
-    /**
-     * 특정 채널의 소리를 즉시 차단합니다.
-     * @param channel 0-15
-     */
     public stopChannelNotes(channel: number): void {
-        if (!this.synth || !this.isReady) return;
-        this.synth.controllerChange(channel, 120, 0); // All Sound Off
-        this.synth.controllerChange(channel, 123, 0); // All Notes Off
+        if (this.synth) {
+            this.synth.controllerChange(channel, 120, 0); // All Sound Off
+            this.synth.controllerChange(channel, 123, 0); // All Notes Off
+        }
     }
 
     public seek(time: number): void {
         if (this.sequencer) {
             this.sequencer.currentTime = time;
-            this.setPreciseTime(time);
+            this.timer.seek(time);
         }
     }
 
-    /**
-     * 재생 속도(BPM 배속)를 설정합니다.
-     * @param rate 1.0이 기본 속도
-     */
     public setPlaybackRate(rate: number): void {
         if (this.sequencer) {
             this.sequencer.playbackRate = rate;
         }
     }
 
-    /**
-     * 실시간 음표 재생 (키음 용도)
-     */
+    /* -------------------------------------------
+       Synth Interaction
+       ------------------------------------------- */
+
     public triggerNoteOn(channel: number, pitch: number, velocity: number = 100): void {
-        if (!this.synth || !this.isReady || !this.isSoundFontLoaded) return;
-        this.synth.noteOn(channel, pitch, Math.max(30, velocity));
+        if (this.synth && this.isReady && this.isSoundFontLoaded) {
+            this.synth.noteOn(channel, pitch, Math.max(30, velocity));
+        }
     }
 
     public triggerNoteOff(channel: number, pitch: number): void {
-        if (!this.synth || !this.isReady) return;
-        this.synth.noteOff(channel, pitch);
+        if (this.synth) this.synth.noteOff(channel, pitch);
     }
 
     /* -------------------------------------------
-       Channel & Track Control
+       Mixer & Channel Management
        ------------------------------------------- */
 
-    /**
-     * 특정 MIDI 채널의 볼륨(CC 7)을 제어합니다.
-     * @param channel 0-15
-     * @param volume 0-127
-     */
     public setChannelVolume(channel: number, volume: number): void {
-        if (!this.synth || !this.isReady) return;
-        // CC 7 (Volume) 설정
-        this.synth.controllerChange(channel, 7, volume);
-
-        // 소리가 완전히 꺼져야 하는 경우(Volume 0) 즉시 차단
-        if (volume === 0) {
-            this.synth.controllerChange(channel, 120, 0); // All Sound Off
-            this.synth.controllerChange(channel, 123, 0); // All Notes Off
+        if (this.synth) {
+            this.synth.controllerChange(channel, 7, volume);
+            if (volume === 0) this.stopChannelNotes(channel);
         }
     }
 
-    /**
-     * 경량화된 볼륨 강제 설정 (매 프레임 호출용)
-     * MIDI Panic(CC 120/123)을 호출하지 않고 오직 트랙 볼륨(CC 7)만 덮어씌웁니다.
-     */
     public overrideChannelVolume(channel: number, volume: number): void {
-        if (!this.synth || !this.isReady) return;
-        this.synth.controllerChange(channel, 7, volume);
+        if (this.synth) this.synth.controllerChange(channel, 7, volume);
     }
 
-    /**
-     * 시퀀서 레벨에서 채널을 완전 차단하거나 해제합니다.
-     * MIDI 볼륨(CC 7) 이벤트에 영향을 받지 않는 가장 강력한 차단 방식입니다.
-     */
     public setChannelMute(channel: number, mute: boolean): void {
-        if (!this.sequencer) return;
-
-        // 1. Try Synth-level mute (strongest, blocks audio generation)
-        if (this.synth && typeof this.synth.setChannelMute === 'function') {
+        if (this.synth?.setChannelMute) {
             this.synth.setChannelMute(channel, mute);
-        }
-
-        // 2. Try Sequencer-level mute (blocks event sending)
-        if (typeof this.sequencer.muteChannel === 'function') {
+        } else if (this.sequencer?.muteChannel) {
             this.sequencer.muteChannel(channel, mute);
         } else {
-            // 3. Fallback: CC 7 Volume 0 if muteChannel is unavailable
             this.setChannelVolume(channel, mute ? 0 : 100);
         }
     }
 
-    /**
-     * 특정 트랙 인덱스의 재생을 차단하거나 해제합니다.
-     * 동일 채널을 공유하는 트랙들 사이에서 개별 트랙을 격리할 때 사용합니다.
-     */
     public setTrackMute(trackIndex: number, mute: boolean): void {
-        if (!this.sequencer) return;
-
         const tracks = this.getSequencerTracks();
-        if (tracks && tracks[trackIndex]) {
-            const track = tracks[trackIndex];
-
-            // 1. 시퀀서 레벨 트랙 차단 (신규 이벤트 발생 방지)
+        const track = tracks[trackIndex];
+        if (track) {
             track.userMute = mute;
             track.disabled = mute;
-            track.enabled = !mute;
-
-            // 2. 신속한 정적 확보를 위한 미디 패닉
-            if (mute) {
-                this.stopChannelNotes(track.channel);
-            }
-
-            // 3. 채널 공유 상태 체크: 만약 해당 채널을 쓰는 모든 트랙이 뮤트 상태라면 채널 자체를 뮤트
+            if (mute) this.stopChannelNotes(track.channel);
             this.updateChannelMuteState(track.channel);
-
-            console.log(`[CoreAudioEngine] ${mute ? 'MUTED' : 'UNMUTED'} Track ${trackIndex}: Ch ${track.channel}`);
         }
     }
 
-    /**
-     * 특정 채널을 사용하는 모든 트랙의 상태를 확인하여 채널 뮤트 여부를 결정합니다.
-     */
     private updateChannelMuteState(channel: number): void {
-        if (!this.sequencer || !this.synth) return;
         const tracks = this.getSequencerTracks();
-
-        // 해당 채널을 사용하는 모든 활성 트랙 검색
         const channelTracks = tracks.filter((t: any) => t.channel === channel);
         const allMuted = channelTracks.every((t: any) => t.userMute || t.disabled);
-
-        // 신디사이저 레벨에서 해당 채널 차단 (가장 강력함)
-        if (this.synth && typeof this.synth.setChannelMute === 'function') {
-            this.synth.setChannelMute(channel, allMuted);
-        } else {
-            this.setChannelMute(channel, allMuted); // Re-use robust method
-        }
+        this.setChannelMute(channel, allMuted);
     }
 
-
-    /**
-     * 특정 트랙의 MIDI 채널을 동적으로 재할당합니다. (채널 샌드박싱용)
-     */
-    public reassignTrackChannel(trackIndex: number, newChannel: number): void {
-        if (!this.sequencer) return;
-        const tracks = this.sequencer.tracks || (this.sequencer.song && this.sequencer.song.tracks);
-        if (tracks && tracks[trackIndex]) {
-            const track = tracks[trackIndex];
-            const oldChannel = track.channel;
-            track.channel = newChannel;
-            console.log(`[CoreAudioEngine] Reassigned Track ${trackIndex} (${track.name}): Ch ${oldChannel} -> Ch ${newChannel}`);
-        }
-    }
-
-    /**
-     * 시퀀서의 트랙 리스트를 반환합니다. (정밀 매핑용)
-     */
     public getSequencerTracks(): any[] {
-        return this.sequencer?.tracks || (this.sequencer?.song && this.sequencer?.song.tracks) || [];
+        return this.sequencer?.tracks || this.sequencer?.song?.tracks || [];
     }
 
-    /**
-     * 시퀀서에 로드된 MIDI 파일의 트랙 수를 반환합니다.
-     */
-    public get midiTrackCount(): number {
-        const tracks = this.sequencer?.tracks || this.sequencer?.song?.tracks;
-        return tracks?.length || 0;
-    }
-
-    /**
-     * 모든 채널의 볼륨을 설정합니다.
-     */
     public setMasterVolume(volume: number): void {
-        if (!this.synth || !this.isReady) return;
-        for (let i = 0; i < 16; i++) {
-            this.setChannelVolume(i, volume);
-        }
+        this.mixer.setMasterVolume(volume);
     }
 
-    /**
-     * 특정 채널을 솔로로 설정합니다. (다른 채널 음소거)
-     */
-    public soloChannel(channel: number): void {
-        if (!this.synth || !this.isReady) return;
-
-        for (let i = 0; i < 16; i++) {
-            if (i === channel) {
-                this.setChannelVolume(i, 100);
-            } else {
-                this.setChannelVolume(i, 0);
-            }
-        }
-    }
-
-    /**
-     * 솔로를 해제하고 모든 채널의 볼륨을 복구합니다. (단순화: 모두 100으로 복구)
-     * TODO: 이전 볼륨 상태 저장/복구 로직 필요
-     */
-    public unsoloChannel(): void {
-        if (!this.synth || !this.isReady) return;
-        for (let i = 0; i < 16; i++) {
-            this.setChannelVolume(i, 100);
-        }
-    }
-
-    private lowFilter: BiquadFilterNode | null = null;
-    private midFilter: BiquadFilterNode | null = null;
-    private highFilter: BiquadFilterNode | null = null;
-
-    private setupEQChain(): void {
-        if (!this.synth) return;
-
-        this.lowFilter = this.ctx.createBiquadFilter();
-        this.lowFilter.type = 'lowshelf';
-        this.lowFilter.frequency.value = 200;
-
-        this.midFilter = this.ctx.createBiquadFilter();
-        this.midFilter.type = 'peaking';
-        this.midFilter.frequency.value = 1000;
-        this.midFilter.Q.value = 1.0;
-
-        this.highFilter = this.ctx.createBiquadFilter();
-        this.highFilter.type = 'highshelf';
-        this.highFilter.frequency.value = 5000;
-
-        // Chain: Synth -> Low -> Mid -> High -> Out
-        this.synth.connect(this.lowFilter);
-        this.lowFilter.connect(this.midFilter);
-        this.midFilter.connect(this.highFilter);
-        this.highFilter.connect(this.ctx.destination);
-    }
-
-    /**
-     * EQ 게인 조절 (dB)
-     * @param type 'low' | 'mid' | 'high'
-     * @param gain -12 ~ 12 dB
-     */
     public setEQ(type: 'low' | 'mid' | 'high', gain: number): void {
-        const filter = type === 'low' ? this.lowFilter : type === 'mid' ? this.midFilter : this.highFilter;
-        if (filter) {
-            filter.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.1);
-        }
+        this.mixer.setEQ(type, gain);
     }
 
-    /**
-     * 리버브 깊이 조절 (0.0 ~ 1.0)
-     */
     public setReverbDepth(depth: number): void {
         if (this.synth) this.synth.reverbGain = depth;
     }
 
-    /**
-     * 코러스 깊이 조절 (0.0 ~ 1.0)
-     */
     public setChorusDepth(depth: number): void {
         if (this.synth) this.synth.chorusGain = depth;
     }
 
-    public getAudioContext(): AudioContext {
-        return this.ctx;
-    }
+    /* -------------------------------------------
+       Timing & Sync (Delegated to TimeSyncController)
+       ------------------------------------------- */
 
-
-    // --- Dual-Clock Precise Time System ---
-    // PRIMARY:  AudioContext.currentTime — hardware-synced, no drift, most accurate
-    // FALLBACK: performance.now() — used only when AudioContext is suspended/interrupted
-    //
-    // AudioContext.currentTime is anchored at play() and never drifts from the audio.
-    // This guarantees perfect long-term sync between notes and sound.
-    private audioContextAnchor: number = 0;  // ctx.currentTime at play() (seconds)
-    private audioStartedAt: number = 0;       // performance.now() at play() (ms)
-    private precisePausedTime: number = 0;    // accumulated time at last pause (seconds)
-    private isPrecisePlaying: boolean = false;
-    private lastReportedTime: number = 0;     // jitter guard / last returned value
-
-    /**
-     * Resume the AudioContext. MUST be called from a user gesture handler (touch/click).
-     * This is the ONLY way to unlock audio on mobile browsers.
-     */
     public async resume(): Promise<void> {
         if (this.ctx.state === 'running') return;
-        if (this.isResuming) return;
-
-        this.isResuming = true;
-        console.log(`[CoreAudioEngine] Attempting to resume AudioContext (state: ${this.ctx.state})...`);
-
-        try {
-            await this.ctx.resume();
-            console.log(`[CoreAudioEngine] Audio Context Resumed! (state: ${this.ctx.state})`);
-        } catch (e) {
-            console.error("[CoreAudioEngine] Resume Failed:", e);
-        } finally {
-            this.isResuming = false;
-        }
+        AudioEngineLogger.info("Attempting to resume AudioContext...");
+        await this.ctx.resume();
     }
 
-    /**
-     * Returns true if the AudioContext is in 'running' state (unlocked for playback).
-     */
-    public isAudioUnlocked(): boolean {
-        return this.ctx.state === 'running';
+    public isAudioUnlocked(): boolean { return this.ctx.state === 'running'; }
+    public isPlaying(): boolean { return this.timer.getIsPlaying(); }
+    public get currentTime(): number { return this.sequencer?.currentTime || 0; }
+    public get duration(): number { return this.sequencer?.duration || 0; }
+
+    public getPreciseTime(): number {
+        return this.timer.getPreciseTime(this.sequencer?.playbackRate || 1);
     }
 
-    public isPlaying(): boolean {
-        return this.isPrecisePlaying;
-    }
-
-    public get currentTime(): number {
-        return this.sequencer?.currentTime || 0;
-    }
-
-    public get duration(): number {
-        return this.sequencer?.duration || 0;
-    }
-
-    // --- High-Precision Time Sync ---
-
-    public startPreciseTime(startOffset: number = 0): void {
-        // DUAL-CLOCK ANCHOR:
-        // Record BOTH AudioContext.currentTime and performance.now() at the same instant.
-        // AudioContext.currentTime is hardware-synced and never drifts from audio playback.
-        // performance.now() is used as fallback when AudioContext is suspended.
-        this.audioContextAnchor = this.ctx.currentTime;  // primary clock anchor
-        this.audioStartedAt = performance.now();           // fallback clock anchor
-        this.precisePausedTime = startOffset;
-        this.lastReportedTime = startOffset;
-        this.isPrecisePlaying = true;
-        console.log(`[CoreAudioEngine] DualClock started. Offset: ${startOffset.toFixed(3)}s, AudioCtx: ${this.audioContextAnchor.toFixed(3)}s, Latency: ${(this.getOutputLatency() * 1000).toFixed(1)}ms`);
+    public startPreciseTime(offset: number = 0): void {
+        this.timer.start(offset);
     }
 
     public pausePreciseTime(): void {
-        if (this.isPrecisePlaying) {
-            // Snapshot current elapsed time using the most accurate available clock
-            if (this.ctx.state === 'running') {
-                const playbackRate = this.sequencer?.playbackRate || 1;
-                const audioElapsed = (this.ctx.currentTime - this.audioContextAnchor) * playbackRate;
-                this.precisePausedTime = this.precisePausedTime + audioElapsed;
-            } else {
-                const elapsed = (performance.now() - this.audioStartedAt) / 1000;
-                this.precisePausedTime = this.precisePausedTime + elapsed * (this.sequencer?.playbackRate || 1);
-            }
-            this.isPrecisePlaying = false;
-        }
+        this.timer.pause(this.sequencer?.playbackRate || 1);
     }
 
     public resumePreciseTime(): void {
-        if (!this.isPrecisePlaying) {
-            // Re-anchor both clocks at the same instant
-            this.audioContextAnchor = this.ctx.currentTime;
-            this.audioStartedAt = performance.now();
-            this.lastReportedTime = this.precisePausedTime;
-            this.isPrecisePlaying = true;
-        }
+        this.timer.resume();
     }
 
     public setPreciseTime(time: number): void {
-        this.precisePausedTime = time;
-        this.audioContextAnchor = this.ctx.currentTime;
-        this.audioStartedAt = performance.now();
-        this.lastReportedTime = time;
+        this.timer.seek(time);
     }
 
-    /**
-     * Returns the current game playback time in seconds.
-     *
-     * DUAL-CLOCK STRATEGY:
-     * 1. PRIMARY: AudioContext.currentTime — hardware-synced, zero drift from audio
-     *    Used when ctx.state === 'running'. This is the most accurate source.
-     *    Formula: startOffset + (ctx.currentTime - audioContextAnchor) * playbackRate
-     *
-     * 2. FALLBACK: performance.now() — used when AudioContext is suspended/interrupted
-     *    (e.g. tab backgrounded, screen locked, audio interrupted on mobile)
-     *    Has a jump guard to prevent MISS storms after long interruptions.
-     */
-    public getPreciseTime(): number {
-        if (!this.isPrecisePlaying) {
-            return this.precisePausedTime;
-        }
-
-        const playbackRate = this.sequencer?.playbackRate || 1;
-
-        // --- PRIMARY CLOCK: AudioContext.currentTime ---
-        // AudioContext.currentTime is driven by the audio hardware clock.
-        // It is perfectly synchronized with what the user hears — no drift possible.
-        if (this.ctx.state === 'running') {
-            const audioElapsed = (this.ctx.currentTime - this.audioContextAnchor) * playbackRate;
-            const gameTime = this.precisePausedTime + audioElapsed;
-
-            // Prevent time reversal (AudioContext should never go backwards, but safety first)
-            if (gameTime < this.lastReportedTime - 0.001) {
-                return this.lastReportedTime;
-            }
-
-            this.lastReportedTime = gameTime;
-            return gameTime;
-        }
-
-        // --- FALLBACK CLOCK: performance.now() ---
-        // AudioContext is suspended (tab background, screen lock, mobile interruption).
-        // Use performance.now() to keep the game clock advancing.
-        const elapsed = (performance.now() - this.audioStartedAt) / 1000;
-        const gameTime = this.precisePausedTime + elapsed * playbackRate;
-
-        // Jump Guard Removed (Fix #1)
-        // Allow the game to snap to true time (even if large jump) after a lag spike.
-        // The game logic handles 'miss storms' via a frame-based miss limit.
-        // Blocking the jump here permanently breaks sync with audio.
-
-        this.lastReportedTime = gameTime;
-        return gameTime;
-    }
-
-    /**
-     * Returns the total audio output latency in seconds.
-     * This is the delay between when audio data is sent and when the user hears it.
-     * Used to calibrate note judgment timing so that visual and audio are perceptually aligned.
-     *
-     * baseLatency:   Fixed processing latency of the AudioContext pipeline.
-     * outputLatency: Variable hardware latency (speaker/headphone buffer).
-     *
-     * Typical values:
-     *   PC Chrome:    10–30ms
-     *   Mobile Chrome: 50–150ms
-     *   iOS Safari:   20–80ms
-     */
     public getOutputLatency(): number {
         const base = this.ctx.baseLatency || 0;
         const output = (this.ctx as any).outputLatency || 0;
-        return base + output;  // seconds
+        return base + output;
     }
 
-    /**
-     * Resets all precise-time state to zero.
-     * MUST be called before starting a new game session when the engine is already initialized (isReady=true).
-     * Without this, the previous game's lastReportedTime leaks into the new session,
-     * causing getPreciseTime() to return stale values (e.g. 45s from editor playback)
-     * which makes all notes appear as MISS immediately.
-     */
     public resetTimeState(): void {
-        this.isPrecisePlaying = false;
-        this.audioContextAnchor = 0;
-        this.audioStartedAt = 0;
-        this.precisePausedTime = 0;
-        this.lastReportedTime = 0;
-        console.log('[CoreAudioEngine] Time state reset to 0.');
+        this.timer.reset();
     }
+
+    public getAudioContext(): AudioContext { return this.ctx; }
 }

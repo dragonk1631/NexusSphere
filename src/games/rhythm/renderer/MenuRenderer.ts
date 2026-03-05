@@ -13,6 +13,7 @@ import { SongInfoPanelRenderer } from './components/SongInfoPanelRenderer';
 import { OptionsPanelRenderer } from './components/OptionsPanelRenderer';
 import { SongListRenderer } from './components/SongListRenderer';
 import { ControlsRenderer } from './components/ControlsRenderer';
+import { MidiEQRenderer } from './MidiEQRenderer';
 
 /**
  * MenuRenderer handles the song selection screen.
@@ -27,6 +28,7 @@ export class MenuRenderer {
     private optionsRenderer = new OptionsPanelRenderer();
     private songListRenderer = new SongListRenderer();
     private controlsRenderer = new ControlsRenderer();
+    private midiEQRenderer = new MidiEQRenderer();
 
     constructor(scoreManager: ScoreManager) {
         this.scoreManager = scoreManager;
@@ -64,7 +66,7 @@ export class MenuRenderer {
                 // Keep backward compatibility injection if needed
                 (state as any).scoreManager = this.scoreManager;
             }
-            this.songInfoRenderer.render(ctx, layout, state, currentSong, sf, c1, c2, state.songList[state.selectedSongIndex].bpm || 120);
+            this.songInfoRenderer.render(ctx, layout, state, currentSong, sf, c1, c2, state.songList[state.selectedSongIndex].bpm || 120, this.midiEQRenderer);
         }
 
         this.optionsRenderer.render(ctx, layout, state, sf, c1, c2);

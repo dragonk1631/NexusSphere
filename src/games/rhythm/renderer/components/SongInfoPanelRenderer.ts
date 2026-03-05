@@ -1,14 +1,14 @@
 import { type MenuLayoutResult } from '../MenuLayout';
 import { type MenuRenderState, type SongEntry } from '../../types/GameTypes';
 import { MENU_LAYOUT } from '../MenuLayoutConfig';
-import { drawMidiChannelEQ } from '../UIUtils';
+import { MidiEQRenderer } from '../MidiEQRenderer';
 import {
     drawPremiumPanel,
     drawPremiumTypography
 } from '../MenuUIUtils';
 
 export class SongInfoPanelRenderer {
-    public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, currentSong: SongEntry, sf: number, c1: string, c2: string, bpm: number) {
+    public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, currentSong: SongEntry, sf: number, c1: string, c2: string, bpm: number, eqRenderer: MidiEQRenderer) {
         const { visPanelY, leftPanelWidth, visPanelH, padding } = layout;
 
         drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf);
@@ -31,13 +31,13 @@ export class SongInfoPanelRenderer {
 
         ctx.save();
         ctx.translate(cx - (leftPanelWidth - 24 * sf) / 2, eqAreaY);
-        drawMidiChannelEQ(
+
+        // Use the new encapsulated renderer
+        eqRenderer.update(state.previewMidi ?? null, state.previewTime ?? 0);
+        eqRenderer.render(
             ctx,
             0, 0, leftPanelWidth - 24 * sf, eqAreaH,
-            state.previewMidi ?? null,
-            state.previewTime ?? 0,
-            c1, c2, sf,
-            state.songList[state.selectedSongIndex]?.bpm ?? 120
+            sf, c1, bpm, state.previewTime ?? 0
         );
         ctx.restore();
 
