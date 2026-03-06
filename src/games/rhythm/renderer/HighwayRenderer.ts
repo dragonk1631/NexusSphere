@@ -4,6 +4,7 @@ import type { VisualNote } from '../NoteFactory';
 import { RhythmInputManager } from '../input/RhythmInputManager';
 import type { IThemeStrategy } from '../themes/IThemeStrategy';
 import { JudgmentSystem } from '../systems/JudgmentSystem';
+import { LANE_COLORS } from '../constants/GameConstants';
 import * as PerspectiveUtils from './PerspectiveUtils';
 import * as UIUtils from './UIUtils';
 
@@ -91,7 +92,7 @@ export class HighwayRenderer {
 
     private buildPerspectiveCache(state: HighwayRenderState): void {
         const steps = this.perspectiveWidthCache.length;
-        const h = state.hitLineY - state.horizonY;
+        const h = state.bottomY - state.horizonY;
 
         for (let i = 0; i < steps; i++) {
             const y = state.horizonY + (i / (steps - 1)) * h;
@@ -104,14 +105,14 @@ export class HighwayRenderer {
 
     private getCachedWidth(y: number, state: HighwayRenderState): number {
         const steps = this.perspectiveWidthCache.length;
-        const normalizedY = ((y - state.horizonY) / (state.hitLineY - state.horizonY)) * (steps - 1);
+        const normalizedY = ((y - state.horizonY) / (state.bottomY - state.horizonY)) * (steps - 1);
         const idx = Math.max(0, Math.min(steps - 1, Math.floor(normalizedY)));
         return this.perspectiveWidthCache[idx];
     }
 
     private getCachedX(lane: number, y: number, state: HighwayRenderState): number {
         const steps = this.perspectiveWidthCache.length;
-        const normalizedY = ((y - state.horizonY) / (state.hitLineY - state.horizonY)) * (steps - 1);
+        const normalizedY = ((y - state.horizonY) / (state.bottomY - state.horizonY)) * (steps - 1);
         const idx = Math.max(0, Math.min(steps - 1, Math.floor(normalizedY)));
         return this.perspectiveXCache[lane][idx];
     }
@@ -334,19 +335,45 @@ export class HighwayRenderer {
                 const paddingRatioY = receptorImg.height / 50;
 
                 // Removed the -4 inset to perfectly match the lane boundaries
-                const drawW = Math.round(laneW * paddingRatioX);
-                const drawH = Math.round(hitH * paddingRatioY);
+                const drawW = laneW * paddingRatioX;
+                const drawH = hitH * paddingRatioY;
 
-                // Round coordinates to prevent blurring and ensure pixel-perfect alignment
-                const drawX = Math.round(laneX + laneW / 2 - drawW / 2);
-                const drawY = Math.round(state.hitLineY - drawH / 2);
+                // Use precise coordinates from PerspectiveUtils
+                const drawX = laneX + laneW / 2 - drawW / 2;
+                const drawY = state.hitLineY - drawH / 2;
 
                 const isLocked = state.keyMode === 4 && (i === 0 || i === 5);
+
                 ctx.save();
                 if (isLocked) {
                     ctx.globalAlpha = HIGHWAY_CONFIG.RECEPTOR_LOCKED_ALPHA;
                     ctx.filter = 'grayscale(100%) brightness(50%)';
+                } else {
+                    // --- Improved Ground Light Effect ---
+                    // Draw a soft glow beneath the receptor to anchor it to the lane
+                    const laneHueColor = LANE_COLORS[i % LANE_COLORS.length][1];
+                    const r = parseInt(laneHueColor.substring(1, 3), 16);
+                    const g = parseInt(laneHueColor.substring(3, 5), 16);
+                    const b = parseInt(laneHueColor.substring(5, 7), 16);
+
+                    const groundGrad = ctx.createRadialGradient(
+                        laneX + laneW / 2, state.hitLineY, 0,
+                        laneX + laneW / 2, state.hitLineY, laneW * 1.5
+                    );
+
+                    const glowAlpha = isActive ? 0.6 : 0.2;
+                    groundGrad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${glowAlpha})`);
+                    groundGrad.addColorStop(1, 'rgba(0,0,0,0)');
+
+                    ctx.fillStyle = groundGrad;
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'screen';
+                    ctx.beginPath();
+                    ctx.ellipse(laneX + laneW / 2, state.hitLineY, laneW * 0.9, hitH * 0.6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
                 }
+
                 ctx.drawImage(receptorImg, drawX, drawY, drawW, drawH);
                 ctx.restore();
             }

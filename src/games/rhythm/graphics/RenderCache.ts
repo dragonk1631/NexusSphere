@@ -157,7 +157,10 @@ export class RenderCache {
             case 'heart-beats':
                 ctx.fillStyle = baseColor;
                 ctx.beginPath();
-                const hw = Math.min(w, h * 1.5);
+                // Increase width to better fill the 100px lane. 
+                // Previous Math.min(w, h * 1.5) was ~75px. 
+                // Let's use 90% of the core width (w=100) -> 90px.
+                const hw = w * 0.9;
                 const hx = x + w / 2;
                 const hl = hx - hw / 2, hr = hx + hw / 2;
                 ctx.moveTo(hx, y + h * 0.3);
@@ -247,6 +250,12 @@ export class RenderCache {
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.strokeRect(vX, vY, vW, vH);
+
+                // Add subtle inner pulse/glow even when idle
+                const cnInnerAlpha = isActive ? 0.3 : 0.15;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${cnInnerAlpha})`;
+                ctx.fillRect(vX, vY, vW, vH);
+
                 if (isActive) {
                     const cnGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
                     cnGrad.addColorStop(0, darkColor);
@@ -256,14 +265,21 @@ export class RenderCache {
                     ctx.fillStyle = 'rgba(255,255,255,0.9)';
                     ctx.fillRect(vX + vW * 0.2, vY + vH * 0.4, vW * 0.6, vH * 0.2);
                 } else {
+                    // Glass highlight for cyber look
                     ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                    ctx.fillRect(vX, vY, vW, vH);
+                    ctx.fillRect(vX, vY, vW, vH * 0.4);
                 }
                 break;
             case 'retro-blocks':
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.strokeRect(vX, vY, vW, vH);
+
+                // Inner "TV Screen" fill
+                const rbFillAlpha = isActive ? 0.4 : 0.2;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(darkColor)}, ${rbFillAlpha})`;
+                ctx.fillRect(vX + 2, vY + 2, vW - 4, vH - 4);
+
                 if (isActive) {
                     const rbGrad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + drawH);
                     rbGrad.addColorStop(0, baseColor);
@@ -280,19 +296,33 @@ export class RenderCache {
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
+
+                // Soft radial fill
+                const orbFillAlpha = isActive ? 0.6 : 0.25;
+                const orbFillGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH / 2);
+                orbFillGrad.addColorStop(0, `rgba(${this.hexToRgbaParams(baseColor)}, ${orbFillAlpha})`);
+                orbFillGrad.addColorStop(1, `rgba(${this.hexToRgbaParams(darkColor)}, 0.1)`);
+                ctx.fillStyle = orbFillGrad;
+                ctx.fill();
+
                 if (isActive) {
                     const orbGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
                     orbGrad.addColorStop(0, '#fff');
                     orbGrad.addColorStop(1, baseColor);
                     ctx.fillStyle = orbGrad;
                     ctx.fill();
+
+                    // Strong reflection for active state
                     ctx.fillStyle = '#fff';
                     ctx.globalAlpha = 0.8;
                     ctx.beginPath();
                     ctx.ellipse(vX + vW / 2, vY + vH * 0.3, Math.min(vW, vH * 1.5) * 0.3, vH * 0.15, 0, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    // Subtle glass highlight
+                    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                    ctx.beginPath();
+                    ctx.ellipse(vX + vW / 2, vY + vH * 0.25, vW * 0.2, vH * 0.1, 0, 0, Math.PI * 2);
                     ctx.fill();
                 }
                 break;
@@ -306,14 +336,35 @@ export class RenderCache {
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
+
+                // Faint inner fill
+                const dsFillAlpha = isActive ? 0.5 : 0.2;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${dsFillAlpha})`;
+                ctx.fill();
+
                 if (isActive) {
                     const dsGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
                     dsGrad.addColorStop(0, '#fff');
                     dsGrad.addColorStop(1, darkColor);
                     ctx.fillStyle = dsGrad;
                     ctx.fill();
+
+                    // Center star highlight
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.moveTo(vX + vW / 2, vY + vH * 0.3);
+                    ctx.lineTo(vX + vW * 0.7, vY + vH / 2);
+                    ctx.lineTo(vX + vW / 2, vY + vH * 0.7);
+                    ctx.lineTo(vX + vW * 0.3, vY + vH / 2);
+                    ctx.fill();
                 } else {
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    // Small glimmer highlight
+                    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                    ctx.beginPath();
+                    ctx.moveTo(vX + vW / 2, vY + 4);
+                    ctx.lineTo(vX + vW / 2 + 10, vY + 14);
+                    ctx.lineTo(vX + vW / 2, vY + 10);
+                    ctx.lineTo(vX + vW / 2 - 10, vY + 14);
                     ctx.fill();
                 }
                 break;
@@ -321,14 +372,24 @@ export class RenderCache {
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.strokeRect(vX, vY + vH * 0.3, vW, vH * 0.4);
+
+                // Horizontal glow effect
+                const mbFillAlpha = isActive ? 0.6 : 0.2;
+                const mbGrad = ctx.createLinearGradient(vX, 0, vX + vW, 0);
+                mbGrad.addColorStop(0, 'rgba(255,255,255,0)');
+                mbGrad.addColorStop(0.5, `rgba(${this.hexToRgbaParams(baseColor)}, ${mbFillAlpha})`);
+                mbGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = mbGrad;
+                ctx.fillRect(vX, vY + vH * 0.3, vW, vH * 0.4);
+
                 if (isActive) {
-                    const mbGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
-                    mbGrad.addColorStop(0, baseColor);
-                    mbGrad.addColorStop(1, darkColor);
-                    ctx.fillStyle = mbGrad;
-                    ctx.fillRect(vX, vY + vH * 0.3, vW, vH * 0.4);
+                    const mbActiveGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                    mbActiveGrad.addColorStop(0, baseColor);
+                    mbActiveGrad.addColorStop(1, darkColor);
+                    ctx.fillStyle = mbActiveGrad;
+                    ctx.fillRect(vX, vY + vH * 0.35, vW, vH * 0.3);
                     ctx.fillStyle = '#fff';
-                    ctx.fillRect(vX, vY + vH * 0.4, vW, vH * 0.2);
+                    ctx.fillRect(vX, vY + vH * 0.45, vW, vH * 0.1);
                 }
                 break;
             case 'glass-spheres':
@@ -337,6 +398,15 @@ export class RenderCache {
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
+
+                // Advanced glass fill
+                const gsFillAlpha = isActive ? 0.6 : 0.25;
+                const gsGradFill = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                gsGradFill.addColorStop(0, `rgba(255, 255, 255, ${gsFillAlpha})`);
+                gsGradFill.addColorStop(1, `rgba(${this.hexToRgbaParams(baseColor)}, 0.1)`);
+                ctx.fillStyle = gsGradFill;
+                ctx.fill();
+
                 if (isActive) {
                     const gsGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
                     gsGrad.addColorStop(0, '#fff');
@@ -344,13 +414,17 @@ export class RenderCache {
                     gsGrad.addColorStop(1, darkColor);
                     ctx.fillStyle = gsGrad;
                     ctx.fill();
+
+                    // Polished highlight
                     ctx.fillStyle = 'rgba(255,255,255,0.8)';
                     ctx.beginPath();
-                    ctx.roundRect(vX + vW * 0.1, vY + 2, vW * 0.8, vH * 0.3, vH / 4);
+                    ctx.roundRect(vX + vW * 0.1, vY + 4, vW * 0.8, vH * 0.3, vH / 4);
                     ctx.fill();
                 } else {
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                    ctx.fill();
+                    // Subtle glass edge highlight
+                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
                 }
                 break;
             case 'laser-blades':
@@ -363,12 +437,20 @@ export class RenderCache {
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
+
+                // Faint energy core
+                const lbInnerAlpha = isActive ? 0.4 : 0.15;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${lbInnerAlpha})`;
+                ctx.fill();
+
                 if (isActive) {
                     const lbGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
                     lbGrad.addColorStop(0, baseColor);
                     lbGrad.addColorStop(1, darkColor);
                     ctx.fillStyle = lbGrad;
                     ctx.fill();
+
+                    // Razor sharp highlight
                     ctx.strokeStyle = '#fff';
                     ctx.lineWidth = 4;
                     ctx.beginPath();
@@ -376,24 +458,41 @@ export class RenderCache {
                     ctx.lineTo(vX + vW, vY + vH / 2);
                     ctx.stroke();
                 } else {
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                    ctx.fill();
+                    // Pulsing line in core (center)
+                    ctx.strokeStyle = `rgba(255, 255, 255, 0.3)`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(vX + 15, vY + vH / 2);
+                    ctx.lineTo(vX + vW - 15, vY + vH / 2);
+                    ctx.stroke();
                 }
                 break;
             case 'hologram':
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.strokeRect(vX, vY, vW, vH);
+
+                // Holographic scanlines
+                const holoAlpha = isActive ? 0.6 : 0.25;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${holoAlpha})`;
+                for (let i = 0; i < vH; i += 4) {
+                    ctx.fillRect(vX, vY + i, vW, 1.5);
+                }
+
                 if (isActive) {
-                    ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.8)`;
-                    for (let i = 0; i < vH; i += 4) {
-                        ctx.fillRect(vX, vY + i, vW, 2);
-                    }
+                    // Bright flickering fill
+                    ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`;
+                    ctx.fillRect(vX, vY, vW, vH);
+
+                    // Highlight scanline
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fillRect(vX, vY + (Math.sin(performance.now() / 100) + 1) * vH / 2, vW, 3);
                 }
                 break;
             case 'heart-beats':
                 ctx.beginPath();
-                const hw = Math.min(vW, vH * 1.5);
+                // Increase width to match note (90px)
+                const hw = vW * 0.9;
                 const hx = vX + vW / 2;
                 const hl = hx - hw / 2, hr = hx + hw / 2;
                 ctx.moveTo(hx, vY + vH * 0.3);
@@ -404,18 +503,32 @@ export class RenderCache {
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
+
+                // Soft heart fill (Glazing effect)
+                const hbFillAlpha = isActive ? 0.7 : 0.25;
+                const hbFillGrad = ctx.createLinearGradient(hx, vY, hx, vY + vH);
+                hbFillGrad.addColorStop(0, `rgba(${this.hexToRgbaParams(baseColor)}, ${hbFillAlpha})`);
+                hbFillGrad.addColorStop(1, `rgba(${this.hexToRgbaParams(darkColor)}, ${hbFillAlpha * 0.5})`);
+                ctx.fillStyle = hbFillGrad;
+                ctx.fill();
+
                 if (isActive) {
                     const hbGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
                     hbGrad.addColorStop(0, '#fff');
                     hbGrad.addColorStop(1, darkColor);
                     ctx.fillStyle = hbGrad;
                     ctx.fill();
-                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+
+                    // Vivid highlight
+                    ctx.fillStyle = 'rgba(255,255,255,0.85)';
                     ctx.beginPath();
-                    ctx.ellipse(vX + vW * 0.3, vY + vH * 0.3, vW * 0.1, vH * 0.1, Math.PI / 4, 0, Math.PI * 2);
+                    ctx.ellipse(vX + vW * 0.3, vY + vH * 0.3, vW * 0.13, vH * 0.13, Math.PI / 4, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    // Glass highlight (Reflection)
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(vX + vW * 0.3, vY + vH * 0.3, vW * 0.08, vH * 0.08, Math.PI / 4, 0, Math.PI * 2);
                     ctx.fill();
                 }
                 break;
@@ -427,37 +540,37 @@ export class RenderCache {
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
 
-                if (isActive) {
-                    const cgBaseGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
-                    cgBaseGrad.addColorStop(0, baseColor);
-                    cgBaseGrad.addColorStop(1, darkColor);
+                // Inner glazing
+                const cgFillAlpha = isActive ? 0.7 : 0.3;
+                const cgFillGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                cgFillGrad.addColorStop(0, `rgba(${this.hexToRgbaParams(baseColor)}, ${cgFillAlpha})`);
+                cgFillGrad.addColorStop(1, `rgba(${this.hexToRgbaParams(darkColor)}, ${cgFillAlpha * 0.5})`);
+                ctx.fillStyle = cgFillGrad;
+                ctx.fill();
 
-                    ctx.fillStyle = cgBaseGrad;
+                if (isActive) {
+                    const cgActiveGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
+                    cgActiveGrad.addColorStop(0, '#fff');
+                    cgActiveGrad.addColorStop(0.5, baseColor);
+                    cgActiveGrad.addColorStop(1, darkColor);
+
+                    ctx.fillStyle = cgActiveGrad;
                     ctx.beginPath();
                     ctx.roundRect(vX + 2, vY + 2, vW - 4, vH - 4, vH / 3);
                     ctx.fill();
 
-                    ctx.fillStyle = cgBaseGrad;
-                    ctx.beginPath();
-                    ctx.roundRect(vX, vY, vW, vH, vH / 3);
-                    ctx.fill();
-
-                    const innerGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH / 2);
-                    innerGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
-                    innerGrad.addColorStop(1, 'rgba(255,255,255,0.1)');
-                    ctx.fillStyle = innerGrad;
+                    const innerActiveGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH / 2);
+                    innerActiveGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
+                    innerActiveGrad.addColorStop(1, 'rgba(255,255,255,0.1)');
+                    ctx.fillStyle = innerActiveGrad;
                     ctx.beginPath();
                     ctx.roundRect(vX + 2, vY + 2, vW - 4, vH / 2 - 2, vH / 3);
                     ctx.fill();
-
-                    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-                    ctx.beginPath();
-                    ctx.ellipse(vX + vW / 2, vY + vH * 0.3, vW * 0.4, vH * 0.15, 0, 0, Math.PI * 2);
-                    ctx.fill();
                 } else {
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    // Subtle glossy highlight
+                    ctx.fillStyle = 'rgba(255,255,255,0.2)';
                     ctx.beginPath();
-                    ctx.roundRect(vX, vY, vW, vH, vH / 3);
+                    ctx.ellipse(vX + vW / 2, vY + vH * 0.25, vW * 0.35, vH * 0.1, 0, 0, Math.PI * 2);
                     ctx.fill();
                 }
                 break;

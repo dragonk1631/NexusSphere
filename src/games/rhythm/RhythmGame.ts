@@ -70,7 +70,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private horizonY = 0;
     private bottomY = 0;
     private hitLineY = 0;
-    private laneBottomWidth = 100;
+    private laneBottomWidth = 120;
     private laneTopWidth = 10;
     private laneCount = 6;
     private scrollSpeed = 1.0;
