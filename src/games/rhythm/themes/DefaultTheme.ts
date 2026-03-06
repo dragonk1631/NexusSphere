@@ -6,15 +6,7 @@ import type { IThemeStrategy } from './IThemeStrategy';
 export class DefaultTheme implements IThemeStrategy {
     public readonly id = 'default';
 
-    public renderBackground(ctx: CanvasRenderingContext2D, width: number, _height: number, horizonY: number, bottomY: number): void {
-        const roadGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        roadGrad.addColorStop(0, 'rgba(0, 10, 30, 0.95)');
-        roadGrad.addColorStop(0.5, 'rgba(10, 30, 80, 0.9)');
-        roadGrad.addColorStop(1, 'rgba(0, 50, 120, 0.95)');
 
-        ctx.fillStyle = roadGrad;
-        ctx.fillRect(0, horizonY, width, bottomY - horizonY);
-    }
 
 
     public renderHitZonePulse(ctx: CanvasRenderingContext2D, _lane: number, x: number, y: number, width: number, beatPhase: number): void {

@@ -10,7 +10,8 @@ export const GameState = {
     PLAYING: 1,
     RESULT: 2,
     GAMEOVER: 3,
-    PAUSED: 4
+    PAUSED: 4,
+    LOADING: 5
 } as const;
 export type GameState = typeof GameState[keyof typeof GameState];
 

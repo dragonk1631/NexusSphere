@@ -6,26 +6,7 @@ import type { IThemeStrategy } from './IThemeStrategy';
 export class VaporwaveTheme implements IThemeStrategy {
     public readonly id = 'vaporwave';
 
-    public renderBackground(ctx: CanvasRenderingContext2D, width: number, _height: number, horizonY: number, bottomY: number): void {
-        // Purple to Pink gradient
-        const bgGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        bgGrad.addColorStop(0, '#2e004f');
-        bgGrad.addColorStop(1, '#ff0080');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, horizonY, width, bottomY - horizonY);
 
-        // Retro sun (partial)
-        const sunX = width / 2;
-        const sunY = horizonY + 50;
-        const sunR = 100;
-        const sunGrad = ctx.createLinearGradient(0, sunY - sunR, 0, sunY + sunR);
-        sunGrad.addColorStop(0, '#ffcc00');
-        sunGrad.addColorStop(1, '#ff0066');
-        ctx.fillStyle = sunGrad;
-        ctx.beginPath();
-        ctx.arc(sunX, sunY, sunR, Math.PI, 0); // Semi circle
-        ctx.fill();
-    }
 
 
 

@@ -1,3 +1,5 @@
+
+
 /**
  * Interface for theme strategies.
  * Allows adding new visual themes without modifying the core renderer logic.
@@ -5,10 +7,7 @@
 export interface IThemeStrategy {
     id: string;
 
-    /**
-     * Renders the background for the highway.
-     */
-    renderBackground(ctx: CanvasRenderingContext2D, width: number, height: number, horizonY: number, bottomY: number): void;
+
 
     /**
      * Optional: Renders judgment text. If not provided, HUDRenderer uses default logic.

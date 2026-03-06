@@ -47,6 +47,23 @@ export class RenderCache {
         this.particleGlow = this.createGlowParticle();
     }
 
+    /**
+     * Pre-warms the render cache for a specific configuration.
+     * Triggers canvas allocations and initial draws to avoid on-the-fly jank.
+     */
+    public async warmup(width: number, height: number, horizonY: number, bottomY: number, laneCount: number, getPerspectiveX: (l: number, y: number) => number, color1: string, color2: string, hitLineY: number): Promise<void> {
+        return new Promise((resolve) => {
+            // Force recreation of the highway background to warm up GPU textures
+            this.renderHighwayBackground(width, height, horizonY, bottomY, laneCount, getPerspectiveX, color1, color2, hitLineY);
+
+            // Re-init sprites if skin changed (already handled in init, but safe here)
+            this.init();
+
+            // Minimal delay to let the browser process the canvas operations
+            setTimeout(resolve, 50);
+        });
+    }
+
     public createCachedNote(colors: string[], skinId: string): HTMLCanvasElement {
         const w = this.NOTE_WIDTH;
         const h = this.NOTE_HEIGHT;
@@ -593,36 +610,47 @@ export class RenderCache {
 
         switch (skinId) {
             case 'cyber-neon':
-                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.3)`;
-                ctx.fillRect(0, 0, w, h);
-                ctx.strokeStyle = baseColor;
-                ctx.lineWidth = 4;
-                ctx.strokeRect(0, 0, w, h);
-                break;
             case 'hologram':
             case 'matrix-grid':
-                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`;
-                ctx.fillRect(0, 0, w, h);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                for (let y = 0; y < h; y += 8) {
-                    ctx.fillRect(0, y, w, 2);
-                }
-                break;
-            default:
+            default: {
+                // High-end Cylindrical Glow Gradient
                 const grad = ctx.createLinearGradient(0, 0, w, 0);
-                grad.addColorStop(0, 'rgba(255,255,255,0)');
-                grad.addColorStop(0.2, `rgba(${this.hexToRgbaParams(baseColor)}, 0.3)`);
-                grad.addColorStop(0.5, `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`); // Reduced from 0.8
-                grad.addColorStop(0.8, `rgba(${this.hexToRgbaParams(baseColor)}, 0.3)`);
-                grad.addColorStop(1, 'rgba(255,255,255,0)');
+                const rgb = this.hexToRgbaParams(baseColor);
+
+                grad.addColorStop(0, `rgba(${rgb}, 0)`);
+                grad.addColorStop(0.15, `rgba(${rgb}, 0.2)`);
+                grad.addColorStop(0.3, `rgba(${rgb}, 0.5)`);
+                grad.addColorStop(0.48, `rgba(${rgb}, 0.8)`);
+                grad.addColorStop(0.5, `rgba(255, 255, 255, 0.9)`); // Ultra bright core spine
+                grad.addColorStop(0.52, `rgba(${rgb}, 0.8)`);
+                grad.addColorStop(0.7, `rgba(${rgb}, 0.5)`);
+                grad.addColorStop(0.85, `rgba(${rgb}, 0.2)`);
+                grad.addColorStop(1, `rgba(${rgb}, 0)`);
+
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, w, h);
 
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-                for (let y = 0; y < h; y += 4) {
-                    ctx.fillRect(0, y, w, 1);
-                }
+                // Add an extra subtle bloom to the center core
+                const bloom = ctx.createLinearGradient(0, 0, w, 0);
+                bloom.addColorStop(0.4, `rgba(${rgb}, 0)`);
+                bloom.addColorStop(0.5, `rgba(255, 255, 255, 0.3)`);
+                bloom.addColorStop(0.6, `rgba(${rgb}, 0)`);
+                ctx.fillStyle = bloom;
+                ctx.fillRect(0, 0, w, h);
+
+                // Edge Highlights (Glass effect)
+                const edgeGrad = ctx.createLinearGradient(0, 0, w, 0);
+                edgeGrad.addColorStop(0, `rgba(255, 255, 255, 0.15)`);
+                edgeGrad.addColorStop(0.05, `rgba(255, 255, 255, 0.4)`);
+                edgeGrad.addColorStop(0.1, `rgba(255, 255, 255, 0)`);
+                edgeGrad.addColorStop(0.9, `rgba(255, 255, 255, 0)`);
+                edgeGrad.addColorStop(0.95, `rgba(255, 255, 255, 0.4)`);
+                edgeGrad.addColorStop(1, `rgba(255, 255, 255, 0.15)`);
+
+                ctx.fillStyle = edgeGrad;
+                ctx.fillRect(0, 0, w, h);
                 break;
+            }
         }
 
         return canvas;

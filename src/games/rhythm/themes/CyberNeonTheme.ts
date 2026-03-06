@@ -6,23 +6,7 @@ import type { IThemeStrategy } from './IThemeStrategy';
 export class CyberNeonTheme implements IThemeStrategy {
     public readonly id = 'cyber-neon';
 
-    public renderBackground(ctx: CanvasRenderingContext2D, width: number, _height: number, horizonY: number, bottomY: number): void {
-        // Deep space background
-        ctx.fillStyle = '#050510';
-        ctx.fillRect(0, horizonY, width, bottomY - horizonY);
 
-        // Neon Grid lines
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.15)';
-        ctx.lineWidth = 1;
-
-        const gridSpacing = 40;
-        for (let y = horizonY; y < bottomY; y += gridSpacing) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
-        }
-    }
 
     public renderHitZonePulse(ctx: CanvasRenderingContext2D, _lane: number, x: number, y: number, width: number, beatPhase: number): void {
         const pulseAlpha = Math.max(0, 1 - beatPhase);

@@ -101,10 +101,17 @@ export class MidiParser {
             };
         });
 
+        // Calculate absolute duration correctly even if Tone.js fails
+        let duration = midi.duration;
+        if (duration <= 0) {
+            const lastTimes = midi.tracks.map(t => t.notes.length > 0 ? t.notes[t.notes.length - 1].time + t.notes[t.notes.length - 1].duration : 0);
+            duration = Math.max(...lastTimes, 0);
+        }
+
         return {
             name: midi.name || 'Untitled',
             bpm,
-            duration: midi.duration,
+            duration,
             durationTicks: Math.max(...midi.tracks.map(t => t.durationTicks), 0),
             ppq: midi.header.ppq || 480,
             tempos: midi.header.tempos.length > 0

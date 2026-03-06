@@ -2,7 +2,6 @@ import { RenderCache } from '../graphics/RenderCache';
 import { ThemeManager } from '../../../core/ThemeManager';
 import type { VisualNote } from '../NoteFactory';
 import { RhythmInputManager } from '../input/RhythmInputManager';
-import type { IThemeStrategy } from '../themes/IThemeStrategy';
 import { JudgmentSystem } from '../systems/JudgmentSystem';
 import { LANE_COLORS } from '../constants/GameConstants';
 import * as PerspectiveUtils from './PerspectiveUtils';
@@ -21,6 +20,7 @@ export interface HighwayRenderState {
     scrollSpeed: number;
     currentTime: number;
     cachedNow: number;
+    isMobile: boolean;
 }
 
 const HIGHWAY_CONFIG = {
@@ -43,7 +43,6 @@ const HIGHWAY_CONFIG = {
  */
 export class HighwayRenderer {
     private renderCache: RenderCache;
-    private themeStrategy: IThemeStrategy;
     private beamGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
     private activeLaneGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
 
@@ -51,24 +50,15 @@ export class HighwayRenderer {
     private perspectiveWidthCache: Float32Array = new Float32Array(200);
     private perspectiveXCache: Float32Array[] = Array.from({ length: 7 }, () => new Float32Array(200));
 
-    constructor(renderCache: RenderCache, _judgmentSystem: JudgmentSystem, themeStrategy: IThemeStrategy) {
+    constructor(renderCache: RenderCache, _judgmentSystem: JudgmentSystem) {
         this.renderCache = renderCache;
-        this.themeStrategy = themeStrategy;
     }
 
     public onResize(ctx: CanvasRenderingContext2D, _laneCount: number, horizonY: number, hitLineY: number, state: HighwayRenderState): void {
-        const LANE_COLORS: string[][] = [
-            ['#FF3366', '#FF3366'],
-            ['#33CCFF', '#33CCFF'],
-            ['#FFFF33', '#FFFF33'],
-            ['#33FF33', '#33FF33'],
-            ['#FF9933', '#FF9933'],
-            ['#CC33FF', '#CC33FF']
-        ];
-
-        // 1. Pre-generate Beam Gradients
+        // 1. Pre-generate Beam Gradients (Shortened to 50%)
         this.beamGradients = LANE_COLORS.map(colorSet => {
-            const grad = ctx.createLinearGradient(0, hitLineY, 0, horizonY);
+            const beamMidY = hitLineY - (hitLineY - horizonY) * 0.5;
+            const grad = ctx.createLinearGradient(0, hitLineY, 0, beamMidY);
             const color = colorSet[1];
             const r = parseInt(color.substring(1, 3), 16);
             const g = parseInt(color.substring(3, 5), 16);
@@ -141,9 +131,11 @@ export class HighwayRenderer {
         ctx.restore();
     }
 
+
     private drawLaneBeam(ctx: CanvasRenderingContext2D, lane: number, state: HighwayRenderState): void {
-        const tl = { x: this.getCachedX(lane, state.horizonY, state), y: state.horizonY };
-        const tr = { x: this.getCachedX(lane + 1, state.horizonY, state), y: state.horizonY };
+        const beamMidY = state.hitLineY - (state.hitLineY - state.horizonY) * 0.5;
+        const tl = { x: this.getCachedX(lane, beamMidY, state), y: beamMidY };
+        const tr = { x: this.getCachedX(lane + 1, beamMidY, state), y: beamMidY };
         const bl = { x: this.getCachedX(lane, state.hitLineY, state), y: state.hitLineY };
         const br = { x: this.getCachedX(lane + 1, state.hitLineY, state), y: state.hitLineY };
 
@@ -160,14 +152,15 @@ export class HighwayRenderer {
         const pulse = (Math.sin(state.cachedNow / 300) + 1) * 0.5;
         const theme = ThemeManager.getInstance().getCurrentTheme();
 
-        // 1. Theme-specific Engine Background (Fill entire screen)
-        this.themeStrategy.renderBackground(ctx, state.width, state.height, 0, state.height);
+        // 1. Theme-specific Engine Background (Removed: Using global BackgroundRenderer)
 
-        // 2. Atmosphere Integration
-        ctx.save();
-        ctx.globalAlpha = 0.4 + pulse * 0.1;
-        UIUtils.drawAtmosphere(ctx, state.width, state.height);
-        ctx.restore();
+        // 2. Atmosphere Integration (Skip on mobile for performance)
+        if (!state.isMobile) {
+            ctx.save();
+            ctx.globalAlpha = 0.4 + pulse * 0.1;
+            UIUtils.drawAtmosphere(ctx, state.width, state.height);
+            ctx.restore();
+        }
 
         // 3. Render Highway Road
         this.renderRoad(ctx, state);
@@ -346,8 +339,7 @@ export class HighwayRenderer {
 
                 ctx.save();
                 if (isLocked) {
-                    ctx.globalAlpha = HIGHWAY_CONFIG.RECEPTOR_LOCKED_ALPHA;
-                    ctx.filter = 'grayscale(100%) brightness(50%)';
+                    ctx.globalAlpha = HIGHWAY_CONFIG.RECEPTOR_LOCKED_ALPHA * 0.5;
                 } else {
                     // --- Improved Ground Light Effect ---
                     // Draw a soft glow beneath the receptor to anchor it to the lane
@@ -448,47 +440,89 @@ export class HighwayRenderer {
         const bodyTopY = visualTailY;
         const bodyBotY = headY;
 
-        let alpha = isHolding ? 0.9 : 0.6;
-        if (isHolding) alpha = Math.sin(state.cachedNow * 0.02) * 0.1 + 0.9;
+        let alpha = isHolding ? 1.0 : 0.95;
+        if (isHolding) alpha = Math.sin(state.cachedNow * 0.02) * 0.05 + 0.95;
 
         if (bodyTopY < bodyBotY) {
             this.withAlpha(ctx, alpha * globalAlpha, () => {
-                const cachedBody = this.renderCache.longNoteBodies[lane];
-                if (cachedBody) {
-                    const sliceCount = 32;
-                    const totalHeight = bodyBotY - bodyTopY;
-                    for (let i = 0; i < sliceCount; i++) {
-                        const t1 = i / sliceCount, t2 = (i + 1) / sliceCount;
-                        const curTopY = bodyTopY + totalHeight * t1, curBotY = bodyTopY + totalHeight * t2;
-                        const curTopW = this.getCachedWidth(curTopY, state), curBotW = this.getCachedWidth(curBotY, state);
-                        const curTopX = this.getCachedX(lane, curTopY, state), curBotX = this.getCachedX(lane, curBotY, state);
-                        const tCenterX = curTopX + curTopW * 0.5, bCenterX = curBotX + curBotW * 0.5;
-                        const hTop = (curTopW * bodyRatio) * 0.5, hBot = (curBotW * bodyRatio) * 0.5;
+                const sliceCount = state.isMobile ? 16 : 48;
+                const totalHeight = bodyBotY - bodyTopY;
+                const laneColor = LANE_COLORS[lane % LANE_COLORS.length][0];
+                // Idle: High desaturation (0.7) for a muted look. Holding: Full saturated/bright color.
+                const baseColor = isHolding ? laneColor : UIUtils.desaturateColor(laneColor, 0.7);
 
-                        ctx.beginPath();
-                        ctx.moveTo(tCenterX - hTop, curTopY); ctx.lineTo(tCenterX + hTop, curTopY);
-                        ctx.lineTo(bCenterX + hBot, curBotY); ctx.lineTo(bCenterX - hBot, curBotY);
-                        ctx.closePath();
-                        ctx.save();
-                        ctx.clip();
-                        const sMinX = Math.min(tCenterX - hTop, bCenterX - hBot), sMaxX = Math.max(tCenterX + hTop, bCenterX + hBot);
-                        const srcY = (i / sliceCount) * cachedBody.height, srcH = cachedBody.height / sliceCount;
-                        ctx.drawImage(cachedBody, 0, srcY, cachedBody.width, srcH, sMinX, Math.floor(curTopY), sMaxX - sMinX, Math.ceil(curBotY - curTopY) + 0.8);
-                        ctx.restore();
-                    }
-                    const topCX = visualTailX + visualTailW * 0.5, botCX = headX + headW * 0.5;
-                    ctx.lineWidth = Math.max(1, (visualTailW + headW) * 0.02);
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${isHolding ? 0.8 : 0.4})`;
-                    ctx.beginPath();
-                    ctx.moveTo(botCX, headY); ctx.lineTo(topCX, visualTailY);
-                    ctx.stroke();
+                // 1. Create Body Path (Path2D for reuse)
+                const bodyPath = new Path2D();
+                for (let i = 0; i <= sliceCount; i++) {
+                    const y = bodyTopY + (totalHeight * (i / sliceCount));
+                    const w = this.getCachedWidth(y, state);
+                    const halfW = (w * bodyRatio) * 0.5;
+                    const x = this.getCachedX(lane, y, state) + w * 0.5;
+                    if (i === 0) bodyPath.moveTo(x - halfW, y);
+                    else bodyPath.lineTo(x - halfW, y);
                 }
+                for (let i = sliceCount; i >= 0; i--) {
+                    const y = bodyTopY + (totalHeight * (i / sliceCount));
+                    const w = this.getCachedWidth(y, state);
+                    const halfW = (w * bodyRatio) * 0.5;
+                    const x = this.getCachedX(lane, y, state) + w * 0.5;
+                    bodyPath.lineTo(x + halfW, y);
+                }
+                bodyPath.closePath();
+
+                // 2. Solid Base Fill (Force 1.0 opacity inside withAlpha)
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.fillStyle = baseColor;
+                ctx.fill(bodyPath);
+
+                // 3. Central Spine (Returning as high-intensity guide)
+                ctx.beginPath();
+                for (let i = 0; i <= sliceCount; i++) {
+                    const y = bodyTopY + (totalHeight * (i / sliceCount));
+                    const w = this.getCachedWidth(y, state);
+                    const x = this.getCachedX(lane, y, state) + w * 0.5;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+                ctx.lineWidth = 3.5;
+                ctx.stroke();
+
+                // 4. Vibrant Cylindrical Highlight
+                const midY = (bodyTopY + bodyBotY) * 0.5;
+                const midW = this.getCachedWidth(midY, state);
+                const midCX = this.getCachedX(lane, midY, state) + midW * 0.5;
+                const gW = midW * bodyRatio;
+
+                const grad = ctx.createLinearGradient(midCX - gW * 0.5, 0, midCX + gW * 0.5, 0);
+                grad.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+                grad.addColorStop(0.2, 'rgba(0, 0, 0, 0.1)');
+                grad.addColorStop(0.5, `rgba(255, 255, 255, ${alpha * 0.6})`);
+                grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.1)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+
+                ctx.fillStyle = grad;
+                ctx.fill(bodyPath);
+
+                // 5. HD Boundary
+                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+                ctx.lineWidth = 1.5;
+                ctx.stroke(bodyPath);
             });
         }
-        const rHeadW = headW * bodyRatio, rTailW = visualTailW * bodyRatio;
-        const rHeadX = headX + (headW - rHeadW) * 0.5, rTailX = visualTailX + (visualTailW - rTailW) * 0.5;
+
+        // Draw caps
+        const rHeadW = headW * bodyRatio;
+        const srTailW = visualTailW * bodyRatio;
+        const rHeadX = headX + (headW - rHeadW) * 0.5;
+        const rTailX = visualTailX + (visualTailW - srTailW) * 0.5;
+
+        // Draw body first, then caps (so caps are on top)
+        // Body is drawn above via withAlpha... wait, the user wants body UNDER.
+        // In drawLongNote, the withAlpha block for body happens before drawing caps.
+        // So tail and head caps will naturally be ABOVE the body.
         if (tailY >= state.horizonY) {
-            this.drawGelNote(ctx, rTailX, tailY, rTailW, tailH, lane, globalAlpha * 0.4);
+            this.drawGelNote(ctx, rTailX, tailY, srTailW, tailH * 0.5, lane, globalAlpha); // Half height for tail distinguishing
         }
         this.drawGelNote(ctx, rHeadX, headY, rHeadW, headH, lane, globalAlpha);
     }

@@ -125,8 +125,13 @@ export class CoreAudioEngine {
         await this.ensureReady();
 
         // Safe cleanup of legacy sequencer
+        // Safe cleanup of legacy sequencer to prevent resource leakage
         if (this.sequencer) {
-            try { this.sequencer.pause(); } catch (e) { }
+            try {
+                this.sequencer.pause();
+                this.sequencer.eventHandler.removeEvent("engine-song-end");
+            } catch (e) { }
+            this.sequencer = null;
         }
 
         const { Sequencer } = await import(SPESSA_LIB_URL);
@@ -138,14 +143,19 @@ export class CoreAudioEngine {
             AudioEngineLogger.info(`Song ended at ${this.currentTime.toFixed(2)}s`);
         });
 
+        const loadStart = performance.now();
         await this.sequencer.loadNewSongList([{ binary: buffer }]);
+        const loadEnd = performance.now();
+
         this.sequencer.pause();
         this.sequencer.currentTime = 0;
         const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
         this.timer.seek(0, seqTime);
 
         const duration = this.sequencer.duration || 0;
-        AudioEngineLogger.info(`MIDI Loaded. Duration: ${duration.toFixed(2)}s`);
+        AudioEngineLogger.info(`MIDI Loaded in ${(loadEnd - loadStart).toFixed(1)}ms. Duration: ${duration.toFixed(2)}s`);
+
+        this.startDiagnosticMonitor();
     }
 
     public async play(): Promise<void> {
@@ -337,4 +347,32 @@ export class CoreAudioEngine {
     }
 
     public getAudioContext(): AudioContext { return this.ctx; }
+
+    /**
+     * Warms up the audio context by playing a silent note.
+     * This ensures the audio graph is fully active before the actual start.
+     */
+    public async warmup(): Promise<void> {
+        await this.ensureReady();
+        if (this.synth) {
+            // Play a silent note on an unused channel
+            this.synth.noteOn(15, 0, 0);
+            setTimeout(() => this.synth?.noteOff(15, 0), 50);
+        }
+        return new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    private diagnosticTimer: any = null;
+    private startDiagnosticMonitor(): void {
+        if (this.diagnosticTimer) clearInterval(this.diagnosticTimer);
+        this.diagnosticTimer = setInterval(() => {
+            if (this.isPlaying() && this.synth) {
+                // SpessaSynth keeps tracks of active voices
+                const voices = (this.synth as any).voicesAmount || 0;
+                if (voices > 50) {
+                    AudioEngineLogger.debug(`[AudioPerf:VOICES] Active Voices: ${voices}`);
+                }
+            }
+        }, 2000);
+    }
 }

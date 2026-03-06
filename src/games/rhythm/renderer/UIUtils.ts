@@ -132,3 +132,40 @@ export function getSeededColor(str: string): string {
     const lightness = 60 + Math.abs(hash % 20);
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
+
+/**
+ * Adjusts the brightness of a hex color.
+ * positive percent to brighten, negative to darken.
+ */
+export function adjustColor(hex: string, percent: number): string {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const r = (num >> 16) + amt;
+    const b = ((num >> 8) & 0x00FF) + amt;
+    const g = (num & 0x0000FF) + amt;
+
+    return '#' + (0x1000000 +
+        (r < 255 ? (r < 1 ? 0 : r) : 255) * 0x10000 +
+        (b < 255 ? (b < 1 ? 0 : b) : 255) * 0x100 +
+        (g < 255 ? (g < 1 ? 0 : g) : 255)
+    ).toString(16).slice(1);
+}
+
+/**
+ * Desaturates a hex color by mixing it with a gray of similar luminosity.
+ * amount: 0 to 1 (1 is fully grayscale)
+ */
+export function desaturateColor(hex: string, amount: number): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+
+    // Simplistic desaturation: mix with average luminosity
+    const L = 0.3 * r + 0.59 * g + 0.11 * b;
+    const newR = Math.round(r + amount * (L - r));
+    const newG = Math.round(g + amount * (L - g));
+    const newB = Math.round(b + amount * (L - b));
+
+    const toHex = (c: number) => c.toString(16).padStart(2, '0');
+    return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
+}

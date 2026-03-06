@@ -6,21 +6,7 @@ import type { IThemeStrategy } from './IThemeStrategy';
 export class DeepSpaceTheme implements IThemeStrategy {
     public readonly id = 'deep-space';
 
-    public renderBackground(ctx: CanvasRenderingContext2D, width: number, _height: number, horizonY: number, bottomY: number): void {
-        // Starry night
-        ctx.fillStyle = '#010105';
-        ctx.fillRect(0, horizonY, width, bottomY - horizonY);
 
-        ctx.fillStyle = '#fff';
-        for (let i = 0; i < 50; i++) {
-            const x = (Math.sin(i * 123.45) * 0.5 + 0.5) * width;
-            const y = horizonY + (Math.cos(i * 678.9) * 0.5 + 0.5) * (bottomY - horizonY);
-            const size = Math.random() * 2;
-            ctx.globalAlpha = Math.random() * 0.8;
-            ctx.fillRect(x, y, size, size);
-        }
-        ctx.globalAlpha = 1.0;
-    }
 
 
 

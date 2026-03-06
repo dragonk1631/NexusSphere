@@ -34,5 +34,6 @@ export interface ISequencer {
     muteChannel?(channel: number, mute: boolean): void;
     eventHandler: {
         addEvent(type: string, id: string, callback: (event: any) => void): void;
+        removeEvent(id: string): void;
     };
 }

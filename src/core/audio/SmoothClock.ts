@@ -1,3 +1,5 @@
+import { AudioEngineLogger } from './AudioEngineLogger';
+
 /**
  * SmoothClock: A professional-grade synthesized clock for rhythm games.
  * It uses performance.now() for frame-to-frame smoothness (micro-jitter correction)
@@ -66,12 +68,15 @@ export class SmoothClock {
         }
 
         // 2. LINEAR PRECISION: Time = Anchor + (HighResElapsedTime * Rate)
-        // This is 100% smooth (frame-independent) and perfectly synced to the first signal.
         const elapsed = (now - this.perfAnchor) / 1000;
         const preciseTime = this.audioAnchor + (elapsed * this.playbackRate);
 
-        // 3. DRIFT SAFETY (Optional): Very slow correction for thermal drift (> 50ms)
-        // In modern browsers, performance.now() and AudioContext clock are usually perfectly matched.
+        // 3. DRIFT MONITORING: Track divergence between performance.now and AudioContext
+        const drift = Math.abs(preciseTime - rawAudioTime);
+        if (drift > 0.05 && this.firstMoveDetected && (now % 1000 < 20)) { // Log occasionally (approx every 1s)
+            AudioEngineLogger.debug(`[AudioSync:DRIFT] ${(drift * 1000).toFixed(1)}ms offset detected.`);
+        }
+
         this.lastReportedTime = preciseTime;
         return preciseTime;
     }

@@ -33,9 +33,16 @@ import { CyberNeonTheme } from './themes/CyberNeonTheme';
 import { MatrixGridTheme } from './themes/MatrixGridTheme';
 import { DeepSpaceTheme } from './themes/DeepSpaceTheme';
 import { VaporwaveTheme } from './themes/VaporwaveTheme';
+import { MidnightOceanTheme } from './themes/MidnightOceanTheme';
+import { CrimsonFlareTheme } from './themes/CrimsonFlareTheme';
+import { MarchenTheme } from './themes/MarchenTheme';
+import { MonochromeTechTheme } from './themes/MonochromeTechTheme';
+import { WinterSnowTheme } from './themes/WinterSnowTheme';
+import { SunsetOverdriveTheme } from './themes/SunsetOverdriveTheme';
 import * as PerspectiveUtils from './renderer/PerspectiveUtils';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { PauseRenderer } from './renderer/PauseRenderer';
+import { LoadingRenderer } from './renderer/LoadingRenderer';
 
 /**
  * RhythmGame Orchestrator (Refactored v3 Stage 4-Final)
@@ -58,6 +65,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private hudRenderer: HUDRenderer;
     private gameOverRenderer: GameOverRenderer;
     private pauseRenderer: PauseRenderer;
+    private loadingRenderer: LoadingRenderer;
     private gameplayManager: GameplayManager;
 
     private currentState: GameState = GameState.MENU;
@@ -82,6 +90,9 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private pauseSelectedButtonIndex: number = 0;
     private pauseAnimationTimer: number = 0;
 
+    private loadingProgress: number = 0;
+    private loadingStatus: string = "Initializing...";
+
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
         this.scoreManager = ScoreManager.getInstance();
@@ -96,8 +107,9 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.hudRenderer = new HUDRenderer();
         this.gameOverRenderer = new GameOverRenderer();
         this.pauseRenderer = new PauseRenderer();
+        this.loadingRenderer = new LoadingRenderer();
         this.themeStrategy = this.initThemeStrategy();
-        this.highwayRenderer = new HighwayRenderer(this.renderCache, this.judgmentSystem, this.themeStrategy);
+        this.highwayRenderer = new HighwayRenderer(this.renderCache, this.judgmentSystem);
         this.effectsRenderer = new EffectsRenderer(this.particleSystem, this.transitionSystem);
         this.gameplayManager = new GameplayManager(this.audioEngine, this.scoreManager, this.particleSystem, this.judgmentSystem);
         this.menuManager = new MenuManager(this.audioEngine, {
@@ -114,6 +126,12 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         if (themeId === 'matrix-grid') return new MatrixGridTheme();
         if (themeId === 'deep-space') return new DeepSpaceTheme();
         if (themeId === 'vaporwave') return new VaporwaveTheme();
+        if (themeId === 'midnight-ocean') return new MidnightOceanTheme();
+        if (themeId === 'crimson-flare') return new CrimsonFlareTheme();
+        if (themeId === 'marchen') return new MarchenTheme();
+        if (themeId === 'monochrome-tech') return new MonochromeTechTheme();
+        if (themeId === 'winter-snow') return new WinterSnowTheme();
+        if (themeId === 'sunset-overdrive') return new SunsetOverdriveTheme();
         return new DefaultTheme();
     }
 
@@ -134,6 +152,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
     private detectEnvironment() {
         this.isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        this.particleSystem.setMobile(this.isMobile);
         console.log(`[RhythmGame] Environment: ${this.isMobile ? 'Mobile' : 'Desktop'}`);
     }
 
@@ -191,12 +210,57 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     }
 
     private async handlePlayRequest() {
-        this.transitionSystem.start(async () => {
+        this.currentState = GameState.LOADING;
+        this.loadingProgress = 0;
+        this.loadingStatus = "Connecting to Audio Engine...";
+
+        try {
+            // Step 1: Initialize Audio Engine & Theme Strategy
+            this.themeStrategy = this.initThemeStrategy();
+
+
             await this.audioEngine.resume();
-            this.shouldAutoStart = true;
+            this.loadingProgress = 0.2;
+            this.loadingStatus = "Loading MIDI & Audio Assets...";
+
+            // Step 2: Load MIDI
             await this.load();
-            this.create();
-        }, 'fade');
+            this.loadingProgress = 0.5;
+            this.loadingStatus = "Generating Note Data...";
+
+            // Step 3: Create Game Objects
+            await this.create();
+            this.loadingProgress = 0.7;
+            this.loadingStatus = "Warming up Render Cache...";
+
+            // Step 4: Pre-warm Renderer (Reduce JIT lag)
+            await this.renderCache.warmup(
+                this.canvas.width, this.canvas.height,
+                this.horizonY, this.bottomY, this.laneCount,
+                (l, y) => this.getPerspectiveX(l, y),
+                ThemeManager.getInstance().getCurrentTheme().color1,
+                ThemeManager.getInstance().getCurrentTheme().color2,
+                this.hitLineY
+            );
+            this.loadingProgress = 0.9;
+            this.loadingStatus = "Activating Audio Context...";
+
+            // Step 5: Pre-warm Audio Engine (Silent Note pulse)
+            await this.audioEngine.warmup();
+
+            this.loadingProgress = 1.0;
+            this.loadingStatus = "Ready!";
+
+            // Final Transition to Game
+            this.transitionSystem.start(() => {
+                this.start();
+            }, 'fade');
+
+        } catch (e) {
+            console.error("[RhythmGame] Loading Failed:", e);
+            this.loadingStatus = "Error! Returning to Menu...";
+            setTimeout(() => this.backToSongSelection(), 2000);
+        }
     }
 
     public async load(): Promise<void> {
@@ -220,14 +284,12 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
         if (this.isTestMode && this.transitionData?.settings) {
             this.gameplayManager.enforceMuteCompliance(this.transitionData);
-            this.shouldAutoStart = true;
-            this.currentState = GameState.MENU;
-        }
-
-        if (this.midiData && this.shouldAutoStart && !this.isTestMode) {
-            this.shouldAutoStart = false;
-            // No more vague timeout - start immediately and let GameplayManager's pulse gating handle it
-            this.start();
+            // In test mode, we might want to skip the full loading screen or handle it differently
+            // but for now, we'll keep the direct start if requested by the editor.
+            if (this.shouldAutoStart) {
+                this.shouldAutoStart = false;
+                this.start();
+            }
         }
     }
 
@@ -251,6 +313,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         else this.judgmentSystem.update(delta);
 
         if (this.currentState === GameState.MENU) { this.menuManager.update(delta); return; }
+        if (this.currentState === GameState.LOADING) return;
 
         if (this.currentState === GameState.PAUSED) {
             this.pauseAnimationTimer += delta / 1000;
@@ -308,6 +371,15 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         if (height > width) { this.renderRotateRequest(ctx, width, height); return; }
 
         if (this.currentState === GameState.MENU) this.menuRenderer.render(ctx, this.getMenuRenderState());
+        else if (this.currentState === GameState.LOADING) {
+            this.loadingRenderer.render(ctx, {
+                width, height,
+                progress: this.loadingProgress,
+                song: this.menuManager.getCurrentSong(),
+                statusText: this.loadingStatus,
+                cachedNow: performance.now()
+            });
+        }
         else if (this.currentState === GameState.RESULT) this.resultRenderer.render(ctx, width, height, this.scoreManager);
         else if (this.currentState === GameState.GAMEOVER) this.gameOverRenderer.render(ctx, this.getGameOverRenderState());
         else {
@@ -343,7 +415,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             keyMode: this.keyMode,
             scrollSpeed: this.scrollSpeed,
             currentTime: this.unifiedCurrentTime,
-            cachedNow: performance.now()
+            cachedNow: performance.now(),
+            isMobile: this.isMobile
         };
     }
 

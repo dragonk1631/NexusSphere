@@ -32,6 +32,9 @@ export class GameplayManager {
     private _endGameTimer = 0;
     private _lastCombo = 0;
     private _muteEnforceCounter = 0;
+    private _fpsCounter = 0;
+    private _fpsTimer = 0;
+    private _lastFps = 0;
 
     // -- Dependencies --
     private audioEngine: CoreAudioEngine;
@@ -108,7 +111,23 @@ export class GameplayManager {
     }
 
     public update(delta: number, currentTime: number, _horizonY: number, hitLineY: number, laneBottomWidth: number, getPerspectiveX: (lane: number, y: number) => number, getPerspectiveWidth: (y: number) => number): void {
-        // ... (Update logic content remains the same)
+        // --- Diagnostic: FPS & Delta Monitoring ---
+        this._fpsCounter++;
+        this._fpsTimer += delta;
+        if (this._fpsTimer >= 1000) {
+            this._lastFps = this._fpsCounter;
+            if (this._lastFps < 50) {
+                console.warn(`[GamePerf:FPS] Low frame rate detected: ${this._lastFps} FPS`);
+            }
+            this._fpsCounter = 0;
+            this._fpsTimer = 0;
+        }
+
+        if (delta > 33.4) { // Roughly < 30 FPS for a single frame
+            console.warn(`[GamePerf:SPIKE] Heavy frame detected: ${delta.toFixed(1)}ms gap`);
+        }
+        // ------------------------------------------
+
         this._holdingLanes.forEach((note, lane) => {
             if (note) {
                 note.isHolding = true;

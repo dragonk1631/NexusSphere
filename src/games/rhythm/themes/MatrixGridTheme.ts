@@ -6,22 +6,7 @@ import type { IThemeStrategy } from './IThemeStrategy';
 export class MatrixGridTheme implements IThemeStrategy {
     public readonly id = 'matrix-grid';
 
-    public renderBackground(ctx: CanvasRenderingContext2D, width: number, _height: number, horizonY: number, bottomY: number): void {
-        // Dark Green gradient
-        const bgGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        bgGrad.addColorStop(0, '#000800');
-        bgGrad.addColorStop(1, '#001a00');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, horizonY, width, bottomY - horizonY);
 
-        // Falling matrix characters effect (static representation)
-        ctx.fillStyle = 'rgba(0, 255, 70, 0.05)';
-        for (let i = 0; i < 20; i++) {
-            const x = Math.random() * width;
-            const h = Math.random() * (bottomY - horizonY);
-            ctx.fillRect(x, horizonY + Math.random() * h, 2, h);
-        }
-    }
 
 
 
