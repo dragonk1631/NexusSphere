@@ -141,9 +141,11 @@ export class CoreAudioEngine {
         await this.sequencer.loadNewSongList([{ binary: buffer }]);
         this.sequencer.pause();
         this.sequencer.currentTime = 0;
-        this.timer.seek(0);
+        const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+        this.timer.seek(0, seqTime);
 
-        AudioEngineLogger.info(`MIDI Loaded. Duration: ${this.duration.toFixed(2)}s`);
+        const duration = this.sequencer.duration || 0;
+        AudioEngineLogger.info(`MIDI Loaded. Duration: ${duration.toFixed(2)}s`);
     }
 
     public async play(): Promise<void> {
@@ -154,7 +156,8 @@ export class CoreAudioEngine {
             try { await this.ctx.resume(); } catch (e) { }
         }
 
-        this.timer.resume();
+        const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+        this.timer.resume(seqTime);
         this.sequencer?.play();
     }
 
@@ -191,8 +194,9 @@ export class CoreAudioEngine {
     public seek(time: number): void {
         if (this.sequencer) {
             this.sequencer.currentTime = time;
-            this.timer.seek(time);
         }
+        const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+        this.timer.seek(time, seqTime);
     }
 
     public setPlaybackRate(rate: number): void {
@@ -294,11 +298,13 @@ export class CoreAudioEngine {
     public get duration(): number { return this.sequencer?.duration || 0; }
 
     public getPreciseTime(): number {
-        return this.timer.getPreciseTime(this.sequencer?.playbackRate || 1);
+        const seqTime = this.sequencer ? this.sequencer.currentTime : undefined;
+        return this.timer.getPreciseTime(this.sequencer?.playbackRate || 1, seqTime);
     }
 
     public startPreciseTime(offset: number = 0): void {
-        this.timer.start(offset);
+        const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+        this.timer.start(offset, seqTime);
     }
 
     public pausePreciseTime(): void {
@@ -306,11 +312,18 @@ export class CoreAudioEngine {
     }
 
     public resumePreciseTime(): void {
-        this.timer.resume();
+        const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+        this.timer.resume(seqTime);
     }
 
     public setPreciseTime(time: number): void {
-        this.timer.seek(time);
+        const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+        this.timer.seek(time, seqTime);
+    }
+
+    public reAnchorTime(time: number): void {
+        const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+        this.timer.reAnchor(time, seqTime);
     }
 
     public getOutputLatency(): number {

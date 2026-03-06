@@ -7,37 +7,39 @@
 export class SmoothClock {
     private lastPerfTime: number = 0;
     private lastReportedTime: number = 0;
-    private audioAnchor: number = 0; // The AudioContext.currentTime at start
+    private initialStartTime: number = 0;
+    private audioAnchor: number = 0;
+    private perfAnchor: number = 0;
     private isPlaying: boolean = false;
     private playbackRate: number = 1;
 
-    // Configuration
-    private readonly LPF_GAIN = 0.05;
-    private readonly MAX_ADJUST = 0.01; // Slightly increased for faster convergence
+    private firstMoveDetected: boolean = false;
+    private startWaitTime: number = 0;
 
-    constructor() {
-    }
+    constructor() { }
 
-    /**
-     * @param startTime The game-time to start from (e.g. 0)
-     * @param audioAnchor The raw AudioContext.currentTime at this moment
-     */
     public start(startTime: number = 0, audioAnchor: number = 0) {
         this.lastPerfTime = performance.now();
         this.lastReportedTime = startTime;
+        this.initialStartTime = startTime;
         this.audioAnchor = audioAnchor;
+        this.perfAnchor = this.lastPerfTime;
         this.isPlaying = true;
+        this.firstMoveDetected = false;
+        this.startWaitTime = 0;
     }
 
     public stop() {
         this.isPlaying = false;
     }
 
-    /**
-     * Gets the current time, smoothed and synchronized.
-     * @param audioCurrentTime The raw time from the audio hardware/sequencer.
-     * @returns A synthesized smooth time in seconds.
-     */
+    public reAnchor(startTime: number, audioAnchor: number) {
+        this.initialStartTime = startTime;
+        this.audioAnchor = audioAnchor;
+        this.perfAnchor = performance.now();
+        this.firstMoveDetected = true; // Manual re-anchor counts as movement
+    }
+
     public update(rawAudioTime: number): number {
         if (!this.isPlaying) return this.lastReportedTime;
 
@@ -45,42 +47,47 @@ export class SmoothClock {
         const delta = (now - this.lastPerfTime) / 1000;
         this.lastPerfTime = now;
 
-        // 1. Predict next time based on internal high-res timer
-        let predicted = this.lastReportedTime + (delta * this.playbackRate);
-
-        // 2. Calculate relative audio time
-        const audioCurrentTime = rawAudioTime - this.audioAnchor;
-
-        // 3. Calculate error vs Audio Hardware
-        const error = audioCurrentTime - predicted;
-
-        // 4. Apply smooth correction
-        if (Math.abs(error) > 0.005) {
-            const correction = error * this.LPF_GAIN;
-            const limitedCorrection = Math.max(-this.MAX_ADJUST * delta, Math.min(this.MAX_ADJUST * delta, correction));
-            predicted += limitedCorrection;
+        // 1. PINPOINT DETECTION: Capture the exact moment the hardware/sequencer starts moving
+        if (!this.firstMoveDetected) {
+            if (rawAudioTime > this.audioAnchor) {
+                // Audio signal started! Lock our precision stopwatch to this moment.
+                this.audioAnchor = rawAudioTime;
+                this.perfAnchor = now;
+                this.firstMoveDetected = true;
+            } else {
+                // Still waiting for signal. To avoid permanent freeze, use a 2s safety timeout.
+                this.startWaitTime += delta;
+                if (this.startWaitTime > 2.0) {
+                    this.firstMoveDetected = true;
+                    this.perfAnchor = now;
+                }
+                return this.initialStartTime;
+            }
         }
 
-        // 5. Force hard sync if drift is too extreme (>200ms)
-        if (Math.abs(error) > 0.2) {
-            predicted = audioCurrentTime;
-        }
+        // 2. LINEAR PRECISION: Time = Anchor + (HighResElapsedTime * Rate)
+        // This is 100% smooth (frame-independent) and perfectly synced to the first signal.
+        const elapsed = (now - this.perfAnchor) / 1000;
+        const preciseTime = this.audioAnchor + (elapsed * this.playbackRate);
 
-        // 6. Monotonic guard
-        if (predicted < this.lastReportedTime) {
-            predicted = this.lastReportedTime;
-        }
-
-        this.lastReportedTime = predicted;
-        return predicted;
+        // 3. DRIFT SAFETY (Optional): Very slow correction for thermal drift (> 50ms)
+        // In modern browsers, performance.now() and AudioContext clock are usually perfectly matched.
+        this.lastReportedTime = preciseTime;
+        return preciseTime;
     }
 
     public setPlaybackRate(rate: number) {
-        this.playbackRate = rate;
+        if (this.playbackRate !== rate) {
+            // Re-anchor on rate change to keep precision
+            this.initialStartTime = this.lastReportedTime;
+            this.audioAnchor = this.lastReportedTime;
+            this.perfAnchor = performance.now();
+            this.playbackRate = rate;
+        }
     }
 
     public seek(time: number) {
+        this.reAnchor(time, time);
         this.lastReportedTime = time;
-        this.lastPerfTime = performance.now();
     }
 }

@@ -61,7 +61,7 @@ export class RenderCache {
         const baseColor = colors[1];
         const darkColor = colors[0];
 
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 5; // Reduced from 10 for sharper edges
         ctx.shadowColor = baseColor;
         ctx.lineJoin = 'round';
 
@@ -225,14 +225,14 @@ export class RenderCache {
         const drawY = padding;
 
         if (isActive) {
-            ctx.shadowBlur = 20;
+            ctx.shadowBlur = 12; // Reduced from 20 for cleaner look
             ctx.shadowColor = baseColor;
             ctx.globalAlpha = 1.0;
         } else {
             // Idle state: Sophisticated "Glass Frame"
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = 'rgba(0,0,0,0.8)';
-            ctx.globalAlpha = 0.8;
+            ctx.shadowBlur = 4; // Reduced from 10
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; // Softer shadow
+            ctx.globalAlpha = 0.7; // Slightly more transparent
         }
 
         const strokeColor = isActive ? '#ffffff' : baseColor;
@@ -611,9 +611,9 @@ export class RenderCache {
             default:
                 const grad = ctx.createLinearGradient(0, 0, w, 0);
                 grad.addColorStop(0, 'rgba(255,255,255,0)');
-                grad.addColorStop(0.2, `rgba(${this.hexToRgbaParams(baseColor)}, 0.4)`);
-                grad.addColorStop(0.5, `rgba(${this.hexToRgbaParams(baseColor)}, 0.8)`);
-                grad.addColorStop(0.8, `rgba(${this.hexToRgbaParams(baseColor)}, 0.4)`);
+                grad.addColorStop(0.2, `rgba(${this.hexToRgbaParams(baseColor)}, 0.3)`);
+                grad.addColorStop(0.5, `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`); // Reduced from 0.8
+                grad.addColorStop(0.8, `rgba(${this.hexToRgbaParams(baseColor)}, 0.3)`);
                 grad.addColorStop(1, 'rgba(255,255,255,0)');
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, w, h);

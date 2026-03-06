@@ -16,9 +16,8 @@ export class TimeSyncController {
         this.smoothClock = new SmoothClock();
     }
 
-    public start(offset: number = 0) {
+    public start(offset: number = 0, anchor: number = 0) {
         this.pausedTime = offset;
-        const anchor = this.ctx.state === 'running' ? this.ctx.currentTime : 0;
         this.smoothClock.start(offset, anchor);
         this.isPlaying = true;
         AudioEngineLogger.info(`TimeSync started at ${offset.toFixed(3)}s (anchor: ${anchor.toFixed(3)})`);
@@ -32,20 +31,25 @@ export class TimeSyncController {
         AudioEngineLogger.info(`TimeSync paused at ${this.pausedTime.toFixed(3)}s`);
     }
 
-    public resume() {
+    public resume(anchor: number = 0) {
         if (this.isPlaying) return;
-        const anchor = this.ctx.state === 'running' ? this.ctx.currentTime : 0;
         this.smoothClock.start(this.pausedTime, anchor);
         this.isPlaying = true;
         AudioEngineLogger.info(`TimeSync resumed at ${this.pausedTime.toFixed(3)}s (anchor: ${anchor.toFixed(3)})`);
     }
 
-    public seek(time: number) {
+    public seek(time: number, anchor?: number) {
         this.pausedTime = time;
-        const anchor = this.ctx.state === 'running' ? this.ctx.currentTime : 0;
-        this.smoothClock.seek(time);
-        // We also need to re-anchor on seek
-        this.smoothClock.start(time, anchor);
+        const finalAnchor = anchor !== undefined ? anchor : (this.ctx.state === 'running' ? this.ctx.currentTime : 0);
+        this.smoothClock.reAnchor(time, finalAnchor);
+    }
+
+    /**
+     * Instantly aligns the clock to a new audio anchor.
+     */
+    public reAnchor(time: number, anchor: number) {
+        this.smoothClock.reAnchor(time, anchor);
+        this.pausedTime = time;
     }
 
     public reset() {
@@ -56,23 +60,15 @@ export class TimeSyncController {
         AudioEngineLogger.info('TimeSync state reset to 0');
     }
 
-    public getPreciseTime(playbackRate: number = 1): number {
+    public getPreciseTime(playbackRate: number = 1, rawHardwareTime?: number): number {
         if (!this.isPlaying) return this.pausedTime;
 
         this.smoothClock.setPlaybackRate(playbackRate);
 
-        // Use AudioContext.currentTime as the anchor for the SmoothClock update
-        // On mobile, this will be steppy, but SmoothClock will interpolate it smoothly.
-        return this.smoothClock.update(this.calculateRawTime(playbackRate));
-    }
-
-    private calculateRawTime(_playbackRate: number): number {
-        // This is the "noisy" anchor time
-        if (this.ctx.state === 'running') {
-            return this.ctx.currentTime;
-        } else {
-            return this.pausedTime;
-        }
+        // If rawHardwareTime is provided (e.g. from Sequencer), use it.
+        // Otherwise fallback to global AudioContext time.
+        const signal = rawHardwareTime !== undefined ? rawHardwareTime : this.ctx.currentTime;
+        return this.smoothClock.update(signal);
     }
 
     public getIsPlaying() { return this.isPlaying; }

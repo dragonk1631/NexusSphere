@@ -107,7 +107,9 @@ export class MidiParser {
             duration: midi.duration,
             durationTicks: Math.max(...midi.tracks.map(t => t.durationTicks), 0),
             ppq: midi.header.ppq || 480,
-            tempos: midi.header.tempos.map(t => ({ bpm: t.bpm, time: t.time || 0, ticks: t.ticks || 0 })),
+            tempos: midi.header.tempos.length > 0
+                ? midi.header.tempos.map(t => ({ bpm: t.bpm, time: t.time || 0, ticks: t.ticks || 0 }))
+                : [{ bpm: bpm, time: 0, ticks: 0 }],
             timeSignatures: midi.header.timeSignatures.map(ts => ({ ticks: ts.ticks || 0, timeSignature: ts.timeSignature })),
             tracks
         };

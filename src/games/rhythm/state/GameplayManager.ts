@@ -3,32 +3,44 @@ import { ScoreManager } from '../../../core/score/ScoreManager';
 import { ParticleSystem } from '../systems/ParticleSystem';
 import { JudgmentSystem } from '../systems/JudgmentSystem';
 import { LANE_COLORS } from '../constants/GameConstants';
+import { CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
+import type { TransitionData } from '../../../core/GameTransition';
+
+/**
+ * Configuration for the Lag Gating logic to prevent visual teleportation.
+ */
+const LAG_GATE_CONFIG = {
+    MAX_DRIFT_MS: 100,
+    MAX_STEP_MS: 33,
+    MIN_STEP_MS: 16
+} as const;
 
 /**
  * GameplayManager handles the core logic during the PLAYING state.
  * It manages timers, note traversal, and synchronization.
  */
 export class GameplayManager {
-    // -- State --
-    public visualNotes: VisualNote[] = [];
-    public holdingLanes: (VisualNote | null)[] = [null, null, null, null, null, null];
-    public isAudioStarted = false;
-    public preGameTimer = 0;
-    public targetStartTime = 0;
-    public effectiveStartTime = 0;
-    public lastNoteIndex = 0;
-    public comboAnim = 0;
-    public endGameTimer = 0;
-    public lastCombo = 0;
-    public muteEnforceCounter = 0;
+    // -- Internal State --
+    private _visualNotes: VisualNote[] = [];
+    private _holdingLanes: (VisualNote | null)[] = [null, null, null, null, null, null];
+    private _isAudioStarted = false;
+    private _preGameTimer = 0;
+    private _targetStartTime = 0;
+    private _lastNoteIndex = 0;
+    private _effectiveStartTime = 0;
+    private _comboAnim = 0;
+    private _endGameTimer = 0;
+    private _lastCombo = 0;
+    private _muteEnforceCounter = 0;
 
-    private audioEngine: any;
+    // -- Dependencies --
+    private audioEngine: CoreAudioEngine;
     private scoreManager: ScoreManager;
     private particleSystem: ParticleSystem;
     private judgmentSystem: JudgmentSystem;
 
     constructor(
-        audioEngine: any,
+        audioEngine: CoreAudioEngine,
         scoreManager: ScoreManager,
         particleSystem: ParticleSystem,
         judgmentSystem: JudgmentSystem
@@ -39,59 +51,76 @@ export class GameplayManager {
         this.judgmentSystem = judgmentSystem;
     }
 
+    // -- Getters --
+    public get visualNotes(): VisualNote[] { return this._visualNotes; }
+    public get holdingLanes(): (VisualNote | null)[] { return this._holdingLanes; }
+    public get isAudioStarted(): boolean { return this._isAudioStarted; }
+    public get preGameTimer(): number { return this._preGameTimer; }
+    public get comboAnim(): number { return this._comboAnim; }
+    public set comboAnim(val: number) { this._comboAnim = val; }
+    public get muteEnforceCounter(): number { return this._muteEnforceCounter; }
+    public set muteEnforceCounter(val: number) { this._muteEnforceCounter = val; }
+    public get lastNoteIndex(): number { return this._lastNoteIndex; }
+
+    public setHoldingLane(lane: number, note: VisualNote | null): void {
+        this._holdingLanes[lane] = note;
+    }
+
+    public clearHoldingLane(lane: number): void {
+        this._holdingLanes[lane] = null;
+    }
+
     public reset(): void {
-        this.visualNotes = [];
-        this.holdingLanes.fill(null);
-        this.isAudioStarted = false;
-        this.preGameTimer = 0;
-        this.targetStartTime = 0;
-        this.effectiveStartTime = 0;
-        this.lastNoteIndex = 0;
-        this.comboAnim = 0;
-        this.endGameTimer = 0;
-        this.lastCombo = 0;
+        this._visualNotes = [];
+        this._holdingLanes.fill(null);
+        this._isAudioStarted = false;
+        this._preGameTimer = 0;
+        this._targetStartTime = 0;
+        this._lastNoteIndex = 0;
+        this._effectiveStartTime = 0;
+        this._comboAnim = 0;
+        this._endGameTimer = 0;
+        this._lastCombo = 0;
+        this._muteEnforceCounter = 0;
         this.judgmentSystem.reset();
     }
 
     public start(notes: VisualNote[], scrollSpeed: number): void {
-        this.visualNotes = notes;
-        this.holdingLanes.fill(null);
+        this._visualNotes = notes;
+        this._holdingLanes.fill(null);
 
         this.audioEngine.stop();
+
+        // Pinpoint Fix from SYNC_LOGIC.md: 
+        // Seek to 0 to trigger SpessaSynth's silence skipping, then capture REAL start time.
         this.audioEngine.seek(0);
-        this.targetStartTime = 0;
-        this.effectiveStartTime = this.audioEngine.currentTime;
+        this._effectiveStartTime = this.audioEngine.currentTime;
+        this._targetStartTime = 0;
 
         const approachTime = 2000 / scrollSpeed;
-        this.preGameTimer = approachTime + 500;
+        this._preGameTimer = approachTime + 500;
 
-        this.isAudioStarted = false;
-        this.lastNoteIndex = 0;
-        this.endGameTimer = 0;
-        this.lastCombo = 0;
-        this.comboAnim = 0;
+        this._isAudioStarted = false;
+        this._lastNoteIndex = 0;
+        this._endGameTimer = 0;
+        this._lastCombo = 0;
+        this._comboAnim = 0;
     }
 
     public update(delta: number, currentTime: number, _horizonY: number, hitLineY: number, laneBottomWidth: number, getPerspectiveX: (lane: number, y: number) => number, getPerspectiveWidth: (y: number) => number): void {
-        // 1. Long Note Hold Logic
-        this.holdingLanes.forEach((note, lane) => {
+        // ... (Update logic content remains the same)
+        this._holdingLanes.forEach((note, lane) => {
             if (note) {
-                // 제거됨: 이제 JudgmentSystem.ts의 updateMissedNotes가 
-                // 릴리즈 윈도우를 벗어난 노트를 공정하게 처리(MISS)합니다.
-
                 note.isHolding = true;
                 note.accumulatedHoldTime += delta;
                 const tickInterval = 166;
-
                 if (note.accumulatedHoldTime >= tickInterval) {
                     this.scoreManager.increaseCombo(1);
                     this.scoreManager.addScore(10);
                     note.accumulatedHoldTime -= tickInterval;
-                    this.comboAnim = 0.5;
+                    this._comboAnim = 0.5;
                 }
-
-                // Hold Particles
-                if (performance.now() % 60 < 16) { // Approx once per 4 frames
+                if (performance.now() % 60 < 16) {
                     const laneX = getPerspectiveX(lane, hitLineY) + getPerspectiveWidth(hitLineY) / 2;
                     const centerY = hitLineY + (laneBottomWidth * 0.2);
                     const color = LANE_COLORS[lane] ? LANE_COLORS[lane][1] : '#ffffff';
@@ -100,82 +129,81 @@ export class GameplayManager {
             }
         });
 
-        // 2. Combo Animation Sync
-        if (this.comboAnim > 0) {
-            this.comboAnim -= delta * 0.005;
-            if (this.comboAnim < 0) this.comboAnim = 0;
+        if (this._comboAnim > 0) {
+            this._comboAnim -= delta * 0.005;
+            if (this._comboAnim < 0) this._comboAnim = 0;
         }
 
         const currentCombo = this.scoreManager.getCombo();
-        if (currentCombo > this.lastCombo) {
-            this.comboAnim = 1.0;
+        if (currentCombo > this._lastCombo) {
+            this._comboAnim = 1.0;
         }
-        this.lastCombo = currentCombo;
+        this._lastCombo = currentCombo;
 
-        // 3. Judgment System Update
-        this.judgmentSystem.updateMissedNotes(currentTime, this.visualNotes);
+        this.judgmentSystem.updateMissedNotes(currentTime, this._visualNotes);
 
-        // -- Stage 4: Sync Logic --
-        if (this.preGameTimer > 0) {
-            this.preGameTimer -= delta;
+        if (this._preGameTimer > 0) {
+            this._preGameTimer -= delta;
         }
     }
 
-    /**
-     * Checks if we just finished preGame timer and should start audio
-     */
     public shouldStartAudio(): boolean {
-        return this.preGameTimer <= 0 && !this.isAudioStarted;
+        return this._preGameTimer <= 0 && !this._isAudioStarted;
     }
 
     /**
      * Handles audio synchronization and time tracking.
      */
-    public syncTime(judgmentLatency: number, lastRenderTime: number): number {
-        let currentTime = 0;
-
-        if (this.shouldStartAudio()) {
-            this.audioEngine.seek(this.targetStartTime);
-            this.audioEngine.play();
-            const actualStartTime = this.audioEngine.currentTime;
-            this.audioEngine.startPreciseTime(actualStartTime);
-            this.isAudioStarted = true;
-            currentTime = -judgmentLatency;
-        } else if (this.preGameTimer > 0) {
-            currentTime = -this.preGameTimer - judgmentLatency;
-        } else if (!this.isAudioStarted) {
-            this.audioEngine.seek(0);
-            this.audioEngine.play();
-            const actualStartTime = this.audioEngine.currentTime;
-            this.audioEngine.startPreciseTime(actualStartTime);
-            this.isAudioStarted = true;
-            currentTime = -judgmentLatency;
-        } else {
-            currentTime = (this.audioEngine.getPreciseTime() * 1000) - judgmentLatency;
-
-            // LAG GATING: If audio clock jumps too much (>100ms), 
-            // nudge it back to prevent visual teleportation.
-            const drift = currentTime - lastRenderTime;
-            if (drift > 100) {
-                currentTime = lastRenderTime + 33; // Limited "jump"
-            } else if (currentTime < lastRenderTime) {
-                currentTime = lastRenderTime; // Monotonicity
-            }
+    public syncTime(judgmentLatency: number, lastRenderTime: number, _delta: number = 16): number {
+        if (this._preGameTimer > 0) {
+            // Pinpoint Fix formula: (Start Point - Latency) - Remaining Countdown
+            // This ensures a mathematically identical hand-off when music starts.
+            return (this._effectiveStartTime * 1000) - this._preGameTimer - judgmentLatency;
         }
+
+        if (!this._isAudioStarted) {
+            this.startAudio();
+            return (this._effectiveStartTime * 1000) - judgmentLatency;
+        }
+
+        const rawTime = this.audioEngine.getPreciseTime() * 1000;
+        const currentTime = rawTime - judgmentLatency;
+
+        return this.applyLagGating(currentTime, lastRenderTime);
+    }
+
+    private startAudio(): void {
+        this.audioEngine.seek(this._targetStartTime);
+        this.audioEngine.play();
+        const actualStartTime = this.audioEngine.currentTime;
+        this.audioEngine.startPreciseTime(actualStartTime);
+        this._isAudioStarted = true;
+    }
+
+    private applyLagGating(currentTime: number, lastRenderTime: number): number {
+        const drift = currentTime - lastRenderTime;
+
+        if (drift > LAG_GATE_CONFIG.MAX_DRIFT_MS) {
+            return lastRenderTime + LAG_GATE_CONFIG.MAX_STEP_MS;
+        }
+
+        if (currentTime < lastRenderTime) {
+            return lastRenderTime;
+        }
+
         return currentTime;
     }
 
-    public enforceMuteCompliance(transitionData: any): void {
+    public enforceMuteCompliance(transitionData: TransitionData | null): void {
         if (!transitionData?.settings) return;
 
-        const soloChannels = transitionData.settings.soloChannels;
-        const mutedChannels = transitionData.settings.mutedChannels;
+        const { soloChannels, mutedChannels } = transitionData.settings;
         const hasSolo = soloChannels && soloChannels.size > 0;
 
         for (let ch = 0; ch < 16; ch++) {
             let isAudible = false;
             if (hasSolo) {
-                isAudible = soloChannels.has(ch);
+                isAudible = soloChannels!.has(ch);
             } else {
                 isAudible = !mutedChannels?.has(ch);
             }
@@ -192,8 +220,8 @@ export class GameplayManager {
 
     public isSongCompleted(currentTime: number, songDurationMs: number, delta: number): boolean {
         if (currentTime >= songDurationMs - 100 && songDurationMs > 2000) {
-            this.endGameTimer += delta;
+            this._endGameTimer += delta;
         }
-        return this.endGameTimer > 2000;
+        return this._endGameTimer > 2000;
     }
 }

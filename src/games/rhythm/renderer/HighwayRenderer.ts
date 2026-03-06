@@ -358,10 +358,10 @@ export class HighwayRenderer {
 
                     const groundGrad = ctx.createRadialGradient(
                         laneX + laneW / 2, state.hitLineY, 0,
-                        laneX + laneW / 2, state.hitLineY, laneW * 1.5
+                        laneX + laneW / 2, state.hitLineY, laneW * 0.8 // Reduced from 1.5
                     );
 
-                    const glowAlpha = isActive ? 0.6 : 0.2;
+                    const glowAlpha = isActive ? 0.4 : 0.1; // Reduced from 0.6/0.2
                     groundGrad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${glowAlpha})`);
                     groundGrad.addColorStop(1, 'rgba(0,0,0,0)');
 
@@ -369,7 +369,7 @@ export class HighwayRenderer {
                     ctx.save();
                     ctx.globalCompositeOperation = 'screen';
                     ctx.beginPath();
-                    ctx.ellipse(laneX + laneW / 2, state.hitLineY, laneW * 0.9, hitH * 0.6, 0, 0, Math.PI * 2);
+                    ctx.ellipse(laneX + laneW / 2, state.hitLineY, laneW * 0.7, hitH * 0.4, 0, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.restore();
                 }
@@ -391,15 +391,21 @@ export class HighwayRenderer {
         const lookAheadMultiplier = HIGHWAY_CONFIG.NOTE_LOOKAHEAD;
         const windowEnd = state.currentTime + timeToReachHitLine * lookAheadMultiplier;
 
+        const visibleIndices: number[] = [];
         for (let i = lastNoteIndex; i < visualNotes.length; i++) {
             const note = visualNotes[i];
             const noteTimeMs = note.time * 1000;
             const noteEndMs = note.isHold ? noteTimeMs + note.durationMs : noteTimeMs;
-
             if (noteTimeMs > windowEnd) break;
             if (note.isProcessed && !note.isHolding) continue;
             if (noteEndMs < windowStart) continue;
+            visibleIndices.push(i);
+        }
 
+        // Draw furthest notes first (Back-to-Front)
+        for (let j = visibleIndices.length - 1; j >= 0; j--) {
+            const note = visualNotes[visibleIndices[j]];
+            const noteTimeMs = note.time * 1000;
             const timeDiff = noteTimeMs - state.currentTime;
             let linearProgress = 1 - (timeDiff / timeToReachHitLine);
             if (note.isHold && linearProgress > 1) linearProgress = 1;
@@ -432,57 +438,59 @@ export class HighwayRenderer {
     }
 
     private drawLongNote(ctx: CanvasRenderingContext2D, state: HighwayRenderState, lane: number, headX: number, headY: number, headW: number, headH: number, tailY: number, tailH: number, isHolding: boolean, globalAlpha: number): void {
-        if (tailY > headY) return;
-        const tailW = this.getCachedWidth(tailY, state);
-        const tailX = this.getCachedX(lane, tailY, state);
         const bodyRatio = HIGHWAY_CONFIG.HOLD_BODY_RATIO;
-        const tailCenterY = tailY + tailH * 0.5;
-        const headCenterY = headY + headH * 0.5;
-        const bodyTopY = tailCenterY;
-        const bodyBotY = headCenterY;
+        const visualTailY = Math.max(state.horizonY, tailY);
+        const visualTailW = this.getCachedWidth(visualTailY, state);
+        const visualTailX = this.getCachedX(lane, visualTailY, state);
+        if (visualTailY > headY) return;
+
+        // Body ends exactly at head center (headY) and tail center (visualTailY)
+        const bodyTopY = visualTailY;
+        const bodyBotY = headY;
 
         let alpha = isHolding ? 0.9 : 0.6;
         if (isHolding) alpha = Math.sin(state.cachedNow * 0.02) * 0.1 + 0.9;
 
         if (bodyTopY < bodyBotY) {
-            const bTopW = this.getCachedWidth(bodyTopY, state);
-            const bBotW = this.getCachedWidth(bodyBotY, state);
-            const topCenterX = tailX + tailW * 0.5;
-            const botCenterX = headX + headW * 0.5;
-            const halfTop = (bTopW * bodyRatio) * 0.5;
-            const halfBot = (bBotW * bodyRatio) * 0.5;
-            const pTopLeft = topCenterX - halfTop;
-            const pTopRight = topCenterX + halfTop;
-            const pBotLeft = botCenterX - halfBot;
-            const pBotRight = botCenterX + halfBot;
-
             this.withAlpha(ctx, alpha * globalAlpha, () => {
                 const cachedBody = this.renderCache.longNoteBodies[lane];
                 if (cachedBody) {
-                    // 1. Draw the trapezoidal body
-                    ctx.beginPath();
-                    ctx.moveTo(pBotLeft, bodyBotY); ctx.lineTo(pBotRight, bodyBotY); ctx.lineTo(pTopRight, bodyTopY); ctx.lineTo(pTopLeft, bodyTopY);
-                    ctx.closePath();
-                    ctx.save();
-                    ctx.clip();
-                    const minX = Math.min(pTopLeft, pBotLeft);
-                    const maxX = Math.max(pTopRight, pBotRight);
-                    ctx.drawImage(cachedBody, minX, bodyTopY, maxX - minX, bodyBotY - bodyTopY);
-                    ctx.restore();
+                    const sliceCount = 32;
+                    const totalHeight = bodyBotY - bodyTopY;
+                    for (let i = 0; i < sliceCount; i++) {
+                        const t1 = i / sliceCount, t2 = (i + 1) / sliceCount;
+                        const curTopY = bodyTopY + totalHeight * t1, curBotY = bodyTopY + totalHeight * t2;
+                        const curTopW = this.getCachedWidth(curTopY, state), curBotW = this.getCachedWidth(curBotY, state);
+                        const curTopX = this.getCachedX(lane, curTopY, state), curBotX = this.getCachedX(lane, curBotY, state);
+                        const tCenterX = curTopX + curTopW * 0.5, bCenterX = curBotX + curBotW * 0.5;
+                        const hTop = (curTopW * bodyRatio) * 0.5, hBot = (curBotW * bodyRatio) * 0.5;
 
-                    // 2. Add Center "Core Line" for electric connection effect
-                    ctx.lineWidth = Math.max(1, (bTopW + bBotW) * 0.04);
-                    const coreAlpha = isHolding ? 0.8 : 0.4;
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${coreAlpha})`;
+                        ctx.beginPath();
+                        ctx.moveTo(tCenterX - hTop, curTopY); ctx.lineTo(tCenterX + hTop, curTopY);
+                        ctx.lineTo(bCenterX + hBot, curBotY); ctx.lineTo(bCenterX - hBot, curBotY);
+                        ctx.closePath();
+                        ctx.save();
+                        ctx.clip();
+                        const sMinX = Math.min(tCenterX - hTop, bCenterX - hBot), sMaxX = Math.max(tCenterX + hTop, bCenterX + hBot);
+                        const srcY = (i / sliceCount) * cachedBody.height, srcH = cachedBody.height / sliceCount;
+                        ctx.drawImage(cachedBody, 0, srcY, cachedBody.width, srcH, sMinX, Math.floor(curTopY), sMaxX - sMinX, Math.ceil(curBotY - curTopY) + 0.8);
+                        ctx.restore();
+                    }
+                    const topCX = visualTailX + visualTailW * 0.5, botCX = headX + headW * 0.5;
+                    ctx.lineWidth = Math.max(1, (visualTailW + headW) * 0.02);
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${isHolding ? 0.8 : 0.4})`;
                     ctx.beginPath();
-                    ctx.moveTo(botCenterX, bodyBotY);
-                    ctx.lineTo(topCenterX, bodyTopY);
+                    ctx.moveTo(botCX, headY); ctx.lineTo(topCX, visualTailY);
                     ctx.stroke();
                 }
             });
         }
-        this.drawGelNote(ctx, tailX, tailY + (tailH * 0.3), tailW, tailH * 0.4, lane, globalAlpha);
-        this.drawGelNote(ctx, headX, headY, headW, headH, lane, globalAlpha);
+        const rHeadW = headW * bodyRatio, rTailW = visualTailW * bodyRatio;
+        const rHeadX = headX + (headW - rHeadW) * 0.5, rTailX = visualTailX + (visualTailW - rTailW) * 0.5;
+        if (tailY >= state.horizonY) {
+            this.drawGelNote(ctx, rTailX, tailY, rTailW, tailH, lane, globalAlpha * 0.4);
+        }
+        this.drawGelNote(ctx, rHeadX, headY, rHeadW, headH, lane, globalAlpha);
     }
 
     private drawGelNote(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, lane: number, alpha: number): void {
@@ -492,14 +500,12 @@ export class HighwayRenderer {
                 const paddingRatioX = noteImg.width / 100;
                 const paddingRatioY = noteImg.height / 50;
 
-                // Match RenderCache w - 4 inner boundary for visually restricted rendering
-                const coreHitW = w - 4 * (w / 100);
-                const coreHitH = h - 4 * (h / 50);
+                // Use simple scaling based on input w and h (matches renderHitZone logic)
+                const drawW = Math.round(w * paddingRatioX);
+                const drawH = Math.round(h * paddingRatioY);
+                const drawX = Math.round((x + w / 2) - drawW / 2);
+                const drawY = Math.round(y - drawH / 2);
 
-                const drawW = coreHitW * paddingRatioX;
-                const drawH = coreHitH * paddingRatioY;
-                const drawX = (x + w / 2) - drawW / 2;
-                const drawY = y - drawH / 2;
                 ctx.drawImage(noteImg, drawX, drawY, drawW, drawH);
             });
         }

@@ -207,8 +207,12 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.midiData = this.audioLoader.getMidiData();
     }
 
-    public create(): void {
+    public async create(): Promise<void> {
         if (!this.midiData) return;
+
+        // Ensure Audio Engine is fully ready before creating objects
+        await this.audioEngine.ensureReady();
+
         const difficulty = this.transitionData?.settings?.difficulty || this.menuManager.getCurrentDifficulty() || 'NORMAL';
         this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, null, difficulty, null);
         const totalJudgments = this.visualNotes.reduce((acc, note) => acc + (note.isHold ? 2 : 1), 0);
@@ -222,7 +226,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
         if (this.midiData && this.shouldAutoStart && !this.isTestMode) {
             this.shouldAutoStart = false;
-            this.startTimeout = setTimeout(() => this.start(), 150);
+            // No more vague timeout - start immediately and let GameplayManager's pulse gating handle it
+            this.start();
         }
     }
 
@@ -258,7 +263,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             this.gameplayManager.muteEnforceCounter++;
             if (this.gameplayManager.muteEnforceCounter >= 15) { this.gameplayManager.enforceMuteCompliance(this.transitionData); this.gameplayManager.muteEnforceCounter = 0; }
         }
-        this.lastRenderTime = this.gameplayManager.syncTime(this.judgmentSystem.getLatency(), this.lastRenderTime);
+        this.lastRenderTime = this.gameplayManager.syncTime(this.judgmentSystem.getLatency(), this.lastRenderTime, delta);
 
         // UNIFIED SNAPSHOT: Save time for rendering
         this.unifiedCurrentTime = this.lastRenderTime;
@@ -560,8 +565,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             }
         }
     };
-    public onHoldStart = (l: number, n: VisualNote) => { n.isHolding = true; this.gameplayManager.holdingLanes[l] = n; };
-    public onHoldEnd = (l: number) => { this.gameplayManager.holdingLanes[l] = null; };
+    public onHoldStart = (l: number, n: VisualNote) => { n.isHolding = true; this.gameplayManager.setHoldingLane(l, n); };
+    public onHoldEnd = (l: number) => { this.gameplayManager.clearHoldingLane(l); };
 
     public returnToEditor = () => { this.audioEngine.stop(); window.dispatchEvent(new CustomEvent('switch-game', { detail: { targetMode: 'editor' } })); };
     public returnToMainMenu = () => {

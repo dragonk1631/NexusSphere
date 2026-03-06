@@ -90,25 +90,20 @@ export class RhythmQuantizer {
      * Convert quantized ticks back to seconds for engine consumption
      */
     public static applyTimeCorrection(notes: QuantizedNote[], midi: ParsedMidi): void {
-        // We need to re-calculate 'time' in seconds based on 'quantizedStartTick'
-        // leveraging the Tempo Map.
-
-        // Optimization: Linear scan through tempo map
+        const sortedNotes = [...notes].sort((a, b) => a.quantizedStartTick - b.quantizedStartTick);
         let tempoIdx = 0;
 
-        notes.forEach(note => {
-            // Find applicable tempo
+        sortedNotes.forEach(note => {
             while (tempoIdx < midi.tempos.length - 1 && midi.tempos[tempoIdx + 1].ticks <= note.quantizedStartTick) {
                 tempoIdx++;
             }
 
-            const tempo = midi.tempos[tempoIdx];
+            const tempo = midi.tempos[tempoIdx] || { bpm: midi.bpm || 120, time: 0, ticks: 0 };
             const ticksSinceTempo = note.quantizedStartTick - tempo.ticks;
             const secondsPerTick = 60 / (tempo.bpm * midi.ppq);
 
             note.time = tempo.time + (ticksSinceTempo * secondsPerTick);
 
-            // Duration recalculation
             const durationTicks = note.quantizedEndTick - note.quantizedStartTick;
             note.duration = durationTicks * secondsPerTick;
         });
