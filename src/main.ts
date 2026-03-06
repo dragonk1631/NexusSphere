@@ -19,6 +19,7 @@ const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
 
 let lastTime = 0;
+let lastRenderTimestamp = 0;
 let loopCounter = 0;
 let mainMenu: MainMenu;
 
@@ -58,6 +59,10 @@ function gameLoop(timestamp: number) {
   // Closure capture of loopCounter to detect if a new loop was started
   const currentLoopId = loopCounter;
 
+  // --- FPS LIMITER ---
+  const TARGET_FPS = 60;
+  const RENDER_INTERVAL = 1000 / TARGET_FPS;
+
   // --- ACCUMULATOR-BASED FIXED STEP LOOP ---
   const INTERVAL = 1000 / 60; // 16.666ms
   const MAX_ACCUMULATED_TIME = 200; // Panic threshold (200ms)
@@ -81,10 +86,18 @@ function gameLoop(timestamp: number) {
     lastTime += INTERVAL;
   }
 
-  // --- RENDER ---
+  // --- RENDER (WITH FPS LIMIT) ---
   if (currentGame) {
-    currentGame.render();
-    fpsFrameCount++;
+    const now = performance.now();
+    const timeSinceLastRender = now - lastRenderTimestamp;
+
+    // Only render if target interval has passed (e.g. 16.6ms for 60fps)
+    // This effectively caps 90Hz/120Hz displays to 60fps to save battery/heat.
+    if (timeSinceLastRender >= RENDER_INTERVAL - 1) { // -1 for small buffer
+      currentGame.render();
+      lastRenderTimestamp = now;
+      fpsFrameCount++;
+    }
   }
 
   // Loop

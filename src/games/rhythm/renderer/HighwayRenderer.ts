@@ -45,10 +45,15 @@ export class HighwayRenderer {
     private renderCache: RenderCache;
     private beamGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
     private activeLaneGradients: (CanvasGradient | null)[] = new Array(6).fill(null);
+    private desaturatedLaneColors: string[] = new Array(6).fill('');
 
     // Perspective Caches
     private perspectiveWidthCache: Float32Array = new Float32Array(200);
     private perspectiveXCache: Float32Array[] = Array.from({ length: 7 }, () => new Float32Array(200));
+
+    // GC Optimization: Pre-allocated buffer for note indices
+    private visibleIndices: Uint32Array = new Uint32Array(1000);
+    private visibleNoteCount: number = 0;
 
     constructor(renderCache: RenderCache, _judgmentSystem: JudgmentSystem) {
         this.renderCache = renderCache;
@@ -74,7 +79,7 @@ export class HighwayRenderer {
         });
 
         // 2. Pre-generate Active Lane Gradients (Key Press Flash)
-        this.activeLaneGradients = LANE_COLORS.map(colorSet => {
+        this.activeLaneGradients = LANE_COLORS.map((colorSet, i) => {
             const grad = ctx.createLinearGradient(0, hitLineY, 0, beamTopY);
             const color = colorSet[0];
             const r = parseInt(color.substring(1, 3), 16);
@@ -85,6 +90,10 @@ export class HighwayRenderer {
             grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${startAlpha})`);
             grad.addColorStop(0.33, `rgba(${r}, ${g}, ${b}, ${startAlpha * 0.4})`); // 20% of highway: faint but visible
             grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`); // 60% invisible
+
+            // New: Cache Desaturated Colors
+            this.desaturatedLaneColors[i] = UIUtils.desaturateColor(color, 0.7);
+
             return grad;
         });
 
@@ -126,11 +135,7 @@ export class HighwayRenderer {
         ctx.globalAlpha = prevAlpha;
     }
 
-    public render(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number, holdingLanes: (VisualNote | null)[], inputManager: RhythmInputManager): void {
-        ctx.save();
-
-        this.renderBackground(ctx, state);
-        this.renderLockedLanes(ctx, state);
+    public renderDynamic(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number, holdingLanes: (VisualNote | null)[], inputManager: RhythmInputManager): void {
         this.renderActiveLanes(ctx, state, inputManager);
         this.renderHitZone(ctx, state, inputManager);
         this.renderNotes(ctx, state, visualNotes, lastNoteIndex, holdingLanes);
@@ -139,7 +144,13 @@ export class HighwayRenderer {
         holdingLanes.forEach((note, lane) => {
             if (note) this.drawLaneBeam(ctx, lane, state);
         });
+    }
 
+    /** @deprecated Use renderBackground and renderDynamic for layered rendering */
+    public render(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number, holdingLanes: (VisualNote | null)[], inputManager: RhythmInputManager): void {
+        ctx.save();
+        this.renderBackground(ctx, state);
+        this.renderDynamic(ctx, state, visualNotes, lastNoteIndex, holdingLanes, inputManager);
         ctx.restore();
     }
 
@@ -160,7 +171,7 @@ export class HighwayRenderer {
         }
     }
 
-    private renderBackground(ctx: CanvasRenderingContext2D, state: HighwayRenderState): void {
+    public renderBackground(ctx: CanvasRenderingContext2D, state: HighwayRenderState): void {
         const pulse = (Math.sin(state.cachedNow / 300) + 1) * 0.5;
         const theme = ThemeManager.getInstance().getCurrentTheme();
 
@@ -182,6 +193,9 @@ export class HighwayRenderer {
 
         // 5. Render Pulse Side Rails
         this.renderPulseRails(ctx, state, theme, pulse);
+
+        // 6. Render Locked Lanes (Static overlay on highway)
+        this.renderLockedLanes(ctx, state);
     }
 
     private renderRoad(ctx: CanvasRenderingContext2D, state: HighwayRenderState): void {
@@ -234,8 +248,10 @@ export class HighwayRenderer {
         lGrad.addColorStop(0.5 + pulse * 0.2, theme.color2);
         lGrad.addColorStop(1, theme.color1);
         ctx.fillStyle = lGrad;
-        ctx.shadowBlur = 12 * pulse;
-        ctx.shadowColor = theme.color2;
+        if (!state.isMobile) {
+            ctx.shadowBlur = 12 * pulse;
+            ctx.shadowColor = theme.color2;
+        }
         ctx.beginPath();
         ctx.moveTo(tl.x - railW, tl.y); ctx.lineTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(bl.x - railW * 2, bl.y);
         ctx.fill();
@@ -356,7 +372,6 @@ export class HighwayRenderer {
                     ctx.globalAlpha = HIGHWAY_CONFIG.RECEPTOR_LOCKED_ALPHA * 0.5;
                 } else {
                     // --- Improved Ground Light Effect ---
-                    // Draw a soft glow beneath the receptor to anchor it to the lane
                     const laneHueColor = LANE_COLORS[i % LANE_COLORS.length][1];
                     const r = parseInt(laneHueColor.substring(1, 3), 16);
                     const g = parseInt(laneHueColor.substring(3, 5), 16);
@@ -364,10 +379,10 @@ export class HighwayRenderer {
 
                     const groundGrad = ctx.createRadialGradient(
                         laneX + laneW / 2, state.hitLineY, 0,
-                        laneX + laneW / 2, state.hitLineY, laneW * 0.8 // Reduced from 1.5
+                        laneX + laneW / 2, state.hitLineY, laneW * 0.8
                     );
 
-                    const glowAlpha = isActive ? 0.4 : 0.1; // Reduced from 0.6/0.2
+                    const glowAlpha = isActive ? 0.4 : 0.1;
                     groundGrad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${glowAlpha})`);
                     groundGrad.addColorStop(1, 'rgba(0,0,0,0)');
 
@@ -397,7 +412,7 @@ export class HighwayRenderer {
         const lookAheadMultiplier = HIGHWAY_CONFIG.NOTE_LOOKAHEAD;
         const windowEnd = state.currentTime + timeToReachHitLine * lookAheadMultiplier;
 
-        const visibleIndices: number[] = [];
+        let count = 0;
         for (let i = lastNoteIndex; i < visualNotes.length; i++) {
             const note = visualNotes[i];
             const noteTimeMs = note.time * 1000;
@@ -405,12 +420,16 @@ export class HighwayRenderer {
             if (noteTimeMs > windowEnd) break;
             if (note.isProcessed && !note.isHolding) continue;
             if (noteEndMs < windowStart) continue;
-            visibleIndices.push(i);
+
+            if (count < this.visibleIndices.length) {
+                this.visibleIndices[count++] = i;
+            }
         }
+        this.visibleNoteCount = count;
 
         // Draw furthest notes first (Back-to-Front)
-        for (let j = visibleIndices.length - 1; j >= 0; j--) {
-            const note = visualNotes[visibleIndices[j]];
+        for (let j = this.visibleNoteCount - 1; j >= 0; j--) {
+            const note = visualNotes[this.visibleIndices[j]];
             const noteTimeMs = note.time * 1000;
             const timeDiff = noteTimeMs - state.currentTime;
             let linearProgress = 1 - (timeDiff / timeToReachHitLine);
@@ -459,37 +478,36 @@ export class HighwayRenderer {
 
         if (bodyTopY < bodyBotY) {
             this.withAlpha(ctx, alpha * globalAlpha, () => {
-                const sliceCount = state.isMobile ? 16 : 48;
+                const sliceCount = 32;
                 const totalHeight = bodyBotY - bodyTopY;
                 const laneColor = LANE_COLORS[lane % LANE_COLORS.length][0];
-                // Idle: High desaturation (0.7) for a muted look. Holding: Full saturated/bright color.
-                const baseColor = isHolding ? laneColor : UIUtils.desaturateColor(laneColor, 0.7);
+                const baseColor = isHolding ? laneColor : this.desaturatedLaneColors[lane % this.desaturatedLaneColors.length];
 
-                // 1. Create Body Path (Path2D for reuse)
-                const bodyPath = new Path2D();
+                // 1. Draw Body directly (No Path2D allocation)
+                ctx.beginPath();
                 for (let i = 0; i <= sliceCount; i++) {
                     const y = bodyTopY + (totalHeight * (i / sliceCount));
                     const w = this.getCachedWidth(y, state);
                     const halfW = (w * bodyRatio) * 0.5;
                     const x = this.getCachedX(lane, y, state) + w * 0.5;
-                    if (i === 0) bodyPath.moveTo(x - halfW, y);
-                    else bodyPath.lineTo(x - halfW, y);
+                    if (i === 0) ctx.moveTo(x - halfW, y);
+                    else ctx.lineTo(x - halfW, y);
                 }
                 for (let i = sliceCount; i >= 0; i--) {
                     const y = bodyTopY + (totalHeight * (i / sliceCount));
                     const w = this.getCachedWidth(y, state);
                     const halfW = (w * bodyRatio) * 0.5;
                     const x = this.getCachedX(lane, y, state) + w * 0.5;
-                    bodyPath.lineTo(x + halfW, y);
+                    ctx.lineTo(x + halfW, y);
                 }
-                bodyPath.closePath();
+                ctx.closePath();
 
-                // 2. Solid Base Fill (Force 1.0 opacity inside withAlpha)
+                // 2. Solid Base Fill
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.fillStyle = baseColor;
-                ctx.fill(bodyPath);
+                ctx.fill();
 
-                // 3. Central Spine (Returning as high-intensity guide)
+                // 3. Central Spine
                 ctx.beginPath();
                 for (let i = 0; i <= sliceCount; i++) {
                     const y = bodyTopY + (totalHeight * (i / sliceCount));
@@ -516,12 +534,32 @@ export class HighwayRenderer {
                 grad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
 
                 ctx.fillStyle = grad;
-                ctx.fill(bodyPath);
+
+                // Redraw the path for the gradient fill (or just call fill() again if we didn't clear it)
+                // Actually, ctx.fill() can be called multiple times for the same path.
+                ctx.beginPath();
+                for (let i = 0; i <= sliceCount; i++) {
+                    const y = bodyTopY + (totalHeight * (i / sliceCount));
+                    const w = this.getCachedWidth(y, state);
+                    const halfW = (w * bodyRatio) * 0.5;
+                    const x = this.getCachedX(lane, y, state) + w * 0.5;
+                    if (i === 0) ctx.moveTo(x - halfW, y);
+                    else ctx.lineTo(x - halfW, y);
+                }
+                for (let i = sliceCount; i >= 0; i--) {
+                    const y = bodyTopY + (totalHeight * (i / sliceCount));
+                    const w = this.getCachedWidth(y, state);
+                    const halfW = (w * bodyRatio) * 0.5;
+                    const x = this.getCachedX(lane, y, state) + w * 0.5;
+                    ctx.lineTo(x + halfW, y);
+                }
+                ctx.closePath();
+                ctx.fill();
 
                 // 5. HD Boundary
                 ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
                 ctx.lineWidth = 1.5;
-                ctx.stroke(bodyPath);
+                ctx.stroke();
             });
         }
 

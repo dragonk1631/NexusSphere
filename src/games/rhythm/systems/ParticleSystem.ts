@@ -46,17 +46,16 @@ export class ParticleSystem implements IParticleRenderData {
 
     public triggerExplosion(x: number, y: number, color: string): void {
         // Limit explosions strictly on mobile
-        const limit = this.isMobile ? 3 : 6;
+        const limit = 6;
         if (this.explosions.length >= limit) return;
         this.explosions.push({ x, y, radius: 0, alpha: 1, color });
     }
 
     public triggerShatter(x: number, y: number, color: string, isHold: boolean = false): void {
-        const maxParticles = this.isMobile ? MAX_PARTICLES * 0.4 : MAX_PARTICLES;
+        const maxParticles = MAX_PARTICLES;
         if (this.activeIndices.size >= maxParticles) return;
 
         let count = isHold ? 4 : 12;
-        if (this.isMobile) count = Math.ceil(count * 0.5);
 
         for (let i = 0; i < count; i++) {
             const idx = this.freeIndices.pop();
@@ -91,7 +90,7 @@ export class ParticleSystem implements IParticleRenderData {
 
     private updateParticles(delta: number): void {
         const speedMultiplier = delta / 16.67;
-        const fadeRate = this.isMobile ? 0.05 : 0.03;
+        const fadeRate = 0.03;
 
         this.activeIndices.forEach(idx => {
             const p = this.particlePool[idx];
@@ -110,8 +109,8 @@ export class ParticleSystem implements IParticleRenderData {
 
     private updateExplosions(delta: number): void {
         const speedMultiplier = delta / 16.67;
-        const radialSpeed = this.isMobile ? 8 : 6;
-        const fadeSpeed = this.isMobile ? 0.12 : 0.08;
+        const radialSpeed = 6;
+        const fadeSpeed = 0.08;
 
         for (let i = this.explosions.length - 1; i >= 0; i--) {
             const exp = this.explosions[i];

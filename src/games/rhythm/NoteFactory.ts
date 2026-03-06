@@ -111,7 +111,14 @@ export class NoteFactory {
             console.warn(`[NoteFactory] No configuration available. Generating empty chart.`);
         }
 
-        let notesToProcess = finalNotes.sort((a, b) => a.ticks - b.ticks);
+        let notesToProcess = finalNotes
+            .filter(n => n.duration > 0.01) // Filter out < 10ms flicker notes
+            .sort((a, b) => a.ticks - b.ticks);
+
+        if (notesToProcess.length > 20000) {
+            console.warn(`[NoteFactory] MIDI too dense (${notesToProcess.length} notes). Capping to 20,000 for stability.`);
+            notesToProcess = notesToProcess.slice(0, 20000);
+        }
 
         if (notesToProcess.length === 0) {
             console.warn("[NoteFactory] Failed to find any notes for charting. Returning empty list (Fallback Triggered).");
@@ -192,6 +199,9 @@ export class NoteFactory {
             console.log(`[NoteFactory] First 5 notes sample:`, finalResult.slice(0, 5).map(n => ({
                 tick: n.ticks, time: n.time, lane: n.lane, duration: n.duration, isHold: n.isHold
             })));
+        }
+        if (finalResult.length > 20000) {
+            return finalResult.slice(0, 20000);
         }
         return finalResult;
     }

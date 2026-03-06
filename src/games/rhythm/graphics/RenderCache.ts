@@ -10,6 +10,7 @@ export class RenderCache {
     public receptorsActive: HTMLCanvasElement[] = [];
     public particleGlow: HTMLCanvasElement | null = null;
     public highwayBackground: HTMLCanvasElement | null = null;
+    private isMobile: boolean = false;
 
     // Constants
     private readonly NOTE_WIDTH = 100;
@@ -32,6 +33,10 @@ export class RenderCache {
             RenderCache.instance = new RenderCache();
         }
         return RenderCache.instance;
+    }
+
+    public setMobile(isMobile: boolean): void {
+        this.isMobile = isMobile;
     }
 
     public init(): void {
@@ -78,7 +83,7 @@ export class RenderCache {
         const baseColor = colors[1];
         const darkColor = colors[0];
 
-        ctx.shadowBlur = 5; // Reduced from 10 for sharper edges
+        ctx.shadowBlur = this.isMobile ? 0 : 5;
         ctx.shadowColor = baseColor;
         ctx.lineJoin = 'round';
 
@@ -242,12 +247,12 @@ export class RenderCache {
         const drawY = padding;
 
         if (isActive) {
-            ctx.shadowBlur = 12; // Reduced from 20 for cleaner look
+            ctx.shadowBlur = 12;
             ctx.shadowColor = baseColor;
             ctx.globalAlpha = 1.0;
         } else {
             // Idle state: Sophisticated "Glass Frame"
-            ctx.shadowBlur = 4; // Reduced from 10
+            ctx.shadowBlur = 4;
             ctx.shadowColor = 'rgba(0,0,0,0.5)'; // Softer shadow
             ctx.globalAlpha = 0.7; // Slightly more transparent
         }

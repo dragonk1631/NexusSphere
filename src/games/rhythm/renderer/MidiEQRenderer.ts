@@ -1,4 +1,4 @@
-import type { ParsedMidi, GameNote } from '../../../core/audio/MidiParser';
+import type { ParsedMidi } from '../../../core/audio/MidiParser';
 
 const EQ_CONFIG = {
     NUM_CHANNELS: 16,
@@ -77,14 +77,15 @@ export class MidiEQRenderer {
         // 2. Logic: Target Calculation (O(1) with cursors)
         this.targets.fill(0);
         if (midi && this.trackCursors) {
-            for (let i = 0; i < midi.tracks.length; i++) {
+            const numTracks = Math.min(midi.tracks.length, EQ_CONFIG.NUM_CHANNELS);
+            for (let i = 0; i < numTracks; i++) {
                 const track = midi.tracks[i];
                 const ch = track.channel;
                 if (ch < 0 || ch >= EQ_CONFIG.NUM_CHANNELS) continue;
 
                 let cursor = this.trackCursors[i];
                 while (cursor < track.notes.length) {
-                    const note = track.notes[cursor] as GameNote;
+                    const note = track.notes[cursor];
                     if (note.time > playheadSec) break;
 
                     const noteEnd = note.time + note.duration;
@@ -99,7 +100,9 @@ export class MidiEQRenderer {
                     const playedFor = playheadSec - note.time;
                     v *= Math.max(0.1, 1 - (playedFor * 3));
                     if (v > this.targets[ch]) this.targets[ch] = v;
-                    cursor++;
+
+                    // We do NOT increment cursor here because current note is still active
+                    break;
                 }
             }
         }
@@ -193,13 +196,11 @@ export class MidiEQRenderer {
                 ctx.beginPath(); ctx.roundRect(bx, topY, barW, segH, cornerR); ctx.fill();
             }
 
-            // Peak Indicator (Keep subtle shadow)
+            // Peak Indicator (Solid white for better performance)
             if (this.peakHeights[ch] > 0.02 && peakSegIdx >= activeSegs) {
                 const py = plotY + mainH - (peakSegIdx + 1) * segH - peakSegIdx * segGap;
                 ctx.fillStyle = EQ_CONFIG.PEAK_COLOR;
-                ctx.shadowColor = '#fff'; ctx.shadowBlur = 4 * sf;
                 ctx.beginPath(); ctx.roundRect(bx, py, barW, segH, cornerR); ctx.fill();
-                ctx.shadowBlur = 0;
             }
 
             // Reflection Batch with GlobalAlpha
