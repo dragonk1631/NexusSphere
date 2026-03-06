@@ -9,9 +9,9 @@ export interface PauseRenderState {
 
 export class PauseRenderer {
     private readonly buttons = [
+        { id: 'resume', label: 'RESUME' },
         { id: 'restart', label: 'RESTART SONG' },
-        { id: 'song-select', label: 'SONG SELECTION' },
-        { id: 'main-menu', label: 'MAIN MENU' }
+        { id: 'song-select', label: 'SONG SELECTION' }
     ];
 
     public render(ctx: CanvasRenderingContext2D, state: PauseRenderState): void {

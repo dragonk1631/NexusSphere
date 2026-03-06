@@ -571,14 +571,14 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             this.pauseSelectedButtonIndex = 0;
         } else if (this.currentState === GameState.PAUSED) {
             this.currentState = GameState.PLAYING;
-            this.audioEngine.resume();
+            this.audioEngine.play();
         }
     }
 
     private handlePauseAction(index: number) {
-        if (index === 0) this.handleRetry();           // RESTART
-        else if (index === 1) this.backToSongSelection(); // SONG SELECTION
-        else if (index === 2) this.returnToMainMenu(); // MAIN MENU
+        if (index === 0) this.togglePause();           // RESUME
+        else if (index === 1) this.handleRetry();           // RESTART
+        else if (index === 2) this.backToSongSelection(); // SONG SELECTION
     }
     public onGameOverPointer = (x: number, y: number) => {
         const { width, height } = this.canvas;

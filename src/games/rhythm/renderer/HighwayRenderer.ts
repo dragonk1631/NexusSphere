@@ -55,25 +55,37 @@ export class HighwayRenderer {
     }
 
     public onResize(ctx: CanvasRenderingContext2D, _laneCount: number, horizonY: number, hitLineY: number, state: HighwayRenderState): void {
-        // 1. Pre-generate Beam Gradients (Shortened to 50%)
+        const beamRange = hitLineY - horizonY;
+        const beamTopY = hitLineY - beamRange * 0.6; // Consistent 60% limit for both
+
+        // 1. Pre-generate Beam Gradients (Held Notes)
         this.beamGradients = LANE_COLORS.map(colorSet => {
-            const beamMidY = hitLineY - (hitLineY - horizonY) * 0.5;
-            const grad = ctx.createLinearGradient(0, hitLineY, 0, beamMidY);
-            const color = colorSet[1];
+            const grad = ctx.createLinearGradient(0, hitLineY, 0, beamTopY);
+            const color = colorSet[0];
             const r = parseInt(color.substring(1, 3), 16);
             const g = parseInt(color.substring(3, 5), 16);
             const b = parseInt(color.substring(5, 7), 16);
-            grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${HIGHWAY_CONFIG.BEAM_ALPHA_START})`);
-            grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`);
+
+            const startAlpha = HIGHWAY_CONFIG.BEAM_ALPHA_START * 2.0; // Intensified start
+            grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${startAlpha})`);
+            grad.addColorStop(0.33, `rgba(${r}, ${g}, ${b}, ${startAlpha * 0.4})`); // 20% of highway: faint but visible
+            grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`); // Fully invisible at 60% point
             return grad;
         });
 
-        // 2. Pre-generate Active Lane Gradients
-        this.activeLaneGradients = LANE_COLORS.map(_ => {
-            const lightGrad = ctx.createLinearGradient(0, hitLineY, 0, horizonY);
-            lightGrad.addColorStop(0, `rgba(255, 255, 255, ${HIGHWAY_CONFIG.ACTIVE_LANE_ALPHA})`);
-            lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            return lightGrad;
+        // 2. Pre-generate Active Lane Gradients (Key Press Flash)
+        this.activeLaneGradients = LANE_COLORS.map(colorSet => {
+            const grad = ctx.createLinearGradient(0, hitLineY, 0, beamTopY);
+            const color = colorSet[0];
+            const r = parseInt(color.substring(1, 3), 16);
+            const g = parseInt(color.substring(3, 5), 16);
+            const b = parseInt(color.substring(5, 7), 16);
+
+            const startAlpha = HIGHWAY_CONFIG.ACTIVE_LANE_ALPHA * 1.5;
+            grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${startAlpha})`);
+            grad.addColorStop(0.33, `rgba(${r}, ${g}, ${b}, ${startAlpha * 0.4})`); // 20% of highway: faint but visible
+            grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`); // 60% invisible
+            return grad;
         });
 
         // 3. Build Perspective Cache Table
@@ -133,9 +145,9 @@ export class HighwayRenderer {
 
 
     private drawLaneBeam(ctx: CanvasRenderingContext2D, lane: number, state: HighwayRenderState): void {
-        const beamMidY = state.hitLineY - (state.hitLineY - state.horizonY) * 0.5;
-        const tl = { x: this.getCachedX(lane, beamMidY, state), y: beamMidY };
-        const tr = { x: this.getCachedX(lane + 1, beamMidY, state), y: beamMidY };
+        const beamTopY = state.hitLineY - (state.hitLineY - state.horizonY) * 0.6;
+        const tl = { x: this.getCachedX(lane, beamTopY, state), y: beamTopY };
+        const tr = { x: this.getCachedX(lane + 1, beamTopY, state), y: beamTopY };
         const bl = { x: this.getCachedX(lane, state.hitLineY, state), y: state.hitLineY };
         const br = { x: this.getCachedX(lane + 1, state.hitLineY, state), y: state.hitLineY };
 
@@ -292,15 +304,17 @@ export class HighwayRenderer {
     private renderActiveLanes(ctx: CanvasRenderingContext2D, state: HighwayRenderState, inputManager: RhythmInputManager): void {
         for (let i = 0; i < state.laneCount; i++) {
             if (inputManager.getKeyState(i)) {
-                const lX1 = this.getCachedX(i, state.horizonY, state);
-                const rX1 = this.getCachedX(i + 1, state.horizonY, state);
-                const lX2 = this.getCachedX(i, state.bottomY, state);
-                const rX2 = this.getCachedX(i + 1, state.bottomY, state);
+                // Shortened flash area (60% of highway)
+                const beamTopY = state.hitLineY - (state.hitLineY - state.horizonY) * 0.6;
+                const tl = { x: this.getCachedX(i, beamTopY, state), y: beamTopY };
+                const tr = { x: this.getCachedX(i + 1, beamTopY, state), y: beamTopY };
+                const bl = { x: this.getCachedX(i, state.hitLineY, state), y: state.hitLineY };
+                const br = { x: this.getCachedX(i + 1, state.hitLineY, state), y: state.hitLineY };
 
                 const lightGrad = this.activeLaneGradients[i];
                 if (lightGrad) {
                     ctx.beginPath();
-                    ctx.moveTo(lX1, state.horizonY); ctx.lineTo(rX1, state.horizonY); ctx.lineTo(rX2, state.bottomY); ctx.lineTo(lX2, state.bottomY);
+                    ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
                     ctx.fillStyle = lightGrad;
                     ctx.fill();
                 }
