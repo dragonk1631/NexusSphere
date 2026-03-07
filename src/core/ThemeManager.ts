@@ -75,19 +75,19 @@ export class ThemeManager {
             id: 'sunset-overdrive',
             name: 'Sunset Overdrive',
             pattern: 'scanlines',
-            color1: '#4A154B',
-            color2: '#FF416C',
-            color3: '#FF4B2B',
-            particleColor: '#FFD700',
-            gridColor: 'rgba(255, 75, 43, 0.1)',
-            bubblePulseGrad: ['rgba(255, 215, 0, 0.9)', 'rgba(255, 65, 108, 0.3)'],
+            color1: '#1A0B25', // Deep desaturated purple
+            color2: '#8E4A42', // Muted Rose Gold/Crimson
+            color3: '#E3C1A1', // Soft Beige/Gold Sun
+            particleColor: '#DFCBBD',
+            gridColor: 'rgba(142, 74, 66, 0.15)',
+            bubblePulseGrad: ['rgba(227, 193, 161, 0.9)', 'rgba(142, 74, 66, 0.3)'],
             semantic: {
-                levelEasy: '#fd79a8',
-                levelNormal: '#FF8E53',
-                levelHard: '#FF416C',
-                levelExpert: '#8B0000',
-                speedOption: '#FFD700',
-                modeOption: '#FF4B2B',
+                levelEasy: '#E3C1A1',
+                levelNormal: '#DFCBBD',
+                levelHard: '#8E4A42',
+                levelExpert: '#5D2E29',
+                speedOption: '#E3C1A1',
+                modeOption: '#8E4A42',
             }
         },
         {
@@ -166,56 +166,54 @@ export class ThemeManager {
                 modeOption: '#FF6600',
             }
         },
-        // Märchen replaces Golden Hour — pastel pink fairy-tale aesthetic
         {
             id: 'marchen',
             name: 'Märchen',
             pattern: 'floating',
-            color1: '#2D0A2E',
-            color2: '#7B3F8C',
-            color3: '#F9A8D4',
-            particleColor: '#FF9FBB',
-            gridColor: 'rgba(249, 168, 212, 0.12)',
-            bubblePulseGrad: ['rgba(255, 182, 220, 0.9)', 'rgba(123, 63, 140, 0.35)'],
+            color1: '#1a0a2e',
+            color2: '#633194',
+            color3: '#ff9ff3',
+            particleColor: '#feca57',
+            gridColor: 'rgba(255, 159, 243, 0.15)',
+            bubblePulseGrad: ['rgba(254, 202, 87, 0.9)', 'rgba(99, 49, 148, 0.3)'],
             semantic: {
-                levelEasy: '#f8c8da',   // Petal pink
-                levelNormal: '#f48fb1', // Rose pink
-                levelHard: '#e91e8c',   // Vivid fuchsia
-                levelExpert: '#880e4f', // Deep magenta
-                speedOption: '#f48fb1',
-                modeOption: '#ce93d8',
+                levelEasy: '#feca57',
+                levelNormal: '#ff9ff3',
+                levelHard: '#ff6b6b',
+                levelExpert: '#48dbfb',
+                speedOption: '#feca57',
+                modeOption: '#ff9ff3',
             }
         },
         {
             id: 'monochrome-tech',
             name: 'Monotech',
             pattern: 'hexagons',
-            color1: '#111111',
-            color2: '#282828',
-            color3: '#555555',
-            particleColor: '#DDDDDD',
-            gridColor: 'rgba(255, 255, 255, 0.05)',
-            bubblePulseGrad: ['rgba(221, 221, 221, 0.9)', 'rgba(85, 85, 85, 0.3)'],
+            color1: '#000000',
+            color2: '#1a1a1a',
+            color3: '#333333',
+            particleColor: '#FFFFFF',
+            gridColor: 'rgba(255, 255, 255, 0.1)',
+            bubblePulseGrad: ['rgba(255, 255, 255, 0.8)', 'rgba(51, 51, 51, 0.3)'],
             semantic: {
-                levelEasy: '#DDDDDD',
-                levelNormal: '#AAAAAA',
-                levelHard: '#888888',
-                levelExpert: '#555555',
-                speedOption: '#DDDDDD',
-                modeOption: '#AAAAAA',
+                levelEasy: '#FFFFFF',
+                levelNormal: '#CCCCCC',
+                levelHard: '#999999',
+                levelExpert: '#666666',
+                speedOption: '#FFFFFF',
+                modeOption: '#CCCCCC',
             }
         },
-        // Winter Snow replaces Bubblegum Pop — icy whites, cyans and deep navy
         {
             id: 'winter-snow',
             name: 'Winter Snow',
-            pattern: 'stars',
+            pattern: 'snow',
             color1: '#05122C',
             color2: '#0A2558',
             color3: '#1A4080',
-            particleColor: '#E0F7FA',
-            gridColor: 'rgba(176, 230, 255, 0.07)',
-            bubblePulseGrad: ['rgba(224, 247, 250, 0.9)', 'rgba(10, 37, 88, 0.3)'],
+            particleColor: '#FFFFFF',
+            gridColor: 'rgba(176, 230, 255, 0.1)',
+            bubblePulseGrad: ['rgba(255, 255, 255, 0.9)', 'rgba(10, 37, 88, 0.3)'],
             semantic: {
                 levelEasy: '#b2ebf2',   // Ice blue
                 levelNormal: '#4fc3f7', // Sky cyan
