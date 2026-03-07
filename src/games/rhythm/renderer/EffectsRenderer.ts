@@ -1,4 +1,5 @@
 import { type IParticleRenderData, type ITransitionRenderData } from '../types/GameTypes';
+import type { IThemeStrategy } from '../themes/IThemeStrategy';
 
 const EFFECTS_CONFIG = {
     PARTICLE_SHADOW_BLUR: 10,
@@ -7,17 +8,30 @@ const EFFECTS_CONFIG = {
     EXPLOSION_INNER_ALPHA: 0.3,
     GLITCH_SCANLINE_COUNT: 10,
     GLITCH_MAX_HEIGHT: 20,
-    GLITCH_ALPHA_THRESHOLD: 0.2
+    GLITCH_ALPHA_THRESHOLD: 0.2,
+    HIT_EFFECT_DURATION: 500 // ms
 } as const;
+
+/** A single note-hit event that drives theme-specific visual feedback. */
+interface HitEvent {
+    x: number;
+    y: number;
+    laneWidth: number;
+    judgment: string;
+    birthTime: number; // performance.now() timestamp
+}
 
 /**
  * EffectsRenderer handles the drawing of particles, explosions,
- * and screen transition overlays.
+ * screen transition overlays, and theme-specific hit effects.
  */
 export class EffectsRenderer {
     private particleData: IParticleRenderData;
     private transitionData: ITransitionRenderData;
     private glitchOffset: number = 0;
+
+    /** Queue of active hit events, cleared as they expire. */
+    private hitEvents: HitEvent[] = [];
 
     constructor(
         particleData: IParticleRenderData,
@@ -28,14 +42,41 @@ export class EffectsRenderer {
     }
 
     /**
-     * Renders all visual effects (particles and transitions).
+     * Called from RhythmGame when a note is successfully hit.
      */
-    public render(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+    public addHitEvent(x: number, y: number, laneWidth: number, judgment: string): void {
+        this.hitEvents.push({ x, y, laneWidth, judgment, birthTime: performance.now() });
+    }
+
+    /**
+     * Renders all visual effects (particles, explosions, hit effects, and transitions).
+     */
+    public render(ctx: CanvasRenderingContext2D, width: number, height: number, themeStrategy?: IThemeStrategy): void {
         ctx.save();
         this.renderParticles(ctx);
         this.renderExplosions(ctx);
+        this.renderHitEffects(ctx, themeStrategy);
         this.renderTransition(ctx, width, height);
         ctx.restore();
+    }
+
+    private renderHitEffects(ctx: CanvasRenderingContext2D, themeStrategy?: IThemeStrategy): void {
+        if (!themeStrategy?.renderHitEffect) {
+            this.hitEvents = []; // purge if no theme effect registered
+            return;
+        }
+
+        const now = performance.now();
+        const duration = EFFECTS_CONFIG.HIT_EFFECT_DURATION;
+
+        this.hitEvents = this.hitEvents.filter(ev => {
+            const t = (now - ev.birthTime) / duration;
+            if (t >= 1) return false; // expired
+            ctx.save();
+            themeStrategy.renderHitEffect!(ctx, ev.x, ev.y, ev.laneWidth, ev.judgment, t);
+            ctx.restore();
+            return true;
+        });
     }
 
     private renderParticles(ctx: CanvasRenderingContext2D): void {
@@ -114,4 +155,3 @@ export class EffectsRenderer {
         }
     }
 }
-

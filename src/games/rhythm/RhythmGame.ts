@@ -393,7 +393,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             }
         }
 
-        this.effectsRenderer.render(ctx, width, height);
+        this.effectsRenderer.render(ctx, width, height, this.themeStrategy);
     }
 
     private renderRotateRequest(ctx: CanvasRenderingContext2D, width: number, height: number) {
@@ -631,8 +631,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.judgmentSystem.setJudgment(j, this.themeStrategy.getColorForJudgment(j), performance.now());
         if (j !== 'MISS') {
             const laneCenter = this.getPerspectiveX(l, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
+            const laneWidth = this.getPerspectiveWidth(this.hitLineY);
             const pColor = LANE_COLORS[l % LANE_COLORS.length][0];
             this.particleSystem.triggerShatter(laneCenter, this.hitLineY, pColor);
+            // Theme-specific hit effect
+            this.effectsRenderer.addHitEvent(laneCenter, this.hitLineY, laneWidth, j);
             if (j === 'PERFECT' || j === 'GREAT') {
                 this.particleSystem.triggerExplosion(laneCenter, this.hitLineY, pColor);
             }
