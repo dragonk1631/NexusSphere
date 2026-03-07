@@ -52,7 +52,7 @@ export class MidnightOceanTheme implements IThemeStrategy {
         for (let i = 0; i < dropCount; i++) {
             const spreadY = (Math.random() - 0.5) * laneWidth * 0.2;
             const dropT = t * 1.25;
-            const dy = y - (laneWidth * 1.8 * dropT) + (laneWidth * 2.5 * dropT * dropT);
+            const dy = y + spreadY - (laneWidth * 1.8 * dropT) + (laneWidth * 2.5 * dropT * dropT);
             const dx = x + (Math.random() - 0.5) * laneWidth * 0.5;
 
             if (dy > y + laneWidth * 1.5) continue;
