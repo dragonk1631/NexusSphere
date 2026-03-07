@@ -2,6 +2,7 @@ import type { IThemeStrategy } from './IThemeStrategy';
 
 /**
  * MatrixGridTheme provides a digital rain / code aesthetic.
+ * Now using an improved particle-based hit effect based on the Marchen structure.
  */
 export class MatrixGridTheme implements IThemeStrategy {
     public readonly id = 'matrix-grid';
@@ -25,89 +26,86 @@ export class MatrixGridTheme implements IThemeStrategy {
     }
 
     /**
-     * Code Overload: Enhanced matrix impact with high-density character streams,
-     * horizontal glitch bars, and a powerful neon flare.
-     * Refined: Hits are now centered exactly on the judgment line to avoid gaps.
+     * Matrix Glitch Bloom: Re-uses the Marchen logic but swaps artifacts 
+     * for digital blocks and green code characters.
      */
     public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
-        const ease = 1 - Math.pow(t, 2);
+        const ease = 1 - Math.pow(t, 1.5);
         const isPerfect = judgment === 'PERFECT';
-        const chars = '01ABXZ%$#@!&*?/\\|ｦｱｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ';
-        const streamCount = isPerfect ? 12 : 8;
-        const charSize = Math.max(10, laneWidth * 0.18);
+        const glitchCount = isPerfect ? 24 : 16;
+        const chars = '01ABXZ%$#@!&*?/\\|ｦｱｳｴｵ';
 
         ctx.save();
-        ctx.font = `bold ${charSize}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
 
-        // 1. High-density Code Cascade (Starting exactly from Y)
-        for (let i = 0; i < streamCount; i++) {
-            const spreadSeed = (i / (streamCount - 1) - 0.5) * laneWidth * 2.2;
-            const cx = x + spreadSeed;
-            const riseBase = t * laneWidth * 5.0; // Starts from 0 offset
+        // 1. Digital Grid Flash (Based on Marchen's Magic Circle)
+        if (t < 0.4) {
+            const mAlpha = (1 - t / 0.4) * 0.7;
+            const mSize = laneWidth * (0.4 + t * 1.5);
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(t * Math.PI * 0.5);
+            ctx.strokeStyle = `rgba(0, 255, 70, ${mAlpha})`;
+            ctx.lineWidth = 2;
 
-            const innerCharCount = isPerfect ? 5 : 3;
-            for (let j = 0; j < innerCharCount; j++) {
-                const charY = y - riseBase - j * charSize * 1.2;
-                const charAlpha = ease * (1 - j * 0.2) * (0.5 + (i % 2) * 0.5);
+            // Draw a square grid-like flash
+            ctx.strokeRect(-mSize, -mSize, mSize * 2, mSize * 2);
+            ctx.beginPath();
+            ctx.moveTo(-mSize, 0); ctx.lineTo(mSize, 0);
+            ctx.moveTo(0, -mSize); ctx.lineTo(0, mSize);
+            ctx.stroke();
 
-                if (charY > y + 5) continue;
-
-                if (j === 0) {
-                    ctx.fillStyle = `rgba(220, 255, 230, ${charAlpha})`;
-                    ctx.shadowBlur = 12;
-                    ctx.shadowColor = '#00FF46';
-                } else {
-                    ctx.fillStyle = `rgba(0, 255, 70, ${charAlpha * 0.7})`;
-                    ctx.shadowBlur = 0;
-                }
-
-                const char = chars[Math.floor((i * 13 + j * 7 + t * 30) % chars.length)];
-                ctx.fillText(char, cx, charY);
-            }
+            // Outer diamond
+            ctx.rotate(Math.PI / 4);
+            ctx.strokeRect(-mSize * 0.7, -mSize * 0.7, mSize * 1.4, mSize * 1.4);
+            ctx.restore();
         }
 
-        // 2. Immediate Glitch Artifacts (Fills the gap at the hit line)
-        if (t < 0.25) {
-            const sAlpha = (0.25 - t) / 0.25;
-            ctx.fillStyle = `rgba(0, 255, 70, ${sAlpha * 0.8})`;
-            for (let i = 0; i < 6; i++) {
-                const sw = laneWidth * (0.1 + Math.random() * 0.3);
-                const sh = 2 + Math.random() * 10;
-                const sx = x + (Math.random() - 0.5) * laneWidth * 1.2;
-                const sy = y + (Math.random() - 0.5) * 10;
-                ctx.fillRect(sx - sw / 2, sy - sh / 2, sw, sh);
-            }
-        }
+        // 2. Glitch Particle Bloom (Based on Marchen's Stardust)
+        for (let i = 0; i < glitchCount; i++) {
+            const baseAngle = (i / glitchCount) * Math.PI * 2;
+            // More erratic movement for glitch
+            const drift = Math.sin(t * Math.PI * 5 + i) * 0.4;
+            const angle = baseAngle + drift;
+            const radius = laneWidth * 0.1 + t * laneWidth * (2.0 + (i % 4) * 0.5);
 
-        // 3. Horizontal Glitch Bars
-        if (t < 0.35) {
-            const glitchAlpha = (0.35 - t) / 0.35 * 0.8;
+            const sx = x + Math.cos(angle) * radius;
+            const sy = y + Math.sin(angle) * radius * 0.6; // Slightly flattened
+
+            const alpha = ease * (0.6 + (i % 3) * 0.4);
+
+            ctx.save();
+            ctx.translate(sx, sy);
             ctx.globalCompositeOperation = 'lighter';
-            for (let i = 0; i < 4; i++) {
-                const gw = laneWidth * (2.5 + Math.random() * 2);
-                const gh = 2 + Math.random() * 4;
-                const gx = x - gw / 2 + (Math.random() - 0.5) * 15;
-                const gy = y + (Math.random() - 0.5) * 20;
-                ctx.fillStyle = `rgba(0, 255, 70, ${glitchAlpha * 0.7})`;
-                ctx.fillRect(gx, gy, gw, gh);
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#00FF46';
+
+            if (i % 2 === 0) {
+                // Draw a code character
+                const char = chars[Math.floor((i + t * 20) % chars.length)];
+                ctx.font = `${Math.max(10, (10 + (i % 5)) * ease)}px monospace`;
+                ctx.fillStyle = `rgba(0, 255, 70, ${alpha})`;
+                ctx.fillText(char, 0, 0);
+            } else {
+                // Draw a glitchy rectangle
+                const rw = (4 + (i % 6)) * ease;
+                const rh = (2 + (i % 4)) * ease;
+                ctx.fillStyle = i % 3 === 0 ? `rgba(200, 255, 220, ${alpha})` : `rgba(0, 255, 70, ${alpha})`;
+                ctx.fillRect(-rw / 2, -rh / 2, rw, rh);
             }
+            ctx.restore();
         }
 
-        // 4. Powerful Green Core Flare
-        ctx.shadowBlur = 0;
-        const flareR = laneWidth * (isPerfect ? 1.1 : 0.8) * ease;
-        const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, flareR);
+        // 3. Neon Core Flash
+        const coreR = laneWidth * (isPerfect ? 1.0 : 0.7) * ease;
+        const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
         coreGrad.addColorStop(0, `rgba(220, 255, 230, ${ease * 1.0})`);
-        coreGrad.addColorStop(0.2, `rgba(0, 255, 70, ${ease * 0.9})`);
-        coreGrad.addColorStop(0.5, `rgba(0, 100, 30, ${ease * 0.5})`);
-        coreGrad.addColorStop(1, 'rgba(0, 40, 10, 0)');
+        coreGrad.addColorStop(0.3, `rgba(0, 255, 70, ${ease * 0.8})`);
+        coreGrad.addColorStop(1, 'transparent');
 
         ctx.globalCompositeOperation = 'lighter';
         ctx.fillStyle = coreGrad;
         ctx.beginPath();
-        ctx.arc(x, y, flareR, 0, Math.PI * 2);
+        ctx.arc(x, y, coreR, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
