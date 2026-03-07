@@ -68,13 +68,6 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private loadingRenderer: LoadingRenderer;
     private gameplayManager: GameplayManager;
 
-    // Layering System
-    private bgCanvas!: HTMLCanvasElement;
-    private bgCtx!: CanvasRenderingContext2D;
-    private overlayCanvas!: HTMLCanvasElement;
-    private overlayCtx!: CanvasRenderingContext2D;
-    private staticDirty: boolean = true;
-
     private currentState: GameState = GameState.MENU;
     private shouldAutoStart = false;
     private midiData: ParsedMidi | null = null;
@@ -124,48 +117,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             onReturnToMainMenu: () => this.returnToMainMenu()
         });
         this.inputManager.register();
-        this.setupLayers();
-        this.setupVisibilityListener();
         this.loadFonts();
-    }
-
-    private setupLayers(): void {
-        const parent = this.canvas.parentElement;
-        if (!parent) return;
-
-        // Ensure parent is relative for absolute positioning of layers
-        parent.style.position = 'relative';
-
-        // 1. Setup Background Canvas (Bottom)
-        this.bgCanvas = document.createElement('canvas');
-        this.bgCtx = this.bgCanvas.getContext('2d')!; // Use alpha: true to see global bg
-        this.applyLayerStyle(this.bgCanvas, 0);
-        parent.insertBefore(this.bgCanvas, this.canvas);
-
-        // 2. Setup Gameplay Canvas (Middle - existing this.canvas)
-        this.applyLayerStyle(this.canvas, 1);
-
-        // 3. Setup Overlay Canvas (Top)
-        this.overlayCanvas = document.createElement('canvas');
-        this.overlayCtx = this.overlayCanvas.getContext('2d')!;
-        this.applyLayerStyle(this.overlayCanvas, 2);
-        parent.appendChild(this.overlayCanvas);
-    }
-
-    private applyLayerStyle(canvas: HTMLCanvasElement, zIndex: number): void {
-        canvas.style.position = 'absolute';
-        canvas.style.left = '0';
-        canvas.style.top = '0';
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-        canvas.style.zIndex = zIndex.toString();
-        // Prevent interaction on non-primary layers if needed
-        if (zIndex !== 1) canvas.style.pointerEvents = 'none';
     }
 
     private initThemeStrategy(): IThemeStrategy {
         const themeId = ThemeManager.getInstance().getCurrentTheme().id;
-        this.staticDirty = true; // Refresh static layer on theme change
         if (themeId === 'cyber-neon') return new CyberNeonTheme();
         if (themeId === 'matrix-grid') return new MatrixGridTheme();
         if (themeId === 'deep-space') return new DeepSpaceTheme();
@@ -176,7 +132,6 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         if (themeId === 'monochrome-tech') return new MonochromeTechTheme();
         if (themeId === 'winter-snow') return new WinterSnowTheme();
         if (themeId === 'sunset-overdrive') return new SunsetOverdriveTheme();
-        this.staticDirty = true; // Mark static layer as dirty when theme changes
         return new DefaultTheme();
     }
 
@@ -198,21 +153,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private detectEnvironment() {
         this.isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         this.particleSystem.setMobile(this.isMobile);
-        this.renderCache.setMobile(this.isMobile);
         console.log(`[RhythmGame] Environment: ${this.isMobile ? 'Mobile' : 'Desktop'}`);
-    }
-
-    private setupVisibilityListener() {
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') {
-                console.log("[RhythmGame] Tab hidden - auto-pausing...");
-                if (this.currentState === GameState.PLAYING) {
-                    this.togglePause();
-                } else if (this.currentState === GameState.MENU) {
-                    this.audioEngine.stop();
-                }
-            }
-        });
     }
 
     private async handleInitialState() {
@@ -261,19 +202,6 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         const highwayState = this.getHighwayRenderState();
         this.highwayRenderer.onResize(this.ctx, this.laneCount, this.horizonY, this.hitLineY, highwayState);
         this.hudRenderer.onResize(this.ctx, width, height);
-
-        // Sync extra layers
-        if (this.bgCanvas) {
-            this.bgCanvas.width = width;
-            this.bgCanvas.height = height;
-        }
-        if (this.overlayCanvas) {
-            this.overlayCanvas.width = width;
-            this.overlayCanvas.height = height;
-        }
-
-        this.staticDirty = true; // High-res redraw on next frame
-
         if (this.renderCache) {
             this.renderCache.renderHighwayBackground(width, height, this.horizonY, this.bottomY, this.laneCount,
                 (l, y) => this.getPerspectiveX(l, y), ThemeManager.getInstance().getCurrentTheme().color1,
@@ -379,14 +307,12 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     }
 
     public update(delta: number): void {
-        if (this.currentState === GameState.MENU) {
-            this.menuManager.update(delta);
-            return;
-        }
-
         this.transitionSystem.update(delta);
         this.particleSystem.update(delta);
+        if (delta > 200) this.judgmentSystem.setLagInvincibility(500);
+        else this.judgmentSystem.update(delta);
 
+        if (this.currentState === GameState.MENU) { this.menuManager.update(delta); return; }
         if (this.currentState === GameState.LOADING) return;
 
         if (this.currentState === GameState.PAUSED) {
@@ -444,10 +370,6 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         const { width, height } = this.canvas;
         if (height > width) { this.renderRotateRequest(ctx, width, height); return; }
 
-        // 0. Clear dynamic layers at the start
-        if (this.overlayCtx) this.overlayCtx.clearRect(0, 0, width, height);
-        // Do NOT clear bgCtx here (it's static)
-
         if (this.currentState === GameState.MENU) this.menuRenderer.render(ctx, this.getMenuRenderState());
         else if (this.currentState === GameState.LOADING) {
             this.loadingRenderer.render(ctx, {
@@ -471,10 +393,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             }
         }
 
-        // Always render effects on the Overlay layer
-        if (this.overlayCtx) {
-            this.effectsRenderer.render(this.overlayCtx, width, height);
-        }
+        this.effectsRenderer.render(ctx, width, height, this.themeStrategy);
     }
 
     private renderRotateRequest(ctx: CanvasRenderingContext2D, width: number, height: number) {
@@ -558,28 +477,16 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     }
 
     private renderGameplay(ctx: CanvasRenderingContext2D, width: number, height: number) {
-        // 1. Static Layer (Only when dirty)
-        if (this.staticDirty && this.bgCtx) {
-            this.bgCtx.clearRect(0, 0, width, height); // Clear instead of opaque black fill
-            const highwayState = this.getHighwayRenderState();
-            // Call specialized method for static background elements
-            this.highwayRenderer.renderBackground(this.bgCtx, highwayState);
-            this.staticDirty = false;
-        }
-
-        // 2. Gameplay Layer (Dynamic Notes/Receptors)
         ctx.clearRect(0, 0, width, height);
         const highwayState = this.getHighwayRenderState();
-        this.highwayRenderer.renderDynamic(ctx, highwayState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.gameplayManager.holdingLanes, this.inputManager);
-
-        // 3. HUD/Overlay (Redirected to overlayCtx)
+        this.highwayRenderer.render(ctx, highwayState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.gameplayManager.holdingLanes, this.inputManager);
         const hudState: HUDRenderState = {
             width, height,
             comboAnim: this.gameplayManager.comboAnim,
             lastJudgment: this.judgmentSystem.getLastJudgment(),
             cachedNow: performance.now()
         };
-        this.hudRenderer.render(this.overlayCtx, hudState, this.scoreManager, this.themeStrategy, (l, y) => this.getPerspectiveX(l, y));
+        this.hudRenderer.render(ctx, hudState, this.scoreManager, this.themeStrategy, (l, y) => this.getPerspectiveX(l, y));
     }
 
     // -- IGameInputHandler Implementation --
@@ -649,8 +556,6 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private backToSongSelection() {
         this.transitionSystem.start(() => {
             this.audioEngine.stop();
-            this.visualNotes = [];
-            this.particleSystem.clear();
             this.isTestMode = false;
             GameTransition.clear();
             this.currentState = GameState.MENU;
@@ -726,8 +631,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.judgmentSystem.setJudgment(j, this.themeStrategy.getColorForJudgment(j), performance.now());
         if (j !== 'MISS') {
             const laneCenter = this.getPerspectiveX(l, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
+            const laneWidth = this.getPerspectiveWidth(this.hitLineY);
             const pColor = LANE_COLORS[l % LANE_COLORS.length][0];
             this.particleSystem.triggerShatter(laneCenter, this.hitLineY, pColor);
+            // Theme-specific hit effect
+            this.effectsRenderer.addHitEvent(laneCenter, this.hitLineY, laneWidth, j);
             if (j === 'PERFECT' || j === 'GREAT') {
                 this.particleSystem.triggerExplosion(laneCenter, this.hitLineY, pColor);
             }
