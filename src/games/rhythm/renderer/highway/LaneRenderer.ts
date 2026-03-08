@@ -50,6 +50,14 @@ export class LaneRenderer {
      * Renders lane dividers and boundaries.
      */
     public renderDividers(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache): void {
+        const { bpm, cachedNow } = state;
+        // BPM Pulse calculation: 60000ms / BPM = duration of 1 beat
+        const msPerBeat = 60000 / bpm;
+        const beatProgress = (cachedNow % msPerBeat) / msPerBeat;
+        // Ease-out pulse: sharp start, smooth fade
+        const pulse = Math.pow(1 - beatProgress, 1.5);
+        const sparkle = (Math.random() > 0.8 ? 1.2 : 1.0); // Subtle high-frequency jitter
+
         ctx.save();
 
         for (let i = 0; i <= state.laneCount; i++) {
@@ -58,37 +66,42 @@ export class LaneRenderer {
             const isEdge = (i === 0 || i === state.laneCount);
 
             if (isEdge) {
-                // ULTRA-PREMIUM SIDE RAIL: Doubled thickness + Specular Glint
+                // ULTRA-BPM PULSE RAIL: 48px Massive Glow + Pulsing + Sparkle
                 ctx.save();
                 ctx.strokeStyle = this.sideRailGradient || 'white';
 
-                // Pass 1: Massive outer soft glow (Doubled: 12 -> 24)
-                ctx.lineWidth = 24;
-                ctx.globalAlpha = 0.15;
+                // Base alpha modulation by BPM pulse
+                const baseAlpha = 0.15 + (pulse * 0.25);
+
+                // Pass 1: Massive outer soft glow (Doubled: 24 -> 48px)
+                ctx.lineWidth = 48 * sparkle;
+                ctx.globalAlpha = baseAlpha;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
                 ctx.lineTo(botX, state.bottomY);
                 ctx.stroke();
 
-                // Pass 2: Middle structural glow (Doubled: 6 -> 12)
-                ctx.lineWidth = 12;
-                ctx.globalAlpha = 0.35;
+                // Pass 2: Middle structural glow (Doubled: 12 -> 24px)
+                // Pulsing line width for "breathing" effect
+                ctx.lineWidth = (24 + pulse * 10) * sparkle;
+                ctx.globalAlpha = baseAlpha * 2;
                 ctx.stroke();
 
-                // Pass 3: Bright Core (Doubled: 2 -> 4)
-                ctx.lineWidth = 4;
-                ctx.globalAlpha = 0.8;
+                // Pass 3: Bright Core (Doubled: 4 -> 8px)
+                ctx.lineWidth = (8 + pulse * 4) * sparkle;
+                ctx.globalAlpha = 0.7 + (pulse * 0.3);
                 ctx.stroke();
 
-                // Pass 4: Specular "Reflection" Glint (Sharp 1px white line)
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-                ctx.lineWidth = 1.5;
+                // Pass 4: Specular "Reflection" Glint
+                // Becomes more intense on the beat
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.5})`;
+                ctx.lineWidth = 2 + pulse;
                 ctx.stroke();
 
                 ctx.restore();
             } else {
-                // NORMAL DIVIDER
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                // NORMAL DIVIDER - Keep very subtle for performance
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);

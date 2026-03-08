@@ -409,6 +409,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.scrollSpeed = this.scrollSpeed;
         s.currentTime = this.unifiedCurrentTime;
         s.cachedNow = currentTime;
+        s.bpm = this.midiData?.bpm || 120;
         s.isMobile = this.isMobile;
     }
 

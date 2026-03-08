@@ -27,6 +27,7 @@ export interface HighwayRenderState {
     scrollSpeed: number;
     currentTime: number;
     cachedNow: number;
+    bpm: number;
     isMobile: boolean;
 }
 
