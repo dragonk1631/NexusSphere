@@ -62,9 +62,9 @@ export class ReceptorRenderer {
             ctx.restore();
         }
 
-        // Render Occlusion below the hit zone
-        const occlusionTop = state.hitLineY + hitH / 2;
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, occlusionTop, state.width, state.height - occlusionTop);
+        // Render Occlusion below the hit zone - REMOVED per user request
+        // const occlusionTop = state.hitLineY + hitH / 2;
+        // ctx.fillStyle = '#000000';
+        // ctx.fillRect(0, occlusionTop, state.width, state.height - occlusionTop);
     }
 }

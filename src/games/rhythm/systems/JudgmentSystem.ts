@@ -10,6 +10,7 @@ import { Judgment } from '../types/GameTypes';
 export interface IJudgmentEventHandler {
     onJudgment(lane: number, judgment: Judgment, timeDiff: number): void;
     onHoldStart(lane: number, note: VisualNote): void;
+    onHoldEffect(lane: number): void;
     onHoldEnd(lane: number): void;
 }
 

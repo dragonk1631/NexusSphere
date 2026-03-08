@@ -132,6 +132,8 @@ export class GameplayManager {
             if (note) {
                 note.isHolding = true;
                 note.accumulatedHoldTime += delta;
+
+                // Tick 1: Combo & Score (166ms interval)
                 const tickInterval = 166;
                 if (note.accumulatedHoldTime >= tickInterval) {
                     this.scoreManager.increaseCombo(1);
@@ -139,11 +141,25 @@ export class GameplayManager {
                     note.accumulatedHoldTime -= tickInterval;
                     this._comboAnim = 0.5;
                 }
+
+                // Tick 2: Visual Effects (Particles & Theme-specific hit effects)
+                // We use a separate timer or logic to trigger the main hit effect
+                // Existing particle logic:
                 if (performance.now() % 60 < 16) {
                     const laneX = getPerspectiveX(lane, hitLineY) + getPerspectiveWidth(hitLineY) / 2;
                     const centerY = hitLineY + (laneBottomWidth * 0.2);
                     const color = LANE_COLORS[lane] ? LANE_COLORS[lane][1] : '#ffffff';
                     this.particleSystem.triggerShatter(laneX, centerY, color, true);
+                }
+
+                // New: Trigger the theme's core hit effect (e.g. magic circles, rays) periodically
+                // We use note.accumulatedHoldTime or a dedicated field. 
+                // Since accumulatedHoldTime is already used for combo, let's use a modulus or a dedicated field.
+                // Every 150ms is a good pace for visual satisfaction.
+                // note.accumulatedHoldTime is reset every 166ms.
+                const effectInterval = 150;
+                if ((note.accumulatedHoldTime % effectInterval) < delta) {
+                    this.judgmentSystem['handler'].onHoldEffect(lane);
                 }
             }
         });

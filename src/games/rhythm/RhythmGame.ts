@@ -591,6 +591,22 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         }
     };
 
+    public onHoldStart = (l: number, n: VisualNote) => {
+        n.isHolding = true;
+        this.gameplayManager.setHoldingLane(l, n);
+    };
+
+    public onHoldEffect = (l: number) => {
+        const laneCenter = this.getPerspectiveX(l, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
+        const laneWidth = this.getPerspectiveWidth(this.hitLineY);
+        // Continuous effect uses PERFECT for maximum visual feedback
+        this.effectsRenderer.addHitEvent(laneCenter, this.hitLineY, laneWidth, Judgment.PERFECT);
+    };
+
+    public onHoldEnd = (l: number) => {
+        this.gameplayManager.clearHoldingLane(l);
+    };
+
     private getJudgmentText(j: Judgment): string {
         switch (j) {
             case Judgment.PERFECT: return 'PERFECT';
@@ -600,8 +616,6 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             default: return '';
         }
     }
-    public onHoldStart = (l: number, n: VisualNote) => { n.isHolding = true; this.gameplayManager.setHoldingLane(l, n); };
-    public onHoldEnd = (l: number) => { this.gameplayManager.clearHoldingLane(l); };
 
     public returnToEditor = () => { this.audioEngine.stop(); window.dispatchEvent(new CustomEvent('switch-game', { detail: { targetMode: 'editor' } })); };
     public returnToMainMenu = () => {
