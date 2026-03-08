@@ -26,12 +26,13 @@ export class LaneRenderer {
         railGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.railGradient = railGrad;
 
-        // 2. Side Rail Gradient (Vertical Edges)
+        // 2. Side Rail Gradient (Vertical Edges) - Specular/Luxurious Look
         const sideCol = theme.getColorForJudgment(0); // Perfect color base
         const sGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
         sGrad.addColorStop(0, 'transparent');
-        sGrad.addColorStop(0.2, sideCol + '66');
-        sGrad.addColorStop(0.8, sideCol + 'CC');
+        sGrad.addColorStop(0.3, sideCol + '44');
+        sGrad.addColorStop(0.6, sideCol + 'AA');
+        sGrad.addColorStop(0.85, '#ffffffCC'); // Specular highlight stop
         sGrad.addColorStop(1, sideCol + 'FF');
         this.sideRailGradient = sGrad;
 
@@ -57,27 +58,33 @@ export class LaneRenderer {
             const isEdge = (i === 0 || i === state.laneCount);
 
             if (isEdge) {
-                // PREMIUM SIDE RAIL: Multi-pass glow
+                // ULTRA-PREMIUM SIDE RAIL: Doubled thickness + Specular Glint
                 ctx.save();
                 ctx.strokeStyle = this.sideRailGradient || 'white';
 
-                // Pass 1: Outer soft glow
-                ctx.lineWidth = 12;
-                ctx.globalAlpha = 0.2;
+                // Pass 1: Massive outer soft glow (Doubled: 12 -> 24)
+                ctx.lineWidth = 24;
+                ctx.globalAlpha = 0.15;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
                 ctx.lineTo(botX, state.bottomY);
                 ctx.stroke();
 
-                // Pass 2: Inner core glow
-                ctx.lineWidth = 6;
-                ctx.globalAlpha = 0.5;
+                // Pass 2: Middle structural glow (Doubled: 6 -> 12)
+                ctx.lineWidth = 12;
+                ctx.globalAlpha = 0.35;
                 ctx.stroke();
 
-                // Pass 3: Sharp core line
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 1.0;
+                // Pass 3: Bright Core (Doubled: 2 -> 4)
+                ctx.lineWidth = 4;
+                ctx.globalAlpha = 0.8;
                 ctx.stroke();
+
+                // Pass 4: Specular "Reflection" Glint (Sharp 1px white line)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
                 ctx.restore();
             } else {
                 // NORMAL DIVIDER
