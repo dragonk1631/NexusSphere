@@ -1,5 +1,6 @@
 import { JudgmentSystem, type IJudgmentEventHandler } from './JudgmentSystem';
 import type { VisualNote } from '../NoteFactory';
+import { Judgment } from '../types/GameTypes';
 
 // Declare test globals to avoid lint errors without needing to install Jest/Vitest types
 declare const describe: (name: string, fn: () => void) => void;
@@ -11,6 +12,7 @@ declare const beforeEach: (fn: () => void) => void;
 const createMockHandler = (): IJudgmentEventHandler => ({
     onJudgment: () => { },
     onHoldStart: () => { },
+    onHoldEffect: () => { },
     onHoldEnd: () => { }
 });
 
@@ -24,7 +26,7 @@ describe('JudgmentSystem 단위 테스트', () => {
     });
 
     it('PERFECT 판정: 입력이 노트와 70ms 이내 차이일 때', () => {
-        let recordedJudgment: string | null = null;
+        let recordedJudgment: Judgment | null = null;
         mockHandler.onJudgment = (_lane, judgment, _diff) => {
             recordedJudgment = judgment;
         };
@@ -39,12 +41,12 @@ describe('JudgmentSystem 단위 테스트', () => {
         const hitNote = system.checkHit(0, 1000, notes);
 
         expect(hitNote).not.toBeNull();
-        expect(recordedJudgment).toBe('PERFECT');
+        expect(recordedJudgment).toBe(Judgment.PERFECT);
         expect(hitNote?.isProcessed).toBe(true);
     });
 
     it('GREAT 판정: 70ms 초과 ~ 120ms 이하', () => {
-        let recordedJudgment: string | null = null;
+        let recordedJudgment: Judgment | null = null;
         mockHandler.onJudgment = (_lane, judgment) => { recordedJudgment = judgment; };
 
         const notes: VisualNote[] = [
@@ -53,13 +55,13 @@ describe('JudgmentSystem 단위 테스트', () => {
 
         // 1000ms input, 1.10s (1100ms) note time. Diff = 100ms.
         system.checkHit(1, 1000, notes);
-        expect(recordedJudgment).toBe('GREAT');
+        expect(recordedJudgment).toBe(Judgment.GREAT);
     });
 
     it('MISS 판정 (지나친 노트): updateMissedNotes에 의해 일정 시간이 넘어가면 MISS 처리', () => {
         let missCount = 0;
         mockHandler.onJudgment = (_lane, judgment) => {
-            if (judgment === 'MISS') missCount++;
+            if (judgment === Judgment.MISS) missCount++;
         };
 
         const notes: VisualNote[] = [
@@ -77,7 +79,7 @@ describe('JudgmentSystem 단위 테스트', () => {
     });
 
     it('Lag Spike 무적 시간 적용 테스트', () => {
-        let recordedJudgment: string | null = null;
+        let recordedJudgment: Judgment | null = null;
         mockHandler.onJudgment = (_lane, judgment) => { recordedJudgment = judgment; };
 
         const notes: VisualNote[] = [
