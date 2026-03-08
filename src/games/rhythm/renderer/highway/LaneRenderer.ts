@@ -29,21 +29,22 @@ export class LaneRenderer {
         railGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.railGradient = railGrad;
 
-        // 2. Horizontal "Glow Bar" Gradients (Volumetric look)
+        // 2. Horizontal "Glass Bar" Gradients (Internal look)
         const sideCol = theme.getColorForJudgment(0); // Perfect color base
+        const barWidth = 15;
 
-        // Left Rail: Glows to the left
-        const lGrad = ctx.createLinearGradient(leftE, 0, leftE - 60, 0);
-        lGrad.addColorStop(0, sideCol + 'AA');
-        lGrad.addColorStop(0.2, sideCol + '66');
-        lGrad.addColorStop(1, 'transparent');
+        // Left Rail: Gradient stays within the 15px bar
+        const lGrad = ctx.createLinearGradient(leftE - barWidth, 0, leftE, 0);
+        lGrad.addColorStop(0, sideCol + '00');
+        lGrad.addColorStop(0.5, sideCol + 'AA');
+        lGrad.addColorStop(1, sideCol + 'FF');
         this.leftSideRailGradient = lGrad;
 
-        // Right Rail: Glows to the right
-        const rGrad = ctx.createLinearGradient(rightE, 0, rightE + 60, 0);
-        rGrad.addColorStop(0, sideCol + 'AA');
-        rGrad.addColorStop(0.2, sideCol + '66');
-        rGrad.addColorStop(1, 'transparent');
+        // Right Rail: Gradient stays within the 15px bar
+        const rGrad = ctx.createLinearGradient(rightE, 0, rightE + barWidth, 0);
+        rGrad.addColorStop(0, sideCol + 'FF');
+        rGrad.addColorStop(0.5, sideCol + 'AA');
+        rGrad.addColorStop(1, sideCol + '00');
         this.rightSideRailGradient = rGrad;
 
         // 3. Active Glow Gradients
@@ -76,41 +77,40 @@ export class LaneRenderer {
             const isEdge = (i === 0 || i === state.laneCount);
 
             if (isEdge) {
-                // VOLUMETRIC GLOW BAR: Outward-Only Trapezoid Fill
+                // GEOMETRIC GLASS BAR: Thick stroke with internal gradient
                 ctx.save();
                 const isLeft = (i === 0);
                 const sideDir = isLeft ? -1 : 1;
                 const grad = isLeft ? this.leftSideRailGradient : this.rightSideRailGradient;
+                const barWidth = 15;
+                const sideCol = 'rgba(255, 255, 255, 0.5)'; // Fallback color if grad is null
 
-                if (grad) {
-                    const glowWidth = (40 + pulse * 20) * sparkle; // BPM-synced width
-                    const outerTopX = cache.getX(i, state.horizonY, state) + glowWidth * sideDir * 0.5; // Narrower at top (perspective)
-                    const outerBotX = cache.getX(i, state.bottomY, state) + glowWidth * sideDir;
+                // 1. Thick Geometric Rail (Internal Glow)
+                // Offset the path by half-width to ensure it only expands OUTWARD
+                const offset = (barWidth / 2) * sideDir;
+                ctx.strokeStyle = grad || sideCol;
+                ctx.lineWidth = barWidth;
+                ctx.globalAlpha = 0.6 + pulse * 0.4;
+                ctx.beginPath();
+                ctx.moveTo(topX + offset, state.horizonY);
+                ctx.lineTo(botX + offset, state.bottomY);
+                ctx.stroke();
 
-                    // 1. Draw Volumetric Glow (Trapezoid)
-                    ctx.fillStyle = grad;
-                    ctx.globalAlpha = 0.4 + pulse * 0.3;
-                    ctx.beginPath();
-                    ctx.moveTo(topX, state.horizonY);
-                    ctx.lineTo(outerTopX, state.horizonY);
-                    ctx.lineTo(outerBotX, state.bottomY);
-                    ctx.lineTo(botX, state.bottomY);
-                    ctx.closePath();
-                    ctx.fill();
-                }
-
-                // 2. Sharp "Definite" Outline (Solid line at the boundary)
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 + pulse * 0.2})`;
-                ctx.lineWidth = 3;
+                // 2. Sharp "Inner Edge" Outline (Maintain definition)
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.3})`;
+                ctx.lineWidth = 2; // Sharp boundary
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
                 ctx.lineTo(botX, state.bottomY);
                 ctx.stroke();
 
-                // 3. Specular Peak Glint (1px sharp highlight)
+                // 3. Specular Highlight Core (Lit from within)
                 ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.5 + pulse * 0.5;
+                ctx.lineWidth = 4 + pulse * 2;
+                ctx.globalAlpha = 0.3 * (0.5 + pulse * 0.5);
+                ctx.beginPath();
+                ctx.moveTo(topX + offset, state.horizonY); // Centered in the bar
+                ctx.lineTo(botX + offset, state.bottomY);
                 ctx.stroke();
 
                 ctx.restore();
