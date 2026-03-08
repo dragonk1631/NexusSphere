@@ -29,23 +29,25 @@ export class LaneRenderer {
         railGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.railGradient = railGrad;
 
-        // 2. Horizontal "Glass Bar" Gradients (Internal look - widened for tapering)
+        // 2. Horizontal "Glass Bar" Gradients (Internal look - widened for 50px tapering)
         const sideCol = theme.getColorForJudgment(0); // Perfect color base
-        const maxBarWidth = 30;
+        const maxBarWidth = 55; // Covers 50px + pulse expansion
 
-        // Left Rail
+        // Left Rail: Smooth transition across the wide bar
         const lGrad = ctx.createLinearGradient(leftE - maxBarWidth, 0, leftE, 0);
         lGrad.addColorStop(0, sideCol + '00');
-        lGrad.addColorStop(0.4, sideCol + '66');
-        lGrad.addColorStop(0.8, sideCol + 'AA');
+        lGrad.addColorStop(0.3, sideCol + '44');
+        lGrad.addColorStop(0.7, sideCol + '99');
+        lGrad.addColorStop(0.9, sideCol + 'CC');
         lGrad.addColorStop(1, sideCol + 'FF');
         this.leftSideRailGradient = lGrad;
 
-        // Right Rail
+        // Right Rail: Smooth transition across the wide bar
         const rGrad = ctx.createLinearGradient(rightE, 0, rightE + maxBarWidth, 0);
         rGrad.addColorStop(0, sideCol + 'FF');
-        rGrad.addColorStop(0.2, sideCol + 'AA');
-        rGrad.addColorStop(0.6, sideCol + '66');
+        rGrad.addColorStop(0.1, sideCol + 'CC');
+        rGrad.addColorStop(0.3, sideCol + '99');
+        rGrad.addColorStop(0.7, sideCol + '44');
         rGrad.addColorStop(1, sideCol + '00');
         this.rightSideRailGradient = rGrad;
 
@@ -79,15 +81,15 @@ export class LaneRenderer {
             const isEdge = (i === 0 || i === state.laneCount);
 
             if (isEdge) {
-                // TAPERED GEOMETRIC RAIL: Polygon-based 3D Perspective
+                // ULTRA-WIDE TAPERED RAIL: Massive 50px 3D Perspective
                 ctx.save();
                 const isLeft = (i === 0);
                 const sideDir = isLeft ? -1 : 1;
                 const grad = isLeft ? this.leftSideRailGradient : this.rightSideRailGradient;
 
-                // Perspective Widths
-                const botBarW = (30 + pulse * 10); // Thicker at bottom
-                const topBarW = (10 + pulse * 4);  // Thinner at top
+                // Massive Perspective Widths
+                const botBarW = (50 + pulse * 15); // Ultra-thick at bottom
+                const topBarW = (12 + pulse * 5);  // Thinner at top
 
                 const outerTopX = topX + topBarW * sideDir;
                 const outerBotX = botX + botBarW * sideDir;
@@ -95,7 +97,7 @@ export class LaneRenderer {
                 // 1. Tapered Geometric Rail (Internal Glow Fill)
                 if (grad) {
                     ctx.fillStyle = grad;
-                    ctx.globalAlpha = 0.6 + pulse * 0.4;
+                    ctx.globalAlpha = 0.5 + pulse * 0.5; // Brighter on beat
                     ctx.beginPath();
                     ctx.moveTo(topX, state.horizonY);
                     ctx.lineTo(outerTopX, state.horizonY);
@@ -106,8 +108,8 @@ export class LaneRenderer {
                 }
 
                 // 2. Sharp "Inner Edge" Outline
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.3})`;
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + pulse * 0.4})`;
+                ctx.lineWidth = 2.5;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
                 ctx.lineTo(botX, state.bottomY);
@@ -115,14 +117,11 @@ export class LaneRenderer {
 
                 // 3. Tapered Specular Core (Lit from within)
                 ctx.strokeStyle = '#ffffff';
-                ctx.globalAlpha = 0.2 * (0.5 + pulse * 0.5);
-                ctx.lineWidth = 6 + pulse * 3; // Thicker core
+                ctx.globalAlpha = 0.25 * (0.6 + pulse * 0.4);
+                ctx.lineWidth = 10 + pulse * 5; // Much thicker core glint
 
-                // Draw tapered core using two passes or a custom path if needed, 
-                // but for simplicity and performance, we use a slightly thicker stroke 
-                // offset towards the center of the tapered bar.
-                const coreTopX = topX + (topBarW / 2) * sideDir;
-                const coreBotX = botX + (botBarW / 2) * sideDir;
+                const coreTopX = topX + (topBarW / 2.2) * sideDir;
+                const coreBotX = botX + (botBarW / 2.2) * sideDir;
 
                 ctx.beginPath();
                 ctx.moveTo(coreTopX, state.horizonY);
@@ -131,7 +130,7 @@ export class LaneRenderer {
 
                 ctx.restore();
             } else {
-                // NORMAL DIVIDER - Keep very subtle for performance
+                // NORMAL DIVIDER - Subtle for performance
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -178,17 +177,27 @@ export class LaneRenderer {
 
             ctx.save();
             const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
+
+            // High-Intensity Multi-stop gradient for "Glowing" feel
             const grad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
             grad.addColorStop(0, 'transparent');
-            grad.addColorStop(1, laneCol + '33');
+            grad.addColorStop(0.6, laneCol + '44'); // Intermediate glow
+            grad.addColorStop(1, laneCol + 'BB');   // Strong bottom intensity (0.7+ alpha)
 
             ctx.fillStyle = grad;
+            ctx.globalAlpha = 0.8; // High global intensity
             ctx.beginPath();
             ctx.moveTo(tlX, state.horizonY);
             ctx.lineTo(trX, state.horizonY);
             ctx.lineTo(brX, state.bottomY);
             ctx.lineTo(blX, state.bottomY);
             ctx.fill();
+
+            // Additive Top Bloom (Optional subtle extra pass)
+            ctx.globalAlpha = 0.4;
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
             ctx.restore();
         }
     }
