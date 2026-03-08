@@ -8,6 +8,7 @@ import { LANE_COLORS } from '../../constants/GameConstants';
  */
 export class LaneRenderer {
     private railGradient: CanvasGradient | null = null;
+    private sideRailGradient: CanvasGradient | null = null;
     private activeGlowGradients: (CanvasGradient | null)[] = new Array(7).fill(null);
 
     /**
@@ -18,16 +19,25 @@ export class LaneRenderer {
         const totalW = laneW * state.laneCount;
         const centerX = state.width / 2;
 
-        // 1. Rail Gradient
+        // 1. Rail Gradient (Hit Line)
         const railGrad = ctx.createLinearGradient(centerX - totalW / 2, 0, centerX + totalW / 2, 0);
         railGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
         railGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
         railGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.railGradient = railGrad;
 
+        // 2. Side Rail Gradient (Vertical Edges)
+        const sideCol = theme.getColorForJudgment(0); // Perfect color base
+        const sGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
+        sGrad.addColorStop(0, 'transparent');
+        sGrad.addColorStop(0.2, sideCol + '66');
+        sGrad.addColorStop(0.8, sideCol + 'CC');
+        sGrad.addColorStop(1, sideCol + 'FF');
+        this.sideRailGradient = sGrad;
+
         // 3. Active Glow Gradients
         for (let i = 0; i < state.laneCount; i++) {
-            const laneCol = theme.getColorForJudgment(0); // Perfect color as base
+            const laneCol = theme.getColorForJudgment(0);
             const g = ctx.createRadialGradient(0, 0, 0, 0, 0, state.laneBottomWidth);
             g.addColorStop(0, laneCol + '44');
             g.addColorStop(1, laneCol + '00');
@@ -40,17 +50,44 @@ export class LaneRenderer {
      */
     public renderDividers(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache): void {
         ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 1.5;
 
         for (let i = 0; i <= state.laneCount; i++) {
             const topX = cache.getX(i, state.horizonY, state);
             const botX = cache.getX(i, state.bottomY, state);
+            const isEdge = (i === 0 || i === state.laneCount);
 
-            ctx.beginPath();
-            ctx.moveTo(topX, state.horizonY);
-            ctx.lineTo(botX, state.bottomY);
-            ctx.stroke();
+            if (isEdge) {
+                // PREMIUM SIDE RAIL: Multi-pass glow
+                ctx.save();
+                ctx.strokeStyle = this.sideRailGradient || 'white';
+
+                // Pass 1: Outer soft glow
+                ctx.lineWidth = 12;
+                ctx.globalAlpha = 0.2;
+                ctx.beginPath();
+                ctx.moveTo(topX, state.horizonY);
+                ctx.lineTo(botX, state.bottomY);
+                ctx.stroke();
+
+                // Pass 2: Inner core glow
+                ctx.lineWidth = 6;
+                ctx.globalAlpha = 0.5;
+                ctx.stroke();
+
+                // Pass 3: Sharp core line
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 1.0;
+                ctx.stroke();
+                ctx.restore();
+            } else {
+                // NORMAL DIVIDER
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(topX, state.horizonY);
+                ctx.lineTo(botX, state.bottomY);
+                ctx.stroke();
+            }
         }
         ctx.restore();
     }
