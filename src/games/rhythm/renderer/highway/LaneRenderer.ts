@@ -66,36 +66,39 @@ export class LaneRenderer {
             const isEdge = (i === 0 || i === state.laneCount);
 
             if (isEdge) {
-                // ULTRA-BPM PULSE RAIL: 48px Massive Glow + Pulsing + Sparkle
+                // ULTRA-BPM PULSE RAIL: Outward-Only Glow + Specular Glint
                 ctx.save();
                 ctx.strokeStyle = this.sideRailGradient || 'white';
 
-                // Base alpha modulation by BPM pulse
                 const baseAlpha = 0.15 + (pulse * 0.25);
+                const sideDir = (i === 0 ? -1 : 1); // -1 for left, 1 for right
 
-                // Pass 1: Massive outer soft glow (Doubled: 24 -> 48px)
-                ctx.lineWidth = 48 * sparkle;
-                ctx.globalAlpha = baseAlpha;
+                // Helper to draw a line with a 2D offset (to make it "outward only")
+                const strokeOutward = (width: number, alpha: number) => {
+                    const offset = (width / 2) * sideDir;
+                    ctx.lineWidth = width;
+                    ctx.globalAlpha = alpha;
+                    ctx.beginPath();
+                    ctx.moveTo(topX + offset, state.horizonY);
+                    ctx.lineTo(botX + offset, state.bottomY);
+                    ctx.stroke();
+                };
+
+                // Pass 1: Massive outer soft glow (48px)
+                strokeOutward(48 * sparkle, baseAlpha);
+
+                // Pass 2: Middle structural glow (24px)
+                strokeOutward((24 + pulse * 10) * sparkle, baseAlpha * 2);
+
+                // Pass 3: Bright Core (8px)
+                strokeOutward((8 + pulse * 4) * sparkle, 0.7 + (pulse * 0.3));
+
+                // Pass 4: Specular "Reflection" Glint (align to the inner edge for sharpness)
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.5})`;
+                ctx.lineWidth = 2 + pulse;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
                 ctx.lineTo(botX, state.bottomY);
-                ctx.stroke();
-
-                // Pass 2: Middle structural glow (Doubled: 12 -> 24px)
-                // Pulsing line width for "breathing" effect
-                ctx.lineWidth = (24 + pulse * 10) * sparkle;
-                ctx.globalAlpha = baseAlpha * 2;
-                ctx.stroke();
-
-                // Pass 3: Bright Core (Doubled: 4 -> 8px)
-                ctx.lineWidth = (8 + pulse * 4) * sparkle;
-                ctx.globalAlpha = 0.7 + (pulse * 0.3);
-                ctx.stroke();
-
-                // Pass 4: Specular "Reflection" Glint
-                // Becomes more intense on the beat
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.5})`;
-                ctx.lineWidth = 2 + pulse;
                 ctx.stroke();
 
                 ctx.restore();
