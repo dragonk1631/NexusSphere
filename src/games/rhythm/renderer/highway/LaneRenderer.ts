@@ -29,23 +29,23 @@ export class LaneRenderer {
         railGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.railGradient = railGrad;
 
-        // 2. Horizontal "Glass Bar" Gradients (Internal look - widened for tapering)
+        // 2. Horizontal "Glass Bar" Gradients (Internal look - narrowed to 20px)
         const sideCol = theme.getColorForJudgment(0); // Perfect color base
-        const maxBarWidth = 30;
+        const maxBarWidth = 20;
 
-        // Left Rail
+        // Left Rail: Muted alpha for lower saturation feel
         const lGrad = ctx.createLinearGradient(leftE - maxBarWidth, 0, leftE, 0);
         lGrad.addColorStop(0, sideCol + '00');
-        lGrad.addColorStop(0.4, sideCol + '66');
-        lGrad.addColorStop(0.8, sideCol + 'AA');
-        lGrad.addColorStop(1, sideCol + 'FF');
+        lGrad.addColorStop(0.4, sideCol + '44');
+        lGrad.addColorStop(0.8, sideCol + '88');
+        lGrad.addColorStop(1, sideCol + 'BB'); // Muted peak
         this.leftSideRailGradient = lGrad;
 
-        // Right Rail
+        // Right Rail: Muted alpha for lower saturation feel
         const rGrad = ctx.createLinearGradient(rightE, 0, rightE + maxBarWidth, 0);
-        rGrad.addColorStop(0, sideCol + 'FF');
-        rGrad.addColorStop(0.2, sideCol + 'AA');
-        rGrad.addColorStop(0.6, sideCol + '66');
+        rGrad.addColorStop(0, sideCol + 'BB'); // Muted peak
+        rGrad.addColorStop(0.2, sideCol + '88');
+        rGrad.addColorStop(0.6, sideCol + '44');
         rGrad.addColorStop(1, sideCol + '00');
         this.rightSideRailGradient = rGrad;
 
@@ -85,17 +85,17 @@ export class LaneRenderer {
                 const sideDir = isLeft ? -1 : 1;
                 const grad = isLeft ? this.leftSideRailGradient : this.rightSideRailGradient;
 
-                // Perspective Widths
-                const botBarW = (30 + pulse * 10); // Thicker at bottom
-                const topBarW = (10 + pulse * 4);  // Thinner at top
+                // Perspective Widths (Subtler: 20px -> 8px)
+                const botBarW = (20 + pulse * 6);
+                const topBarW = (8 + pulse * 3);
 
                 const outerTopX = topX + topBarW * sideDir;
                 const outerBotX = botX + botBarW * sideDir;
 
-                // 1. Tapered Geometric Rail (Internal Glow Fill)
+                // 1. Tapered Geometric Rail (Internal Glow Fill - Lower Intensity)
                 if (grad) {
                     ctx.fillStyle = grad;
-                    ctx.globalAlpha = 0.6 + pulse * 0.4;
+                    ctx.globalAlpha = 0.5 + pulse * 0.3; // Muted overall
                     ctx.beginPath();
                     ctx.moveTo(topX, state.horizonY);
                     ctx.lineTo(outerTopX, state.horizonY);
@@ -106,21 +106,18 @@ export class LaneRenderer {
                 }
 
                 // 2. Sharp "Inner Edge" Outline
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.3})`;
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.2})`;
+                ctx.lineWidth = 1.5;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
                 ctx.lineTo(botX, state.bottomY);
                 ctx.stroke();
 
-                // 3. Tapered Specular Core (Lit from within)
+                // 3. Tapered Specular Core (Subtler Glass Effect)
                 ctx.strokeStyle = '#ffffff';
-                ctx.globalAlpha = 0.2 * (0.5 + pulse * 0.5);
-                ctx.lineWidth = 6 + pulse * 3; // Thicker core
+                ctx.globalAlpha = 0.15 * (0.5 + pulse * 0.5);
+                ctx.lineWidth = 4 + pulse * 2;
 
-                // Draw tapered core using two passes or a custom path if needed, 
-                // but for simplicity and performance, we use a slightly thicker stroke 
-                // offset towards the center of the tapered bar.
                 const coreTopX = topX + (topBarW / 2) * sideDir;
                 const coreBotX = botX + (botBarW / 2) * sideDir;
 
