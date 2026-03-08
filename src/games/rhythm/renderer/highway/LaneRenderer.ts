@@ -8,7 +8,8 @@ import { LANE_COLORS } from '../../constants/GameConstants';
  */
 export class LaneRenderer {
     private railGradient: CanvasGradient | null = null;
-    private sideRailGradient: CanvasGradient | null = null;
+    private leftSideRailGradient: CanvasGradient | null = null;
+    private rightSideRailGradient: CanvasGradient | null = null;
     private activeGlowGradients: (CanvasGradient | null)[] = new Array(7).fill(null);
 
     /**
@@ -18,27 +19,32 @@ export class LaneRenderer {
         const laneW = state.laneBottomWidth;
         const totalW = laneW * state.laneCount;
         const centerX = state.width / 2;
+        const leftE = centerX - totalW / 2;
+        const rightE = centerX + totalW / 2;
 
         // 1. Rail Gradient (Hit Line)
-        const railGrad = ctx.createLinearGradient(centerX - totalW / 2, 0, centerX + totalW / 2, 0);
+        const railGrad = ctx.createLinearGradient(leftE, 0, rightE, 0);
         railGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
         railGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
         railGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.railGradient = railGrad;
 
-        // 2. Side Rail Gradient (Vertical Edges) - Smooth Specular/Luxurious Look
+        // 2. Horizontal "Glow Bar" Gradients (Volumetric look)
         const sideCol = theme.getColorForJudgment(0); // Perfect color base
-        const sGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
 
-        // Multi-stop smoothing for natural falloff
-        sGrad.addColorStop(0, 'transparent');
-        sGrad.addColorStop(0.15, sideCol + '00'); // Extra soft start
-        sGrad.addColorStop(0.4, sideCol + '33');
-        sGrad.addColorStop(0.65, sideCol + '88');
-        sGrad.addColorStop(0.8, sideCol + 'BB');
-        sGrad.addColorStop(0.92, '#ffffffaa'); // Softened specular highlight (less contrast, wider spread)
-        sGrad.addColorStop(1, sideCol + 'FF');
-        this.sideRailGradient = sGrad;
+        // Left Rail: Glows to the left
+        const lGrad = ctx.createLinearGradient(leftE, 0, leftE - 60, 0);
+        lGrad.addColorStop(0, sideCol + 'AA');
+        lGrad.addColorStop(0.2, sideCol + '66');
+        lGrad.addColorStop(1, 'transparent');
+        this.leftSideRailGradient = lGrad;
+
+        // Right Rail: Glows to the right
+        const rGrad = ctx.createLinearGradient(rightE, 0, rightE + 60, 0);
+        rGrad.addColorStop(0, sideCol + 'AA');
+        rGrad.addColorStop(0.2, sideCol + '66');
+        rGrad.addColorStop(1, 'transparent');
+        this.rightSideRailGradient = rGrad;
 
         // 3. Active Glow Gradients
         for (let i = 0; i < state.laneCount; i++) {
@@ -70,39 +76,41 @@ export class LaneRenderer {
             const isEdge = (i === 0 || i === state.laneCount);
 
             if (isEdge) {
-                // ULTRA-BPM PULSE RAIL: Outward-Only Glow + Specular Glint
+                // VOLUMETRIC GLOW BAR: Outward-Only Trapezoid Fill
                 ctx.save();
-                ctx.strokeStyle = this.sideRailGradient || 'white';
+                const isLeft = (i === 0);
+                const sideDir = isLeft ? -1 : 1;
+                const grad = isLeft ? this.leftSideRailGradient : this.rightSideRailGradient;
 
-                const baseAlpha = 0.15 + (pulse * 0.25);
-                const sideDir = (i === 0 ? -1 : 1); // -1 for left, 1 for right
+                if (grad) {
+                    const glowWidth = (40 + pulse * 20) * sparkle; // BPM-synced width
+                    const outerTopX = cache.getX(i, state.horizonY, state) + glowWidth * sideDir * 0.5; // Narrower at top (perspective)
+                    const outerBotX = cache.getX(i, state.bottomY, state) + glowWidth * sideDir;
 
-                // Helper to draw a line with a 2D offset (to make it "outward only")
-                const strokeOutward = (width: number, alpha: number) => {
-                    const offset = (width / 2) * sideDir;
-                    ctx.lineWidth = width;
-                    ctx.globalAlpha = alpha;
+                    // 1. Draw Volumetric Glow (Trapezoid)
+                    ctx.fillStyle = grad;
+                    ctx.globalAlpha = 0.4 + pulse * 0.3;
                     ctx.beginPath();
-                    ctx.moveTo(topX + offset, state.horizonY);
-                    ctx.lineTo(botX + offset, state.bottomY);
-                    ctx.stroke();
-                };
+                    ctx.moveTo(topX, state.horizonY);
+                    ctx.lineTo(outerTopX, state.horizonY);
+                    ctx.lineTo(outerBotX, state.bottomY);
+                    ctx.lineTo(botX, state.bottomY);
+                    ctx.closePath();
+                    ctx.fill();
+                }
 
-                // Pass 1: Massive outer soft glow (48px)
-                strokeOutward(48 * sparkle, baseAlpha);
-
-                // Pass 2: Middle structural glow (24px)
-                strokeOutward((24 + pulse * 10) * sparkle, baseAlpha * 2);
-
-                // Pass 3: Bright Core (8px)
-                strokeOutward((8 + pulse * 4) * sparkle, 0.7 + (pulse * 0.3));
-
-                // Pass 4: Specular "Reflection" Glint (align to the inner edge for sharpness)
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.5})`;
-                ctx.lineWidth = 2 + pulse;
+                // 2. Sharp "Definite" Outline (Solid line at the boundary)
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 + pulse * 0.2})`;
+                ctx.lineWidth = 3;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
                 ctx.lineTo(botX, state.bottomY);
+                ctx.stroke();
+
+                // 3. Specular Peak Glint (1px sharp highlight)
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.5 + pulse * 0.5;
                 ctx.stroke();
 
                 ctx.restore();
