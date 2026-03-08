@@ -1,4 +1,5 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 export class WinterSnowTheme implements IThemeStrategy {
     public readonly id = 'winter-snow';
@@ -10,13 +11,13 @@ export class WinterSnowTheme implements IThemeStrategy {
         ctx.fillRect(x, y - 2, width, 4);
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#E0F7FA';
-            case 'GREAT': return '#b2ebf2';
-            case 'GOOD': return '#4fc3f7';
-            case 'MISS': return '#F44336';
-            default: return '#E0F7FA';
+            case Judgment.PERFECT: return '#e0ffff';
+            case Judgment.GREAT: return '#afeeee';
+            case Judgment.GOOD: return '#7fffd4';
+            case Judgment.MISS: return '#40e0d0';
+            default: return '#ffffff';
         }
     }
 
@@ -24,9 +25,16 @@ export class WinterSnowTheme implements IThemeStrategy {
      * Ice Crystal Shatter: A hexagonal ice shard fracture pattern blooms from the
      * hit point — 6 symmetric crystal shards burst outward, rotating as they fly.
      */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 1.6);
-        const isPerfect = judgment === 'PERFECT';
+        const isPerfect = judgment === Judgment.PERFECT;
         const shardCount = isPerfect ? 12 : 6;
 
         ctx.save();

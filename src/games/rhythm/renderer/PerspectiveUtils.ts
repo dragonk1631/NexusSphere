@@ -28,6 +28,23 @@ export function getPerspectiveWidth(y: number, config: PerspectiveConfig): numbe
     return totalWidthAtY / config.laneCount;
 }
 
+/**
+ * Calculates lane widths based on requested note width at hit line.
+ * @returns { laneTopWidth, laneBottomWidth }
+ */
+export function calculateLayout(
+    hitLineY: number,
+    horizonY: number,
+    bottomY: number,
+    targetNoteWidth: number,
+    topRatio: number
+): { laneTopWidth: number, laneBottomWidth: number } {
+    const t = (hitLineY - horizonY) / (bottomY - horizonY);
+    const laneBottomWidth = targetNoteWidth / (topRatio + (1 - topRatio) * t);
+    const laneTopWidth = laneBottomWidth * topRatio;
+    return { laneTopWidth, laneBottomWidth };
+}
+
 export function hexToRgba(hex: string, alpha: number): string {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);

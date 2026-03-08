@@ -144,3 +144,31 @@ export const INITIAL_COLORS = {
     HUD_BG,
     TEXT_GLOW
 };
+
+export const LAYOUT = {
+    LANE_TOP_RATIO: 0.20,
+    DEFAULT_NOTE_WIDTH: 100,
+    PAUSE_BTN_SIZE: 50,
+    PAUSE_BTN_X_OFFSET: 65,
+    PAUSE_BTN_Y_OFFSET: 100
+} as const;
+
+export const ASSETS = {
+    FONT_ID: 'orbitron-font-link',
+    FONT_URL: 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap'
+} as const;
+
+export const HIGHWAY_CONFIG = {
+    RAIL_WIDTH: 14,
+    DIVIDER_ALPHA: 0.1,
+    LOCKED_LANE_BG: 'rgba(10, 0, 0, 0.55)',
+    LOCKED_TEXT_ALPHA: 'rgba(255, 50, 50, 0.4)',
+    ACTIVE_LANE_ALPHA: 0.3,
+    RECEPTOR_SCALE: 1.0,
+    NOTE_LOOKAHEAD: 3.0,
+    PERSPECTIVE_DEPTH: 4,
+    HOLD_BODY_RATIO: 0.92,
+    RECEPTOR_LOCKED_ALPHA: 0.1,
+    NOTE_FADE_THRESHOLD: 0.1,
+    BEAM_ALPHA_START: 0.4
+} as const;

@@ -58,6 +58,10 @@ export class RhythmInputManager {
         return this.keyState[lane] || false;
     }
 
+    public getLaneStates(): boolean[] {
+        return this.keyState;
+    }
+
     public resetStates(): void {
         this.keyState.fill(false);
         this.pointerLanes.clear();

@@ -1,4 +1,5 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 export class MidnightOceanTheme implements IThemeStrategy {
     public readonly id = 'midnight-ocean';
@@ -10,13 +11,13 @@ export class MidnightOceanTheme implements IThemeStrategy {
         ctx.fillRect(x, y - 2, width, 4);
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#BFDB38';
-            case 'GREAT': return '#64ffda';
-            case 'GOOD': return '#4dd0e1';
-            case 'MISS': return '#FF5252';
-            default: return '#BFDB38';
+            case Judgment.PERFECT: return '#cce0ff';
+            case Judgment.GREAT: return '#a1c4fd';
+            case Judgment.GOOD: return '#66a6ff';
+            case Judgment.MISS: return '#ff6b6b';
+            default: return '#ffffff';
         }
     }
 
@@ -24,9 +25,16 @@ export class MidnightOceanTheme implements IThemeStrategy {
      * Vertical Water Burst: Oval ripples expand vertically (along lane axis),
      * with water droplets arcing upward in a narrow column.
      */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 2);
-        const isPerfect = judgment === 'PERFECT';
+        const isPerfect = judgment === Judgment.PERFECT;
 
         ctx.save();
 

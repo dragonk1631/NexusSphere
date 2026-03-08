@@ -6,10 +6,10 @@ import { AssetLoader } from './asset/AssetLoader';
  * 모든 게임 모듈의 최상위 추상 클래스입니다.
  */
 export abstract class BaseGame {
-    protected audioEngine: CoreAudioEngine;
-    protected assetLoader: AssetLoader;
-    protected canvas: HTMLCanvasElement;
-    protected ctx: CanvasRenderingContext2D;
+    public audioEngine: CoreAudioEngine;
+    public assetLoader: AssetLoader;
+    public canvas: HTMLCanvasElement;
+    public ctx: CanvasRenderingContext2D;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;

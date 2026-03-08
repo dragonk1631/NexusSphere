@@ -1,13 +1,11 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 /**
  * DefaultTheme implements the standard visual style for the rhythm game.
  */
 export class DefaultTheme implements IThemeStrategy {
     public readonly id = 'default';
-
-
-
 
     public renderHitZonePulse(ctx: CanvasRenderingContext2D, _lane: number, x: number, y: number, width: number, beatPhase: number): void {
         const pulseAlpha = Math.max(0, 1 - beatPhase) * 0.4;
@@ -24,12 +22,12 @@ export class DefaultTheme implements IThemeStrategy {
         ctx.restore();
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#FFEB3B';
-            case 'GREAT': return '#4CAF50';
-            case 'GOOD': return '#2196F3';
-            case 'MISS': return '#F44336';
+            case Judgment.PERFECT: return '#FFEB3B';
+            case Judgment.GREAT: return '#4CAF50';
+            case Judgment.GOOD: return '#2196F3';
+            case Judgment.MISS: return '#F44336';
             default: return '#FFFFFF';
         }
     }

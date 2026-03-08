@@ -30,6 +30,14 @@ export class ParticleSystem implements IParticleRenderData {
         console.log(`[ParticleSystem] Mobile optimization: ${isMobile ? 'ON' : 'OFF'}`);
     }
 
+    /**
+     * PROFESSIONAL OPTIMIZATION: Zero-allocation iteration over active particles.
+     * Prevents creating temporary arrays every frame.
+     */
+    public forEachActiveParticle(callback: (p: ParticleData) => void): void {
+        this.activeIndices.forEach(idx => callback(this.particlePool[idx]));
+    }
+
     public getParticles(): ReadonlyArray<ParticleData> {
         // Return only active particles efficiently
         const active: ParticleData[] = [];

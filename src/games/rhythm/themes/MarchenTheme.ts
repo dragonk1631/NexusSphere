@@ -1,7 +1,16 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
+/**
+ * MarchenTheme provides a fairy-tale aesthetic.
+ * Optimized: Removed shadowBlur from stardust effects.
+ */
 export class MarchenTheme implements IThemeStrategy {
     public readonly id = 'marchen';
+
+    public preWarm(_ctx: CanvasRenderingContext2D, _laneWidth: number): void {
+        console.log("[MarchenTheme] Pre-warmed.");
+    }
 
     public renderHitZonePulse(ctx: CanvasRenderingContext2D, _lane: number, x: number, y: number, width: number, beatPhase: number): void {
         const pulseAlpha = Math.max(0, 1 - beatPhase) * 0.5;
@@ -12,28 +21,31 @@ export class MarchenTheme implements IThemeStrategy {
         ctx.fill();
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#F9A8D4';
-            case 'GREAT': return '#f8c8da';
-            case 'GOOD': return '#ce93d8';
-            case 'MISS': return '#880e4f';
-            default: return '#F9A8D4';
+            case Judgment.PERFECT: return '#ff99cc'; // Sakura Pink
+            case Judgment.GREAT: return '#ffcc99';  // Peach
+            case Judgment.GOOD: return '#99ffcc';   // Mint
+            case Judgment.MISS: return '#cc99ff';   // Soft Purple
+            default: return '#ffffff';
         }
     }
 
-    /**
-     * Enhanced Fairy Bloom: Adds a magic circle flash at the core, 
-     * increases stardust particle count and density for a punchier feel.
-     */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 1.5);
-        const isPerfect = judgment === 'PERFECT';
-        const sparkCount = isPerfect ? 24 : 16; // Increased density
+        const isPerfect = judgment === Judgment.PERFECT;
+        const sparkCount = isPerfect ? 20 : 12;
 
         ctx.save();
 
-        // 1. Magic Circle Flash (Core Impact)
+        // 1. Magic Circle Flash
         if (t < 0.4) {
             const mAlpha = (1 - t / 0.4) * 0.7;
             const mSize = laneWidth * (0.4 + t * 1.5);
@@ -42,7 +54,6 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.rotate(t * Math.PI);
             ctx.strokeStyle = `rgba(255, 200, 230, ${mAlpha})`;
             ctx.lineWidth = 2;
-            // Draw a basic magic circle (ring + hex)
             ctx.beginPath();
             ctx.arc(0, 0, mSize, 0, Math.PI * 2);
             ctx.stroke();
@@ -50,38 +61,31 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const a = (i / 6) * Math.PI * 2;
-                const px = Math.cos(a) * mSize;
-                const py = Math.sin(a) * mSize;
-                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                if (i === 0) ctx.moveTo(Math.cos(a) * mSize, Math.sin(a) * mSize);
+                else ctx.lineTo(Math.cos(a) * mSize, Math.sin(a) * mSize);
             }
             ctx.closePath();
             ctx.stroke();
             ctx.restore();
         }
 
-        // 2. High-density Fairy Stardust
+        // 2. Fairy Stardust (Optimized: Removed shadowBlur)
+        ctx.globalCompositeOperation = 'lighter';
         for (let i = 0; i < sparkCount; i++) {
-            const baseAngle = (i / sparkCount) * Math.PI * 2 + (i % 2) * 0.2;
-            const drift = Math.sin(t * Math.PI * 3 + i) * 0.5;
-            const angle = baseAngle + drift;
+            const baseAngle = (i / sparkCount) * Math.PI * 2;
             const radius = laneWidth * 0.15 + t * laneWidth * (2.2 + (i % 5) * 0.4);
-
-            const sx = x + Math.cos(angle) * radius;
-            const sy = y + Math.sin(angle) * radius * 0.5 - t * laneWidth * 0.6;
+            const sx = x + Math.cos(baseAngle) * radius;
+            const sy = y + Math.sin(baseAngle) * radius * 0.5 - t * laneWidth * 0.6;
 
             const alpha = ease * (0.7 + (i % 3) * 0.3);
             const size = (2.5 + (i % 4)) * ease;
 
-            const colors = ['rgba(249, 168, 212', 'rgba(206, 147, 216', 'rgba(255, 220, 240'];
-            const color = colors[i % colors.length];
-
             ctx.save();
             ctx.translate(sx, sy);
-            ctx.rotate(t * Math.PI * 6 + i);
-            ctx.globalCompositeOperation = 'lighter';
-            ctx.fillStyle = `${color}, ${alpha})`;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = '#F9A8D4';
+            ctx.rotate(t * Math.PI * 4);
+
+            const colors = ['rgba(249, 168, 212', 'rgba(206, 147, 216', 'rgba(255, 220, 240'];
+            ctx.fillStyle = `${colors[i % colors.length]}, ${alpha})`;
 
             ctx.beginPath();
             for (let j = 0; j < 8; j++) {
@@ -94,14 +98,13 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.restore();
         }
 
-        // 3. Radiant Pink Core
+        // 3. Radiant Core
         const coreR = laneWidth * (isPerfect ? 0.9 : 0.6) * ease;
         const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
         coreGrad.addColorStop(0, `rgba(255, 255, 255, ${ease * 1.0})`);
         coreGrad.addColorStop(0.4, `rgba(249, 168, 212, ${ease * 0.7})`);
         coreGrad.addColorStop(1, 'transparent');
 
-        ctx.globalCompositeOperation = 'lighter';
         ctx.fillStyle = coreGrad;
         ctx.beginPath();
         ctx.arc(x, y, coreR, 0, Math.PI * 2);

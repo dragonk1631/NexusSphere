@@ -16,6 +16,18 @@ export const GameState = {
 export type GameState = typeof GameState[keyof typeof GameState];
 
 /**
+ * Judgment levels for notes.
+ * Numeric values are used for faster comparison and memory efficiency.
+ */
+export const Judgment = {
+    PERFECT: 0,
+    GREAT: 1,
+    GOOD: 2,
+    MISS: 3
+} as const;
+export type Judgment = typeof Judgment[keyof typeof Judgment];
+
+/**
  * Basic song information used in menus and loading.
  */
 export interface SongEntry {
@@ -93,11 +105,34 @@ export interface MenuRenderState {
 }
 
 /**
+ * LoadingRenderState defines the data passed to the LoadingRenderer.
+ */
+export interface LoadingRenderState {
+    width: number;
+    height: number;
+    progress: number;
+    song: SongEntry;
+    statusText: string;
+    cachedNow: number;
+}
+
+/**
+ * PauseRenderState defines the data passed to the PauseRenderer.
+ */
+export interface PauseRenderState {
+    width: number;
+    height: number;
+    selectedButtonIndex: number;
+    animationTimer: number;
+}
+
+/**
  * Interface for components that need to render particles.
  * Decouples physics logic from rendering logic.
  */
 export interface IParticleRenderData {
     getParticles(): ReadonlyArray<ParticleData>;
+    forEachActiveParticle(callback: (p: ParticleData) => void): void;
     getExplosions(): ReadonlyArray<Explosion>;
 }
 

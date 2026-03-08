@@ -1,4 +1,5 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 /**
  * DeepSpaceTheme provides a dark, cosmic aesthetic.
@@ -15,13 +16,13 @@ export class DeepSpaceTheme implements IThemeStrategy {
         ctx.fill();
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#A0C4FF';
-            case 'GREAT': return '#7B9FE0';
-            case 'GOOD': return '#4A6FA5';
-            case 'MISS': return '#8B0000';
-            default: return '#A0C4FF';
+            case Judgment.PERFECT: return '#e0e0ff';
+            case Judgment.GREAT: return '#b0b0ff';
+            case Judgment.GOOD: return '#8080ff';
+            case Judgment.MISS: return '#ff5050';
+            default: return '#ffffff';
         }
     }
 
@@ -29,8 +30,15 @@ export class DeepSpaceTheme implements IThemeStrategy {
      * Interstellar Shockwave: 3 concentric rings expand at staggered times,
      * with stellar debris scattered outward.
      */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
-        const isPerfect = judgment === 'PERFECT';
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
+        const isPerfect = judgment === Judgment.PERFECT;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';

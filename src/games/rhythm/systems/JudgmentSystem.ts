@@ -2,12 +2,13 @@ import { type VisualNote } from '../NoteFactory';
 import {
     JUDGMENT_WINDOWS
 } from '../constants/GameConstants';
+import { Judgment } from '../types/GameTypes';
 
 /**
  * Event handler for judgment results.
  */
 export interface IJudgmentEventHandler {
-    onJudgment(lane: number, judgment: 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS', timeDiff: number): void;
+    onJudgment(lane: number, judgment: Judgment, timeDiff: number): void;
     onHoldStart(lane: number, note: VisualNote): void;
     onHoldEnd(lane: number): void;
 }
@@ -85,18 +86,18 @@ export class JudgmentSystem {
             const diff = currentTimeMs - (bestNote.time * 1000);
             const absDiff = Math.abs(diff);
 
-            let judgment: 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS' | null = null;
+            let judgment: Judgment | null = null;
 
-            if (absDiff <= JUDGMENT_WINDOWS.PERFECT) judgment = 'PERFECT';
-            else if (absDiff <= JUDGMENT_WINDOWS.GREAT) judgment = 'GREAT';
-            else if (absDiff <= JUDGMENT_WINDOWS.GOOD) judgment = 'GOOD';
-            else if (absDiff <= JUDGMENT_WINDOWS.HIT) judgment = 'MISS'; // Out of bounds but counts as an attempt
+            if (absDiff <= JUDGMENT_WINDOWS.PERFECT) judgment = Judgment.PERFECT;
+            else if (absDiff <= JUDGMENT_WINDOWS.GREAT) judgment = Judgment.GREAT;
+            else if (absDiff <= JUDGMENT_WINDOWS.GOOD) judgment = Judgment.GOOD;
+            else if (absDiff <= JUDGMENT_WINDOWS.HIT) judgment = Judgment.MISS; // Out of bounds but counts as an attempt
 
-            if (judgment) {
-                if (judgment === 'MISS' || !bestNote.isHold) {
+            if (judgment !== null) {
+                if (judgment === Judgment.MISS || !bestNote.isHold) {
                     bestNote.isProcessed = true;
                 }
-                if (judgment !== 'MISS' && bestNote.isHold) {
+                if (judgment !== Judgment.MISS && bestNote.isHold) {
                     bestNote.isHolding = true; // 핵심 플래그 설정: 이제 시스템이 이 노트를 '누르고 있음'으로 인식합니다.
                     this.holdingLanes[lane] = bestNote;
                     this.handler.onHoldStart(lane, bestNote);
@@ -143,7 +144,7 @@ export class JudgmentSystem {
             // 미스 처리: 판정 창(missWindow)을 벗어난 경우 (일반 노트 or 안 누른 롱노트)
             if (currentTimeMs > noteEndMs + missWindow && !note.isHolding) {
                 note.isProcessed = true;
-                this.handler.onJudgment(note.lane, 'MISS', 0);
+                this.handler.onJudgment(note.lane, Judgment.MISS, 0);
                 if (i === this.lastMissCheckIndex) this.lastMissCheckIndex++;
             }
         }
@@ -170,10 +171,10 @@ export class JudgmentSystem {
             this.handler.onHoldEnd(lane);
 
             if (finalSuccess) {
-                this.handler.onJudgment(lane, 'PERFECT', 0);
+                this.handler.onJudgment(lane, Judgment.PERFECT, 0);
             } else {
                 // 너무 일찍 떼거나 너무 늦게 뗀 경우 MISS
-                this.handler.onJudgment(lane, 'MISS', 0);
+                this.handler.onJudgment(lane, Judgment.MISS, 0);
             }
         }
     }
@@ -200,5 +201,9 @@ export class JudgmentSystem {
 
     public getLagInvincibility(): number {
         return this.lagSpikeInvincibility;
+    }
+
+    public getMissCheckIndex(): number {
+        return this.lastMissCheckIndex;
     }
 }

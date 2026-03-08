@@ -160,6 +160,7 @@ export class GameplayManager {
         this._lastCombo = currentCombo;
 
         this.judgmentSystem.updateMissedNotes(currentTime, this._visualNotes);
+        this._lastNoteIndex = this.judgmentSystem.getMissCheckIndex();
 
         if (this._preGameTimer > 0) {
             this._preGameTimer -= delta;

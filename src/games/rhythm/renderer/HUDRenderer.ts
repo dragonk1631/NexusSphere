@@ -13,6 +13,7 @@ export interface HUDRenderState {
     comboAnim: number;
     lastJudgment: { text: string, color: string, time: number } | null;
     cachedNow: number;
+    isMobile: boolean;
 }
 
 export class HUDRenderer {

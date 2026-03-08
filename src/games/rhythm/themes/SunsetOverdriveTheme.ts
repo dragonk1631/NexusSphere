@@ -1,4 +1,5 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 export class SunsetOverdriveTheme implements IThemeStrategy {
     public readonly id = 'sunset-overdrive';
@@ -10,22 +11,29 @@ export class SunsetOverdriveTheme implements IThemeStrategy {
         ctx.fillRect(x, y - 2, width, 4);
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#E3C1A1';
-            case 'GREAT': return '#DFCBBD';
-            case 'GOOD': return '#8E4A42';
-            case 'MISS': return '#5D2E29';
-            default: return '#E3C1A1';
+            case Judgment.PERFECT: return '#ffaa00';
+            case Judgment.GREAT: return '#ff6600';
+            case Judgment.GOOD: return '#cc3300';
+            case Judgment.MISS: return '#661100';
+            default: return '#ffaa00';
         }
     }
 
     /**
      * Golden Flame Pillar: A lance of sunset fire shoots upward + oval horizon ripple
      */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 2);
-        const isPerfect = judgment === 'PERFECT';
+        const isPerfect = judgment === Judgment.PERFECT;
 
         ctx.save();
 

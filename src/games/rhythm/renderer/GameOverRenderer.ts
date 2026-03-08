@@ -97,4 +97,30 @@ export class GameOverRenderer {
 
         ctx.restore();
     }
+
+    public getButtonAt(x: number, y: number, width: number, height: number, isMobile: boolean): number {
+        const btnW = isMobile ? Math.min(width * 0.85, 300) : 420;
+        const btnH = isMobile ? 55 : 64;
+        const centerX = width / 2;
+        const minGap = isMobile ? 15 : 20;
+        const spacing = btnH + minGap;
+        const baseY = height * (isMobile ? 0.65 : 0.68);
+
+        const retryLeft = centerX - btnW / 2;
+        const retryRight = centerX + btnW / 2;
+        const retryTop = baseY - btnH / 2;
+        const retryBottom = baseY + btnH / 2;
+
+        if (x >= retryLeft && x <= retryRight && y >= retryTop && y <= retryBottom) {
+            return 0; // RETRY
+        }
+
+        const selectTop = (baseY + spacing) - btnH / 2;
+        const selectBottom = (baseY + spacing) + btnH / 2;
+        if (x >= retryLeft && x <= retryRight && y >= selectTop && y <= selectBottom) {
+            return 1; // SONG SELECTION
+        }
+
+        return -1;
+    }
 }

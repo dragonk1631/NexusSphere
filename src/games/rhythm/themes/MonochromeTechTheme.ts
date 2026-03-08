@@ -1,4 +1,5 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 export class MonochromeTechTheme implements IThemeStrategy {
     public readonly id = 'monochrome-tech';
@@ -11,13 +12,13 @@ export class MonochromeTechTheme implements IThemeStrategy {
         ctx.strokeRect(x, y - 1, width, 2);
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#DDDDDD';
-            case 'GREAT': return '#AAAAAA';
-            case 'GOOD': return '#888888';
-            case 'MISS': return '#444444';
-            default: return '#DDDDDD';
+            case Judgment.PERFECT: return '#ffffff';
+            case Judgment.GREAT: return '#aaaaaa';
+            case Judgment.GOOD: return '#666666';
+            case Judgment.MISS: return '#444444';
+            default: return '#ffffff';
         }
     }
 
@@ -25,9 +26,16 @@ export class MonochromeTechTheme implements IThemeStrategy {
      * Circuit Pulse: Orthogonal (right-angle) circuit traces branch outward from
      * the hit point, blinking white — like PCB signal propagation.
      */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 2);
-        const isPerfect = judgment === 'PERFECT';
+        const isPerfect = judgment === Judgment.PERFECT;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';

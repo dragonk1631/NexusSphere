@@ -1,3 +1,4 @@
+import { Judgment } from '../types/GameTypes';
 
 /**
  * Interface for theme strategies.
@@ -16,7 +17,13 @@ export interface IThemeStrategy {
     /**
      * Returns a theme-appropriate color for a given judgment result.
      */
-    getColorForJudgment(judgment: string): string;
+    getColorForJudgment(judgment: Judgment): string;
+
+    /**
+     * Optional: Pre-calculates expensive assets (gradients, color arrays, fonts)
+     * before the song starts to avoid runtime hitches.
+     */
+    preWarm?(ctx: CanvasRenderingContext2D, laneWidth: number): void;
 
     /**
      * Optional: Renders a unique, theme-specific hit effect at the note's position.
@@ -25,7 +32,7 @@ export interface IThemeStrategy {
      * @param x   Center X of the hit lane
      * @param y   Y of the hit line
      * @param laneWidth Width of the lane at hit position
-     * @param judgment 'PERFECT' | 'GREAT' | 'GOOD'
+     * @param judgment PERFECT | GREAT | GOOD
      * @param t  Normalized time [0..1], 0=just hit, 1=fully expired
      */
     renderHitEffect?(
@@ -33,7 +40,7 @@ export interface IThemeStrategy {
         x: number,
         y: number,
         laneWidth: number,
-        judgment: string,
+        judgment: Judgment,
         t: number
     ): void;
 }

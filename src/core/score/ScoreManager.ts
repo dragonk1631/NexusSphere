@@ -1,3 +1,4 @@
+import { Judgment } from '../../games/rhythm/types/GameTypes';
 export interface ScoreRecord {
     score: number;
     maxCombo: number;
@@ -41,8 +42,8 @@ export class ScoreManager {
         this.totalChartNotes = count;
     }
 
-    public addHit(baseScore: number = 100, judgment: 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS' = 'PERFECT'): void {
-        if (judgment === 'MISS') {
+    public addHit(baseScore: number = 100, judgment: Judgment = Judgment.PERFECT): void {
+        if (judgment === Judgment.MISS) {
             this.missCount++;
             this.resetCombo();
             this.damage(5);
@@ -55,9 +56,9 @@ export class ScoreManager {
         }
 
         // Detailed Counters
-        if (judgment === 'PERFECT') this.perfectCount++;
-        else if (judgment === 'GREAT') this.greatCount++;
-        else if (judgment === 'GOOD') this.goodCount++;
+        if (judgment === Judgment.PERFECT) this.perfectCount++;
+        else if (judgment === Judgment.GREAT) this.greatCount++;
+        else if (judgment === Judgment.GOOD) this.goodCount++;
 
         // Combo Multiplier for Score only
         this.score += baseScore * (1 + Math.min(this.currentCombo, 50) * 0.1);

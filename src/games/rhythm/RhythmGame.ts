@@ -5,9 +5,16 @@ import type { ParsedMidi } from '../../core/audio/MidiParser';
 import { NoteFactory, type VisualNote } from './NoteFactory';
 import { RenderCache } from './graphics/RenderCache';
 import { GameTransition, type TransitionData } from '../../core/GameTransition';
-import { GameState, type MenuRenderState } from './types/GameTypes';
 import {
-    LANE_COLORS,
+    GameState,
+    Judgment,
+    type MenuRenderState,
+    type LoadingRenderState,
+    type PauseRenderState
+} from './types/GameTypes';
+import {
+    LAYOUT,
+    ASSETS,
     HORIZON_Y_RATIO,
     BOTTOM_Y_RATIO,
     HIT_LINE_Y_RATIO,
@@ -43,55 +50,72 @@ import * as PerspectiveUtils from './renderer/PerspectiveUtils';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { PauseRenderer } from './renderer/PauseRenderer';
 import { LoadingRenderer } from './renderer/LoadingRenderer';
+import type { IGameState } from './state/IGameState';
+import { MenuState } from './state/MenuState';
+import { LoadingState } from './state/LoadingState';
+import { PlayingState } from './state/PlayingState';
+import { PausedState } from './state/PausedState';
+import { ResultState } from './state/ResultState';
+import { GameOverState } from './state/GameOverState';
+
 
 /**
  * RhythmGame Orchestrator (Refactored v3 Stage 4-Final)
  * Goal: Pure FAÇADE coordinating independent systems.
  */
 export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgmentEventHandler {
-    private audioLoader: AudioLoader;
-    private menuManager: MenuManager;
-    private menuRenderer: MenuRenderer;
-    private scoreManager: ScoreManager;
-    private renderCache: RenderCache;
-    private inputManager: RhythmInputManager;
-    private transitionSystem: TransitionSystem;
-    private particleSystem: ParticleSystem;
-    private effectsRenderer: EffectsRenderer;
-    private themeStrategy: IThemeStrategy;
-    private judgmentSystem: JudgmentSystem;
-    private highwayRenderer: HighwayRenderer;
-    private resultRenderer: ResultRenderer;
-    private hudRenderer: HUDRenderer;
-    private gameOverRenderer: GameOverRenderer;
-    private pauseRenderer: PauseRenderer;
-    private loadingRenderer: LoadingRenderer;
-    private gameplayManager: GameplayManager;
+    public audioLoader: AudioLoader;
+    public menuManager: MenuManager;
+    public menuRenderer: MenuRenderer;
+    public scoreManager: ScoreManager;
+    public renderCache: RenderCache;
+    public inputManager: RhythmInputManager;
+    public transitionSystem: TransitionSystem;
+    public particleSystem: ParticleSystem;
+    public effectsRenderer: EffectsRenderer;
+    public themeStrategy: IThemeStrategy;
+    public judgmentSystem: JudgmentSystem;
+    public highwayRenderer: HighwayRenderer;
+    public resultRenderer: ResultRenderer;
+    public hudRenderer: HUDRenderer;
+    public gameOverRenderer: GameOverRenderer;
+    public pauseRenderer: PauseRenderer;
+    public loadingRenderer: LoadingRenderer;
+    public gameplayManager: GameplayManager;
 
     private currentState: GameState = GameState.MENU;
     private shouldAutoStart = false;
-    private midiData: ParsedMidi | null = null;
-    private visualNotes: VisualNote[] = [];
-    private transitionData: TransitionData | null = null;
-    private isMobile: boolean = false;
-    private isTestMode: boolean = false;
-    private horizonY = 0;
-    private bottomY = 0;
-    private hitLineY = 0;
-    private laneBottomWidth = 120;
-    private laneTopWidth = 10;
-    private laneCount = 6;
-    private scrollSpeed = 1.0;
-    private keyMode: 4 | 6 = 4;
-    private lastRenderTime = 0;
-    private unifiedCurrentTime = 0;
+    public midiData: ParsedMidi | null = null;
+    public visualNotes: VisualNote[] = [];
+    public transitionData: TransitionData | null = null;
+    private currentFrameTime: number = 0; // Performance Optimization: Cache per frame
+    public isMobile: boolean = false;
+    public isTestMode: boolean = false;
+    public horizonY = 0;
+    public bottomY = 0;
+    public hitLineY = 0;
+    public laneBottomWidth = 120;
+    public laneTopWidth = 10;
+    public laneCount = 6;
+    public scrollSpeed = 1.0;
+    public keyMode: 4 | 6 = 4;
     private startTimeout: ReturnType<typeof setTimeout> | null = null;
+    public pauseSelectedButtonIndex: number = 0;
+    public pauseAnimationTimer: number = 0;
+    public lastRenderTime = 0;
+    public unifiedCurrentTime = 0;
 
-    private pauseSelectedButtonIndex: number = 0;
-    private pauseAnimationTimer: number = 0;
+    public loadingProgress: number = 0;
+    public loadingStatus: string = "Initializing...";
+    public highwayRenderState: HighwayRenderState = {} as HighwayRenderState;
+    public hudRenderState: HUDRenderState = {} as HUDRenderState;
+    public gameOverRenderState: GameOverRenderState = {} as GameOverRenderState;
+    public menuRenderState: MenuRenderState = {} as MenuRenderState;
+    public loadingRenderState: LoadingRenderState = {} as LoadingRenderState;
+    public pauseRenderState: PauseRenderState = {} as PauseRenderState;
 
-    private loadingProgress: number = 0;
-    private loadingStatus: string = "Initializing...";
+    private stateMap: Map<GameState, IGameState>;
+    private currentStateObj: IGameState;
 
     constructor(canvas: HTMLCanvasElement) {
         super(canvas);
@@ -117,27 +141,60 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             onReturnToMainMenu: () => this.returnToMainMenu()
         });
         this.inputManager.register();
+
+        // State Machine Initialization
+        this.stateMap = new Map<GameState, IGameState>([
+            [GameState.MENU, new MenuState(this)],
+            [GameState.LOADING, new LoadingState(this)],
+            [GameState.PLAYING, new PlayingState(this)],
+            [GameState.PAUSED, new PausedState(this)],
+            [GameState.RESULT, new ResultState(this)],
+            [GameState.GAMEOVER, new GameOverState(this)]
+        ]);
+        this.currentStateObj = this.stateMap.get(GameState.MENU)!;
+
         this.loadFonts();
     }
 
-    private initThemeStrategy(): IThemeStrategy {
-        const themeId = ThemeManager.getInstance().getCurrentTheme().id;
-        if (themeId === 'cyber-neon') return new CyberNeonTheme();
-        if (themeId === 'matrix-grid') return new MatrixGridTheme();
-        if (themeId === 'deep-space') return new DeepSpaceTheme();
-        if (themeId === 'vaporwave') return new VaporwaveTheme();
-        if (themeId === 'midnight-ocean') return new MidnightOceanTheme();
-        if (themeId === 'crimson-flare') return new CrimsonFlareTheme();
-        if (themeId === 'marchen') return new MarchenTheme();
-        if (themeId === 'monochrome-tech') return new MonochromeTechTheme();
-        if (themeId === 'winter-snow') return new WinterSnowTheme();
-        if (themeId === 'sunset-overdrive') return new SunsetOverdriveTheme();
-        return new DefaultTheme();
+    public setState(state: GameState): void {
+        if (this.currentState === state) return;
+
+        this.currentStateObj.exit();
+        this.currentState = state;
+        this.currentStateObj = this.stateMap.get(state)!;
+        this.currentStateObj.enter();
+
+        console.log(`[RhythmGame] State Changed: ${state}`);
     }
 
-    private loadFonts() {
+    public getCurrentState = () => this.currentState;
+
+    private initThemeStrategy(): IThemeStrategy {
+        const themeId = ThemeManager.getInstance().getCurrentTheme().id;
+        const themeMap: Record<string, new () => IThemeStrategy> = {
+            'cyber-neon': CyberNeonTheme,
+            'matrix-grid': MatrixGridTheme,
+            'deep-space': DeepSpaceTheme,
+            'vaporwave': VaporwaveTheme,
+            'midnight-ocean': MidnightOceanTheme,
+            'crimson-flare': CrimsonFlareTheme,
+            'marchen': MarchenTheme,
+            'monochrome-tech': MonochromeTechTheme,
+            'winter-snow': WinterSnowTheme,
+            'sunset-overdrive': SunsetOverdriveTheme
+        };
+
+        const ThemeClass = themeMap[themeId];
+        return ThemeClass ? new ThemeClass() : new DefaultTheme();
+    }
+
+    public loadFonts() {
+        const fontId = ASSETS.FONT_ID;
+        if (document.getElementById(fontId)) return;
+
         const fontLink = document.createElement('link');
-        fontLink.href = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap';
+        fontLink.id = fontId;
+        fontLink.href = ASSETS.FONT_URL;
         fontLink.rel = 'stylesheet';
         document.head.appendChild(fontLink);
     }
@@ -187,20 +244,21 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.bottomY = height * BOTTOM_Y_RATIO;
         this.hitLineY = height * HIT_LINE_Y_RATIO;
 
-        // --- Synchronize Lane Width with Receptors ---
-        // We want the lane width at hitLineY to be exactly 100px (NOTE_WIDTH).
-        // t is the interpolation factor at hitLineY (usually ~0.88).
-        const t = (this.hitLineY - this.horizonY) / (this.bottomY - this.horizonY);
-        const topRatio = 0.20; // Original deep 3D perspective tilt
+        // --- Synchronize Lane Width with Receptors using Utils ---
+        const layout = PerspectiveUtils.calculateLayout(
+            this.hitLineY,
+            this.horizonY,
+            this.bottomY,
+            LAYOUT.DEFAULT_NOTE_WIDTH,
+            LAYOUT.LANE_TOP_RATIO
+        );
 
-        // Single Lane Math: 100 = laneBottomWidth * topRatio + (laneBottomWidth - laneBottomWidth * topRatio) * t
-        // 100 = laneBottomWidth * (topRatio + (1 - topRatio) * t)
-        this.laneBottomWidth = 100 / (topRatio + (1 - topRatio) * t);
-        this.laneTopWidth = this.laneBottomWidth * topRatio;
+        this.laneBottomWidth = layout.laneBottomWidth;
+        this.laneTopWidth = layout.laneTopWidth;
 
         this.inputManager.updateLayout(this.laneCount, this.laneBottomWidth);
-        const highwayState = this.getHighwayRenderState();
-        this.highwayRenderer.onResize(this.ctx, this.laneCount, this.horizonY, this.hitLineY, highwayState);
+        this.updateHighwayRenderState();
+        this.highwayRenderer.onResize(this.ctx, this.laneCount, this.horizonY, this.hitLineY, this.highwayRenderState, this.themeStrategy);
         this.hudRenderer.onResize(this.ctx, width, height);
         if (this.renderCache) {
             this.renderCache.renderHighwayBackground(width, height, this.horizonY, this.bottomY, this.laneCount,
@@ -209,8 +267,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         }
     }
 
-    private async handlePlayRequest() {
-        this.currentState = GameState.LOADING;
+    public async handlePlayRequest() {
+        this.setState(GameState.LOADING);
         this.loadingProgress = 0;
         this.loadingStatus = "Connecting to Audio Engine...";
 
@@ -233,7 +291,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             this.loadingProgress = 0.7;
             this.loadingStatus = "Warming up Render Cache...";
 
-            // Step 4: Pre-warm Renderer (Reduce JIT lag)
+            // Step 4: Pre-warm Renderer & Theme (Reduce JIT lag)
+            if (this.themeStrategy.preWarm) {
+                this.themeStrategy.preWarm(this.ctx, this.laneBottomWidth);
+            }
+
             await this.renderCache.warmup(
                 this.canvas.width, this.canvas.height,
                 this.horizonY, this.bottomY, this.laneCount,
@@ -303,66 +365,18 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.gameplayManager.start(this.visualNotes, this.scrollSpeed);
         this.judgmentSystem.setLatency(this.audioEngine.getOutputLatency() * 1000);
         this.lastRenderTime = 0;
-        this.currentState = GameState.PLAYING;
+        this.setState(GameState.PLAYING);
     }
 
     public update(delta: number): void {
+        this.currentFrameTime = performance.now();
         this.transitionSystem.update(delta);
         this.particleSystem.update(delta);
+
         if (delta > 200) this.judgmentSystem.setLagInvincibility(500);
         else this.judgmentSystem.update(delta);
 
-        if (this.currentState === GameState.MENU) { this.menuManager.update(delta); return; }
-        if (this.currentState === GameState.LOADING) return;
-
-        if (this.currentState === GameState.PAUSED) {
-            this.pauseAnimationTimer += delta / 1000;
-            return;
-        }
-
-        if (this.currentState !== GameState.PLAYING) return;
-
-        if (this.isTestMode) {
-            this.gameplayManager.muteEnforceCounter++;
-            if (this.gameplayManager.muteEnforceCounter >= 15) { this.gameplayManager.enforceMuteCompliance(this.transitionData); this.gameplayManager.muteEnforceCounter = 0; }
-        }
-        this.lastRenderTime = this.gameplayManager.syncTime(this.judgmentSystem.getLatency(), this.lastRenderTime, delta);
-
-        // UNIFIED SNAPSHOT: Save time for rendering
-        this.unifiedCurrentTime = this.lastRenderTime;
-
-        this.gameplayManager.update(
-            delta,
-            this.lastRenderTime,
-            this.horizonY,
-            this.hitLineY,
-            this.laneBottomWidth,
-            (l, y) => this.getPerspectiveX(l, y),
-            (y) => PerspectiveUtils.getPerspectiveWidth(y, {
-                width: this.canvas.width,
-                horizonY: this.horizonY,
-                bottomY: this.bottomY,
-                laneCount: this.laneCount,
-                laneTopWidth: this.laneTopWidth,
-                laneBottomWidth: this.laneBottomWidth
-            })
-        );
-
-        if (this.transitionSystem.isActive()) return;
-        if (this.gameplayManager.isGameOver()) {
-            this.transitionSystem.start(() => {
-                this.currentState = GameState.GAMEOVER;
-                this.audioEngine.stop();
-            }, 'glitch');
-        } else if (this.gameplayManager.isSongCompleted(this.lastRenderTime, this.midiData?.duration ? this.midiData.duration * 1000 : 0, delta)) {
-            this.transitionSystem.start(() => {
-                this.currentState = GameState.RESULT;
-                this.audioEngine.stop();
-                if (!this.isTestMode && this.scoreManager) {
-                    this.scoreManager.saveHighScore(this.menuManager.getCurrentSong().url);
-                }
-            }, 'fade');
-        }
+        this.currentStateObj.update(delta);
     }
 
     public render(): void {
@@ -370,68 +384,45 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         const { width, height } = this.canvas;
         if (height > width) { this.renderRotateRequest(ctx, width, height); return; }
 
-        if (this.currentState === GameState.MENU) this.menuRenderer.render(ctx, this.getMenuRenderState());
-        else if (this.currentState === GameState.LOADING) {
-            this.loadingRenderer.render(ctx, {
-                width, height,
-                progress: this.loadingProgress,
-                song: this.menuManager.getCurrentSong(),
-                statusText: this.loadingStatus,
-                cachedNow: performance.now()
-            });
-        }
-        else if (this.currentState === GameState.RESULT) this.resultRenderer.render(ctx, width, height, this.scoreManager);
-        else if (this.currentState === GameState.GAMEOVER) this.gameOverRenderer.render(ctx, this.getGameOverRenderState());
-        else {
-            this.renderGameplay(ctx, width, height);
-            if (this.currentState === GameState.PAUSED) {
-                this.pauseRenderer.render(ctx, {
-                    width, height,
-                    selectedButtonIndex: this.pauseSelectedButtonIndex,
-                    animationTimer: this.pauseAnimationTimer
-                });
-            }
-        }
-
+        this.currentStateObj.render(ctx);
         this.effectsRenderer.render(ctx, width, height, this.themeStrategy);
     }
 
-    private renderRotateRequest(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    public renderRotateRequest(ctx: CanvasRenderingContext2D, width: number, height: number) {
         ctx.fillStyle = '#000'; ctx.fillRect(0, 0, width, height);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 24px "Orbitron"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText("PLEASE ROTATE YOUR DEVICE", width / 2, height / 2);
     }
 
-    private getHighwayRenderState(): HighwayRenderState {
-        return {
-            width: this.canvas.width,
-            height: this.canvas.height,
-            horizonY: this.horizonY,
-            bottomY: this.bottomY,
-            hitLineY: this.hitLineY,
-            laneCount: this.laneCount,
-            laneTopWidth: this.laneTopWidth,
-            laneBottomWidth: this.laneBottomWidth,
-            keyMode: this.keyMode,
-            scrollSpeed: this.scrollSpeed,
-            currentTime: this.unifiedCurrentTime,
-            cachedNow: performance.now(),
-            isMobile: this.isMobile
-        };
+    public updateHighwayRenderState(): void {
+        const s = this.highwayRenderState;
+        const currentTime = this.currentFrameTime;
+        s.width = this.canvas.width;
+        s.height = this.canvas.height;
+        s.horizonY = this.horizonY;
+        s.bottomY = this.bottomY;
+        s.hitLineY = this.hitLineY;
+        s.laneCount = this.laneCount;
+        s.laneTopWidth = this.laneTopWidth;
+        s.laneBottomWidth = this.laneBottomWidth;
+        s.keyMode = this.keyMode;
+        s.scrollSpeed = this.scrollSpeed;
+        s.currentTime = this.unifiedCurrentTime;
+        s.cachedNow = currentTime;
+        s.isMobile = this.isMobile;
     }
 
-    private getGameOverRenderState(): GameOverRenderState {
-        return {
-            width: this.canvas.width,
-            height: this.canvas.height,
-            isMobile: this.isMobile,
-            cachedNow: performance.now(),
-            transitionStyle: this.transitionSystem.getStyle(),
-            transitionAlpha: this.transitionSystem.getAlpha()
-        };
+    public updateGameOverRenderState(): void {
+        const s = this.gameOverRenderState;
+        s.width = this.canvas.width;
+        s.height = this.canvas.height;
+        s.isMobile = this.isMobile;
+        s.cachedNow = performance.now();
+        s.transitionStyle = this.transitionSystem.getStyle();
+        s.transitionAlpha = this.transitionSystem.getAlpha();
     }
 
-    private getPerspectiveX(lane: number, y: number): number {
+    public getPerspectiveX(lane: number, y: number): number {
         return PerspectiveUtils.getPerspectiveX(lane, y, {
             width: this.canvas.width,
             horizonY: this.horizonY,
@@ -442,7 +433,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         });
     }
 
-    private getPerspectiveWidth(y: number): number {
+    public getPerspectiveWidth(y: number): number {
         return PerspectiveUtils.getPerspectiveWidth(y, {
             width: this.canvas.width,
             horizonY: this.horizonY,
@@ -453,44 +444,64 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         });
     }
 
-    private getMenuRenderState(): MenuRenderState {
-        return {
-            menuAnimationTimer: this.menuManager.menuAnimationTimer,
-            songList: this.menuManager.songList,
-            selectedSongIndex: this.menuManager.selectedSongIndex,
-            currentSortMode: this.menuManager.currentSortMode,
-            difficultyOptions: DIFFICULTY_OPTIONS,
-            selectedDifficultyIndex: this.menuManager.selectedDifficultyIndex,
-            speedOptions: SPEED_OPTIONS,
-            selectedSpeedIndex: this.menuManager.selectedSpeedIndex,
-            scrollSpeed: this.menuManager.scrollSpeed,
-            keyMode: this.menuManager.keyMode,
-            isTestMode: this.isTestMode,
-            isMobile: this.isMobile,
-            width: this.canvas.width,
-            height: this.canvas.height,
-            transitionData: this.transitionData,
-            scoreManager: this.scoreManager,
-            previewMidi: this.menuManager.previewMidi,
-            previewTime: this.audioEngine.getPreciseTime() - this.audioEngine.getOutputLatency()
-        };
+    public updateMenuRenderState(): void {
+        const s = this.menuRenderState;
+        s.menuAnimationTimer = this.menuManager.menuAnimationTimer;
+        s.songList = this.menuManager.songList;
+        s.selectedSongIndex = this.menuManager.selectedSongIndex;
+        s.currentSortMode = this.menuManager.currentSortMode;
+        s.difficultyOptions = DIFFICULTY_OPTIONS;
+        s.selectedDifficultyIndex = this.menuManager.selectedDifficultyIndex;
+        s.speedOptions = SPEED_OPTIONS;
+        s.selectedSpeedIndex = this.menuManager.selectedSpeedIndex;
+        s.scrollSpeed = this.menuManager.scrollSpeed;
+        s.keyMode = this.menuManager.keyMode;
+        s.isTestMode = this.isTestMode;
+        s.isMobile = this.isMobile;
+        s.width = this.canvas.width;
+        s.height = this.canvas.height;
+        s.transitionData = this.transitionData;
+        s.scoreManager = this.scoreManager;
+        s.previewMidi = this.menuManager.previewMidi;
+        s.previewTime = this.audioEngine.getPreciseTime() - this.audioEngine.getOutputLatency();
     }
 
-    private renderGameplay(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    public updateLoadingRenderState(): void {
+        const s = this.loadingRenderState;
+        s.width = this.canvas.width;
+        s.height = this.canvas.height;
+        s.progress = this.loadingProgress;
+        s.song = this.menuManager.getCurrentSong();
+        s.statusText = this.loadingStatus;
+        s.cachedNow = this.currentFrameTime;
+    }
+
+    public updatePauseRenderState(): void {
+        const s = this.pauseRenderState;
+        s.width = this.canvas.width;
+        s.height = this.canvas.height;
+        s.selectedButtonIndex = this.pauseSelectedButtonIndex;
+        s.animationTimer = this.pauseAnimationTimer;
+    }
+
+    public renderGameplay(ctx: CanvasRenderingContext2D, width: number, height: number) {
         ctx.clearRect(0, 0, width, height);
-        const highwayState = this.getHighwayRenderState();
-        this.highwayRenderer.render(ctx, highwayState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.gameplayManager.holdingLanes, this.inputManager);
-        const hudState: HUDRenderState = {
-            width, height,
-            comboAnim: this.gameplayManager.comboAnim,
-            lastJudgment: this.judgmentSystem.getLastJudgment(),
-            cachedNow: performance.now()
-        };
-        this.hudRenderer.render(ctx, hudState, this.scoreManager, this.themeStrategy, (l, y) => this.getPerspectiveX(l, y));
+        this.updateHighwayRenderState();
+        this.highwayRenderer.renderBackground(ctx, this.highwayRenderState);
+        this.highwayRenderer.renderDynamic(ctx, this.highwayRenderState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.gameplayManager.holdingLanes, this.inputManager);
+
+        const hud = this.hudRenderState;
+        hud.width = width;
+        hud.height = height;
+        hud.comboAnim = this.gameplayManager.comboAnim;
+        hud.lastJudgment = this.judgmentSystem.getLastJudgment();
+        hud.cachedNow = performance.now();
+        hud.isMobile = this.isMobile;
+
+        this.hudRenderer.render(ctx, hud, this.scoreManager, this.themeStrategy, (l, y) => this.getPerspectiveX(l, y));
     }
 
     // -- IGameInputHandler Implementation --
-    public getCurrentState = () => this.currentState;
     public onLanePress = (l: number, _t: number) => {
         if (this.currentState === GameState.PLAYING && this.gameplayManager.preGameTimer <= 0) {
             const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - this.judgmentSystem.getLatency();
@@ -498,125 +509,39 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         }
     };
     public onLaneRelease = (l: number, _t: number) => {
+        this.currentStateObj.onPointerUp(l, 0); // Reuse logic if needed, or stick to systems
         if (this.currentState === GameState.PLAYING) {
             const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - this.judgmentSystem.getLatency();
             this.judgmentSystem.processRelease(l, currentTimeMs);
         }
     };
+
     public onMenuPointerDown = (x: number, y: number) => {
-        if (this.currentState === GameState.PAUSED) {
-            const btnIndex = this.pauseRenderer.getButtonAt(x, y, this.canvas.width, this.canvas.height);
-            if (btnIndex !== -1) {
-                this.pauseSelectedButtonIndex = btnIndex;
-                this.handlePauseAction(btnIndex);
-            }
-            return;
-        }
-
-        if (this.currentState === GameState.PLAYING) {
-            // Check for Pause Button click
-            const pauseBtnSize = 50;
-            const pauseBtnX = this.canvas.width - 65;
-            const pauseBtnY = 100;
-            if (x >= pauseBtnX && x <= pauseBtnX + pauseBtnSize && y >= pauseBtnY && y <= pauseBtnY + pauseBtnSize) {
-                this.togglePause();
-            }
-            return;
-        }
-
-        this.menuManager.handlePointerDown(x, y, this.canvas.width, this.canvas.height, this.isMobile);
-        this.keyMode = this.menuManager.getKeyMode();
-        this.scrollSpeed = this.menuManager.getScrollSpeed();
-        this.inputManager.updateKeyMode(this.keyMode);
+        this.currentStateObj.onPointerDown(x, y);
     };
+
     public onMenuPointerMove = (x: number, y: number) => {
-        this.menuManager.handlePointerMove(x, y, this.canvas.width, this.canvas.height, this.isMobile);
+        this.currentStateObj.onPointerMove(x, y);
     };
+
     public onMenuPointerUp = (x: number, y: number) => {
-        this.menuManager.handlePointerUp(x, y, this.canvas.width, this.canvas.height, this.isMobile);
+        this.currentStateObj.onPointerUp(x, y);
     };
 
     public onMenuKey = (code: string) => {
-        if (this.isTestMode && this.shouldAutoStart && (code === 'Enter' || code === 'Space')) {
-            this.shouldAutoStart = false;
-            this.start();
-        } else if (this.currentState === GameState.PLAYING && code === 'Escape') {
-            this.togglePause();
-        } else if (this.currentState === GameState.PAUSED) {
-            if (code === 'Escape') this.togglePause();
-            else if (code === 'ArrowUp') this.pauseSelectedButtonIndex = (this.pauseSelectedButtonIndex + 2) % 3;
-            else if (code === 'ArrowDown') this.pauseSelectedButtonIndex = (this.pauseSelectedButtonIndex + 1) % 3;
-            else if (code === 'Enter') this.handlePauseAction(this.pauseSelectedButtonIndex);
-        } else {
-            this.menuManager.handleKeyboardInput(code);
-            this.keyMode = this.menuManager.getKeyMode();
-        }
+        this.currentStateObj.onKeyDown(code);
     };
 
-    private backToSongSelection() {
+    public backToSongSelection() {
         this.transitionSystem.start(() => {
             this.audioEngine.stop();
             this.isTestMode = false;
             GameTransition.clear();
-            this.currentState = GameState.MENU;
-            this.menuManager.playPreview();
+            this.setState(GameState.MENU);
         }, 'fade');
     }
 
-    private togglePause() {
-        if (this.currentState === GameState.PLAYING) {
-            this.currentState = GameState.PAUSED;
-            this.audioEngine.pause();
-            this.pauseAnimationTimer = 0;
-            this.pauseSelectedButtonIndex = 0;
-        } else if (this.currentState === GameState.PAUSED) {
-            this.currentState = GameState.PLAYING;
-            this.audioEngine.play();
-        }
-    }
-
-    private handlePauseAction(index: number) {
-        if (index === 0) this.togglePause();           // RESUME
-        else if (index === 1) this.handleRetry();           // RESTART
-        else if (index === 2) this.backToSongSelection(); // SONG SELECTION
-    }
-    public onGameOverPointer = (x: number, y: number) => {
-        const { width, height } = this.canvas;
-        const btnW = this.isMobile ? Math.min(width * 0.85, 300) : 360;
-        const btnH = this.isMobile ? 55 : 68;
-        const centerX = width / 2;
-        const minGap = this.isMobile ? 15 : 25;
-        const spacing = btnH + minGap;
-        const baseY = height * (this.isMobile ? 0.65 : 0.62);
-
-        const retryYLeft = centerX - btnW / 2;
-        const retryYRight = centerX + btnW / 2;
-        const retryYTop = baseY - btnH / 2;
-        const retryYBottom = baseY + btnH / 2;
-
-        if (x >= retryYLeft && x <= retryYRight && y >= retryYTop && y <= retryYBottom) {
-            this.handleRetry();
-            return;
-        }
-
-        const selectYTop = (baseY + spacing) - btnH / 2;
-        const selectYBottom = (baseY + spacing) + btnH / 2;
-        if (x >= retryYLeft && x <= retryYRight && y >= selectYTop && y <= selectYBottom) {
-            this.backToSongSelection();
-            return;
-        }
-    };
-    public onGameOverKey = (code: string) => {
-        if (code === 'Enter') this.handleRetry();
-        else if (code === 'Escape') this.backToSongSelection();
-    };
-    public onResultKey = (code: string) => {
-        if (code === 'Enter' || code === 'Space' || code === 'Escape') this.backToSongSelection();
-    };
-    public onResultPointer = () => { this.backToSongSelection(); };
-    public onWheel = (delta: number) => { if (this.currentState === GameState.MENU) this.menuManager.handleWheel(delta); };
-
-    private handleRetry() {
+    public handleRetry() {
         this.transitionSystem.start(async () => {
             this.audioEngine.stop();
             await this.load();
@@ -624,23 +549,57 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             this.start();
         }, 'fade');
     }
+    public onGameOverPointer = (x: number, y: number) => {
+        this.currentStateObj.onPointerDown(x, y);
+    };
+    public onGameOverKey = (code: string) => {
+        this.currentStateObj.onKeyDown(code);
+    };
+    public onResultKey = (code: string) => {
+        this.currentStateObj.onKeyDown(code);
+    };
+    public onResultPointer = (x: number, y: number) => {
+        this.currentStateObj.onPointerDown(x, y);
+    };
+    public onWheel = (delta: number) => {
+        this.currentStateObj.onWheel(delta);
+    };
+
 
     // -- IJudgmentEventHandler Implementation --
-    public onJudgment = (l: number, j: string, _d: number) => {
-        this.scoreManager.addHit(100, j as 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS');
-        this.judgmentSystem.setJudgment(j, this.themeStrategy.getColorForJudgment(j), performance.now());
-        if (j !== 'MISS') {
+    public onJudgment = (l: number, j: Judgment, _d: number) => {
+        const combo = this.scoreManager.getCombo();
+        const judgmentText = this.getJudgmentText(j);
+        const color = this.themeStrategy.getColorForJudgment(j);
+
+        this.judgmentSystem.setJudgment(judgmentText, color, this.currentFrameTime);
+        this.scoreManager.addHit(100, j);
+
+        if (j !== Judgment.MISS) {
             const laneCenter = this.getPerspectiveX(l, this.hitLineY) + this.getPerspectiveWidth(this.hitLineY) / 2;
             const laneWidth = this.getPerspectiveWidth(this.hitLineY);
-            const pColor = LANE_COLORS[l % LANE_COLORS.length][0];
-            this.particleSystem.triggerShatter(laneCenter, this.hitLineY, pColor);
+            this.particleSystem.triggerShatter(laneCenter, this.hitLineY, color);
             // Theme-specific hit effect
             this.effectsRenderer.addHitEvent(laneCenter, this.hitLineY, laneWidth, j);
-            if (j === 'PERFECT' || j === 'GREAT') {
-                this.particleSystem.triggerExplosion(laneCenter, this.hitLineY, pColor);
+            if (j === Judgment.PERFECT || j === Judgment.GREAT) {
+                this.particleSystem.triggerExplosion(laneCenter, this.hitLineY, color);
             }
         }
+
+        if (combo >= 10 && combo % 10 === 0 && j !== Judgment.MISS) {
+            this.effectsRenderer.triggerShockwave(this.getPerspectiveX(l, this.hitLineY), this.hitLineY);
+        }
     };
+
+    private getJudgmentText(j: Judgment): string {
+        switch (j) {
+            case Judgment.PERFECT: return 'PERFECT';
+            case Judgment.GREAT: return 'GREAT';
+            case Judgment.GOOD: return 'GOOD';
+            case Judgment.MISS: return 'MISS';
+            default: return '';
+        }
+    }
     public onHoldStart = (l: number, n: VisualNote) => { n.isHolding = true; this.gameplayManager.setHoldingLane(l, n); };
     public onHoldEnd = (l: number) => { this.gameplayManager.clearHoldingLane(l); };
 

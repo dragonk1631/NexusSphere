@@ -1,10 +1,50 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
+
+interface RGB {
+    r: number;
+    g: number;
+    b: number;
+}
 
 /**
  * VaporwaveTheme provides a retro-80s aesthetic with pinks, purples, and sun gradients.
+ * Optimized with pre-calculated color values to avoid hex-to-rgb overhead in hit effects.
  */
 export class VaporwaveTheme implements IThemeStrategy {
     public readonly id = 'vaporwave';
+    private colorCache: Map<string, RGB> = new Map();
+
+    constructor() {
+        // Pre-cache primary theme colors
+        this.cacheColor('#FF71CE');
+        this.cacheColor('#01CDFE');
+        this.cacheColor('#05FFA1');
+        this.cacheColor('#FFFB96');
+    }
+
+    private cacheColor(hex: string): RGB {
+        const rgb = hex.replace('#', '');
+        const r = parseInt(rgb.substring(0, 2), 16);
+        const g = parseInt(rgb.substring(2, 4), 16);
+        const b = parseInt(rgb.substring(4, 6), 16);
+        const val = { r, g, b };
+        this.colorCache.set(hex, val);
+        return val;
+    }
+
+    private getRGB(hex: string): RGB {
+        return this.colorCache.get(hex) || this.cacheColor(hex);
+    }
+
+    public preWarm(_ctx: CanvasRenderingContext2D, _laneWidth: number): void {
+        // Warm up common color lookups
+        this.getRGB('#FF71CE');
+        this.getRGB('#01CDFE');
+        this.getRGB('#05FFA1');
+        this.getRGB('#FFFB96');
+        console.log("[VaporwaveTheme] Pre-warmed color cache.");
+    }
 
     public renderHitZonePulse(ctx: CanvasRenderingContext2D, _lane: number, x: number, y: number, width: number, beatPhase: number): void {
         const pulseAlpha = Math.max(0, 1 - beatPhase) * 0.6;
@@ -16,29 +56,32 @@ export class VaporwaveTheme implements IThemeStrategy {
         ctx.restore();
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#FF71CE';
-            case 'GREAT': return '#01CDFE';
-            case 'GOOD': return '#05FFA1';
-            case 'MISS': return '#B967FF';
-            default: return '#FFFB96';
+            case Judgment.PERFECT: return '#00ffcc'; // Neon Cyan
+            case Judgment.GREAT: return '#ff71ce';  // Pink
+            case Judgment.GOOD: return '#b967ff';   // Purple
+            case Judgment.MISS: return '#ff0000';
+            default: return '#ffffff';
         }
     }
 
-    /**
-     * Retro Prism Burst: Layered gradient rings in vaporwave palette (pink→teal→yellow)
-     * expand while a CRT scanline grid distorts briefly at the hit center.
-     */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 1.8);
-        const isPerfect = judgment === 'PERFECT';
+        const isPerfect = judgment === Judgment.PERFECT;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Vaporwave prism rings (3-color layered)
-        const colors = ['#FF71CE', '#01CDFE', '#05FFA1', '#FFFB96'];
+        // 1. Vaporwave prism rings (3-color layered) using PRE-CALCULATED RGB
+        const hexColors = ['#FF71CE', '#01CDFE', '#05FFA1', '#FFFB96'];
         const ringCount = isPerfect ? 4 : 3;
         for (let i = 0; i < ringCount; i++) {
             const delay = i * 0.12;
@@ -46,15 +89,12 @@ export class VaporwaveTheme implements IThemeStrategy {
             if (lt <= 0) continue;
             const ringEase = 1 - lt;
             const r = laneWidth * (0.15 + lt * 1.8);
-            const col = colors[i % colors.length];
-            const rgb = col.replace('#', '');
-            const ri = parseInt(rgb.substring(0, 2), 16);
-            const gi = parseInt(rgb.substring(2, 4), 16);
-            const bi = parseInt(rgb.substring(4, 6), 16);
+
+            const rgb = this.getRGB(hexColors[i % hexColors.length]);
 
             ctx.beginPath();
             ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(${ri}, ${gi}, ${bi}, ${ringEase * 0.8})`;
+            ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${ringEase * 0.8})`;
             ctx.lineWidth = 3 * ringEase;
             ctx.stroke();
         }
@@ -85,18 +125,14 @@ export class VaporwaveTheme implements IThemeStrategy {
 
         // 4. Split prism lines for PERFECT
         if (isPerfect) {
-            const prismColors = ['#FF71CE', '#01CDFE', '#FFFB96'];
+            const prismHex = ['#FF71CE', '#01CDFE', '#FFFB96'];
             const offsets = [-3, 0, 3];
             for (let i = 0; i < 3; i++) {
                 const pr = laneWidth * (0.25 + ease * 1.6);
+                const rgb = this.getRGB(prismHex[i]);
                 ctx.beginPath();
                 ctx.arc(x + offsets[i], y, pr, 0, Math.PI * 2);
-                const pc = prismColors[i];
-                const pr_rgb = pc.replace('#', '');
-                const pri = parseInt(pr_rgb.substring(0, 2), 16);
-                const pgi = parseInt(pr_rgb.substring(2, 4), 16);
-                const pbi = parseInt(pr_rgb.substring(4, 6), 16);
-                ctx.strokeStyle = `rgba(${pri}, ${pgi}, ${pbi}, ${ease * 0.4})`;
+                ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${ease * 0.4})`;
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
             }

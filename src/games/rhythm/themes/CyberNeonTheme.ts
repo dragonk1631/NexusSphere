@@ -1,4 +1,5 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 /**
  * CyberNeonTheme provides a high-contrast, glowing neon aesthetic.
@@ -10,34 +11,37 @@ export class CyberNeonTheme implements IThemeStrategy {
         const pulseAlpha = Math.max(0, 1 - beatPhase);
         if (pulseAlpha <= 0) return;
 
-        ctx.save();
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#00ffff';
         ctx.strokeStyle = `rgba(0, 255, 255, ${pulseAlpha})`;
         ctx.lineWidth = 3;
         ctx.strokeRect(x + 2, y - 5, width - 4, 10);
-        ctx.restore();
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#00FFFF';
-            case 'GREAT': return '#FF00FF';
-            case 'GOOD': return '#FFFF00';
-            case 'MISS': return '#FF0000';
-            default: return '#FFFFFF';
+            case Judgment.PERFECT: return '#00f3ff';
+            case Judgment.GREAT: return '#ff00ff';
+            case Judgment.GOOD: return '#fffb00';
+            case Judgment.MISS: return '#ff0000';
+            default: return '#ffffff';
         }
     }
 
     /**
      * Digital Ray Burst: 6 angular rays shoot from hit point + hexagonal shockwave
      */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 2); // ease-out
         const alpha = ease;
 
         const color = this.getColorForJudgment(judgment);
-        const isPerfect = judgment === 'PERFECT';
+        const isPerfect = judgment === Judgment.PERFECT;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';

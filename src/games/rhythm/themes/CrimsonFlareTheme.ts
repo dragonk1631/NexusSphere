@@ -1,4 +1,5 @@
 import type { IThemeStrategy } from './IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 export class CrimsonFlareTheme implements IThemeStrategy {
     public readonly id = 'crimson-flare';
@@ -14,13 +15,13 @@ export class CrimsonFlareTheme implements IThemeStrategy {
         ctx.fillRect(x, y - 5, width, 10);
     }
 
-    public getColorForJudgment(judgment: string): string {
+    public getColorForJudgment(judgment: Judgment): string {
         switch (judgment) {
-            case 'PERFECT': return '#FFCC00';
-            case 'GREAT': return '#FF8C00';
-            case 'GOOD': return '#FF3300';
-            case 'MISS': return '#8E0000';
-            default: return '#FFCC00';
+            case Judgment.PERFECT: return '#ffaa00';
+            case Judgment.GREAT: return '#ff5500';
+            case Judgment.GOOD: return '#aa2200';
+            case Judgment.MISS: return '#550000';
+            default: return '#ffaa00';
         }
     }
 
@@ -28,9 +29,16 @@ export class CrimsonFlareTheme implements IThemeStrategy {
      * Lava Eruption: Crimson/ember droplets arc upward in a fountain then fall
      * due to gravity, with a searing blast ring at impact point.
      */
-    public renderHitEffect(ctx: CanvasRenderingContext2D, x: number, y: number, laneWidth: number, judgment: string, t: number): void {
+    public renderHitEffect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        laneWidth: number,
+        judgment: Judgment,
+        t: number
+    ): void {
         const ease = 1 - Math.pow(t, 2);
-        const isPerfect = judgment === 'PERFECT';
+        const isPerfect = judgment === Judgment.PERFECT;
         const dropCount = isPerfect ? 12 : 8;
 
         ctx.save();
