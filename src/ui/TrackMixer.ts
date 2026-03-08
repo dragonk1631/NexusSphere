@@ -8,9 +8,9 @@ export class TrackMixer {
     private midiData: ParsedMidi;
     private isVisible: boolean = false;
 
-    constructor(midiData: ParsedMidi) {
+    constructor(midiData: ParsedMidi, audio: CoreAudioEngine) {
         this.ui = UIManager.getInstance();
-        this.audio = CoreAudioEngine.getInstance();
+        this.audio = audio;
         this.midiData = midiData;
     }
 

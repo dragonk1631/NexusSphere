@@ -7,9 +7,9 @@ export class NoteEditor {
     private isVisible: boolean = false;
     private isEditing: boolean = false;
 
-    constructor() {
+    constructor(audio: CoreAudioEngine) {
         this.ui = UIManager.getInstance();
-        this.audio = CoreAudioEngine.getInstance();
+        this.audio = audio;
     }
 
     public toggle(): void {
