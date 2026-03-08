@@ -26,13 +26,17 @@ export class LaneRenderer {
         railGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.railGradient = railGrad;
 
-        // 2. Side Rail Gradient (Vertical Edges) - Specular/Luxurious Look
+        // 2. Side Rail Gradient (Vertical Edges) - Smooth Specular/Luxurious Look
         const sideCol = theme.getColorForJudgment(0); // Perfect color base
         const sGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
+
+        // Multi-stop smoothing for natural falloff
         sGrad.addColorStop(0, 'transparent');
-        sGrad.addColorStop(0.3, sideCol + '44');
-        sGrad.addColorStop(0.6, sideCol + 'AA');
-        sGrad.addColorStop(0.85, '#ffffffCC'); // Specular highlight stop
+        sGrad.addColorStop(0.15, sideCol + '00'); // Extra soft start
+        sGrad.addColorStop(0.4, sideCol + '33');
+        sGrad.addColorStop(0.65, sideCol + '88');
+        sGrad.addColorStop(0.8, sideCol + 'BB');
+        sGrad.addColorStop(0.92, '#ffffffaa'); // Softened specular highlight (less contrast, wider spread)
         sGrad.addColorStop(1, sideCol + 'FF');
         this.sideRailGradient = sGrad;
 
