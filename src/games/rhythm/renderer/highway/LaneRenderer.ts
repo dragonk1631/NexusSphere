@@ -177,11 +177,11 @@ export class LaneRenderer {
             const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
             const grad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
 
-            // Vibrant Hotspot Gradient: Subtle top, intense bottom
+            // Ultra-High-Intensity Hotspot Gradient
             grad.addColorStop(0, 'transparent');
-            grad.addColorStop(0.7, laneCol + '22'); // Soft ambient glow
-            grad.addColorStop(0.9, laneCol + '66'); // Increasing intensity near judgment
-            grad.addColorStop(1, laneCol + 'AA');   // High-luminance hotspot at the tip
+            grad.addColorStop(0.75, laneCol + '33'); // Ambient
+            grad.addColorStop(0.9, laneCol + '88');  // Strong
+            grad.addColorStop(1, laneCol + 'EE');   // Extreme Hotspot Peak
 
             ctx.fillStyle = grad;
             ctx.beginPath();
@@ -191,11 +191,11 @@ export class LaneRenderer {
             ctx.lineTo(blX, state.bottomY);
             ctx.fill();
 
-            // Additive bloom peak at the very bottom for maximum "Hotspot" visibility
-            ctx.globalAlpha = 0.3;
+            // Stronger Additive bloom peak at the very bottom
+            ctx.globalAlpha = 0.5; // Increased intensity
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            const h = (state.bottomY - state.horizonY) * 0.15; // Bottom 15% height
+            const h = (state.bottomY - state.horizonY) * 0.12; // Bottom 12% height
             ctx.moveTo(cache.getX(i, state.bottomY - h, state), state.bottomY - h);
             ctx.lineTo(cache.getX(i + 1, state.bottomY - h, state), state.bottomY - h);
             ctx.lineTo(brX, state.bottomY);
