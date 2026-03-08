@@ -69,7 +69,6 @@ export class LaneRenderer {
         const beatProgress = (cachedNow % msPerBeat) / msPerBeat;
         // Ease-out pulse: sharp start, smooth fade
         const pulse = Math.pow(1 - beatProgress, 1.5);
-        const sparkle = (Math.random() > 0.8 ? 1.2 : 1.0); // Subtle high-frequency jitter
 
         ctx.save();
 
@@ -144,7 +143,7 @@ export class LaneRenderer {
      * Renders the hit line and pulse rails.
      */
     public renderPulseRails(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache): void {
-        const pulse = (Math.sin(state.cachedNow * 0.005) + 1) * 0.5;
+        const pulse = (Math.sin(state.cachedNow * 0.01) + 1) * 0.5;
 
         ctx.save();
         if (this.railGradient) ctx.strokeStyle = this.railGradient;
