@@ -1,4 +1,5 @@
 import { BaseGame } from '../../core/BaseGame';
+import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { MidiParser } from '../../core/audio/MidiParser';
 import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
@@ -96,8 +97,8 @@ export class EditorGame extends BaseGame {
     private lastDragMeasure: number | null = null;
     private dragSelectionMode: 'select' | 'deselect' | null = null;
 
-    constructor(canvas: HTMLCanvasElement) {
-        super(canvas);
+    constructor(canvas: HTMLCanvasElement, audioEngine: CoreAudioEngine) {
+        super(canvas, audioEngine);
         this.selectedMeasures = new Set<number>();
         this._boundMouseMove = (e) => this.handleMouseMove(e as MouseEvent);
         this._boundMouseUp = () => this.handleMouseUp();

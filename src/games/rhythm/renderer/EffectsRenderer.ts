@@ -10,54 +10,63 @@ const EFFECTS_CONFIG = {
     GLITCH_ALPHA_THRESHOLD: 0.2,
     HIT_EFFECT_DURATION: 500, // ms
     SHOCKWAVE_DURATION: 400,
-    MAX_SHOCKWAVES: 5
+    MAX_SHOCKWAVES: 8
 } as const;
 
-interface Shockwave {
-    x: number;
-    y: number;
-    birthTime: number;
-    isActive: boolean;
-}
-
-interface HitEvent {
-    x: number;
-    y: number;
-    laneWidth: number;
-    judgment: Judgment;
-    birthTime: number;
-}
+const HE_OFF = { X: 0, Y: 1, WIDTH: 2, JUDGMENT: 3, BIRTH: 4, ACTIVE: 5, STRIDE: 6 };
+const SW_OFF = { X: 0, Y: 1, BIRTH: 2, ACTIVE: 3, STRIDE: 4 };
 
 /**
  * EffectsRenderer handles particles and screen effects.
- * Optimized: Zero-allocation loops and shadowBlur removal.
+ * Optimized with TypedArray buffers to avoid GC pressure and heap allocations.
  */
 export class EffectsRenderer {
     private particleData: IParticleRenderData;
     private transitionData: ITransitionRenderData;
     private glitchOffset: number = 0;
-    private shockwaves: Shockwave[] = [];
-    private hitEvents: HitEvent[] = [];
+
+    // Buffer for HitEvents: [x, y, laneWidth, judgment, birthTime, isActive] * MAX_HIT_EVENTS
+    private hitEventBuffer: Float32Array;
+    private hitEventIndex: number = 0;
+    private maxHitEvents: number = 64;
+
+    // Buffer for Shockwaves: [x, y, birthTime, isActive] * MAX_SHOCKWAVES
+    private shockwaveBuffer: Float32Array;
+    private freeShockwaveIndices: number[] = [];
 
     constructor(particleData: IParticleRenderData, transitionData: ITransitionRenderData) {
         this.particleData = particleData;
         this.transitionData = transitionData;
+
+        this.hitEventBuffer = new Float32Array(this.maxHitEvents * HE_OFF.STRIDE);
+        this.shockwaveBuffer = new Float32Array(EFFECTS_CONFIG.MAX_SHOCKWAVES * SW_OFF.STRIDE);
+
+        // Pre-fill free indices for shockwaves
         for (let i = 0; i < EFFECTS_CONFIG.MAX_SHOCKWAVES; i++) {
-            this.shockwaves.push({ x: 0, y: 0, birthTime: 0, isActive: false });
+            this.freeShockwaveIndices.push(i);
         }
     }
 
     public addHitEvent(x: number, y: number, laneWidth: number, judgment: Judgment): void {
-        this.hitEvents.push({ x, y, laneWidth, judgment, birthTime: performance.now() });
+        const idx = this.hitEventIndex * HE_OFF.STRIDE;
+        this.hitEventBuffer[idx + HE_OFF.X] = x;
+        this.hitEventBuffer[idx + HE_OFF.Y] = y;
+        this.hitEventBuffer[idx + HE_OFF.WIDTH] = laneWidth;
+        this.hitEventBuffer[idx + HE_OFF.JUDGMENT] = judgment;
+        this.hitEventBuffer[idx + HE_OFF.BIRTH] = performance.now();
+        this.hitEventBuffer[idx + HE_OFF.ACTIVE] = 1.0;
+
+        this.hitEventIndex = (this.hitEventIndex + 1) % this.maxHitEvents;
     }
 
     public triggerShockwave(x: number, y: number): void {
-        const sw = this.shockwaves.find(s => !s.isActive);
-        if (sw) {
-            sw.x = x;
-            sw.y = y;
-            sw.birthTime = performance.now();
-            sw.isActive = true;
+        const i = this.freeShockwaveIndices.pop();
+        if (i !== undefined) {
+            const idx = i * SW_OFF.STRIDE;
+            this.shockwaveBuffer[idx + SW_OFF.X] = x;
+            this.shockwaveBuffer[idx + SW_OFF.Y] = y;
+            this.shockwaveBuffer[idx + SW_OFF.BIRTH] = performance.now();
+            this.shockwaveBuffer[idx + SW_OFF.ACTIVE] = 1.0;
         }
     }
 
@@ -72,26 +81,31 @@ export class EffectsRenderer {
     }
 
     private renderHitEffects(ctx: CanvasRenderingContext2D, themeStrategy?: IThemeStrategy): void {
-        if (!themeStrategy?.renderHitEffect) {
-            this.hitEvents = [];
-            return;
-        }
+        if (!themeStrategy?.renderHitEffect) return;
 
         const now = performance.now();
         const duration = EFFECTS_CONFIG.HIT_EFFECT_DURATION;
 
-        // PROFESSIONAL OPTIMIZATION: Backward loop for safe removal without filter()
-        for (let i = this.hitEvents.length - 1; i >= 0; i--) {
-            const ev = this.hitEvents[i];
-            const t = (now - ev.birthTime) / duration;
+        for (let i = 0; i < this.maxHitEvents; i++) {
+            const idx = i * HE_OFF.STRIDE;
+            if (this.hitEventBuffer[idx + HE_OFF.ACTIVE] === 0.0) continue;
+
+            const t = (now - this.hitEventBuffer[idx + HE_OFF.BIRTH]) / duration;
 
             if (t >= 1) {
-                this.hitEvents.splice(i, 1);
+                this.hitEventBuffer[idx + HE_OFF.ACTIVE] = 0.0;
                 continue;
             }
 
             ctx.save();
-            themeStrategy.renderHitEffect!(ctx, ev.x, ev.y, ev.laneWidth, ev.judgment, t);
+            themeStrategy.renderHitEffect(
+                ctx,
+                this.hitEventBuffer[idx + HE_OFF.X],
+                this.hitEventBuffer[idx + HE_OFF.Y],
+                this.hitEventBuffer[idx + HE_OFF.WIDTH],
+                this.hitEventBuffer[idx + HE_OFF.JUDGMENT] as Judgment,
+                t
+            );
             ctx.restore();
         }
     }
@@ -141,16 +155,22 @@ export class EffectsRenderer {
         const now = performance.now();
         const duration = EFFECTS_CONFIG.SHOCKWAVE_DURATION;
 
-        for (const sw of this.shockwaves) {
-            if (!sw.isActive) continue;
-            const t = (now - sw.birthTime) / duration;
-            if (t >= 1) { sw.isActive = false; continue; }
+        for (let i = 0; i < EFFECTS_CONFIG.MAX_SHOCKWAVES; i++) {
+            const idx = i * SW_OFF.STRIDE;
+            if (this.shockwaveBuffer[idx + SW_OFF.ACTIVE] === 0.0) continue;
+
+            const t = (now - this.shockwaveBuffer[idx + SW_OFF.BIRTH]) / duration;
+            if (t >= 1) {
+                this.shockwaveBuffer[idx + SW_OFF.ACTIVE] = 0.0;
+                this.freeShockwaveIndices.push(i);
+                continue;
+            }
 
             const alpha = 1 - t;
             const radius = t * 200;
 
             ctx.beginPath();
-            ctx.arc(sw.x, sw.y, radius, 0, Math.PI * 2);
+            ctx.arc(this.shockwaveBuffer[idx + SW_OFF.X], this.shockwaveBuffer[idx + SW_OFF.Y], radius, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
             ctx.lineWidth = 2;
             ctx.stroke();

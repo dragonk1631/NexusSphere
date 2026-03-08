@@ -1,4 +1,5 @@
 import { AudioEngineLogger } from './AudioEngineLogger';
+import type { IAudioConnectable } from './AudioTypes';
 
 /**
  * AudioMixer: Manages the WebAudio graph and filter chains.
@@ -39,7 +40,7 @@ export class AudioMixer {
     /**
      * Safely connects a source node to the start of the mixer chain.
      */
-    public connectSource(source: AudioNode) {
+    public connectSource(source: IAudioConnectable) {
         try {
             source.connect(this.lowFilter);
             AudioEngineLogger.debug('Source connected to mixer chain');

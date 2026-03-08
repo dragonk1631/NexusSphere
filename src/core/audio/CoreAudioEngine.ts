@@ -1,18 +1,18 @@
+import { WorkletSynthesizer, Sequencer } from 'spessasynth_lib';
+// @ts-ignore
+import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
+
 import { ScreenUtils } from '../utils/ScreenUtils';
 import { AudioEngineLogger, LogLevel } from './AudioEngineLogger';
 import { AudioMixer } from './AudioMixer';
 import { TimeSyncController } from './TimeSyncController';
 import type { ISynth, ISequencer } from './AudioTypes';
 
-const SPESSA_LIB_URL = 'https://esm.sh/spessasynth_lib@4.0.20';
-const PROCESSOR_URL = 'https://esm.sh/spessasynth_lib@4.0.20/dist/spessasynth_processor.min.js';
-
 /**
  * Core Audio Engine 2.0 - Encapsulated MIDI Engine
  * v2.0 Architecture: Modular Facade with Type-Safe SpessaSynth integration.
  */
 export class CoreAudioEngine {
-    private static instance: CoreAudioEngine;
 
     // Core Modules
     private ctx: AudioContext;
@@ -28,7 +28,7 @@ export class CoreAudioEngine {
     private isSoundFontLoaded: boolean = false;
     private initializing: Promise<void> | null = null;
 
-    private constructor() {
+    public constructor() {
         this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
             latencyHint: 'balanced'
         });
@@ -37,13 +37,6 @@ export class CoreAudioEngine {
 
         AudioEngineLogger.setLevel(LogLevel.INFO);
         AudioEngineLogger.info("Engine Core initialized with 'balanced' latency.");
-    }
-
-    public static getInstance(): CoreAudioEngine {
-        if (!CoreAudioEngine.instance) {
-            CoreAudioEngine.instance = new CoreAudioEngine();
-        }
-        return CoreAudioEngine.instance;
     }
 
     /**
@@ -56,9 +49,8 @@ export class CoreAudioEngine {
             if (this.isReady) return;
 
             try {
-                // Dynamic Load SpessaSynth
-                const { WorkletSynthesizer, Sequencer } = await import(SPESSA_LIB_URL);
-                await this.ctx.audioWorklet.addModule(PROCESSOR_URL);
+                // Load AudioWorklet Module
+                await this.ctx.audioWorklet.addModule(processorUrl);
 
                 const isMobile = ScreenUtils.isMobile();
                 if (isMobile) {
@@ -67,22 +59,20 @@ export class CoreAudioEngine {
 
                 // Instantiate Synth
                 this.synth = new WorkletSynthesizer(this.ctx, {
-                    reverbEnabled: !isMobile,
-                    chorusEnabled: !isMobile,
-                    voicesAmount: isMobile ? 100 : 400,
-                    interpolationType: 'linear',
-                    sampleRate: this.ctx.sampleRate
-                }) as ISynth;
+                    initializeReverbProcessor: !isMobile,
+                    initializeChorusProcessor: !isMobile,
+                    oneOutput: false,
+                    enableEventSystem: true
+                }) as unknown as ISynth;
 
                 // Connect Synth to Mixer
-                this.mixer.connectSource(this.synth as any);
+                this.mixer.connectSource(this.synth as ISynth);
 
                 await this.synth.isReady;
 
                 // Load SoundFont
                 try {
-                    const sfRes = await fetch(soundFontUrl);
-                    if (!sfRes.ok) throw new Error(`HTTP ${sfRes.status}`);
+                    const sfRes = await this.fetchWithTimeout(soundFontUrl);
 
                     const sfData = await sfRes.arrayBuffer();
 
@@ -91,13 +81,13 @@ export class CoreAudioEngine {
                     if (header.toLowerCase() !== 'riff') throw new Error("Invalid SoundFont header");
 
                     await this.synth.soundBankManager.addSoundBank(sfData);
-                    this.sequencer = new Sequencer(this.synth) as ISequencer;
+                    this.sequencer = new Sequencer(this.synth as any) as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = true;
                     AudioEngineLogger.info("Engine Ready with SoundFont");
                 } catch (sfError) {
                     AudioEngineLogger.warn(`SoundFont load failed: ${sfError}. Running in silent mode.`);
-                    this.sequencer = new Sequencer(this.synth) as ISequencer;
+                    this.sequencer = new Sequencer(this.synth as any) as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = false;
                 }
@@ -129,13 +119,12 @@ export class CoreAudioEngine {
         if (this.sequencer) {
             try {
                 this.sequencer.pause();
-                this.sequencer.eventHandler.removeEvent("engine-song-end");
+                this.sequencer.eventHandler.removeEvent("songEnded", "engine-song-end");
             } catch (e) { }
             this.sequencer = null;
         }
 
-        const { Sequencer } = await import(SPESSA_LIB_URL);
-        this.sequencer = new Sequencer(this.synth) as ISequencer;
+        this.sequencer = new Sequencer(this.synth as any) as ISequencer;
         this.timer.reset();
 
         // Add Diagnostics
@@ -245,8 +234,8 @@ export class CoreAudioEngine {
     }
 
     public setChannelMute(channel: number, mute: boolean): void {
-        if (this.synth?.setChannelMute) {
-            this.synth.setChannelMute(channel, mute);
+        if (this.synth) {
+            this.synth.muteChannel(channel, mute);
         } else if (this.sequencer?.muteChannel) {
             this.sequencer.muteChannel(channel, mute);
         } else {
@@ -273,7 +262,7 @@ export class CoreAudioEngine {
     }
 
     public getSequencerTracks(): any[] {
-        return this.sequencer?.tracks || this.sequencer?.song?.tracks || [];
+        return this.sequencer?.midiData?.tracks || [];
     }
 
     public setMasterVolume(volume: number): void {
@@ -285,11 +274,11 @@ export class CoreAudioEngine {
     }
 
     public setReverbDepth(depth: number): void {
-        if (this.synth) this.synth.reverbGain = depth;
+        if (this.synth) (this.synth as any).setMasterParameter('reverbGain', depth);
     }
 
     public setChorusDepth(depth: number): void {
-        if (this.synth) this.synth.chorusGain = depth;
+        if (this.synth) (this.synth as any).setMasterParameter('chorusGain', depth);
     }
 
     /* -------------------------------------------
@@ -308,6 +297,7 @@ export class CoreAudioEngine {
     public get duration(): number { return this.sequencer?.duration || 0; }
 
     public getPreciseTime(): number {
+        // PROFESSIONAL: Standardize to AudioContext clock
         const seqTime = this.sequencer ? this.sequencer.currentTime : undefined;
         return this.timer.getPreciseTime(this.sequencer?.playbackRate || 1, seqTime);
     }
@@ -374,5 +364,26 @@ export class CoreAudioEngine {
                 }
             }
         }, 2000);
+    }
+
+    /**
+     * Helper for fetching with a timeout and AbortController.
+     */
+    private async fetchWithTimeout(url: string, timeoutMs: number = 10000): Promise<Response> {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(id);
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            return response;
+        } catch (e) {
+            clearTimeout(id);
+            if (e instanceof Error && e.name === 'AbortError') {
+                throw new Error(`Fetch timed out after ${timeoutMs}ms: ${url}`);
+            }
+            throw e;
+        }
     }
 }

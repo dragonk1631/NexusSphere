@@ -1,4 +1,5 @@
 import { BaseGame } from '../../core/BaseGame';
+import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { UIManager } from '../../core/ui/UIManager';
 
 /**
@@ -12,8 +13,8 @@ export class LayoutEditor extends BaseGame {
     private isDragging = false;
     private dragOffset = { x: 0, y: 0 };
 
-    constructor(canvas: HTMLCanvasElement) {
-        super(canvas);
+    constructor(canvas: HTMLCanvasElement, audioEngine: CoreAudioEngine) {
+        super(canvas, audioEngine);
         this.ui = UIManager.getInstance();
     }
 

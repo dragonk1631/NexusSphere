@@ -10,7 +10,8 @@ export class LaneRenderer {
     private railGradient: CanvasGradient | null = null;
     private leftSideRailGradient: CanvasGradient | null = null;
     private rightSideRailGradient: CanvasGradient | null = null;
-    private activeGlowGradients: (CanvasGradient | null)[] = new Array(7).fill(null);
+    private activeGlowGradients: (CanvasGradient | null)[] = [];
+    private activeLaneGradients: (CanvasGradient | null)[] = [];
 
     /**
      * Rebuilds gradients during resize or initialization.
@@ -49,13 +50,25 @@ export class LaneRenderer {
         rGrad.addColorStop(1, sideCol + '00');
         this.rightSideRailGradient = rGrad;
 
-        // 3. Active Glow Gradients
+        // 3. Lane Highlights & Glows (Synchronized with laneCount)
+        this.activeGlowGradients = [];
+        this.activeLaneGradients = [];
         for (let i = 0; i < state.laneCount; i++) {
-            const laneCol = theme.getColorForJudgment(0);
-            const g = ctx.createRadialGradient(0, 0, 0, 0, 0, state.laneBottomWidth);
-            g.addColorStop(0, laneCol + '44');
-            g.addColorStop(1, laneCol + '00');
-            this.activeGlowGradients[i] = g;
+            const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
+
+            // Radial Glow
+            const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, state.laneBottomWidth);
+            glow.addColorStop(0, laneCol + '44');
+            glow.addColorStop(1, laneCol + '00');
+            this.activeGlowGradients.push(glow);
+
+            // Linear Lane Highlight (Pre-cached to avoid per-frame allocation)
+            const laneGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
+            laneGrad.addColorStop(0, 'transparent');
+            laneGrad.addColorStop(0.75, laneCol + '33');
+            laneGrad.addColorStop(0.9, laneCol + '88');
+            laneGrad.addColorStop(1, laneCol + 'EE');
+            this.activeLaneGradients.push(laneGrad);
         }
     }
 
@@ -164,6 +177,8 @@ export class LaneRenderer {
      * Renders active lane highlights when a key is pressed.
      */
     public renderActiveLanes(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache, inputStates: boolean[]): void {
+        const h = (state.bottomY - state.horizonY) * 0.12;
+
         for (let i = 0; i < state.laneCount; i++) {
             if (!inputStates[i]) continue;
 
@@ -173,28 +188,21 @@ export class LaneRenderer {
             const brX = cache.getX(i + 1, state.bottomY, state);
 
             ctx.save();
-            const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
-            const grad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
-
-            // Ultra-High-Intensity Hotspot Gradient
-            grad.addColorStop(0, 'transparent');
-            grad.addColorStop(0.75, laneCol + '33'); // Ambient
-            grad.addColorStop(0.9, laneCol + '88');  // Strong
-            grad.addColorStop(1, laneCol + 'EE');   // Extreme Hotspot Peak
-
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.moveTo(tlX, state.horizonY);
-            ctx.lineTo(trX, state.horizonY);
-            ctx.lineTo(brX, state.bottomY);
-            ctx.lineTo(blX, state.bottomY);
-            ctx.fill();
+            const grad = this.activeLaneGradients[i];
+            if (grad) {
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(tlX, state.horizonY);
+                ctx.lineTo(trX, state.horizonY);
+                ctx.lineTo(brX, state.bottomY);
+                ctx.lineTo(blX, state.bottomY);
+                ctx.fill();
+            }
 
             // Stronger Additive bloom peak at the very bottom
-            ctx.globalAlpha = 0.5; // Increased intensity
+            ctx.globalAlpha = 0.5;
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            const h = (state.bottomY - state.horizonY) * 0.12; // Bottom 12% height
             ctx.moveTo(cache.getX(i, state.bottomY - h, state), state.bottomY - h);
             ctx.lineTo(cache.getX(i + 1, state.bottomY - h, state), state.bottomY - h);
             ctx.lineTo(brX, state.bottomY);

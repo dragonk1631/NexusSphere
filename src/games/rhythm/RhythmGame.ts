@@ -1,4 +1,5 @@
 import { BaseGame } from '../../core/BaseGame';
+import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { ThemeManager } from '../../core/ThemeManager';
 import { ScoreManager } from '../../core/score/ScoreManager';
 import type { ParsedMidi } from '../../core/audio/MidiParser';
@@ -117,8 +118,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private stateMap: Map<GameState, IGameState>;
     private currentStateObj: IGameState;
 
-    constructor(canvas: HTMLCanvasElement) {
-        super(canvas);
+    constructor(canvas: HTMLCanvasElement, audioEngine: CoreAudioEngine) {
+        super(canvas, audioEngine);
         this.scoreManager = ScoreManager.getInstance();
         this.renderCache = RenderCache.getInstance();
         this.audioLoader = new AudioLoader(this.audioEngine);

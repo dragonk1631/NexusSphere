@@ -45,6 +45,21 @@ export function calculateLayout(
     return { laneTopWidth, laneBottomWidth };
 }
 
+/**
+ * Converts linear progress [0, 1] to perspective-projected progress.
+ */
+export function projectProgress(linearProgress: number, pDepth: number): number {
+    return linearProgress / (pDepth - (pDepth - 1) * linearProgress);
+}
+
+/**
+ * Calculates the projected Y coordinate based on linear progress.
+ */
+export function getProjectedY(linearProgress: number, horizonY: number, hitLineY: number, pDepth: number): number {
+    const projected = projectProgress(linearProgress, pDepth);
+    return horizonY + (hitLineY - horizonY) * projected;
+}
+
 export function hexToRgba(hex: string, alpha: number): string {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);

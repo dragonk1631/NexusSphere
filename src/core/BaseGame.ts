@@ -11,8 +11,10 @@ export abstract class BaseGame {
     public canvas: HTMLCanvasElement;
     public ctx: CanvasRenderingContext2D;
 
-    constructor(canvas: HTMLCanvasElement) {
+    constructor(canvas: HTMLCanvasElement, audioEngine: CoreAudioEngine) {
         this.canvas = canvas;
+        this.audioEngine = audioEngine;
+        this.assetLoader = AssetLoader.getInstance();
 
         // Android Chrome can be unstable with desynchronized: true
         const isAndroid = /Android/i.test(navigator.userAgent);
@@ -27,9 +29,6 @@ export abstract class BaseGame {
             console.warn("[BaseGame] Desynchronized context failed, falling back to standard.");
             this.ctx = canvas.getContext('2d')!;
         }
-
-        this.audioEngine = CoreAudioEngine.getInstance();
-        this.assetLoader = AssetLoader.getInstance();
     }
 
     /**

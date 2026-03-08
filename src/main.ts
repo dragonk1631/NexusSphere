@@ -10,10 +10,13 @@ import { UIManager } from './core/ui/UIManager';
 import { BackgroundRenderer } from './core/graphics/BackgroundRenderer';
 import { ScreenUtils } from './core/utils/ScreenUtils';
 import { MenuMusicManager } from './core/audio/MenuMusicManager';
+import { CoreAudioEngine } from './core/audio/CoreAudioEngine';
 
 // Initialize Global Managers
+const globalAudioEngine = new CoreAudioEngine();
 UIManager.getInstance();
 BackgroundRenderer.getInstance();
+MenuMusicManager.getInstance(globalAudioEngine);
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
@@ -233,7 +236,7 @@ async function launchGame(GameClass: any) {
   isLaunching = true;
 
   try {
-    MenuMusicManager.getInstance().stopMusic();
+    MenuMusicManager.getInstance(globalAudioEngine).stopMusic();
 
     // Ensure we are in landscape mode on mobile (user gesture confirmed here)
     await enforceLandscape(true);
@@ -251,7 +254,7 @@ async function launchGame(GameClass: any) {
       currentGame = null;
     }
 
-    currentGame = new GameClass(canvas);
+    currentGame = new GameClass(canvas, globalAudioEngine);
 
     console.log(`Initializing ${GameClass.name}...`);
     await currentGame.init();

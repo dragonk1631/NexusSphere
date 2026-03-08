@@ -1,5 +1,6 @@
 import * as PerspectiveUtils from '../PerspectiveUtils';
 import { type HighwayRenderState } from '../HighwayRenderer';
+import { HIGHWAY_CONFIG } from '../../constants/GameConstants';
 
 /**
  * PerspectiveCache provides O(1) lookup for lane geometry by pre-calculating
@@ -10,16 +11,32 @@ export class PerspectiveCache {
     private xCache: Float32Array[];
     private resolution: number;
 
-    constructor(resolution: number = 200) {
+    constructor(resolution: number = 400) {
         this.resolution = resolution;
         this.widthCache = new Float32Array(resolution);
-        this.xCache = Array.from({ length: 7 }, () => new Float32Array(resolution));
+        this.xCache = Array.from({ length: 9 }, () => new Float32Array(resolution));
+    }
+
+    /**
+     * Updates the resolution and re-allocates buffers if necessary.
+     */
+    public setResolution(newResolution: number): void {
+        if (newResolution === this.resolution) return;
+        this.resolution = newResolution;
+        this.widthCache = new Float32Array(newResolution);
+        for (let i = 0; i < this.xCache.length; i++) {
+            this.xCache[i] = new Float32Array(newResolution);
+        }
     }
 
     /**
      * Rebuilds the cache table based on the current highway geometry.
      */
     public build(state: HighwayRenderState): void {
+        // Professionals adapt resolution to height (1 tick per 2 pixels approx)
+        const targetRes = Math.max(200, Math.ceil((state.bottomY - state.horizonY) / 2));
+        this.setResolution(targetRes);
+
         const h = state.bottomY - state.horizonY;
         if (h <= 0) return;
 
@@ -48,6 +65,18 @@ export class PerspectiveCache {
         // Clamp lane index to safety
         const safeLane = Math.max(0, Math.min(lane, this.xCache.length - 1));
         return this.xCache[safeLane][idx];
+    }
+
+    /**
+     * Gets the projected Y coordinate based on linear progress.
+     */
+    public getProjectedY(linearProgress: number, state: HighwayRenderState): number {
+        return PerspectiveUtils.getProjectedY(
+            linearProgress,
+            state.horizonY,
+            state.hitLineY,
+            HIGHWAY_CONFIG.PERSPECTIVE_DEPTH
+        );
     }
 
     /**

@@ -43,8 +43,8 @@ export class HighwayRenderer {
     private holdRenderer: HoldNoteRenderer;
     private receptorRenderer: ReceptorRenderer;
 
-    private beamGradients: (CanvasGradient | null)[] = new Array(7).fill(null);
-    private desaturatedLaneColors: string[] = new Array(7).fill('');
+    private beamGradients: (CanvasGradient | null)[] = [];
+    private desaturatedLaneColors: string[] = [];
 
     // GC Optimization: Pre-allocated buffer for note indices
     private visibleIndices: Uint32Array = new Uint32Array(2000);
@@ -57,33 +57,43 @@ export class HighwayRenderer {
         this.noteRenderer = new NoteRenderer(renderCache);
         this.receptorRenderer = new ReceptorRenderer(renderCache);
 
-        LANE_COLORS.forEach((colorSet, i) => {
-            this.desaturatedLaneColors[i] = UIUtils.desaturateColor(colorSet[0], 0.7);
-        });
+        // Pre-generate professional desaturated colors for all possible lanes
+        for (let i = 0; i < LANE_COLORS.length; i++) {
+            this.desaturatedLaneColors[i] = UIUtils.desaturateColor(LANE_COLORS[i][0], 0.7);
+        }
 
         this.holdRenderer = new HoldNoteRenderer(this.noteRenderer, this.desaturatedLaneColors);
     }
 
+    /**
+     * Re-calculates perspective and cached visual elements (Gradients).
+     */
     public onResize(ctx: CanvasRenderingContext2D, _laneCount: number, horizonY: number, hitLineY: number, state: HighwayRenderState, theme: IThemeStrategy): void {
         this.cache.build(state);
         this.bgRenderer.onResize(ctx, state);
         this.laneRenderer.onResize(ctx, state, theme);
         this.receptorRenderer.onResize(ctx, state, theme);
 
-        // Pre-generate Beam Gradients
         const beamRange = hitLineY - horizonY;
-        const beamTopY = hitLineY - beamRange * 0.6;
-        this.beamGradients = LANE_COLORS.map(colorSet => {
+        const beamTopY = hitLineY - beamRange * 0.6; // High-precision fade
+
+        // Synchronize beam gradients with exact laneCount
+        this.beamGradients = new Array(state.laneCount);
+        for (let i = 0; i < state.laneCount; i++) {
+            const colorSet = LANE_COLORS[i % LANE_COLORS.length];
             const grad = ctx.createLinearGradient(0, hitLineY, 0, beamTopY);
             const color = colorSet[0];
+
+            // Fast hex-to-rgb conversion
             const r = parseInt(color.substring(1, 3), 16);
             const g = parseInt(color.substring(3, 5), 16);
             const b = parseInt(color.substring(5, 7), 16);
+
             grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${HIGHWAY_CONFIG.BEAM_ALPHA_START * 2.0})`);
             grad.addColorStop(0.33, `rgba(${r}, ${g}, ${b}, ${HIGHWAY_CONFIG.BEAM_ALPHA_START * 0.4})`);
             grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`);
-            return grad;
-        });
+            this.beamGradients[i] = grad;
+        }
     }
 
     public renderBackground(ctx: CanvasRenderingContext2D, state: HighwayRenderState): void {
@@ -125,10 +135,6 @@ export class HighwayRenderer {
         }
         this.visibleNoteCount = count;
 
-        const pDepth = HIGHWAY_CONFIG.PERSPECTIVE_DEPTH;
-        const horizon = state.horizonY;
-        const hitLine = state.hitLineY;
-
         for (let j = this.visibleNoteCount - 1; j >= 0; j--) {
             const note = visualNotes[this.visibleIndices[j]];
             const noteTimeMs = note.time * 1000;
@@ -136,13 +142,14 @@ export class HighwayRenderer {
             let linearProgress = 1 - (timeDiff / timeToReachHitLine);
             if (note.isHold && linearProgress > 1) linearProgress = 1;
 
-            const projectedProgress = linearProgress / (pDepth - (pDepth - 1) * linearProgress);
-            const noteY = horizon + (hitLine - horizon) * projectedProgress;
-            if (noteY < horizon) continue;
+            const noteY = this.cache.getProjectedY(linearProgress, state);
+            if (noteY < state.horizonY) continue;
 
+            // Calculate scale for note height based on projected progress
+            const projectedScale = (noteY - state.horizonY) / (state.hitLineY - state.horizonY);
             const nW = this.cache.getWidth(noteY, state);
             const nX = this.cache.getX(note.lane, noteY, state);
-            const nH = 50 * projectedProgress;
+            const nH = 50 * projectedScale;
 
             let alpha = 1.0;
             if (linearProgress < HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD) alpha = Math.max(0, linearProgress / HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD);
@@ -153,9 +160,9 @@ export class HighwayRenderer {
                 let tailProgress = 1 - (timeDiffTail / timeToReachHitLine);
                 if (tailProgress > 1) tailProgress = 1;
 
-                const pTail = tailProgress / (pDepth - (pDepth - 1) * tailProgress);
-                const tailY = horizon + (hitLine - horizon) * pTail;
-                const tailH = 50 * pTail;
+                const tailY = this.cache.getProjectedY(tailProgress, state);
+                const tailScale = (tailY - state.horizonY) / (state.hitLineY - state.horizonY);
+                const tailH = 50 * tailScale;
 
                 this.holdRenderer.renderHoldNote(ctx, state, this.cache, note.lane, nX, noteY, nW, nH, tailY, tailH, note.isHolding, alpha);
             } else {

@@ -8,6 +8,7 @@ export class MenuMusicManager {
     private currentContext: MenuContext | null = null;
     private midiList: any[] = [];
     private isPlaying: boolean = false;
+    private audio: CoreAudioEngine | null = null;
 
     // Explicit URLs for contexts. If null, a random MIDI will be picked.
     private BGM_CONFIG: Record<MenuContext, string | null> = {
@@ -20,9 +21,12 @@ export class MenuMusicManager {
         // Private constructor for Singleton
     }
 
-    public static getInstance(): MenuMusicManager {
+    public static getInstance(audio?: CoreAudioEngine): MenuMusicManager {
         if (!MenuMusicManager.instance) {
             MenuMusicManager.instance = new MenuMusicManager();
+        }
+        if (audio) {
+            MenuMusicManager.instance.audio = audio;
         }
         return MenuMusicManager.instance;
     }
@@ -34,7 +38,11 @@ export class MenuMusicManager {
         this.currentContext = context;
         this.isPlaying = true;
 
-        const engine = CoreAudioEngine.getInstance();
+        if (!this.audio) {
+            console.error('[MenuMusicManager] Audio Engine not initialized!');
+            return;
+        }
+        const engine = this.audio;
 
         try {
             // Fire and wait for initialization. If already initialized, it resolves immediately.
@@ -89,7 +97,7 @@ export class MenuMusicManager {
     public stopMusic(): void {
         this.currentContext = null;
         this.isPlaying = false;
-        CoreAudioEngine.getInstance().stop();
+        if (this.audio) this.audio.stop();
         console.log('[MenuMusicManager] UI BGM stopped.');
     }
 }

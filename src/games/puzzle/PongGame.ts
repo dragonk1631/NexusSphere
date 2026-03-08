@@ -1,4 +1,5 @@
 import { BaseGame } from '../../core/BaseGame';
+import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 
 export class PongGame extends BaseGame {
@@ -15,8 +16,8 @@ export class PongGame extends BaseGame {
 
     private keys: Set<string> = new Set();
 
-    constructor(canvas: HTMLCanvasElement) {
-        super(canvas);
+    constructor(canvas: HTMLCanvasElement, audioEngine: CoreAudioEngine) {
+        super(canvas, audioEngine);
     }
 
     public async init(): Promise<void> {
