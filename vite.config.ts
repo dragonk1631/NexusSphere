@@ -38,8 +38,8 @@ export default defineConfig(({ command }) => ({
         host: true, // Listen on all addresses, including LAN IP
         strictPort: true,
         hmr: {
-            protocol: 'wss',
-            // Removed host: 'localhost' so mobile devices can connect to the dev server IP
+            // Let Vite automatically detect the protocol (ws vs wss)
+            // based on whether the server is running in http or https mode.
         }
     },
     build: {
