@@ -8,8 +8,47 @@ let height = 600;
 let pixelRatio = 1;
 let currentTheme: ThemeConfig | null = null;
 let isRunning = false;
+let rafId: number = 0;
 let time = 0;
-let lastTimestamp = 0;
+let lastDrawTime = 0;
+const TARGET_INTERVAL = 1000 / 60;
+let isMobile = false;
+let dynamicMaxParticles = 2500;
+
+// --- Cached gradient for background (avoid per-frame allocation) ---
+let cachedBgGrad: CanvasGradient | null = null;
+let cachedBgColors: string = '';
+
+// --- Cached wave gradients for drawWaves (rebuilt on resize/theme change) ---
+let cachedWaveGrads: (CanvasGradient | null)[] = [];
+let cachedWaveGridColor: string = '';
+let cachedWaveHeight: number = 0;
+
+// --- Cached scanlines gradients (rebuilt on resize/theme change) ---
+let cachedScanlinesCoreGrad: CanvasGradient | null = null;
+let cachedScanlinesMountainGrads: (CanvasGradient | null)[] = [];
+let cachedScanlinesShimmerGrad: CanvasGradient | null = null;
+let cachedScanlinesKey: string = '';
+
+// --- Cached grid3d glow gradient ---
+let cachedGrid3DBloomGrad: CanvasGradient | null = null;
+let cachedGrid3DKey: string = '';
+
+function invalidateAllCaches() {
+    cachedBgGrad = null;
+    cachedBgColors = '';
+    cachedWaveGrads = [];
+    cachedWaveGridColor = '';
+    cachedWaveHeight = 0;
+    cachedScanlinesCoreGrad = null;
+    cachedScanlinesMountainGrads = [];
+    cachedScanlinesShimmerGrad = null;
+    cachedScanlinesKey = '';
+    cachedGrid3DBloomGrad = null;
+    cachedGrid3DKey = '';
+    textureCache.clear();
+}
+
 
 // --- TypedArray Particle Pool ---
 const MAX_PARTICLES = 2500;
@@ -27,7 +66,7 @@ const custom1 = new Float32Array(MAX_PARTICLES); // For specific needs like 'va'
 let aliveCount = 0;
 
 function spawn(): number {
-    if (aliveCount >= MAX_PARTICLES) return -1;
+    if (aliveCount >= dynamicMaxParticles) return -1;
     const id = aliveCount;
     aliveCount++;
     return id;
@@ -268,16 +307,20 @@ function drawGrid3D(theme: ThemeConfig) {
     const fov = 420;
     const speed = (time * 150) % 100;
 
-    // 1. Horizon Glow
-    const glowHeight = 40;
-    const bloomGrad = ctx.createLinearGradient(0, horizon - glowHeight, 0, horizon + glowHeight);
-    bloomGrad.addColorStop(0, 'transparent');
-    bloomGrad.addColorStop(0.5, applyAlpha(theme.particleColor, '66'));
-    bloomGrad.addColorStop(1, 'transparent');
+    // 1. Horizon Glow (cache – position depends on height, color on particleColor)
+    const grid3DKey = theme.particleColor + height;
+    if (cachedGrid3DKey !== grid3DKey) {
+        cachedGrid3DKey = grid3DKey;
+        const glowHeight = 40;
+        cachedGrid3DBloomGrad = ctx.createLinearGradient(0, horizon - glowHeight, 0, horizon + glowHeight);
+        cachedGrid3DBloomGrad.addColorStop(0, 'transparent');
+        cachedGrid3DBloomGrad.addColorStop(0.5, applyAlpha(theme.particleColor, '66'));
+        cachedGrid3DBloomGrad.addColorStop(1, 'transparent');
+    }
 
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = bloomGrad;
-    ctx.fillRect(0, horizon - glowHeight, width, glowHeight * 2);
+    ctx.fillStyle = cachedGrid3DBloomGrad!;
+    ctx.fillRect(0, horizon - 40, width, 80);
 
     // 2. Perspective Grid
     ctx.strokeStyle = applyAlpha(theme.gridColor, '44');
@@ -398,6 +441,21 @@ function drawWaves(theme: ThemeConfig) {
     ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(moonTex, moonX - 120, moonY - 120, 240, 240);
 
+    // Rebuild wave gradients only when height or theme color changes
+    if (cachedWaveGrads.length !== 6 || cachedWaveGridColor !== theme.gridColor || cachedWaveHeight !== height) {
+        cachedWaveGrads = [];
+        cachedWaveGridColor = theme.gridColor;
+        cachedWaveHeight = height;
+        for (let i = 0; i < 6; i++) {
+            const layerY = height * (0.35 + i * 0.1);
+            const amp = 10 + i * 15;
+            const g = ctx.createLinearGradient(0, layerY - amp, 0, layerY + amp * 2);
+            g.addColorStop(0, applyAlpha(theme.gridColor, 'CC'));
+            g.addColorStop(1, 'transparent');
+            cachedWaveGrads.push(g);
+        }
+    }
+
     ctx.globalCompositeOperation = 'screen';
     for (let i = 0; i < 6; i++) {
         const layerY = height * (0.35 + i * 0.1);
@@ -405,11 +463,7 @@ function drawWaves(theme: ThemeConfig) {
         const amp = 10 + i * 15;
         const freq = 0.004 + i * 0.001;
 
-        const waveGrad = ctx.createLinearGradient(0, layerY - amp, 0, layerY + amp * 2);
-        waveGrad.addColorStop(0, applyAlpha(theme.gridColor, 'CC'));
-        waveGrad.addColorStop(1, 'transparent');
-
-        ctx.strokeStyle = waveGrad;
+        ctx.strokeStyle = cachedWaveGrads[i]!;
         ctx.lineWidth = 1 + i * 0.5;
         ctx.globalAlpha = 0.2 + (i * 0.12);
         ctx.beginPath();
@@ -752,13 +806,38 @@ function drawScanlines(theme: ThemeConfig) {
     ctx.globalCompositeOperation = 'screen';
     ctx.drawImage(sunGlowGrad, width / 2 - sunR * 1.5 * sunPulse, horizon - sunR * 1.5 * sunPulse, sunR * 3 * sunPulse, sunR * 1.5 * sunPulse);
 
-    const coreGrad = ctx.createLinearGradient(0, horizon - sunR, 0, horizon);
-    coreGrad.addColorStop(0, theme.color3);
-    coreGrad.addColorStop(1, theme.color2);
+    // --- Rebuild cached gradients only on theme/size change ---
+    const scanlinesKey = theme.color2 + theme.color3 + width + height;
+    if (cachedScanlinesKey !== scanlinesKey) {
+        cachedScanlinesKey = scanlinesKey;
+
+        // Sun core gradient (horizon depends on height)
+        cachedScanlinesCoreGrad = ctx.createLinearGradient(0, horizon - sunR, 0, horizon);
+        cachedScanlinesCoreGrad.addColorStop(0, theme.color3);
+        cachedScanlinesCoreGrad.addColorStop(1, theme.color2);
+
+        // Mountain gradients (3 layers)
+        cachedScanlinesMountainGrads = [];
+        for (let l = 2; l >= 0; l--) {
+            const mHeight = height * (0.12 + l * 0.08);
+            const g = ctx.createLinearGradient(0, horizon - mHeight, 0, horizon);
+            g.addColorStop(0, applyAlpha(theme.color2, '44'));
+            g.addColorStop(1, '#000000');
+            cachedScanlinesMountainGrads[l] = g;
+        }
+
+        // Shimmer gradient (position is fixed, only alpha varies via globalAlpha)
+        const floorY = horizon;
+        cachedScanlinesShimmerGrad = ctx.createLinearGradient(0, floorY - 50, 0, floorY + 100);
+        cachedScanlinesShimmerGrad.addColorStop(0, 'transparent');
+        cachedScanlinesShimmerGrad.addColorStop(0.4, theme.color3);
+        cachedScanlinesShimmerGrad.addColorStop(1, 'transparent');
+    }
+
     ctx.globalAlpha = 0.9;
     ctx.beginPath();
     ctx.arc(width / 2, horizon, sunR * sunPulse, Math.PI, 0, false);
-    ctx.fillStyle = coreGrad;
+    ctx.fillStyle = cachedScanlinesCoreGrad!;
     ctx.fill();
 
     for (let l = 2; l >= 0; l--) {
@@ -766,11 +845,7 @@ function drawScanlines(theme: ThemeConfig) {
         const mCount = 3 + l;
         const mWidth = width / mCount;
 
-        const mountainGrad = ctx.createLinearGradient(0, horizon - mHeight, 0, horizon);
-        mountainGrad.addColorStop(0, applyAlpha(theme.color2, '44'));
-        mountainGrad.addColorStop(1, '#000000');
-
-        ctx.fillStyle = mountainGrad;
+        ctx.fillStyle = cachedScanlinesMountainGrads[l]!;
         ctx.strokeStyle = applyAlpha(theme.gridColor, '33');
         ctx.lineWidth = 1;
 
@@ -789,13 +864,11 @@ function drawScanlines(theme: ThemeConfig) {
     }
 
     const floorY = horizon;
-    const shimmerAlpha = (Math.sin(time * 1.5) * 0.05 + 0.15).toFixed(2);
-    const shimmerGrad = ctx.createLinearGradient(0, floorY - 50, 0, floorY + 100);
-    shimmerGrad.addColorStop(0, 'transparent');
-    shimmerGrad.addColorStop(0.4, applyAlpha(theme.color3, Math.floor(255 * parseFloat(shimmerAlpha)).toString(16).padStart(2, '0')));
-    shimmerGrad.addColorStop(1, 'transparent');
+    // Shimmer alpha animates, but we avoid a per-frame gradient allocation by varying globalAlpha
+    const shimmerAlphaVal = Math.sin(time * 1.5) * 0.05 + 0.15;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = shimmerGrad;
+    ctx.globalAlpha = shimmerAlphaVal;
+    ctx.fillStyle = cachedScanlinesShimmerGrad!;
     ctx.fillRect(0, floorY - 50, width, 150);
 
     ctx.globalCompositeOperation = 'source-over';
@@ -837,24 +910,32 @@ function drawScanlines(theme: ThemeConfig) {
 }
 
 // --- Main Render Loop ---
+
 function render(timestamp: number) {
     if (!isRunning || !ctx || !currentTheme) return;
 
-    // Calculate delta and time
-    if (lastTimestamp === 0) lastTimestamp = timestamp;
-    lastTimestamp = timestamp;
+    rafId = requestAnimationFrame(render);
+
+    // Filter by time to cap at 60fps on high-refresh displays
+    const elapsed = timestamp - lastDrawTime;
+    if (elapsed < TARGET_INTERVAL - 4) return;
+    
+    lastDrawTime = timestamp;
     time = timestamp * 0.001;
 
     // Base background gradient
-    const gradOffset = Math.sin(time * 0.5) * height * 0.2;
-    const bgGrad = ctx.createLinearGradient(0, gradOffset, width, height - gradOffset);
-    bgGrad.addColorStop(0, currentTheme.color1);
-    bgGrad.addColorStop(0.5, currentTheme.color2);
-    bgGrad.addColorStop(1, currentTheme.color3);
+    const bgColorKey = currentTheme.color1 + currentTheme.color2 + currentTheme.color3;
+    if (cachedBgColors !== bgColorKey || !cachedBgGrad) {
+        cachedBgColors = bgColorKey;
+        cachedBgGrad = ctx.createLinearGradient(0, 0, width, height);
+        cachedBgGrad.addColorStop(0, currentTheme.color1);
+        cachedBgGrad.addColorStop(0.5, currentTheme.color2);
+        cachedBgGrad.addColorStop(1, currentTheme.color3);
+    }
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1.0;
-    ctx.fillStyle = bgGrad;
+    ctx.fillStyle = cachedBgGrad;
     ctx.fillRect(0, 0, width, height);
 
     ctx.save();
@@ -872,8 +953,6 @@ function render(timestamp: number) {
         case 'snow': drawSnow(currentTheme); break;
     }
     ctx.restore();
-
-    requestAnimationFrame(render);
 }
 
 // --- Message Listener ---
@@ -886,36 +965,44 @@ self.onmessage = (e: MessageEvent) => {
             width = data.width;
             height = data.height;
             pixelRatio = data.pixelRatio;
+            isMobile = data.isMobile || false;
+            dynamicMaxParticles = isMobile ? 1000 : 2500;
             canvas.width = width;
             canvas.height = height;
-            ctx.scale(pixelRatio, pixelRatio);
-            width /= pixelRatio;
-            height /= pixelRatio;
+            ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+            width = Math.floor(width / pixelRatio);
+            height = Math.floor(height / pixelRatio);
             break;
 
         case 'RESIZE':
             width = data.width;
             height = data.height;
             if (canvas) {
+                // canvas.width reset also resets the ctx transform  – apply pixelRatio via setTransform (no compounding)
                 canvas.width = width;
                 canvas.height = height;
-                ctx.scale(pixelRatio, pixelRatio);
-                width /= pixelRatio;
-                height /= pixelRatio;
+                ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+                width = Math.floor(width / pixelRatio);
+                height = Math.floor(height / pixelRatio);
             }
+            invalidateAllCaches(); // All position-dependent gradients must be rebuilt
             if (currentTheme) {
-                initPattern(currentTheme.pattern); // Re-distribute particles on resize
+                initPattern(currentTheme.pattern);
             }
             break;
 
         case 'SET_THEME':
             currentTheme = data.theme;
+            invalidateAllCaches(); // Color and pattern changed – rebuild all cached gradients
             if (currentTheme) {
                 initPattern(currentTheme.pattern);
                 if (!isRunning) {
                     isRunning = true;
-                    requestAnimationFrame(render);
-                }
+                    rafId = requestAnimationFrame(render);
+                } // If already running, the existing loop picks up the new theme automatically
+            } else {
+                isRunning = false;
+                if (rafId) cancelAnimationFrame(rafId);
             }
             break;
     }

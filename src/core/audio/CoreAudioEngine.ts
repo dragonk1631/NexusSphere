@@ -132,17 +132,21 @@ export class CoreAudioEngine {
             AudioEngineLogger.info(`Song ended at ${this.currentTime.toFixed(2)}s`);
         });
 
-        const loadStart = performance.now();
         await this.sequencer.loadNewSongList([{ binary: buffer }]);
-        const loadEnd = performance.now();
 
         this.sequencer.pause();
         this.sequencer.currentTime = 0;
         const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
         this.timer.seek(0, seqTime);
 
-        const duration = this.sequencer.duration || 0;
-        AudioEngineLogger.info(`MIDI Loaded in ${(loadEnd - loadStart).toFixed(1)}ms. Duration: ${duration.toFixed(2)}s`);
+        // SpessaSynth duration might take a tick to update or is in midiData
+        const duration = this.sequencer.duration || (this.sequencer as any).midiData?.duration || 0;
+        if (duration > 0) {
+            AudioEngineLogger.metric('LOAD', `MIDI Loaded. Duration: ${duration.toFixed(2)}s`);
+        } else {
+            // If still 0, the monitor will catch it or we log it on first play
+            AudioEngineLogger.metric('LOAD', `MIDI Loaded. (Duration pending)`);
+        }
 
         this.startDiagnosticMonitor();
     }
@@ -359,8 +363,11 @@ export class CoreAudioEngine {
             if (this.isPlaying() && this.synth) {
                 // SpessaSynth keeps tracks of active voices
                 const voices = (this.synth as any).voicesAmount || 0;
-                if (voices > 50) {
-                    AudioEngineLogger.debug(`[AudioPerf:VOICES] Active Voices: ${voices}`);
+                // Treat 200 voices as 100% "theoretical" load for mobile/PC balance
+                const loadPercent = Math.min(100, (voices / 200) * 100).toFixed(1);
+                
+                if (voices > 30) { // Report if there's significant activity
+                    AudioEngineLogger.metric('HEALTH', `Active Voices: ${voices} (Load: ${loadPercent}%)`);
                 }
             }
         }, 2000);

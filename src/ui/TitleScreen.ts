@@ -11,6 +11,7 @@ export class TitleScreen {
     private width: number = 0;
     private height: number = 0;
     private isTransitioning: boolean = false;
+    private lastRenderTime: number = 0;
 
     constructor(onStart: () => void) {
         this.onStart = onStart;
@@ -38,7 +39,7 @@ export class TitleScreen {
         window.addEventListener('pointerdown', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
 
-        this.loop();
+        this.rafId = requestAnimationFrame(this.loop.bind(this));
     }
 
     public resize() {
@@ -101,12 +102,21 @@ export class TitleScreen {
         }, 400);
     }
 
-    private loop() {
+    private loop(timestamp: number) {
+        if (this.isTransitioning) return;
+        
+        this.rafId = requestAnimationFrame(this.loop.bind(this));
+
+        const now = timestamp || performance.now();
+        const elapsed = now - this.lastRenderTime;
+        const TARGET_INTERVAL = 1000 / 60;
+
+        // Skip frames if vsync is too fast (e.g. 120Hz)
+        if (elapsed < TARGET_INTERVAL - 4) return;
+
+        this.lastRenderTime = now;
         this.time += 0.016;
         this.render();
-        if (!this.isTransitioning) {
-            this.rafId = requestAnimationFrame(this.loop.bind(this));
-        }
     }
 
     private render() {

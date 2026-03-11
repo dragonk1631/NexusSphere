@@ -11,6 +11,8 @@ import { BackgroundRenderer } from './core/graphics/BackgroundRenderer';
 import { ScreenUtils } from './core/utils/ScreenUtils';
 import { MenuMusicManager } from './core/audio/MenuMusicManager';
 import { CoreAudioEngine } from './core/audio/CoreAudioEngine';
+import { PerformanceMonitor } from './core/utils/PerformanceMonitor';
+import { AudioEngineLogger } from './core/audio/AudioEngineLogger';
 
 // Initialize Global Managers
 const globalAudioEngine = new CoreAudioEngine();
@@ -23,6 +25,7 @@ let currentGame: any = null;
 
 let lastTime = 0;
 let lastRenderTimestamp = 0;
+let accumulator = 0;
 let loopCounter = 0;
 let mainMenu: MainMenu;
 
@@ -37,71 +40,84 @@ let fpsFrameCount = 0;
 let fpsLastTime = performance.now();
 let currentFps = 0;
 
+PerformanceMonitor.start();
+
 function gameLoop(timestamp: number) {
   // Prevent potential undefined timestamp on first call
   if (!timestamp) timestamp = performance.now();
+
+  PerformanceMonitor.recordFrame();
 
   // --- FPS Update ---
   if (timestamp - fpsLastTime >= 1000) {
     currentFps = fpsFrameCount;
     fpsFrameCount = 0;
     fpsLastTime = timestamp;
-    fpsDiv.innerText = `FPS: ${currentFps}`;
+    
+    // Get extended performance metrics
+    const snapshot = PerformanceMonitor.getSnapshot(currentFps);
+    
+    fpsDiv.innerText = `FPS: ${currentFps} | JS: ${snapshot.workDuration}ms | Jit: ${snapshot.jitter}ms | Stall: ${snapshot.longTasks}`;
 
     // Color Coding for Performance Monitoring
-    if (currentFps >= 58) fpsDiv.style.color = '#00ff00';      // Green (Good)
-    else if (currentFps >= 30) fpsDiv.style.color = '#ffff00'; // Yellow (Warning)
+    if (currentFps >= 58 && snapshot.jitter < 5) fpsDiv.style.color = '#00ff00';      // Green (Good)
+    else if (currentFps >= 30 || snapshot.jitter < 15) fpsDiv.style.color = '#ffff00'; // Yellow (Warning)
     else fpsDiv.style.color = '#ff0000';                       // Red (Bad)
 
-    // Also update FPS div to include real vs rAF info
-    fpsDiv.innerText = `FPS: ${currentFps}`;
+    // Log load metrics to console periodically
+    AudioEngineLogger.metric('RENDER', `FPS: ${currentFps}, Jitter: ${snapshot.jitter}ms, Stalls: ${snapshot.longTasks}`);
   }
 
-  if (!currentGame) return;
+  PerformanceMonitor.beginFrame();
 
-  // Closure capture of loopCounter to detect if a new loop was started
+  if (!currentGame) {
+    PerformanceMonitor.endFrame();
+    return;
+  }
+
   const currentLoopId = loopCounter;
-
-  // --- FPS LIMITER ---
-  const TARGET_FPS = 60;
-  const RENDER_INTERVAL = 1000 / TARGET_FPS;
-
-  // --- ACCUMULATOR-BASED FIXED STEP LOOP ---
-  const INTERVAL = 1000 / 60; // 16.666ms
-  const MAX_ACCUMULATED_TIME = 200; // Panic threshold (200ms)
+  const FIXED_STEP = 1000 / 60; // 16.66ms
+  const MAX_ACCUMULATION = 200;
 
   if (!lastTime) lastTime = timestamp;
-  let elapsed = timestamp - lastTime;
+  let frameTime = timestamp - lastTime;
+  lastTime = timestamp;
 
-  // Cap elapsed time to prevent "Spiral of Death"
-  if (elapsed > MAX_ACCUMULATED_TIME) {
-    elapsed = INTERVAL; // Force a jump/skip if lag is too extreme
-    lastTime = timestamp - INTERVAL;
-  }
+  // Cap frame time to prevent spiraling after backgrounding
+  if (frameTime > MAX_ACCUMULATION) frameTime = FIXED_STEP;
 
-  // --- CATCH-UP LOGIC ---
-  // If lag occurs, we run multiple update steps but only ONE render step.
-  while (elapsed >= INTERVAL) {
+  // Track elapsed for updates in the persistent accumulator
+  accumulator += frameTime;
+  
+  // Update logic: catch up with fixed steps
+  // This ensures game logic runs at 60Hz regardless of display refresh rate
+  while (accumulator >= FIXED_STEP) {
     if (currentGame) {
-      currentGame.update(INTERVAL);
+      currentGame.update(FIXED_STEP);
     }
-    elapsed -= INTERVAL;
-    lastTime += INTERVAL;
+    accumulator -= FIXED_STEP;
   }
 
-  // --- RENDER (WITH FPS LIMIT) ---
-  if (currentGame) {
-    const now = performance.now();
-    const timeSinceLastRender = now - lastRenderTimestamp;
+  // Render logic: 
+  // On 120Hz/90Hz, we still ideally want to render at 60fps to save battery.
+  // We use a 'lastRenderTimestamp' check, but with a more forgiving 'fuzzy' 
+  // window to avoid the 40fps plateau caused by 1-2ms jitters.
+  const now = performance.now();
+  const timeSinceLastRender = now - lastRenderTimestamp;
+  const TARGET_RENDER_INTERVAL = 1000 / 60;
 
-    // Only render if target interval has passed (e.g. 16.6ms for 60fps)
-    // This effectively caps 90Hz/120Hz displays to 60fps to save battery/heat.
-    if (timeSinceLastRender >= RENDER_INTERVAL - 1) { // -1 for small buffer
+  // Allow a 4ms buffer (approx 1/4 of a 60Hz frame or 1/2 of 120Hz frame)
+  // to ensure that if a 120Hz vsync arrives at 16.0ms instead of 16.6ms, 
+  // we still grab it for 60fps instead of waiting for 25ms.
+  if (timeSinceLastRender >= TARGET_RENDER_INTERVAL - 4) {
+    if (currentGame) {
       currentGame.render();
       lastRenderTimestamp = now;
       fpsFrameCount++;
     }
   }
+
+  PerformanceMonitor.endFrame();
 
   // Loop
   if (currentLoopId === loopCounter) {
@@ -148,8 +164,12 @@ async function enforceLandscape(isUserGesture: boolean = false) {
 
     // 2. Screen Orientation Lock - USUALLY REQUIRES FULLSCREEN
     if (screen.orientation && (screen.orientation as any).lock) {
-      await (screen.orientation as any).lock('landscape').catch(() => {
-        // Fallback to CSS is already active via media queries
+      // Add a small 2s timeout for the lock itself so it doesn't hang the entire loading process
+      const lockPromise = (screen.orientation as any).lock('landscape');
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000));
+      
+      await Promise.race([lockPromise, timeoutPromise]).catch((err) => {
+        console.warn("[enforceLandscape] Orientation lock skipped or timed out:", err);
       });
     }
   } catch (e) {
@@ -238,8 +258,10 @@ async function launchGame(GameClass: any) {
   try {
     MenuMusicManager.getInstance(globalAudioEngine).stopMusic();
 
-    // Ensure we are in landscape mode on mobile (user gesture confirmed here)
+    console.log("[Launch] Entering enforceLandscape...");
+    console.time("launch_enforceLandscape");
     await enforceLandscape(true);
+    console.timeEnd("launch_enforceLandscape");
 
     loopCounter++; // Increment to invalidate previous loops
 
@@ -256,17 +278,25 @@ async function launchGame(GameClass: any) {
 
     currentGame = new GameClass(canvas, globalAudioEngine);
 
-    console.log(`Initializing ${GameClass.name}...`);
+    console.log(`[Launch] Initializing ${GameClass.name}...`);
+    console.time("launch_init");
     await currentGame.init();
+    console.timeEnd("launch_init");
 
-    console.log("Loading assets...");
+    console.log("[Launch] Loading assets...");
+    console.time("launch_load");
     await currentGame.load();
+    console.timeEnd("launch_load");
 
-    console.log("Starting display...");
+    console.log("[Launch] Starting display...");
+    console.time("launch_create");
     currentGame.create();
+    console.timeEnd("launch_create");
 
     // Reset Loop State
     lastTime = performance.now();
+    lastRenderTimestamp = lastTime;
+    accumulator = 0;
     fpsFrameCount = 0;
 
     requestAnimationFrame(gameLoop);

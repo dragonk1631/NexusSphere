@@ -74,7 +74,7 @@ export class SmoothClock {
         // 3. DRIFT MONITORING: Track divergence between performance.now and AudioContext
         const drift = Math.abs(preciseTime - rawAudioTime);
         if (drift > 0.05 && this.firstMoveDetected && (now % 1000 < 20)) { // Log occasionally (approx every 1s)
-            AudioEngineLogger.debug(`[AudioSync:DRIFT] ${(drift * 1000).toFixed(1)}ms offset detected.`);
+            AudioEngineLogger.metric('SYNC', `Drift detected: ${(drift * 1000).toFixed(1)}ms offset.`);
         }
 
         this.lastReportedTime = preciseTime;

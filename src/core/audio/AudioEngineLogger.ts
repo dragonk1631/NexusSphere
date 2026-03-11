@@ -42,4 +42,20 @@ export class AudioEngineLogger {
             console.error(`[AudioEngine:ERROR] ${message}`, ...args);
         }
     }
+
+    /**
+     * Specialized logging for performance metrics and system load.
+     * Always logs regardless of current LogLevel (unless NONE).
+     */
+    public static metric(category: string, message: string, data?: any) {
+        if (this.level === LogLevel.NONE) return;
+        
+        const timestamp = performance.now().toFixed(2);
+        const prefix = `[AudioPerf:${category.toUpperCase()}]`;
+        if (data) {
+            console.log(`${prefix} (${timestamp}ms) ${message}`, data);
+        } else {
+            console.log(`${prefix} (${timestamp}ms) ${message}`);
+        }
+    }
 }

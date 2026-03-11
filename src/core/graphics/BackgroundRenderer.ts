@@ -22,7 +22,8 @@ export class BackgroundRenderer {
             canvas: offscreen,
             width,
             height,
-            pixelRatio: Math.min(window.devicePixelRatio, 1.5)
+            pixelRatio: Math.min(window.devicePixelRatio, 1.5),
+            isMobile: ScreenUtils.isMobile()
         }, [offscreen]);
 
         // Subscribe to theme changes
