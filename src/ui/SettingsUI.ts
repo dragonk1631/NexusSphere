@@ -159,16 +159,16 @@ export class SettingsUI {
                     filter: brightness(1);
                 }
 
-                /* ACTIVE theme: bold glow + animated pulse */
+                /* ACTIVE theme: clean highlight + lighter pulse */
                 .theme-btn.active {
-                    transform: scale(1.06); border-color: #fff !important; border-width: 4px;
-                    box-shadow: 0 0 25px 6px rgba(255,255,255,0.8), inset 0 0 15px rgba(255,255,255,0.4);
-                    animation: themePulse 2s ease-in-out infinite;
+                    transform: scale(1.04); border-color: #fff !important; border-width: 4px;
+                    box-shadow: 0 0 15px rgba(255,255,255,0.6);
+                    animation: themePulse 1.5s ease-in-out infinite;
                     opacity: 1; filter: brightness(1.1);
                 }
                 @keyframes themePulse {
-                    0%, 100% { box-shadow: 0 0 25px 6px rgba(255,255,255,0.8), inset 0 0 15px rgba(255,255,255,0.4); }
-                    50% { box-shadow: 0 0 35px 10px rgba(255,255,255,1), inset 0 0 20px rgba(255,255,255,0.6); }
+                    0%, 100% { border-color: #fff; transform: scale(1.04); }
+                    50% { border-color: #00E5FF; transform: scale(1.06); }
                 }
 
                 /* Checkmark badge for active theme */

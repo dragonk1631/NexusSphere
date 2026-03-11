@@ -19,6 +19,17 @@ let dynamicMaxParticles = 2500;
 let cachedBgGrad: CanvasGradient | null = null;
 let cachedBgColors: string = '';
 
+// --- High-Performance Color Cache (Pre-computed strings) ---
+const colorCache = {
+    particle: '',
+    particleAlpha50: '',
+    particleAlpha20: '',
+    grid: '',
+    gridAlpha50: '',
+    gridAlpha20: '',
+    color1Alpha: (a: string) => applyAlpha(currentTheme?.color1 || '#000', a), // fallback
+};
+
 // --- Cached wave gradients for drawWaves (rebuilt on resize/theme change) ---
 let cachedWaveGrads: (CanvasGradient | null)[] = [];
 let cachedWaveGridColor: string = '';
@@ -34,7 +45,7 @@ let cachedScanlinesKey: string = '';
 let cachedGrid3DBloomGrad: CanvasGradient | null = null;
 let cachedGrid3DKey: string = '';
 
-function invalidateAllCaches() {
+function invalidateAllCaches(full: boolean = false) {
     cachedBgGrad = null;
     cachedBgColors = '';
     cachedWaveGrads = [];
@@ -46,7 +57,9 @@ function invalidateAllCaches() {
     cachedScanlinesKey = '';
     cachedGrid3DBloomGrad = null;
     cachedGrid3DKey = '';
-    textureCache.clear();
+    if (full) {
+        textureCache.clear();
+    }
 }
 
 
@@ -268,21 +281,24 @@ function initPattern(pattern: string) {
 
 function drawStars(theme: ThemeConfig) {
     // 1. Nebula Layers
-    const nebTexture = getCachedTexture('nebula_cloud', 512, (c) => {
-        const grad = c.createRadialGradient(256, 256, 0, 256, 256, 256);
+    const nTexDim = isMobile ? 256 : 512;
+    const nebTexture = getCachedTexture('nebula_cloud', nTexDim, (c) => {
+        const center = nTexDim / 2;
+        const grad = c.createRadialGradient(center, center, 0, center, center, center);
         grad.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
         grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.05)');
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
-        c.fillRect(0, 0, 512, 512);
+        c.fillRect(0, 0, nTexDim, nTexDim);
     });
 
     setCompositeOperation('screen');
-    for (let i = 0; i < 3; i++) {
+    const nebCount = isMobile ? 2 : 3;
+    for (let i = 0; i < nebCount; i++) {
         const shift = time * (0.02 + i * 0.01) + (i * 1.5);
         const nx = width * (0.3 + Math.sin(shift) * 0.2);
         const ny = height * (0.4 + Math.cos(shift * 0.8) * 0.1);
-        const nSize = height * (0.8 + i * 0.2);
+        const nSize = height * (isMobile ? 0.6 : 0.8 + i * 0.2);
 
         ctx.globalAlpha = 0.4;
         ctx.fillStyle = i % 2 === 0 ? theme.color2 : theme.color1;
@@ -332,7 +348,7 @@ function drawGrid3D(theme: ThemeConfig) {
     ctx.fillRect(0, horizon - 40, width, 80);
 
     // 2. Perspective Grid
-    ctx.strokeStyle = applyAlpha(theme.gridColor, '44');
+    ctx.strokeStyle = colorCache.gridAlpha20;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     for (let x = -width * 1; x <= width * 2; x += 180) {
@@ -358,7 +374,7 @@ function drawGrid3D(theme: ThemeConfig) {
     const trailTex = getCachedTexture('grid_trail', 64, c => {
         const grad = c.createLinearGradient(32, 0, 32, 64);
         grad.addColorStop(0, 'transparent');
-        grad.addColorStop(1, applyAlpha(theme.particleColor, 'aa'));
+        grad.addColorStop(1, colorCache.particleAlpha50);
         c.fillStyle = grad;
         c.fillRect(0, 0, 64, 64);
     });
@@ -390,13 +406,35 @@ function drawGrid3D(theme: ThemeConfig) {
 
 
 function drawMatrix(theme: ThemeConfig) {
-    ctx.font = 'bold 18px monospace';
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*";
+    const charH = 22;
+    const charW = 16;
+    
+    // 1. Pre-render Glyph Sheet (One-time or per theme change)
+    const glyphSheet = getCachedTexture('matrix_glyphs', 512, c => {
+        c.font = 'bold 18px monospace';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        
+        // Render 2 rows: White (heads) and Theme Color (trails)
+        chars.split('').forEach((char, idx) => {
+            const x = (idx % 16) * 32 + 16;
+            const y = Math.floor(idx / 16) * 32 + 16;
+            
+            // White row
+            c.fillStyle = '#FFFFFF';
+            c.fillText(char, x, y);
+            
+            // Theme row
+            c.fillStyle = theme.particleColor;
+            c.fillText(char, x, y + 64);
+        });
+    });
 
     const headTex = getCachedTexture('matrix_head', 40, c => {
         const grad = c.createRadialGradient(20, 20, 0, 20, 20, 20);
         grad.addColorStop(0, '#FFFFFF');
-        grad.addColorStop(0.5, theme.particleColor + '66');
+        grad.addColorStop(0.5, applyAlpha(theme.particleColor, '66'));
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
         c.fillRect(0, 0, 40, 40);
@@ -404,32 +442,37 @@ function drawMatrix(theme: ThemeConfig) {
 
     for (let i = 0; i < aliveCount; i++) {
         py[i] += vy[i] * (1 + (3 - layer[i]) * 0.2);
-        if (py[i] > height + size[i] * 22) {
-            py[i] = -size[i] * 22;
+        if (py[i] > height + size[i] * charH) {
+            py[i] = -size[i] * charH;
             vy[i] = Math.random() * 5 + 3;
         }
 
         const alphaScale = 1 - (layer[i] / 4);
 
         for (let j = 0; j < size[i]; j++) {
-            const charY = py[i] - j * 22;
-            if (charY > -20 && charY < height + 20) {
-                let char = chars[Math.floor(Math.random() * chars.length)];
-                if (Math.random() > 0.985) char = chars[Math.floor(Math.random() * chars.length)];
+            const charY = py[i] - j * charH;
+            if (charY > -charH && charY < height + charH) {
+                // Use a stable random for glyph index to avoid jitter
+                const seed = Math.floor(px[i] + Math.floor(charY / charH) * 123);
+                let charIdx = seed % chars.length;
+                if (Math.random() > 0.985) charIdx = Math.floor(Math.random() * chars.length);
 
                 const charAlpha = 1 - (j / size[i]);
+                const gx = (charIdx % 16) * 32 + (32 - charW) / 2;
+                const gy = Math.floor(charIdx / 16) * 32 + (32 - charH) / 2;
 
                 if (j === 0) {
                     ctx.globalCompositeOperation = isMobile ? 'source-over' : 'lighter';
-                    ctx.drawImage(headTex, px[i] - 11, charY - 29, 40, 40);
+                    ctx.drawImage(headTex, px[i] - 20 - charW/2 + 11, charY - 20, 40, 40);
                     ctx.globalCompositeOperation = 'source-over';
-                    ctx.fillStyle = '#FFFFFF';
                     ctx.globalAlpha = alphaScale;
+                    // Draw white glyph (top row of sheet)
+                    ctx.drawImage(glyphSheet, gx, gy, charW, charH, px[i] - charW/2, charY - charH/2, charW, charH);
                 } else {
-                    ctx.fillStyle = theme.particleColor;
                     ctx.globalAlpha = charAlpha * 0.7 * alphaScale;
+                    // Draw theme glyph (bottom row of sheet, offsetY = 64)
+                    ctx.drawImage(glyphSheet, gx, gy + 64, charW, charH, px[i] - charW/2, charY - charH/2, charW, charH);
                 }
-                ctx.fillText(char, px[i], charY);
             }
         }
     }
@@ -459,7 +502,7 @@ function drawWaves(theme: ThemeConfig) {
             const layerY = height * (0.35 + i * 0.1);
             const amp = 10 + i * 15;
             const g = ctx.createLinearGradient(0, layerY - amp, 0, layerY + amp * 2);
-            g.addColorStop(0, applyAlpha(theme.gridColor, 'CC'));
+            g.addColorStop(0, colorCache.gridAlpha50); // Using grid 50% for waves
             g.addColorStop(1, 'transparent');
             cachedWaveGrads.push(g);
         }
@@ -490,8 +533,8 @@ function drawWaves(theme: ThemeConfig) {
 function drawBubbles(theme: ThemeConfig) {
     const surfaceGrad = getCachedTexture('surface_bloom', 200, c => {
         const grad = c.createLinearGradient(0, 0, 0, 200);
-        grad.addColorStop(0, applyAlpha(theme.particleColor, 'AA'));
-        grad.addColorStop(0.5, applyAlpha(theme.particleColor, '33'));
+        grad.addColorStop(0, colorCache.particleAlpha50);
+        grad.addColorStop(0.5, colorCache.particleAlpha20);
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
         c.fillRect(0, 0, 200, 200);
@@ -505,9 +548,9 @@ function drawBubbles(theme: ThemeConfig) {
         const xPos = width * (0.05 + i * 0.12);
         const rayWidth = 80 + Math.sin(time * 0.4 + i) * 50;
         const rayGrad = getCachedTexture('god_ray', 150, c => {
-            const grad = c.createLinearGradient(0, 0, 150, 150); // placeholder height
-            grad.addColorStop(0, applyAlpha(theme.particleColor, '44'));
-            grad.addColorStop(0.5, applyAlpha(theme.particleColor, '15'));
+            const grad = c.createLinearGradient(0, 0, 150, 150);
+            grad.addColorStop(0, colorCache.particleAlpha20);
+            grad.addColorStop(0.5, applyAlpha(theme.particleColor, '15')); // Custom alpha for rays
             grad.addColorStop(1, 'transparent');
             c.fillStyle = grad;
             c.fillRect(0, 0, 150, 150);
@@ -686,7 +729,7 @@ function drawSnow(theme: ThemeConfig) {
     const fogGrad = getCachedTexture('snow_fog', 256, c => {
         const grad = c.createLinearGradient(0, 0, 0, 256);
         grad.addColorStop(0, 'transparent');
-        grad.addColorStop(1, applyAlpha(theme.color3, '66'));
+        grad.addColorStop(1, applyAlpha(theme.color3, '66')); // Keep specialized one
         c.fillStyle = grad;
         c.fillRect(0, 0, 256, 256);
     });
@@ -744,12 +787,16 @@ function drawHexagons(theme: ThemeConfig) {
     const hStep = size_ * 1.5;
     const vStep = size_ * Math.sqrt(3);
 
-    ctx.strokeStyle = applyAlpha(theme.gridColor, '55');
-    ctx.lineWidth = 1.5;
-
     const pTime = (time * 0.125) % 3;
     const isRadial = pTime < 1;
     const isLinear = pTime >= 1 && pTime < 2;
+
+    // 1. Draw static/low-alpha grid in ONE batch
+    ctx.strokeStyle = colorCache.gridAlpha20;
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    
+    const pulseList: {x: number, y: number, alpha: number}[] = [];
 
     for (let x = -size_; x < width + size_; x += hStep) {
         const isOdd = Math.floor((x + size_) / hStep) % 2 === 1;
@@ -768,34 +815,45 @@ function drawHexagons(theme: ThemeConfig) {
             }
 
             if (pulse > 0.85) {
-                ctx.strokeStyle = applyAlpha(theme.particleColor, Math.floor(pulse * 255).toString(16).padStart(2, '0'));
-                ctx.lineWidth = 2.5;
+                pulseList.push({x, y: py_, alpha: pulse});
             } else {
-                ctx.strokeStyle = applyAlpha(theme.gridColor, '22');
-                ctx.lineWidth = 1;
-            }
-
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = (Math.PI / 3) * i;
-                const hx = x + Math.cos(angle) * size_;
-                const hy = py_ + Math.sin(angle) * size_;
-                if (i === 0) ctx.moveTo(hx, hy);
-                else ctx.lineTo(hx, hy);
-            }
-            ctx.closePath();
-            ctx.stroke();
-
-            if (pulse > 0.92) {
-                ctx.fillStyle = theme.particleColor;
-                ctx.globalAlpha = (pulse - 0.9) * 10;
-                ctx.beginPath();
-                ctx.arc(x, py_, 3, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
+                // Add to main batch path
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI / 3) * i;
+                    const hx = x + Math.cos(angle) * size_;
+                    const hy = py_ + Math.sin(angle) * size_;
+                    if (i === 0) ctx.moveTo(hx, hy);
+                    else ctx.lineTo(hx, hy);
+                }
+                // Close hexagon manually to avoid separate closePath() overhead in large paths
+                const startAngle = 0;
+                ctx.lineTo(x + Math.cos(startAngle) * size_, py_ + Math.sin(startAngle) * size_);
             }
         }
     }
+    ctx.stroke();
+
+    // 2. Draw highlighted/pulsing hexagons (Few per frame)
+    pulseList.forEach(p => {
+        ctx.strokeStyle = applyAlpha(theme.particleColor, Math.floor(p.alpha * 255).toString(16).padStart(2, '0'));
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            ctx.lineTo(p.x + Math.cos(angle) * size_, p.y + Math.sin(angle) * size_);
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        if (p.alpha > 0.92) {
+            ctx.fillStyle = theme.particleColor;
+            ctx.globalAlpha = (p.alpha - 0.9) * 10;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    });
 }
 
 function drawScanlines(theme: ThemeConfig) {
@@ -1037,8 +1095,21 @@ self.onmessage = (e: MessageEvent) => {
             break;
 
         case 'SET_THEME':
-            currentTheme = data.theme;
-            invalidateAllCaches();
+            const newTheme = data.theme as ThemeConfig;
+            const themeChanged = !currentTheme || currentTheme.id !== newTheme.id;
+            
+            currentTheme = newTheme;
+            
+            // Populating high-perf color cache
+            colorCache.particle = currentTheme.particleColor;
+            colorCache.particleAlpha50 = applyAlpha(currentTheme.particleColor, '80');
+            colorCache.particleAlpha20 = applyAlpha(currentTheme.particleColor, '33');
+            colorCache.grid = currentTheme.gridColor;
+            colorCache.gridAlpha50 = applyAlpha(currentTheme.gridColor, '80');
+            colorCache.gridAlpha20 = applyAlpha(currentTheme.gridColor, '33');
+            
+            // Texture cache is only cleared on actual theme change
+            invalidateAllCaches(themeChanged);
             if (currentTheme) {
                 initPattern(currentTheme.pattern);
                 isRunning = true;
