@@ -920,15 +920,18 @@ function drawScanlines(theme: ThemeConfig) {
 
 // --- Main Render Loop ---
 
+
 function render(timestamp: number) {
     if (!ctx || !currentTheme) return;
-
+    
+    const frameStart = performance.now();
     time = timestamp * 0.001;
 
     // Base background gradient
     const bgColorKey = currentTheme.color1 + currentTheme.color2 + currentTheme.color3;
     if (cachedBgColors !== bgColorKey || !cachedBgGrad) {
         cachedBgColors = bgColorKey;
+        // Use logic width/height for gradient to match coordinates
         cachedBgGrad = ctx.createLinearGradient(0, 0, width, height);
         cachedBgGrad.addColorStop(0, currentTheme.color1);
         cachedBgGrad.addColorStop(0.5, currentTheme.color2);
@@ -955,39 +958,79 @@ function render(timestamp: number) {
         case 'snow': drawSnow(currentTheme); break;
     }
     ctx.restore();
+
+    const frameEnd = performance.now();
+    updateDynamicResolution(frameEnd - frameStart);
 }
 
-// --- Message Listener ---
+// --- Dynamic Resolution & Performance State ---
+let renderResolutionScale = 1.0;
+let frameTimeHistory: number[] = [];
+
+function updateDynamicResolution(duration: number) {
+    if (!isMobile) return; // Desktop is usually fine
+
+    frameTimeHistory.push(duration);
+    if (frameTimeHistory.length > 30) frameTimeHistory.shift();
+
+    const avg = frameTimeHistory.reduce((a, b) => a + b, 0) / frameTimeHistory.length;
+    
+    // Target duration for 60fps is 16.6ms. 
+    // If background takes more than 8ms, it's eating too much of the budget.
+    let targetScale = renderResolutionScale;
+    if (avg > 8.5) {
+        targetScale = Math.max(0.65, renderResolutionScale - 0.05);
+    } else if (avg < 5.0 && renderResolutionScale < 1.0) {
+        targetScale = Math.min(1.0, renderResolutionScale + 0.02);
+    }
+
+    if (Math.abs(targetScale - renderResolutionScale) > 0.04) {
+        renderResolutionScale = targetScale;
+        applyResolution();
+    }
+
+    // Report performance back (throttled)
+    if (Math.random() < 0.02) {
+        self.postMessage({ type: 'PERF', duration: avg });
+    }
+}
+
+function applyResolution() {
+    if (!canvas || !ctx) return;
+    canvas.width = Math.floor(width * pixelRatio * renderResolutionScale);
+    canvas.height = Math.floor(height * pixelRatio * renderResolutionScale);
+    ctx.setTransform(pixelRatio * renderResolutionScale, 0, 0, pixelRatio * renderResolutionScale, 0, 0);
+    invalidateAllCaches();
+}
+
 self.onmessage = (e: MessageEvent) => {
     const data = e.data;
+
+    // High-performance path for synchronized draw calls (Array [0, timestamp])
+    if (Array.isArray(data)) {
+        if (data[0] === 0 && isRunning) {
+            render(data[1]);
+        }
+        return;
+    }
+
+    // Standard path for configuration
     switch (data.type) {
         case 'INIT':
             canvas = data.canvas;
-            ctx = canvas.getContext('2d', { alpha: false }) as OffscreenCanvasRenderingContext2D;
+            ctx = canvas.getContext('2d', { alpha: false, desynchronized: true }) as OffscreenCanvasRenderingContext2D;
             width = data.width;
             height = data.height;
             pixelRatio = data.pixelRatio;
             isMobile = data.isMobile || false;
             dynamicMaxParticles = isMobile ? 1000 : 2500;
-            canvas.width = width;
-            canvas.height = height;
-            ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-            width = Math.floor(width / pixelRatio);
-            height = Math.floor(height / pixelRatio);
+            applyResolution();
             break;
 
         case 'RESIZE':
             width = data.width;
             height = data.height;
-            if (canvas) {
-                // canvas.width reset also resets the ctx transform  – apply pixelRatio via setTransform (no compounding)
-                canvas.width = width;
-                canvas.height = height;
-                ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-                width = Math.floor(width / pixelRatio);
-                height = Math.floor(height / pixelRatio);
-            }
-            invalidateAllCaches(); // All position-dependent gradients must be rebuilt
+            applyResolution();
             if (currentTheme) {
                 initPattern(currentTheme.pattern);
             }
@@ -995,18 +1038,12 @@ self.onmessage = (e: MessageEvent) => {
 
         case 'SET_THEME':
             currentTheme = data.theme;
-            invalidateAllCaches(); // Color and pattern changed – rebuild all cached gradients
+            invalidateAllCaches();
             if (currentTheme) {
                 initPattern(currentTheme.pattern);
                 isRunning = true;
             } else {
                 isRunning = false;
-            }
-            break;
-
-        case 'DRAW_FRAME':
-            if (isRunning) {
-                render(data.timestamp);
             }
             break;
     }

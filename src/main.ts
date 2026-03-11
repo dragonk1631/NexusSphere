@@ -1,4 +1,4 @@
-﻿import './style.css';
+import './style.css';
 import { PongGame } from './games/puzzle/PongGame';
 import { RhythmGame } from './games/rhythm/RhythmGame';
 import { EditorGame } from './games/editor/EditorGame';
@@ -94,22 +94,20 @@ function gameLoop(timestamp: number) {
 
   // Render logic: 
   // On 120Hz/90Hz, we still ideally want to render at 60fps to save battery.
-  // We use a 'lastRenderTimestamp' check, but with a more forgiving 'fuzzy' 
-  // window to avoid the 40fps plateau caused by 1-2ms jitters.
   const now = performance.now();
   const timeSinceLastRender = now - lastRenderTimestamp;
-  const TARGET_RENDER_INTERVAL = 1000 / 60;
+  const TARGET_RENDER_INTERVAL = 1000 / 60; // 16.666ms
 
-  // Allow a 4ms buffer (approx 1/4 of a 60Hz frame or 1/2 of 120Hz frame)
-  // to ensure that if a 120Hz vsync arrives at 16.0ms instead of 16.6ms, 
-  // we still grab it for 60fps instead of waiting for 25ms.
+  // If we have reached or are very close to the target interval (with 4ms jitter buffer),
+  // we trigger the frame. Using high-precision timestamp 'now'.
   if (timeSinceLastRender >= TARGET_RENDER_INTERVAL - 4) {
+    const frameTimestamp = now;
     // 1. SIGNAL BACKGROUND WORKER
-    BackgroundRenderer.getInstance().requestFrame(now);
+    BackgroundRenderer.getInstance().requestFrame(frameTimestamp);
 
     // 2. RENDER TITLE SCREEN (if active)
     if (titleScreen) {
-      titleScreen.updateAndRender(now);
+      titleScreen.updateAndRender(frameTimestamp);
     }
 
     // 3. RENDER GAME (if active)

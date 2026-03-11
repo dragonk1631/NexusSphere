@@ -4,6 +4,7 @@ export interface PerformanceSnapshot {
     longTasks: number;
     frameTime: number;
     workDuration: number; // Pure JS execution time per frame
+    workerDuration: number; // Background worker render time
 }
 
 /**
@@ -17,6 +18,7 @@ export class PerformanceMonitor {
     
     private static frameStartTime = 0;
     private static workDurations: number[] = [];
+    private static workerDurations: number[] = [];
 
     public static start() {
         this.lastTime = performance.now();
@@ -55,6 +57,13 @@ export class PerformanceMonitor {
         }
     }
 
+    public static recordWorkerDuration(duration: number) {
+        this.workerDurations.push(duration);
+        if (this.workerDurations.length > 60) {
+            this.workerDurations.shift();
+        }
+    }
+
     public static getSnapshot(currentFps: number): PerformanceSnapshot {
         const frameTime = this.frameTimes.length > 0 
             ? this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length 
@@ -69,12 +78,17 @@ export class PerformanceMonitor {
             ? this.workDurations.reduce((a, b) => a + b, 0) / this.workDurations.length
             : 0;
 
+        const avgWorker = this.workerDurations.length > 0
+            ? this.workerDurations.reduce((a, b) => a + b, 0) / this.workerDurations.length
+            : 0;
+
         const snapshot = {
             fps: currentFps,
             jitter: parseFloat(jitter.toFixed(2)),
             longTasks: this.longTaskCount,
             frameTime: parseFloat(frameTime.toFixed(2)),
-            workDuration: parseFloat(avgWork.toFixed(2))
+            workDuration: parseFloat(avgWork.toFixed(2)),
+            workerDuration: parseFloat(avgWorker.toFixed(2))
         };
 
         // Reset long task count after snapshot if needed, or keep cumulative

@@ -1,5 +1,6 @@
 import { ThemeManager, type ThemeConfig } from '../ThemeManager';
 import { ScreenUtils } from '../utils/ScreenUtils';
+import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 
 export class BackgroundRenderer {
     private static instance: BackgroundRenderer | null = null;
@@ -12,6 +13,14 @@ export class BackgroundRenderer {
 
         // Spawn the worker
         this.worker = new Worker(new URL('./BackgroundWorker.ts', import.meta.url), { type: 'module' });
+
+        // Listen for feedback from worker
+        this.worker.onmessage = (e) => {
+            const data = e.data;
+            if (data.type === 'PERF') {
+                PerformanceMonitor.recordWorkerDuration(data.duration);
+            }
+        };
 
         // Transfer control to worker
         const offscreen = this.canvas.transferControlToOffscreen();
@@ -73,9 +82,7 @@ export class BackgroundRenderer {
      * Signals the worker to render a single frame synchronized with the main loop.
      */
     public requestFrame(timestamp: number) {
-        this.worker.postMessage({
-            type: 'DRAW_FRAME',
-            timestamp
-        });
+        // Optimization: Use a typed array or 1-indexed codes for types to reduce serialization cost
+        this.worker.postMessage([0, timestamp]); // 0 = DRAW_FRAME
     }
 }
