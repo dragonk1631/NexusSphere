@@ -148,7 +148,12 @@ export class CoreAudioEngine {
             AudioEngineLogger.metric('LOAD', `MIDI Loaded. (Duration pending)`);
         }
 
-        this.startDiagnosticMonitor();
+        // One-time HEALTH check on load
+        if (this.synth) {
+            const voices = (this.synth as any).voicesAmount || 0;
+            const loadPercent = Math.min(100, (voices / 200) * 100).toFixed(1);
+            AudioEngineLogger.metric('HEALTH', `Initial Voices: ${voices} (Load: ${loadPercent}%)`);
+        }
     }
 
     public async play(): Promise<void> {
@@ -356,22 +361,6 @@ export class CoreAudioEngine {
         return new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    private diagnosticTimer: any = null;
-    private startDiagnosticMonitor(): void {
-        if (this.diagnosticTimer) clearInterval(this.diagnosticTimer);
-        this.diagnosticTimer = setInterval(() => {
-            if (this.isPlaying() && this.synth) {
-                // SpessaSynth keeps tracks of active voices
-                const voices = (this.synth as any).voicesAmount || 0;
-                // Treat 200 voices as 100% "theoretical" load for mobile/PC balance
-                const loadPercent = Math.min(100, (voices / 200) * 100).toFixed(1);
-                
-                if (voices > 30) { // Report if there's significant activity
-                    AudioEngineLogger.metric('HEALTH', `Active Voices: ${voices} (Load: ${loadPercent}%)`);
-                }
-            }
-        }, 2000);
-    }
 
     /**
      * Helper for fetching with a timeout and AbortController.

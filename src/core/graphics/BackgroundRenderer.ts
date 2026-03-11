@@ -22,7 +22,7 @@ export class BackgroundRenderer {
             canvas: offscreen,
             width,
             height,
-            pixelRatio: Math.min(window.devicePixelRatio, 1.5),
+            pixelRatio: ScreenUtils.getPixelRatio(),
             isMobile: ScreenUtils.isMobile()
         }, [offscreen]);
 

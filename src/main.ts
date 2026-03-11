@@ -204,6 +204,7 @@ let titleScreen: TitleScreen | null = null;
 if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
   new MobileStartScreen(() => {
     titleScreen = new TitleScreen(() => {
+      if (titleScreen) titleScreen.destroy();
       titleScreen = null;
       mainMenu = new MainMenu(handleGameStart);
       mainMenu.show();
@@ -211,6 +212,7 @@ if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
   });
 } else {
   titleScreen = new TitleScreen(() => {
+    if (titleScreen) titleScreen.destroy();
     titleScreen = null;
     mainMenu = new MainMenu(handleGameStart);
     mainMenu.show();

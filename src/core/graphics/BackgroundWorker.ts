@@ -120,6 +120,15 @@ function applyAlpha(color: string, alpha: string): string {
     return color.slice(0, 7) + alpha;
 }
 
+function setCompositeOperation(op: string) {
+    if (!ctx) return;
+    if (isMobile && (op === 'lighter' || op === 'screen')) {
+        ctx.globalCompositeOperation = 'source-over';
+    } else {
+        ctx.globalCompositeOperation = op as GlobalCompositeOperation;
+    }
+}
+
 // --- Pattern Logic ---
 function initPattern(pattern: string) {
     clearParticles();
@@ -268,7 +277,7 @@ function drawStars(theme: ThemeConfig) {
         c.fillRect(0, 0, 512, 512);
     });
 
-    ctx.globalCompositeOperation = 'screen';
+    setCompositeOperation('screen');
     for (let i = 0; i < 3; i++) {
         const shift = time * (0.02 + i * 0.01) + (i * 1.5);
         const nx = width * (0.3 + Math.sin(shift) * 0.2);
@@ -290,7 +299,7 @@ function drawStars(theme: ThemeConfig) {
         c.fillRect(0, 0, 32, 32);
     });
 
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         py[i] += vy[i] * (5 - pz[i]);
         if (py[i] > height) py[i] = -20;
@@ -318,7 +327,7 @@ function drawGrid3D(theme: ThemeConfig) {
         cachedGrid3DBloomGrad.addColorStop(1, 'transparent');
     }
 
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     ctx.fillStyle = cachedGrid3DBloomGrad!;
     ctx.fillRect(0, horizon - 40, width, 80);
 
@@ -411,7 +420,7 @@ function drawMatrix(theme: ThemeConfig) {
                 const charAlpha = 1 - (j / size[i]);
 
                 if (j === 0) {
-                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalCompositeOperation = isMobile ? 'source-over' : 'lighter';
                     ctx.drawImage(headTex, px[i] - 11, charY - 29, 40, 40);
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.fillStyle = '#FFFFFF';
@@ -438,7 +447,7 @@ function drawWaves(theme: ThemeConfig) {
         c.fillStyle = grad;
         c.fillRect(0, 0, 240, 240);
     });
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     ctx.drawImage(moonTex, moonX - 120, moonY - 120, 240, 240);
 
     // Rebuild wave gradients only when height or theme color changes
@@ -456,7 +465,7 @@ function drawWaves(theme: ThemeConfig) {
         }
     }
 
-    ctx.globalCompositeOperation = 'screen';
+    setCompositeOperation('screen');
     for (let i = 0; i < 6; i++) {
         const layerY = height * (0.35 + i * 0.1);
         const speed = time * (0.5 + i * 0.25);
@@ -488,7 +497,7 @@ function drawBubbles(theme: ThemeConfig) {
         c.fillRect(0, 0, 200, 200);
     });
 
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     ctx.drawImage(surfaceGrad, 0, 0, width, height * 0.2);
 
     for (let i = 0; i < 12; i++) {
@@ -545,7 +554,7 @@ function drawBubbles(theme: ThemeConfig) {
 
 function drawEmbers(theme: ThemeConfig) {
     const heatWave = Math.sin(time * 2.0) * 0.05 + 0.08;
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     ctx.fillStyle = theme.color2;
     ctx.globalAlpha = heatWave;
     ctx.fillRect(0, 0, width, height);
@@ -612,7 +621,7 @@ function drawBokeh(_theme: ThemeConfig) {
         c.fillRect(0, 0, 128, 128);
     });
 
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         px[i] += vx[i];
         py[i] += vy[i];
@@ -803,7 +812,7 @@ function drawScanlines(theme: ThemeConfig) {
         c.fillRect(0, 0, 512, 512);
     });
 
-    ctx.globalCompositeOperation = 'screen';
+    setCompositeOperation('screen');
     ctx.drawImage(sunGlowGrad, width / 2 - sunR * 1.5 * sunPulse, horizon - sunR * 1.5 * sunPulse, sunR * 3 * sunPulse, sunR * 1.5 * sunPulse);
 
     // --- Rebuild cached gradients only on theme/size change ---
@@ -866,12 +875,12 @@ function drawScanlines(theme: ThemeConfig) {
     const floorY = horizon;
     // Shimmer alpha animates, but we avoid a per-frame gradient allocation by varying globalAlpha
     const shimmerAlphaVal = Math.sin(time * 1.5) * 0.05 + 0.15;
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     ctx.globalAlpha = shimmerAlphaVal;
     ctx.fillStyle = cachedScanlinesShimmerGrad!;
     ctx.fillRect(0, floorY - 50, width, 150);
 
-    ctx.globalCompositeOperation = 'source-over';
+    setCompositeOperation('source-over');
     ctx.strokeStyle = applyAlpha(theme.gridColor, '22');
     for (let x = -width * 0.5; x <= width * 1.5; x += 150) {
         ctx.beginPath();
@@ -933,7 +942,7 @@ function render(timestamp: number) {
         cachedBgGrad.addColorStop(1, currentTheme.color3);
     }
 
-    ctx.globalCompositeOperation = 'source-over';
+    setCompositeOperation('source-over');
     ctx.globalAlpha = 1.0;
     ctx.fillStyle = cachedBgGrad;
     ctx.fillRect(0, 0, width, height);

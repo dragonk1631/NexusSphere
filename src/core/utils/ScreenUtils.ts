@@ -8,10 +8,18 @@ export class ScreenUtils {
             window.matchMedia('(display-mode: standalone)').matches;
     }
 
+    public static getPixelRatio(): number {
+        const isMobile = this.isMobile();
+        if (isMobile) {
+            return Math.min(window.devicePixelRatio, 1.25);
+        }
+        return window.devicePixelRatio || 1;
+    }
+
     public static getVirtualDimensions() {
         const isMobile = this.isMobile();
         const isPortrait = window.innerHeight > window.innerWidth;
-
+        
         let w = window.innerWidth;
         let h = window.innerHeight;
 
@@ -22,8 +30,8 @@ export class ScreenUtils {
         }
 
         // --- Resolution Capping (Optimization for High-DPI Mobile Displays) ---
-        // Limit max resolution to 1080p equivalent (e.g. 1920 long edge)
-        // to prevent GPU overheating on ultra-high res screens.
+        // Limit max base resolution to 1080p equivalent (e.g. 1920 long edge)
+        // This is separate from DPR capping.
         const MAX_WIDTH = 1920;
         const MAX_HEIGHT = 1080;
 
