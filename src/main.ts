@@ -1,4 +1,4 @@
-import './style.css';
+﻿import './style.css';
 import { PongGame } from './games/puzzle/PongGame';
 import { RhythmGame } from './games/rhythm/RhythmGame';
 import { EditorGame } from './games/editor/EditorGame';
@@ -26,7 +26,7 @@ let currentGame: any = null;
 let lastTime = 0;
 let lastRenderTimestamp = 0;
 let accumulator = 0;
-let loopCounter = 0;
+// let loopCounter = 0;
 let mainMenu: MainMenu;
 
 // FPS Counter Variables
@@ -70,12 +70,6 @@ function gameLoop(timestamp: number) {
 
   PerformanceMonitor.beginFrame();
 
-  if (!currentGame) {
-    PerformanceMonitor.endFrame();
-    return;
-  }
-
-  const currentLoopId = loopCounter;
   const FIXED_STEP = 1000 / 60; // 16.66ms
   const MAX_ACCUMULATION = 200;
 
@@ -110,19 +104,27 @@ function gameLoop(timestamp: number) {
   // to ensure that if a 120Hz vsync arrives at 16.0ms instead of 16.6ms, 
   // we still grab it for 60fps instead of waiting for 25ms.
   if (timeSinceLastRender >= TARGET_RENDER_INTERVAL - 4) {
+    // 1. SIGNAL BACKGROUND WORKER
+    BackgroundRenderer.getInstance().requestFrame(now);
+
+    // 2. RENDER TITLE SCREEN (if active)
+    if (titleScreen) {
+      titleScreen.updateAndRender(now);
+    }
+
+    // 3. RENDER GAME (if active)
     if (currentGame) {
       currentGame.render();
-      lastRenderTimestamp = now;
-      fpsFrameCount++;
     }
+
+    lastRenderTimestamp = now;
+    fpsFrameCount++;
   }
 
   PerformanceMonitor.endFrame();
 
-  // Loop
-  if (currentLoopId === loopCounter) {
-    requestAnimationFrame(gameLoop);
-  }
+  // Loop - Always keep the master loop running
+  requestAnimationFrame(gameLoop);
 }
 
 // Help prevent multiple simultaneous launch calls
@@ -265,7 +267,6 @@ async function launchGame(GameClass: any) {
     await enforceLandscape(true);
     console.timeEnd("launch_enforceLandscape");
 
-    loopCounter++; // Increment to invalidate previous loops
 
     // Clear ALL UI before switching
     UIManager.getInstance().clear();
@@ -301,7 +302,7 @@ async function launchGame(GameClass: any) {
     accumulator = 0;
     fpsFrameCount = 0;
 
-    requestAnimationFrame(gameLoop);
+    // requestAnimationFrame(gameLoop); // Managed globally
   } catch (error) {
     console.error("Game launch failed:", error);
     returnToMenu();
@@ -357,3 +358,7 @@ window.addEventListener('switch-game', (e: any) => {
     returnToMenu();
   }
 });
+
+requestAnimationFrame(gameLoop);
+
+

@@ -1,4 +1,4 @@
-import { ScreenUtils } from '../core/utils/ScreenUtils';
+﻿import { ScreenUtils } from '../core/utils/ScreenUtils';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 
 export class TitleScreen {
@@ -6,7 +6,6 @@ export class TitleScreen {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private onStart: () => void;
-    private rafId: number = 0;
     private time: number = 0;
     private width: number = 0;
     private height: number = 0;
@@ -39,7 +38,6 @@ export class TitleScreen {
         window.addEventListener('pointerdown', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
 
-        this.rafId = requestAnimationFrame(this.loop.bind(this));
     }
 
     public resize() {
@@ -102,10 +100,8 @@ export class TitleScreen {
         }, 400);
     }
 
-    private loop(timestamp: number) {
+    public updateAndRender(timestamp: number) {
         if (this.isTransitioning) return;
-        
-        this.rafId = requestAnimationFrame(this.loop.bind(this));
 
         const now = timestamp || performance.now();
         const elapsed = now - this.lastRenderTime;
@@ -317,7 +313,6 @@ export class TitleScreen {
     }
 
     public destroy() {
-        cancelAnimationFrame(this.rafId);
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
@@ -327,3 +322,4 @@ export class TitleScreen {
         }
     }
 }
+

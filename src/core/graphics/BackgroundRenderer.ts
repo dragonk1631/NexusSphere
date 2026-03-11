@@ -68,4 +68,14 @@ export class BackgroundRenderer {
             });
         }
     }
+
+    /**
+     * Signals the worker to render a single frame synchronized with the main loop.
+     */
+    public requestFrame(timestamp: number) {
+        this.worker.postMessage({
+            type: 'DRAW_FRAME',
+            timestamp
+        });
+    }
 }

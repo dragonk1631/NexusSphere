@@ -8,10 +8,10 @@ let height = 600;
 let pixelRatio = 1;
 let currentTheme: ThemeConfig | null = null;
 let isRunning = false;
-let rafId: number = 0;
+// let rafId: number = 0; // Passive renderer
 let time = 0;
-let lastDrawTime = 0;
-const TARGET_INTERVAL = 1000 / 60;
+// let lastDrawTime = 0; // Managed by main loop
+// const TARGET_INTERVAL = 1000 / 60; // Managed by main loop
 let isMobile = false;
 let dynamicMaxParticles = 2500;
 
@@ -921,15 +921,8 @@ function drawScanlines(theme: ThemeConfig) {
 // --- Main Render Loop ---
 
 function render(timestamp: number) {
-    if (!isRunning || !ctx || !currentTheme) return;
+    if (!ctx || !currentTheme) return;
 
-    rafId = requestAnimationFrame(render);
-
-    // Filter by time to cap at 60fps on high-refresh displays
-    const elapsed = timestamp - lastDrawTime;
-    if (elapsed < TARGET_INTERVAL - 4) return;
-    
-    lastDrawTime = timestamp;
     time = timestamp * 0.001;
 
     // Base background gradient
@@ -1005,13 +998,15 @@ self.onmessage = (e: MessageEvent) => {
             invalidateAllCaches(); // Color and pattern changed – rebuild all cached gradients
             if (currentTheme) {
                 initPattern(currentTheme.pattern);
-                if (!isRunning) {
-                    isRunning = true;
-                    rafId = requestAnimationFrame(render);
-                } // If already running, the existing loop picks up the new theme automatically
+                isRunning = true;
             } else {
                 isRunning = false;
-                if (rafId) cancelAnimationFrame(rafId);
+            }
+            break;
+
+        case 'DRAW_FRAME':
+            if (isRunning) {
+                render(data.timestamp);
             }
             break;
     }
