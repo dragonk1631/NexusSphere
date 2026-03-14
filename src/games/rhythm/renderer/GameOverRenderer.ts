@@ -10,7 +10,7 @@ export interface GameOverRenderState {
 }
 
 export class GameOverRenderer {
-    public render(ctx: CanvasRenderingContext2D, state: GameOverRenderState): void {
+    public render(ctx: CanvasRenderingContext2D, state: GameOverRenderState, alpha: number = 0): void {
         const { width, height } = state;
 
         drawAtmosphere(ctx, width, height);

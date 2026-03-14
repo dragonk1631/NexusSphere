@@ -9,8 +9,8 @@ export class ResultState extends BaseGameState {
 
     public update(_delta: number): void { }
 
-    public render(ctx: CanvasRenderingContext2D): void {
-        this.game.resultRenderer.render(ctx, this.game.canvas.width, this.game.canvas.height, this.game.scoreManager);
+    public render(ctx: CanvasRenderingContext2D, alpha: number): void {
+        this.game.resultRenderer.render(ctx, this.game.canvas.width, this.game.canvas.height, this.game.scoreManager, alpha);
     }
 
     public onKeyDown(code: string): void {

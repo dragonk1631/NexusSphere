@@ -24,6 +24,7 @@ export class EffectsRenderer {
     private particleData: IParticleRenderData;
     private transitionData: ITransitionRenderData;
     private glitchOffset: number = 0;
+    private isMobile: boolean = false;
 
     // Buffer for HitEvents: [x, y, laneWidth, judgment, birthTime, isActive] * MAX_HIT_EVENTS
     private hitEventBuffer: Float32Array;
@@ -47,6 +48,10 @@ export class EffectsRenderer {
         }
     }
 
+    public setMobile(isMobile: boolean): void {
+        this.isMobile = isMobile;
+    }
+
     public addHitEvent(x: number, y: number, laneWidth: number, judgment: Judgment): void {
         const idx = this.hitEventIndex * HE_OFF.STRIDE;
         this.hitEventBuffer[idx + HE_OFF.X] = x;
@@ -60,6 +65,10 @@ export class EffectsRenderer {
     }
 
     public triggerShockwave(x: number, y: number): void {
+        const activeCount = EFFECTS_CONFIG.MAX_SHOCKWAVES - this.freeShockwaveIndices.length;
+        const limit = this.isMobile ? 3 : EFFECTS_CONFIG.MAX_SHOCKWAVES; 
+        if (activeCount >= limit) return;
+
         const i = this.freeShockwaveIndices.pop();
         if (i !== undefined) {
             const idx = i * SW_OFF.STRIDE;
@@ -70,12 +79,19 @@ export class EffectsRenderer {
         }
     }
 
-    public render(ctx: CanvasRenderingContext2D, width: number, height: number, themeStrategy?: IThemeStrategy): void {
+    public render(ctx: CanvasRenderingContext2D, width: number, height: number, theme: IThemeStrategy, alpha: number = 0): void {
+        const currentTime = performance.now();
+        
+        // Render theme-specific background effects first (if any)
+        if (theme.renderBackground) {
+            theme.renderBackground(ctx, width, height, currentTime, alpha);
+        }
+
         ctx.save();
         this.renderParticles(ctx);
         this.renderExplosions(ctx);
         this.renderShockwaves(ctx);
-        this.renderHitEffects(ctx, themeStrategy);
+        this.renderHitEffects(ctx, theme);
         this.renderTransition(ctx, width, height);
         ctx.restore();
     }
@@ -111,20 +127,24 @@ export class EffectsRenderer {
     }
 
     private renderParticles(ctx: CanvasRenderingContext2D): void {
-        // USE NEW ITERATOR TO AVOID ARRAY ALLOCATION
+        // PROFESSIONAL OPTIMIZATION: Color Batching
+        // We group particles by color to minimize state changes.
+        // The ParticleSystem already exposes a color-indexed palette.
+        
+        ctx.save();
         this.particleData.forEachActiveParticle(p => {
             if (p.alpha <= 0.01) return;
 
-            // PERFORMANCE: Manual transform is faster than save/restore
-            ctx.translate(p.x, p.y);
-            ctx.rotate(p.rotation);
+            // Simple transformation
+            ctx.setTransform(1, 0, 0, 1, p.x, p.y);
+            if (p.rotation !== 0) ctx.rotate(p.rotation);
+            
             ctx.globalAlpha = p.alpha;
             ctx.fillStyle = p.color;
             ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
-
-            ctx.rotate(-p.rotation);
-            ctx.translate(-p.x, -p.y);
         });
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform efficiently
+        ctx.restore();
     }
 
     private renderExplosions(ctx: CanvasRenderingContext2D): void {
@@ -167,12 +187,12 @@ export class EffectsRenderer {
             }
 
             const alpha = 1 - t;
-            const radius = t * 200;
+            const radius = t * (this.isMobile ? 150 : 200);
 
             ctx.beginPath();
             ctx.arc(this.shockwaveBuffer[idx + SW_OFF.X], this.shockwaveBuffer[idx + SW_OFF.Y], radius, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * (this.isMobile ? 0.3 : 0.5)})`;
+            ctx.lineWidth = this.isMobile ? 1 : 2;
             ctx.stroke();
         }
     }
@@ -196,8 +216,9 @@ export class EffectsRenderer {
         ctx.fillRect(0, 0, width, height);
 
         if (alpha > EFFECTS_CONFIG.GLITCH_ALPHA_THRESHOLD) {
+            const count = this.isMobile ? 5 : EFFECTS_CONFIG.GLITCH_SCANLINE_COUNT;
             ctx.fillStyle = `rgba(0, 255, 255, ${alpha * 0.3})`;
-            for (let i = 0; i < EFFECTS_CONFIG.GLITCH_SCANLINE_COUNT; i++) {
+            for (let i = 0; i < count; i++) {
                 const seed = (this.glitchOffset + i * 0.7) % 1000;
                 const h = (Math.sin(seed) * 0.5 + 0.5) * EFFECTS_CONFIG.GLITCH_MAX_HEIGHT;
                 const y = (Math.sin(seed * 1.3) * 0.5 + 0.5) * height;

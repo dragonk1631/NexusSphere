@@ -117,6 +117,18 @@ export interface LoadingRenderState {
 }
 
 /**
+ * HUDRenderState defines the data passed to the HUDRenderer.
+ */
+export interface HUDRenderState {
+    width: number;
+    height: number;
+    comboAnim: number;
+    lastJudgment: { text: string, color: string, time: number, value: Judgment } | null;
+    cachedNow: number;
+    isMobile: boolean;
+}
+
+/**
  * PauseRenderState defines the data passed to the PauseRenderer.
  */
 export interface PauseRenderState {

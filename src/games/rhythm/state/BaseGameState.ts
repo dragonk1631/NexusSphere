@@ -18,7 +18,8 @@ export abstract class BaseGameState implements IGameState {
     public exit(): void { }
 
     public abstract update(delta: number): void;
-    public abstract render(ctx: CanvasRenderingContext2D): void;
+    /** Per-frame rendering logic. */
+    public render(_ctx: CanvasRenderingContext2D, _alpha: number): void { }
 
     // Default implementations for input handlers (do nothing)
     public onKeyDown(_code: string): void { }

@@ -1,4 +1,4 @@
-﻿import { ScreenUtils } from '../core/utils/ScreenUtils';
+import { ScreenUtils } from '../core/utils/ScreenUtils';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 
 export class TitleScreen {
@@ -10,7 +10,8 @@ export class TitleScreen {
     private width: number = 0;
     private height: number = 0;
     private isTransitioning: boolean = false;
-    private lastRenderTime: number = 0;
+    private logoCache: OffscreenCanvas | null = null;
+    private lastAlpha: number = 0;
 
     constructor(onStart: () => void) {
         this.onStart = onStart;
@@ -18,7 +19,7 @@ export class TitleScreen {
         this.container.id = 'title-screen';
 
         this.canvas = document.createElement('canvas');
-        this.ctx = this.canvas.getContext('2d') as CanvasRenderingContext2D; // Make it transparent
+        this.ctx = this.canvas.getContext('2d', { alpha: true }) as CanvasRenderingContext2D;
         this.container.appendChild(this.canvas);
 
         this.applyStyles();
@@ -37,7 +38,6 @@ export class TitleScreen {
         };
         window.addEventListener('pointerdown', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
-
     }
 
     public resize() {
@@ -46,6 +46,7 @@ export class TitleScreen {
         this.height = height;
         this.canvas.width = this.width;
         this.canvas.height = this.height;
+        this.logoCache = null; // Invalidate cache on resize
     }
 
     private applyStyles() {
@@ -100,55 +101,27 @@ export class TitleScreen {
         }, 400);
     }
 
-    public updateAndRender(timestamp: number) {
-        if (this.isTransitioning) return;
-
-        const now = timestamp || performance.now();
-        const elapsed = now - this.lastRenderTime;
-        const TARGET_INTERVAL = 1000 / 60;
-
-        // Skip frames if vsync is too fast (e.g. 120Hz)
-        if (elapsed < TARGET_INTERVAL - 4) return;
-
-        this.lastRenderTime = now;
-        this.time += 0.016;
-        this.render();
-    }
-
-    private render() {
-        const { ctx, width: w, height: h, time } = this;
-
-        // Clear the canvas to show the global background behind it
-        ctx.clearRect(0, 0, w, h);
-
-        // 4. Version Badge (Top Left)
-        ctx.save();
-        ctx.font = '800 16px "Nunito"';
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.textAlign = 'left';
-        ctx.fillText('v1.0.0 EARLY ACCESS', 20, 30);
-        ctx.restore();
-
-        // 5. Main Logo Render
-        const centerY = h * 0.4 + Math.sin(time * 1.5) * 10;
-
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // Set up variables for text to compute bubble size
-        // Limit font sizes by BOTH width and height to prevent bleeding on short/wide screens
+    private preRenderLogo() {
+        if (this.logoCache) return;
+        
+        const { width: w, height: h } = this;
+        
+        // Approximate bubble bounds
         const logoSizeTopBase = Math.min(w * 0.10, h * 0.10, 90);
-        const title1 = "NexusSphere:";
         const logoSizeBotBase = Math.min(w * 0.14, h * 0.14, 120);
+        
+        const tempCtx = new OffscreenCanvas(w, h).getContext('2d')!;
+        tempCtx.textAlign = 'center';
+        tempCtx.textBaseline = 'middle';
+        
+        const title1 = "NexusSphere:";
         const title2 = "RHYTHM";
 
-        ctx.font = `900 ${logoSizeTopBase}px "Nunito"`;
-        const width1Base = ctx.measureText(title1).width;
-        ctx.font = `900 ${logoSizeBotBase}px "Nunito"`;
-        const width2Base = ctx.measureText(title2).width;
+        tempCtx.font = `900 ${logoSizeTopBase}px "Nunito"`;
+        const width1Base = tempCtx.measureText(title1).width;
+        tempCtx.font = `900 ${logoSizeBotBase}px "Nunito"`;
+        const width2Base = tempCtx.measureText(title2).width;
 
-        // Scale factors to ensure text fits within 90% of screen width (esp for portrait)
         const maxWidth = w * 0.9;
         const maxTextWidth = Math.max(width1Base, width2Base);
         const scale = maxTextWidth > maxWidth ? maxWidth / maxTextWidth : 1;
@@ -156,14 +129,15 @@ export class TitleScreen {
         const logoSizeTop = logoSizeTopBase * scale;
         const logoSizeBot = logoSizeBotBase * scale;
 
-        ctx.font = `900 ${logoSizeTop}px "Nunito"`;
-        const width1 = ctx.measureText(title1).width;
-        ctx.font = `900 ${logoSizeBot}px "Nunito"`;
-        const width2 = ctx.measureText(title2).width;
+        tempCtx.font = `900 ${logoSizeTop}px "Nunito"`;
+        const width1 = tempCtx.measureText(title1).width;
+        tempCtx.font = `900 ${logoSizeBot}px "Nunito"`;
+        const width2 = tempCtx.measureText(title2).width;
 
         const padX = w > 600 ? 50 * scale : (20 + w * 0.02) * scale;
-        const padY = padX * 0.6; // Vertical padding for stability
+        const padY = padX * 0.6;
 
+        const centerY = h * 0.4; // Local center for caching
         const textTop = centerY - logoSizeTop * 1.0;
         const textBottom = centerY + logoSizeBot * 1.0;
 
@@ -172,143 +146,112 @@ export class TitleScreen {
         const bubbleX = w / 2 - bubbleW / 2;
         const bubbleY = textTop - padY;
 
-        // 5a. Draw Speech Bubble Background (Glassmorphism)
-        ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,0.95)'; // Stronger drop shadow
-        ctx.shadowOffsetY = 25;
-        ctx.shadowBlur = 20;
+        // Draw Speech Bubble
+        tempCtx.save();
+        tempCtx.shadowColor = 'rgba(0,0,0,0.8)';
+        tempCtx.shadowOffsetY = 15;
+        tempCtx.shadowBlur = 15;
 
-        const bubbleGrad = ctx.createLinearGradient(0, bubbleY, 0, bubbleY + bubbleH + 35);
-        // Higher transparency
-        bubbleGrad.addColorStop(0, 'rgba(40, 20, 60, 0.20)');
-        bubbleGrad.addColorStop(1, 'rgba(15, 5, 30, 0.05)');
-        ctx.fillStyle = bubbleGrad;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.lineWidth = 10;
+        const bubbleGrad = tempCtx.createLinearGradient(0, bubbleY, 0, bubbleY + bubbleH + 30);
+        bubbleGrad.addColorStop(0, 'rgba(40, 20, 60, 0.25)');
+        bubbleGrad.addColorStop(1, 'rgba(15, 5, 30, 0.1)');
+        tempCtx.fillStyle = bubbleGrad;
+        tempCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        tempCtx.lineWidth = 8;
 
         const r = Math.min(40, bubbleH / 4);
-        ctx.beginPath();
-        ctx.moveTo(bubbleX + r, bubbleY);
-        ctx.lineTo(bubbleX + bubbleW - r, bubbleY);
-        ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY, bubbleX + bubbleW, bubbleY + r);
-        ctx.lineTo(bubbleX + bubbleW, bubbleY + bubbleH - r);
-        ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY + bubbleH, bubbleX + bubbleW - r, bubbleY + bubbleH);
-
+        tempCtx.beginPath();
+        tempCtx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, r);
+        
         // Tail
-        const tailSize = Math.min(35, h * 0.08); // Responsive tail size
-        ctx.lineTo(w / 2 + 25, bubbleY + bubbleH);
-        ctx.lineTo(w / 2, bubbleY + bubbleH + tailSize); // Point of the tail
-        ctx.lineTo(w / 2 - 25, bubbleY + bubbleH);
+        const tailSize = Math.min(35, h * 0.08);
+        tempCtx.moveTo(w / 2 + 25, bubbleY + bubbleH);
+        tempCtx.lineTo(w / 2, bubbleY + bubbleH + tailSize);
+        tempCtx.lineTo(w / 2 - 25, bubbleY + bubbleH);
+        
+        tempCtx.fill();
+        tempCtx.stroke();
+        tempCtx.restore();
 
-        ctx.lineTo(bubbleX + r, bubbleY + bubbleH);
-        ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleH, bubbleX, bubbleY + bubbleH - r);
-        ctx.lineTo(bubbleX, bubbleY + r);
-        ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + r, bubbleY);
-        ctx.closePath();
-
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-
-        // --- NexusSphere ---
-        ctx.font = `900 ${logoSizeTop}px "Nunito"`;
-
-        // Deep drop shadow for NexusSphere
-        ctx.shadowColor = 'rgba(0,0,0,0.95)';
-        ctx.shadowOffsetY = 15;
-        ctx.shadowBlur = 25;
-
-        // Gradient Fill
-        const topGrad = ctx.createLinearGradient(0, centerY - logoSizeTop, 0, centerY);
+        // Draw Texts (Optimized gradient & stroke)
+        tempCtx.save();
+        tempCtx.font = `900 ${logoSizeTop}px "Nunito"`;
+        const topGrad = tempCtx.createLinearGradient(0, centerY - logoSizeTop, 0, centerY);
         topGrad.addColorStop(0, '#ff9a9e');
-        topGrad.addColorStop(0.5, '#fecfef');
         topGrad.addColorStop(1, '#fede7f');
-        ctx.fillStyle = topGrad;
-
-        // Heavy inner glow/stroke trick without black outline
-        ctx.lineWidth = 12;
-        ctx.strokeStyle = 'rgba(233, 30, 140, 0.4)';
-        ctx.lineJoin = 'round';
-        ctx.strokeText(title1, w / 2, centerY - logoSizeTop * 0.4);
-
-        ctx.shadowColor = 'transparent';
-        ctx.fillText(title1, w / 2, centerY - logoSizeTop * 0.4);
-
-        // White core highlight
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.strokeText(title1, w / 2, centerY - logoSizeTop * 0.4);
-
-        // --- Rhythm ---
-        ctx.font = `900 ${logoSizeBot}px "Nunito"`;
-
-        ctx.shadowColor = 'rgba(0,0,0,0.95)';
-        ctx.shadowOffsetY = 15;
-        ctx.shadowBlur = 25;
-
-        const botGrad = ctx.createLinearGradient(0, centerY, 0, centerY + logoSizeBot);
+        tempCtx.fillStyle = topGrad;
+        tempCtx.shadowColor = 'rgba(0,0,0,0.5)';
+        tempCtx.shadowOffsetY = 5;
+        tempCtx.shadowBlur = 10;
+        tempCtx.fillText(title1, w / 2, centerY - logoSizeTop * 0.4);
+        
+        tempCtx.font = `900 ${logoSizeBot}px "Nunito"`;
+        const botGrad = tempCtx.createLinearGradient(0, centerY, 0, centerY + logoSizeBot);
         botGrad.addColorStop(0, '#fdcb6e');
         botGrad.addColorStop(1, '#ffeaa7');
-        ctx.fillStyle = botGrad;
+        tempCtx.fillStyle = botGrad;
+        tempCtx.fillText(title2, w / 2, centerY + logoSizeBot * 0.5);
+        tempCtx.restore();
 
-        ctx.lineWidth = 10;
-        ctx.strokeStyle = 'rgba(240, 147, 43, 0.5)';
-        ctx.strokeText(title2, w / 2, centerY + logoSizeBot * 0.5);
+        this.logoCache = tempCtx.canvas as OffscreenCanvas;
+    }
 
-        ctx.shadowColor = 'transparent';
-        ctx.fillText(title2, w / 2, centerY + logoSizeBot * 0.5);
+    public updateAndRender(_timestamp: number, alpha: number) {
+        if (this.isTransitioning) return;
+        this.lastAlpha = alpha;
+        this.time += 0.016; 
+        this.render();
+    }
 
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-        ctx.strokeText(title2, w / 2, centerY + logoSizeBot * 0.5);
+    private render() {
+        const { ctx, width: w, height: h, time, lastAlpha } = this;
+        ctx.clearRect(0, 0, w, h);
 
+        // 1. Version Badge
+        ctx.save();
+        ctx.font = '800 14px "Nunito"';
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText('v1.0.0 EARLY ACCESS', 20, 30);
         ctx.restore();
 
-        // 6. Interaction Prompt (Press Start)
-        const promptPulse = Math.sin(time * 3) * 0.5 + 0.5; // 0 to 1
+        // 2. Main Logo (Interpolated Y)
+        this.preRenderLogo();
+        const currentSin = Math.sin(time * 1.5);
+        const prevSin = Math.sin((time - 0.016) * 1.5);
+        const interpolatedSin = prevSin + (currentSin - prevSin) * lastAlpha;
+        const centerYOffset = interpolatedSin * 10;
+
+        if (this.logoCache) {
+            ctx.drawImage(this.logoCache, 0, centerYOffset);
+        }
+
+        // 3. Interaction Prompt (Interpolated Pulse)
+        const currentPulseSin = Math.sin(time * 3);
+        const prevPulseSin = Math.sin((time - 0.016) * 3);
+        const interpolatedPulse = ((prevPulseSin + (currentPulseSin - prevPulseSin) * lastAlpha) * 0.5 + 0.5);
 
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // Glowing pill background
-        const btnW = Math.min(w * 0.6, 300);
-        const btnH = Math.min(60, h * 0.12); // Responsive button height
+        const btnW = Math.min(w * 0.6, 280);
+        const btnH = 50;
+        const promptY = h * 0.85;
 
-        // Ensure promptY doesn't overlap bubble
-        const bubbleBottom = (centerY + logoSizeBot * 1.0 + padY) + tailSize;
-
-        // dynamic positioning between bubble and bottom of screen
-        const availableSpace = h - bubbleBottom;
-        let finalPromptY = bubbleBottom + availableSpace * 0.5;
-
-        // At minimum, be somewhat below the bubble, at maximum don't go off screen
-        finalPromptY = Math.max(finalPromptY, bubbleBottom + btnH);
-        finalPromptY = Math.min(finalPromptY, h - btnH * 0.8);
-
-        const btnX = w / 2 - btnW / 2;
-        const btnY = finalPromptY - btnH / 2;
-
-        ctx.shadowColor = `rgba(0, 188, 212, ${0.4 + promptPulse * 0.4})`;
-        ctx.shadowBlur = 20 + promptPulse * 15;
-        ctx.fillStyle = `rgba(0, 188, 212, ${0.1 + promptPulse * 0.1})`;
+        ctx.shadowColor = `rgba(0, 188, 212, ${0.3 + interpolatedPulse * 0.3})`;
+        ctx.shadowBlur = 15 + interpolatedPulse * 10;
+        ctx.fillStyle = `rgba(0, 188, 212, ${0.05 + interpolatedPulse * 0.1})`;
         ctx.beginPath();
-        ctx.roundRect(btnX, btnY, btnW, btnH, btnH / 2);
+        ctx.roundRect(w/2 - btnW/2, promptY - btnH/2, btnW, btnH, btnH/2);
         ctx.fill();
-
+        ctx.strokeStyle = `rgba(0, 234, 255, ${0.3 + interpolatedPulse * 0.5})`;
         ctx.lineWidth = 2;
-        ctx.strokeStyle = `rgba(0, 234, 255, ${0.4 + promptPulse * 0.6})`;
         ctx.stroke();
 
-        ctx.shadowColor = 'rgba(0,0,0,0.8)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetY = 2;
         ctx.fillStyle = '#ffffff';
-        const fontSize = Math.min(24, btnH * 0.45);
-        ctx.font = `800 ${fontSize}px "Nunito"`;
-        ctx.letterSpacing = '2px';
-        ctx.fillText('TAP TO START', w / 2, finalPromptY);
-
+        ctx.font = '800 20px "Nunito"';
+        ctx.letterSpacing = '1px';
+        ctx.fillText('TAP TO START', w / 2, promptY);
         ctx.restore();
     }
 
@@ -322,4 +265,3 @@ export class TitleScreen {
         }
     }
 }
-

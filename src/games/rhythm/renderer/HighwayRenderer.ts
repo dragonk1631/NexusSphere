@@ -2,7 +2,7 @@ import { RenderCache } from '../graphics/RenderCache';
 import type { VisualNote } from '../NoteFactory';
 import { RhythmInputManager } from '../input/RhythmInputManager';
 import { JudgmentSystem } from '../systems/JudgmentSystem';
-import { LANE_COLORS, HIGHWAY_CONFIG } from '../constants/GameConstants';
+import { LANE_COLORS, HIGHWAY_CONFIG, LAYOUT } from '../constants/GameConstants';
 import * as UIUtils from './UIUtils';
 
 // Modular Renderers
@@ -89,8 +89,10 @@ export class HighwayRenderer {
             const g = parseInt(color.substring(3, 5), 16);
             const b = parseInt(color.substring(5, 7), 16);
 
-            grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${HIGHWAY_CONFIG.BEAM_ALPHA_START * 2.0})`);
-            grad.addColorStop(0.33, `rgba(${r}, ${g}, ${b}, ${HIGHWAY_CONFIG.BEAM_ALPHA_START * 0.4})`);
+            grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${HIGHWAY_CONFIG.BEAM_ALPHA_START * (state.isMobile ? 1.2 : 2.0)})`);
+            if (!state.isMobile) {
+                grad.addColorStop(0.33, `rgba(${r}, ${g}, ${b}, ${HIGHWAY_CONFIG.BEAM_ALPHA_START * 0.4})`);
+            }
             grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`);
             this.beamGradients[i] = grad;
         }
@@ -100,7 +102,7 @@ export class HighwayRenderer {
         this.bgRenderer.render(ctx, state, this.cache);
     }
 
-    public renderDynamic(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number, holdingLanes: (VisualNote | null)[], inputManager: RhythmInputManager): void {
+    public renderDynamic(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number, holdingLanes: (VisualNote | null)[], inputManager: RhythmInputManager, alpha: number = 0): void {
         const inputStates = inputManager.getLaneStates();
 
         this.laneRenderer.renderDividers(ctx, state, this.cache);
@@ -108,17 +110,22 @@ export class HighwayRenderer {
         this.laneRenderer.renderPulseRails(ctx, state, this.cache);
         this.receptorRenderer.render(ctx, state, this.cache, inputStates);
 
-        this.renderNotes(ctx, state, visualNotes, lastNoteIndex);
+        this.renderNotes(ctx, state, visualNotes, lastNoteIndex, alpha);
 
         holdingLanes.forEach((note, lane) => {
             if (note) this.drawLaneBeam(ctx, lane, state);
         });
     }
 
-    private renderNotes(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number): void {
+    private renderNotes(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number, alpha: number = 0): void {
         const timeToReachHitLine = 2000 / state.scrollSpeed;
-        const windowStart = state.currentTime - 500;
-        const windowEnd = state.currentTime + timeToReachHitLine * HIGHWAY_CONFIG.NOTE_LOOKAHEAD;
+        const FIXED_STEP = 1000 / 60;
+        
+        // Use interpolated time for smoother visuals
+        const interpolatedTime = state.currentTime + (FIXED_STEP * alpha);
+        
+        const windowStart = interpolatedTime - 500;
+        const windowEnd = interpolatedTime + timeToReachHitLine * HIGHWAY_CONFIG.NOTE_LOOKAHEAD;
 
         let count = 0;
         for (let i = lastNoteIndex; i < visualNotes.length; i++) {
@@ -135,37 +142,46 @@ export class HighwayRenderer {
         }
         this.visibleNoteCount = count;
 
+        // Optimization: Unified state for batch rendering
+        const horizonY = state.horizonY;
+        const hitLineY = state.hitLineY;
+        const baseNoteH = (HIGHWAY_CONFIG as any).NOTE_HEIGHT || LAYOUT.DEFAULT_NOTE_WIDTH / 2;
+
+        ctx.save(); // Batch save for entire note layer
+
         for (let j = this.visibleNoteCount - 1; j >= 0; j--) {
             const note = visualNotes[this.visibleIndices[j]];
             const noteTimeMs = note.time * 1000;
-            const timeDiff = noteTimeMs - state.currentTime;
+            const timeDiff = noteTimeMs - interpolatedTime;
             let linearProgress = 1 - (timeDiff / timeToReachHitLine);
             if (note.isHold && linearProgress > 1) linearProgress = 1;
 
             const noteY = this.cache.getProjectedY(linearProgress, state);
-            if (noteY < state.horizonY) continue;
+            if (noteY < horizonY) continue;
 
-            // Calculate scale for note height based on projected progress
-            const projectedScale = (noteY - state.horizonY) / (state.hitLineY - state.horizonY);
+            const projectedScale = (noteY - horizonY) / (hitLineY - horizonY);
             const nW = this.cache.getWidth(noteY, state);
             const nX = this.cache.getX(note.lane, noteY, state);
-            const nH = 50 * projectedScale;
+            const nH = baseNoteH * projectedScale;
 
             let alpha = 1.0;
-            if (linearProgress < HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD) alpha = Math.max(0, linearProgress / HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD);
+            if (linearProgress < HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD) {
+                alpha = Math.max(0, linearProgress / HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD);
+            }
 
             if (note.isHold) {
                 const tailTime = note.time + (note.durationMs / 1000);
-                const timeDiffTail = (tailTime * 1000) - state.currentTime;
+                const timeDiffTail = (tailTime * 1000) - interpolatedTime;
                 let tailProgress = 1 - (timeDiffTail / timeToReachHitLine);
                 if (tailProgress > 1) tailProgress = 1;
 
                 const tailY = this.cache.getProjectedY(tailProgress, state);
-                const tailScale = (tailY - state.horizonY) / (state.hitLineY - state.horizonY);
-                const tailH = 50 * tailScale;
+                const tailScale = (tailY - horizonY) / (hitLineY - horizonY);
+                const tailH = baseNoteH * tailScale;
 
                 this.holdRenderer.renderHoldNote(ctx, state, this.cache, note.lane, nX, noteY, nW, nH, tailY, tailH, note.isHolding, alpha);
             } else {
+                // High-performance direct call (skip additional save/restore if possible)
                 this.noteRenderer.renderTapNote(ctx, nX, noteY, nW, nH, note.lane, alpha);
             }
         }

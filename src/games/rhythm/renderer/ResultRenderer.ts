@@ -10,7 +10,7 @@ import {
  * v4.3 Absolute Fit Polish: Auto-shrinking typography and strict boundary enforcement.
  */
 export class ResultRenderer {
-    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager): void {
+    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager, alpha: number = 0) {
         const theme = ThemeManager.getInstance().getCurrentTheme();
         const pal = HUD_PALETTES[theme.id] || HUD_PALETTES['deep-space'];
 

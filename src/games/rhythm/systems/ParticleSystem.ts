@@ -1,4 +1,4 @@
-import { type ParticleData, type Explosion, type IParticleRenderData } from '../types/GameTypes';
+import { type Explosion, type IParticleRenderData } from '../types/GameTypes';
 import { MAX_PARTICLES } from '../constants/GameConstants';
 
 /**
@@ -6,120 +6,146 @@ import { MAX_PARTICLES } from '../constants/GameConstants';
  * It includes explosions and shatter effects.
  */
 export class ParticleSystem implements IParticleRenderData {
-    private explosions: Explosion[] = [];
     private isMobile: boolean = false;
 
-    // PROFESSIONAL OPTIMIZATION: Object Pooling with Index Stack
-    private particlePool: ParticleData[] = [];
-    private freeIndices: number[] = [];
-    private activeIndices: Set<number> = new Set();
-    private readonly POOL_SIZE = MAX_PARTICLES;
+    // PROFESSIONAL OPTIMIZATION: Pure TypedArray Architecture (Zero-GC)
+    private readonly MAX_P = MAX_PARTICLES;
+    private px = new Float32Array(MAX_PARTICLES);
+    private py = new Float32Array(MAX_PARTICLES);
+    private pvx = new Float32Array(MAX_PARTICLES);
+    private pvy = new Float32Array(MAX_PARTICLES);
+    private palpha = new Float32Array(MAX_PARTICLES);
+    private psize = new Float32Array(MAX_PARTICLES);
+    private prot = new Float32Array(MAX_PARTICLES);
+    private protSpeed = new Float32Array(MAX_PARTICLES);
+    private pcolorIdx = new Int32Array(MAX_PARTICLES); // Reference to a color palette
+    
+    private colorPalette: string[] = [];
+    private activeCount: number = 0;
 
-    constructor() {
-        // Pre-allocate pool
-        for (let i = 0; i < this.POOL_SIZE; i++) {
-            this.particlePool.push({
-                x: 0, y: 0, vx: 0, vy: 0, alpha: 0, size: 0, color: '', rotation: 0, rotationSpeed: 0
-            });
-            this.freeIndices.push(i);
-        }
-    }
+    private explosions: Explosion[] = [];
+
+    constructor() {}
 
     public setMobile(isMobile: boolean): void {
         this.isMobile = isMobile;
-        console.log(`[ParticleSystem] Mobile optimization: ${isMobile ? 'ON' : 'OFF'}`);
     }
 
     /**
-     * PROFESSIONAL OPTIMIZATION: Zero-allocation iteration over active particles.
-     * Prevents creating temporary arrays every frame.
+     * PROFESSIONAL OPTIMIZATION: Zero-allocation iteration.
      */
-    public forEachActiveParticle(callback: (p: ParticleData) => void): void {
-        this.activeIndices.forEach(idx => callback(this.particlePool[idx]));
+    public forEachActiveParticle(callback: (p: any) => void): void {
+        // We use a temporary object but reuse it to avoid GC
+        const pProxy = { x: 0, y: 0, alpha: 0, size: 0, color: '', rotation: 0 };
+        for (let i = 0; i < this.activeCount; i++) {
+            pProxy.x = this.px[i];
+            pProxy.y = this.py[i];
+            pProxy.alpha = this.palpha[i];
+            pProxy.size = this.psize[i];
+            pProxy.color = this.colorPalette[this.pcolorIdx[i]];
+            pProxy.rotation = this.prot[i];
+            callback(pProxy);
+        }
     }
 
-    public getParticles(): ReadonlyArray<ParticleData> {
-        // Return only active particles efficiently
-        const active: ParticleData[] = [];
-        this.activeIndices.forEach(idx => active.push(this.particlePool[idx]));
-        return active;
+    public getParticles(): any[] {
+        const particles: any[] = [];
+        for (let i = 0; i < this.activeCount; i++) {
+            particles.push({
+                x: this.px[i],
+                y: this.py[i],
+                alpha: this.palpha[i],
+                size: this.psize[i],
+                color: this.colorPalette[this.pcolorIdx[i]],
+                rotation: this.prot[i]
+            });
+        }
+        return particles;
     }
 
     public getExplosions(): ReadonlyArray<Explosion> { return this.explosions; }
 
     public update(delta: number): void {
-        this.updateParticles(delta);
+        const speedMultiplier = delta / 16.67;
+        const fadeRate = this.isMobile ? 0.06 : 0.03;
+
+        for (let i = this.activeCount - 1; i >= 0; i--) {
+            this.px[i] += this.pvx[i] * speedMultiplier;
+            this.py[i] += this.pvy[i] * speedMultiplier;
+            this.pvy[i] += (this.isMobile ? 0.25 : 0.2) * speedMultiplier; // Slightly faster gravity on mobile
+            this.palpha[i] -= fadeRate * speedMultiplier;
+            this.prot[i] += this.protSpeed[i] * speedMultiplier;
+
+            if (this.palpha[i] <= 0) {
+                this.removeParticle(i);
+            }
+        }
+
         this.updateExplosions(delta);
     }
 
+    private removeParticle(idx: number): void {
+        this.activeCount--;
+        if (idx < this.activeCount) {
+            this.px[idx] = this.px[this.activeCount];
+            this.py[idx] = this.py[this.activeCount];
+            this.pvx[idx] = this.pvx[this.activeCount];
+            this.pvy[idx] = this.pvy[this.activeCount];
+            this.palpha[idx] = this.palpha[this.activeCount];
+            this.psize[idx] = this.psize[this.activeCount];
+            this.prot[idx] = this.prot[this.activeCount];
+            this.protSpeed[idx] = this.protSpeed[this.activeCount];
+            this.pcolorIdx[idx] = this.pcolorIdx[this.activeCount];
+        }
+    }
+
     public triggerExplosion(x: number, y: number, color: string): void {
-        // Limit explosions strictly on mobile
-        const limit = this.isMobile ? 3 : 6;
+        const limit = this.isMobile ? 2 : 8; // Drastically reduced for mobile
         if (this.explosions.length >= limit) return;
         this.explosions.push({ x, y, radius: 0, alpha: 1, color });
     }
 
     public triggerShatter(x: number, y: number, color: string, isHold: boolean = false): void {
-        const maxParticles = this.isMobile ? MAX_PARTICLES * 0.4 : MAX_PARTICLES;
-        if (this.activeIndices.size >= maxParticles) return;
+        let count = isHold ? 6 : 16; 
+        if (this.isMobile) count = isHold ? 3 : 6; // Optimized counts
 
-        let count = isHold ? 4 : 12;
-        if (this.isMobile) count = Math.ceil(count * 0.5);
+        // Map color to palette to avoid string storage per particle
+        let cIdx = this.colorPalette.indexOf(color);
+        if (cIdx === -1) {
+            cIdx = this.colorPalette.length;
+            this.colorPalette.push(color);
+        }
 
         for (let i = 0; i < count; i++) {
-            const idx = this.freeIndices.pop();
-            if (idx === undefined) break;
+            if (this.activeCount >= (this.isMobile ? this.MAX_P / 2 : this.MAX_P)) break; // Respect mobile limit
 
-            const p = this.particlePool[idx];
+            const idx = this.activeCount;
             const angle = Math.random() * Math.PI * 2;
-            const speed = (isHold ? 2 : 4) + Math.random() * 6;
+            const speed = (isHold ? 2 : 5) + Math.random() * 8;
 
-            p.x = x;
-            p.y = y;
-            p.vx = Math.cos(angle) * speed;
-            p.vy = Math.sin(angle) * speed - 3;
-            p.alpha = 1;
-            p.size = (isHold ? 1.5 : 2.5) + Math.random() * 4;
-            p.color = color;
-            p.rotation = Math.random() * Math.PI * 2;
-            p.rotationSpeed = (Math.random() - 0.5) * 0.3;
+            this.px[idx] = x;
+            this.py[idx] = y;
+            this.pvx[idx] = Math.cos(angle) * speed;
+            this.pvy[idx] = Math.sin(angle) * speed - 4;
+            this.palpha[idx] = 1.0;
+            this.psize[idx] = (isHold ? 2 : 3) + Math.random() * 5;
+            this.pcolorIdx[idx] = cIdx;
+            this.prot[idx] = Math.random() * Math.PI * 2;
+            this.protSpeed[idx] = (Math.random() - 0.5) * 0.4;
 
-            this.activeIndices.add(idx);
+            this.activeCount++;
         }
     }
 
     public clear(): void {
-        this.activeIndices.forEach(idx => {
-            this.particlePool[idx].alpha = 0;
-            this.freeIndices.push(idx);
-        });
-        this.activeIndices.clear();
+        this.activeCount = 0;
         this.explosions = [];
-    }
-
-    private updateParticles(delta: number): void {
-        const speedMultiplier = delta / 16.67;
-        const fadeRate = this.isMobile ? 0.05 : 0.03;
-
-        this.activeIndices.forEach(idx => {
-            const p = this.particlePool[idx];
-            p.x += p.vx * speedMultiplier;
-            p.y += p.vy * speedMultiplier;
-            p.vy += 0.2 * speedMultiplier;
-            p.alpha -= fadeRate * speedMultiplier;
-            p.rotation += p.rotationSpeed * speedMultiplier;
-
-            if (p.alpha <= 0) {
-                this.activeIndices.delete(idx);
-                this.freeIndices.push(idx);
-            }
-        });
     }
 
     private updateExplosions(delta: number): void {
         const speedMultiplier = delta / 16.67;
-        const radialSpeed = this.isMobile ? 8 : 6;
-        const fadeSpeed = this.isMobile ? 0.12 : 0.08;
+        const radialSpeed = this.isMobile ? 10 : 6; // Faster on mobile
+        const fadeSpeed = this.isMobile ? 0.15 : 0.08;
 
         for (let i = this.explosions.length - 1; i >= 0; i--) {
             const exp = this.explosions[i];

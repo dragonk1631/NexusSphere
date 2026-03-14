@@ -12,6 +12,7 @@ export interface IThemeStrategy {
      */
     renderJudgmentText?(ctx: CanvasRenderingContext2D, text: string, color: string, alpha: number, x: number, y: number): void;
 
+    renderBackground?(ctx: CanvasRenderingContext2D, width: number, height: number, time: number, alpha: number): void;
     renderHitZonePulse(ctx: CanvasRenderingContext2D, lane: number, x: number, y: number, width: number, beatPhase: number): void;
 
     /**

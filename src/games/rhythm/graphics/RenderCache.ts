@@ -614,46 +614,33 @@ export class RenderCache {
         const baseColor = colors[1];
 
         switch (skinId) {
-            case 'cyber-neon':
             case 'hologram':
             case 'matrix-grid':
             default: {
-                // High-end Cylindrical Glow Gradient
-                const grad = ctx.createLinearGradient(0, 0, w, 0);
-                const rgb = this.hexToRgbaParams(baseColor);
+                // 1. Base Fill
+                ctx.fillStyle = baseColor;
+                ctx.fillRect(0, 0, w, h);
 
-                grad.addColorStop(0, `rgba(${rgb}, 0)`);
-                grad.addColorStop(0.15, `rgba(${rgb}, 0.2)`);
-                grad.addColorStop(0.3, `rgba(${rgb}, 0.5)`);
-                grad.addColorStop(0.48, `rgba(${rgb}, 0.8)`);
-                grad.addColorStop(0.5, `rgba(255, 255, 255, 0.9)`); // Ultra bright core spine
-                grad.addColorStop(0.52, `rgba(${rgb}, 0.8)`);
-                grad.addColorStop(0.7, `rgba(${rgb}, 0.5)`);
-                grad.addColorStop(0.85, `rgba(${rgb}, 0.2)`);
-                grad.addColorStop(1, `rgba(${rgb}, 0)`);
+                // 2. Original Highlight Gradient
+                // Black 0.4 -> Black 0.1 -> White 0.6 -> Black 0.1 -> Black 0.4
+                const grad = ctx.createLinearGradient(0, 0, w, 0);
+                grad.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+                grad.addColorStop(0.2, 'rgba(0, 0, 0, 0.1)');
+                grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
+                grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.1)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
 
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, w, h);
 
-                // Add an extra subtle bloom to the center core
-                const bloom = ctx.createLinearGradient(0, 0, w, 0);
-                bloom.addColorStop(0.4, `rgba(${rgb}, 0)`);
-                bloom.addColorStop(0.5, `rgba(255, 255, 255, 0.3)`);
-                bloom.addColorStop(0.6, `rgba(${rgb}, 0)`);
-                ctx.fillStyle = bloom;
-                ctx.fillRect(0, 0, w, h);
+                // 3. Original Spine (Strong White Line)
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.fillRect(w * 0.5 - 1.75, 0, 3.5, h);
 
-                // Edge Highlights (Glass effect)
-                const edgeGrad = ctx.createLinearGradient(0, 0, w, 0);
-                edgeGrad.addColorStop(0, `rgba(255, 255, 255, 0.15)`);
-                edgeGrad.addColorStop(0.05, `rgba(255, 255, 255, 0.4)`);
-                edgeGrad.addColorStop(0.1, `rgba(255, 255, 255, 0)`);
-                edgeGrad.addColorStop(0.9, `rgba(255, 255, 255, 0)`);
-                edgeGrad.addColorStop(0.95, `rgba(255, 255, 255, 0.4)`);
-                edgeGrad.addColorStop(1, `rgba(255, 255, 255, 0.15)`);
-
-                ctx.fillStyle = edgeGrad;
-                ctx.fillRect(0, 0, w, h);
+                // 4. Original Stroke (Side Edges)
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.fillRect(0, 0, 1.5, h);
+                ctx.fillRect(w - 1.5, 0, 1.5, h);
                 break;
             }
         }

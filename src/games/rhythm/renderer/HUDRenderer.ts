@@ -6,12 +6,13 @@ import {
     JUDGMENT_DURATION
 } from '../constants/GameConstants';
 import type { IThemeStrategy } from '../themes/IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 export interface HUDRenderState {
     width: number;
     height: number;
     comboAnim: number;
-    lastJudgment: { text: string, color: string, time: number } | null;
+    lastJudgment: { text: string, color: string, time: number, value: Judgment } | null;
     cachedNow: number;
     isMobile: boolean;
 }
@@ -41,7 +42,7 @@ export class HUDRenderer {
         this.comboGradient = comboGrad;
     }
 
-    public render(ctx: CanvasRenderingContext2D, state: HUDRenderState, scoreManager: ScoreManager, themeStrategy: IThemeStrategy, getPerspectiveX: (lane: number, y: number) => number): void {
+    public render(ctx: CanvasRenderingContext2D, state: HUDRenderState, scoreManager: ScoreManager, theme: IThemeStrategy, getPerspectiveX: (lane: number, y: number) => number, alpha: number = 0): void {
         const pal = this.getHudPalette();
         const score = Math.floor(scoreManager.getScore());
         const combo = scoreManager.getCombo();
@@ -50,7 +51,7 @@ export class HUDRenderer {
         this.renderHPBar(ctx, state, pal, scoreManager, getPerspectiveX);
         this.renderScore(ctx, state, pal, score);
         this.renderCombo(ctx, state, pal, combo);
-        this.renderJudgment(ctx, state, themeStrategy);
+        this.renderJudgment(ctx, state, theme, alpha);
     }
 
     private getHudPalette(): typeof HUD_PALETTES[string] {
@@ -250,10 +251,12 @@ export class HUDRenderer {
         ctx.restore();
     }
 
-    private renderJudgment(ctx: CanvasRenderingContext2D, state: HUDRenderState, themeStrategy: IThemeStrategy): void {
+    private renderJudgment(ctx: CanvasRenderingContext2D, state: HUDRenderState, theme: IThemeStrategy, interpolationAlpha: number = 0): void {
         const judgment = state.lastJudgment;
         if (!judgment) return;
-        const age = state.cachedNow - judgment.time;
+        
+        // Use interpolationAlpha for sub-frame aging
+        const age = (state.cachedNow + interpolationAlpha * (1000/60)) - judgment.time;
         if (age > JUDGMENT_DURATION) return;
 
         const alpha = 1 - (age / JUDGMENT_DURATION);
@@ -261,8 +264,9 @@ export class HUDRenderer {
         const y = state.height * 0.42;
 
         // [핵심] 테마에 특수한 구현이 있다면 사용하고, 없으면 표준 고퀄리티 로직 적용
-        if (themeStrategy.renderJudgmentText) {
-            themeStrategy.renderJudgmentText(ctx, judgment.text, judgment.color, alpha, x, y);
+        if (theme.renderJudgmentText) {
+            const color = theme.getColorForJudgment(judgment.value);
+            theme.renderJudgmentText(ctx, judgment.text, color, alpha, x, y);
         } else {
             this.renderDefaultJudgmentText(ctx, judgment.text, judgment.color, alpha, x, y);
         }

@@ -26,7 +26,7 @@ export class JudgmentSystem {
     private lastMissCheckIndex: number = 0;
     private outputLatencyMs: number = 0;
     private lagSpikeInvincibility: number = 0;
-    private lastJudgment: { text: string; color: string; time: number } | null = null;
+    private lastJudgment: { text: string; color: string; time: number; value: Judgment } | null = null;
 
     constructor(handler: IJudgmentEventHandler) {
         this.handler = handler;
@@ -188,11 +188,11 @@ export class JudgmentSystem {
         return this.holdingLanes[lane] !== null;
     }
 
-    public setJudgment(text: string, color: string, time: number): void {
-        this.lastJudgment = { text, color, time };
+    public setJudgment(text: string, color: string, time: number, value: Judgment): void {
+        this.lastJudgment = { text, color, time, value };
     }
 
-    public getLastJudgment(): { text: string; color: string; time: number } | null {
+    public getLastJudgment(): { text: string; color: string; time: number; value: Judgment } | null {
         return this.lastJudgment;
     }
 

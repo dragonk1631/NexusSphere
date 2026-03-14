@@ -11,8 +11,8 @@ export class LoadingState extends BaseGameState {
         // Loading progress is updated via handlePlayRequest in RhythmGame
     }
 
-    public render(ctx: CanvasRenderingContext2D): void {
+    public render(ctx: CanvasRenderingContext2D, alpha: number): void {
         this.game.updateLoadingRenderState();
-        this.game.loadingRenderer.render(ctx, this.game.loadingRenderState);
+        this.game.loadingRenderer.render(ctx, this.game.loadingRenderState, alpha);
     }
 }

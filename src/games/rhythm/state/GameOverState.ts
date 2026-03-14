@@ -9,9 +9,9 @@ export class GameOverState extends BaseGameState {
 
     public update(_delta: number): void { }
 
-    public render(ctx: CanvasRenderingContext2D): void {
+    public render(ctx: CanvasRenderingContext2D, alpha: number): void {
         this.game.updateGameOverRenderState();
-        this.game.gameOverRenderer.render(ctx, this.game.gameOverRenderState);
+        this.game.gameOverRenderer.render(ctx, this.game.gameOverRenderState, alpha);
     }
 
     public onKeyDown(code: string): void {

@@ -1,3 +1,4 @@
+import { ScreenUtils } from '../../core/utils/ScreenUtils';
 import { BaseGame } from '../../core/BaseGame';
 import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { ThemeManager } from '../../core/ThemeManager';
@@ -142,6 +143,10 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             onReturnToMainMenu: () => this.returnToMainMenu()
         });
         this.inputManager.register();
+
+        const isMob = ScreenUtils.isMobile();
+        this.particleSystem.setMobile(isMob);
+        this.effectsRenderer.setMobile(isMob);
 
         // State Machine Initialization
         this.stateMap = new Map<GameState, IGameState>([
@@ -380,13 +385,13 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.currentStateObj.update(delta);
     }
 
-    public render(): void {
+    public render(alpha: number = 0): void {
         const ctx = this.ctx;
         const { width, height } = this.canvas;
         if (height > width) { this.renderRotateRequest(ctx, width, height); return; }
 
-        this.currentStateObj.render(ctx);
-        this.effectsRenderer.render(ctx, width, height, this.themeStrategy);
+        this.currentStateObj.render(ctx, alpha);
+        this.effectsRenderer.render(ctx, width, height, this.themeStrategy, alpha);
     }
 
     public renderRotateRequest(ctx: CanvasRenderingContext2D, width: number, height: number) {
@@ -486,11 +491,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.animationTimer = this.pauseAnimationTimer;
     }
 
-    public renderGameplay(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    public renderGameplay(ctx: CanvasRenderingContext2D, width: number, height: number, alpha: number = 0) {
         ctx.clearRect(0, 0, width, height);
         this.updateHighwayRenderState();
         this.highwayRenderer.renderBackground(ctx, this.highwayRenderState);
-        this.highwayRenderer.renderDynamic(ctx, this.highwayRenderState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.gameplayManager.holdingLanes, this.inputManager);
+        this.highwayRenderer.renderDynamic(ctx, this.highwayRenderState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.gameplayManager.holdingLanes, this.inputManager, alpha);
 
         const hud = this.hudRenderState;
         hud.width = width;
@@ -574,7 +579,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         const judgmentText = this.getJudgmentText(j);
         const color = this.themeStrategy.getColorForJudgment(j);
 
-        this.judgmentSystem.setJudgment(judgmentText, color, this.currentFrameTime);
+        this.judgmentSystem.setJudgment(judgmentText, color, this.currentFrameTime, j);
         this.scoreManager.addHit(100, j);
 
         if (j !== Judgment.MISS) {

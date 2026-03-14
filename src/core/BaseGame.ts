@@ -17,13 +17,15 @@ export abstract class BaseGame {
         this.assetLoader = AssetLoader.getInstance();
 
         // Android Chrome can be unstable with desynchronized: true
-        const isAndroid = /Android/i.test(navigator.userAgent);
+        // Low-end mobile devices benefit from it, but on PC it causes ghosting
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
         try {
-            // Optimization: Use desynchronized: true for lowest latency (bypasses compositor)
-            // But disable for Android as it can cause flickering/broken rendering in some Chrome versions
+            // Optimization: Use desynchronized: true for lowest latency on MOBILE
+            // Disable for PC/Desktop as it can cause tearing and "ghosting" artifacts 
+            // when not perfectly synced with high-refresh monitors.
             this.ctx = canvas.getContext('2d', {
-                desynchronized: !isAndroid
+                desynchronized: isMobile
             })!;
         } catch (e) {
             console.warn("[BaseGame] Desynchronized context failed, falling back to standard.");
@@ -59,8 +61,9 @@ export abstract class BaseGame {
 
     /**
      * 메인 렌더링 루프 (Update와 분리됨)
+     * @param alpha 보간값 (0~1)
      */
-    public abstract render(): void;
+    public abstract render(alpha?: number): void;
 
     /**
      * 캔버스 크기 조절 대응

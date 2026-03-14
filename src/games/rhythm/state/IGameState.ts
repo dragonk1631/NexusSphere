@@ -17,7 +17,7 @@ export interface IGameState {
     update(delta: number): void;
 
     /** Per-frame rendering logic. */
-    render(ctx: CanvasRenderingContext2D): void;
+    render(ctx: CanvasRenderingContext2D, alpha: number): void;
 
     /** Input Handling: Key Press */
     onKeyDown(code: string): void;

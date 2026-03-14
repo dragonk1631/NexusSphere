@@ -77,77 +77,70 @@ export class LaneRenderer {
      */
     public renderDividers(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache): void {
         const { bpm, cachedNow } = state;
-        // BPM Pulse calculation: 60000ms / BPM = duration of 1 beat
         const msPerBeat = 60000 / bpm;
         const beatProgress = (cachedNow % msPerBeat) / msPerBeat;
-        // Ease-out pulse: sharp start, smooth fade
         const pulse = Math.pow(1 - beatProgress, 1.5);
 
         ctx.save();
 
-        for (let i = 0; i <= state.laneCount; i++) {
+        // 1. Batch Render Internal Dividers (High-Performance Path Merging)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 1; i < state.laneCount; i++) {
             const topX = cache.getX(i, state.horizonY, state);
             const botX = cache.getX(i, state.bottomY, state);
-            const isEdge = (i === 0 || i === state.laneCount);
+            ctx.moveTo(topX, state.horizonY);
+            ctx.lineTo(botX, state.bottomY);
+        }
+        ctx.stroke();
 
-            if (isEdge) {
-                // TAPERED GEOMETRIC RAIL: Polygon-based 3D Perspective
-                ctx.save();
-                const isLeft = (i === 0);
-                const sideDir = isLeft ? -1 : 1;
-                const grad = isLeft ? this.leftSideRailGradient : this.rightSideRailGradient;
+        // 2. Render Specialized Edge Rails (i=0 and i=laneCount)
+        const edges = [0, state.laneCount];
+        for (const i of edges) {
+            const topX = cache.getX(i, state.horizonY, state);
+            const botX = cache.getX(i, state.bottomY, state);
 
-                // Perspective Widths (Subtler: 20px -> 8px)
-                const botBarW = (20 + pulse * 6);
-                const topBarW = (8 + pulse * 3);
+            ctx.save();
+            const isLeft = (i === 0);
+            const sideDir = isLeft ? -1 : 1;
+            const grad = isLeft ? this.leftSideRailGradient : this.rightSideRailGradient;
 
-                const outerTopX = topX + topBarW * sideDir;
-                const outerBotX = botX + botBarW * sideDir;
+            const botBarW = (20 + pulse * 6);
+            const topBarW = (8 + pulse * 3);
+            const outerTopX = topX + topBarW * sideDir;
+            const outerBotX = botX + botBarW * sideDir;
 
-                // 1. Tapered Geometric Rail (Internal Glow Fill - Lower Intensity)
-                if (grad) {
-                    ctx.fillStyle = grad;
-                    ctx.globalAlpha = 0.5 + pulse * 0.3; // Muted overall
-                    ctx.beginPath();
-                    ctx.moveTo(topX, state.horizonY);
-                    ctx.lineTo(outerTopX, state.horizonY);
-                    ctx.lineTo(outerBotX, state.bottomY);
-                    ctx.lineTo(botX, state.bottomY);
-                    ctx.closePath();
-                    ctx.fill();
-                }
-
-                // 2. Sharp "Inner Edge" Outline
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.2})`;
-                ctx.lineWidth = 1.5;
+            if (grad) {
+                ctx.fillStyle = grad;
+                ctx.globalAlpha = 0.5 + pulse * 0.3;
                 ctx.beginPath();
                 ctx.moveTo(topX, state.horizonY);
+                ctx.lineTo(outerTopX, state.horizonY);
+                ctx.lineTo(outerBotX, state.bottomY);
                 ctx.lineTo(botX, state.bottomY);
-                ctx.stroke();
-
-                // 3. Tapered Specular Core (Subtler Glass Effect)
-                ctx.strokeStyle = '#ffffff';
-                ctx.globalAlpha = 0.15 * (0.5 + pulse * 0.5);
-                ctx.lineWidth = 4 + pulse * 2;
-
-                const coreTopX = topX + (topBarW / 2) * sideDir;
-                const coreBotX = botX + (botBarW / 2) * sideDir;
-
-                ctx.beginPath();
-                ctx.moveTo(coreTopX, state.horizonY);
-                ctx.lineTo(coreBotX, state.bottomY);
-                ctx.stroke();
-
-                ctx.restore();
-            } else {
-                // NORMAL DIVIDER - Keep very subtle for performance
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(topX, state.horizonY);
-                ctx.lineTo(botX, state.bottomY);
-                ctx.stroke();
+                ctx.closePath();
+                ctx.fill();
             }
+
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.2})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(topX, state.horizonY);
+            ctx.lineTo(botX, state.bottomY);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.globalAlpha = 0.15 * (0.5 + pulse * 0.5);
+            ctx.lineWidth = 4 + pulse * 2;
+            const coreTopX = topX + (topBarW / 2) * sideDir;
+            const coreBotX = botX + (botBarW / 2) * sideDir;
+            ctx.beginPath();
+            ctx.moveTo(coreTopX, state.horizonY);
+            ctx.lineTo(coreBotX, state.bottomY);
+            ctx.stroke();
+
+            ctx.restore();
         }
         ctx.restore();
     }

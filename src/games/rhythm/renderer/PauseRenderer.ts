@@ -14,7 +14,7 @@ export class PauseRenderer {
         { id: 'song-select', label: 'SONG SELECTION' }
     ];
 
-    public render(ctx: CanvasRenderingContext2D, state: PauseRenderState): void {
+    public render(ctx: CanvasRenderingContext2D, state: PauseRenderState, alpha: number = 0): void {
         const { width, height, selectedButtonIndex, animationTimer } = state;
 
         // 1. Dark overlay with blur effect (simulated via alpha)

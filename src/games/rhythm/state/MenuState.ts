@@ -17,9 +17,9 @@ export class MenuState extends BaseGameState {
         this.game.menuManager.update(delta);
     }
 
-    public render(ctx: CanvasRenderingContext2D): void {
+    public render(ctx: CanvasRenderingContext2D, alpha: number): void {
         this.game.updateMenuRenderState();
-        this.game.menuRenderer.render(ctx, this.game.menuRenderState);
+        this.game.menuRenderer.render(ctx, this.game.menuRenderState, alpha);
     }
 
     public onKeyDown(code: string): void {

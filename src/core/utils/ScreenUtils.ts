@@ -11,9 +11,12 @@ export class ScreenUtils {
     public static getPixelRatio(): number {
         const isMobile = this.isMobile();
         if (isMobile) {
+            // Mobile: Cap at 1.25 for battery and performance
             return Math.min(window.devicePixelRatio, 1.25);
         }
-        return window.devicePixelRatio || 1;
+        // PC: Cap at 1.5 to prevent massive GPU load on 4K/Retina displays
+        // This maintains sharpness while avoiding the 2.0+ density performance hit.
+        return Math.min(window.devicePixelRatio || 1, 1.5);
     }
 
     public static getVirtualDimensions() {

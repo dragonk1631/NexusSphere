@@ -24,7 +24,6 @@ const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 let currentGame: any = null;
 
 let lastTime = 0;
-let lastRenderTimestamp = 0;
 let accumulator = 0;
 // let loopCounter = 0;
 let mainMenu: MainMenu;
@@ -42,49 +41,45 @@ let currentFps = 0;
 
 PerformanceMonitor.start();
 
-function gameLoop(timestamp: number) {
-  // Prevent potential undefined timestamp on first call
-  if (!timestamp) timestamp = performance.now();
+PerformanceMonitor.start();
 
-  PerformanceMonitor.recordFrame();
-
-  // --- FPS Update ---
+function updateFPSCounter(timestamp: number) {
   if (timestamp - fpsLastTime >= 1000) {
     currentFps = fpsFrameCount;
     fpsFrameCount = 0;
     fpsLastTime = timestamp;
     
-    // Get extended performance metrics
     const snapshot = PerformanceMonitor.getSnapshot(currentFps);
-    
     fpsDiv.innerText = `FPS: ${currentFps} | JS: ${snapshot.workDuration}ms | Jit: ${snapshot.jitter}ms | Stall: ${snapshot.longTasks}`;
 
-    // Color Coding for Performance Monitoring
-    if (currentFps >= 58 && snapshot.jitter < 5) fpsDiv.style.color = '#00ff00';      // Green (Good)
-    else if (currentFps >= 30 || snapshot.jitter < 15) fpsDiv.style.color = '#ffff00'; // Yellow (Warning)
-    else fpsDiv.style.color = '#ff0000';                       // Red (Bad)
+    if (currentFps >= 58 && snapshot.jitter < 5) fpsDiv.style.color = '#00ff00';
+    else if (currentFps >= 30 || snapshot.jitter < 15) fpsDiv.style.color = '#ffff00';
+    else fpsDiv.style.color = '#ff0000';
 
-    // Log load metrics to console periodically
     AudioEngineLogger.metric('RENDER', `FPS: ${currentFps}, Jitter: ${snapshot.jitter}ms, Stalls: ${snapshot.longTasks}`);
   }
+}
 
+function gameLoop(timestamp: number) {
+  if (!timestamp) timestamp = performance.now();
+
+  updateFPSCounter(timestamp);
+
+  PerformanceMonitor.recordFrame();
   PerformanceMonitor.beginFrame();
 
-  const FIXED_STEP = 1000 / 60; // 16.66ms
-  const MAX_ACCUMULATION = 200;
+  const FIXED_STEP = 1000 / 60;
 
   if (!lastTime) lastTime = timestamp;
   let frameTime = timestamp - lastTime;
   lastTime = timestamp;
 
-  // Cap frame time to prevent spiraling after backgrounding
-  if (frameTime > MAX_ACCUMULATION) frameTime = FIXED_STEP;
+  // Limit accumulation to prevent "death spiral"
+  if (frameTime > 250) frameTime = FIXED_STEP;
 
-  // Track elapsed for updates in the persistent accumulator
   accumulator += frameTime;
   
-  // Update logic: catch up with fixed steps
-  // This ensures game logic runs at 60Hz regardless of display refresh rate
+  // Logic Update (Locked at 60Hz)
   while (accumulator >= FIXED_STEP) {
     if (currentGame) {
       currentGame.update(FIXED_STEP);
@@ -92,36 +87,31 @@ function gameLoop(timestamp: number) {
     accumulator -= FIXED_STEP;
   }
 
-  // Render logic: 
-  // On 120Hz/90Hz, we still ideally want to render at 60fps to save battery.
-  const now = performance.now();
-  const timeSinceLastRender = now - lastRenderTimestamp;
-  const TARGET_RENDER_INTERVAL = 1000 / 60; // 16.666ms
+  // Render Logic (VSync Aligned + Interpolation)
+  // Calculate interpolation alpha: how far we are between the last and next fixed update
+  const interpolationAlpha = accumulator / FIXED_STEP;
 
-  // If we have reached or are very close to the target interval (with 4ms jitter buffer),
-  // we trigger the frame. Using high-precision timestamp 'now'.
-  if (timeSinceLastRender >= TARGET_RENDER_INTERVAL - 4) {
-    const frameTimestamp = now;
-    // 1. SIGNAL BACKGROUND WORKER
-    BackgroundRenderer.getInstance().requestFrame(frameTimestamp);
-
-    // 2. RENDER TITLE SCREEN (if active)
-    if (titleScreen) {
-      titleScreen.updateAndRender(frameTimestamp);
-    }
-
-    // 3. RENDER GAME (if active)
-    if (currentGame) {
-      currentGame.render();
-    }
-
-    lastRenderTimestamp = now;
-    fpsFrameCount++;
+  // Clear Main Canvas once per frame before any rendering
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  PerformanceMonitor.endFrame();
+  // 1. SIGNAL BACKGROUND WORKER (Every VSync for maximum smoothness)
+  BackgroundRenderer.getInstance().requestFrame(timestamp);
 
-  // Loop - Always keep the master loop running
+  // 2. RENDER TITLE SCREEN (if active)
+  if (titleScreen) {
+    titleScreen.updateAndRender(timestamp, interpolationAlpha);
+  }
+
+  // 3. RENDER GAME (if active)
+  if (currentGame) {
+    currentGame.render(interpolationAlpha);
+  }
+
+  fpsFrameCount++;
+  PerformanceMonitor.endFrame();
   requestAnimationFrame(gameLoop);
 }
 
@@ -296,7 +286,6 @@ async function launchGame(GameClass: any) {
 
     // Reset Loop State
     lastTime = performance.now();
-    lastRenderTimestamp = lastTime;
     accumulator = 0;
     fpsFrameCount = 0;
 

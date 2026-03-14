@@ -50,25 +50,12 @@ export class PlayingState extends BaseGameState {
         }
     }
 
-    public render(ctx: CanvasRenderingContext2D): void {
+    public render(ctx: CanvasRenderingContext2D, alpha: number): void {
         const game = this.game;
         const width = game.canvas.width;
         const height = game.canvas.height;
 
-        ctx.clearRect(0, 0, width, height);
-        game.updateHighwayRenderState();
-        game.highwayRenderer.renderBackground(ctx, game.highwayRenderState);
-        game.highwayRenderer.renderDynamic(ctx, game.highwayRenderState, game.visualNotes, game.gameplayManager.lastNoteIndex, game.gameplayManager.holdingLanes, game.inputManager);
-
-        const hud = game.hudRenderState;
-        hud.width = width;
-        hud.height = height;
-        hud.comboAnim = game.gameplayManager.comboAnim;
-        hud.lastJudgment = game.judgmentSystem.getLastJudgment();
-        hud.cachedNow = performance.now();
-        hud.isMobile = game.isMobile;
-
-        game.hudRenderer.render(ctx, hud, game.scoreManager, game.themeStrategy, (l, y) => game.getPerspectiveX(l, y));
+        game.renderGameplay(ctx, width, height, alpha);
     }
 
     public onKeyDown(code: string): void {

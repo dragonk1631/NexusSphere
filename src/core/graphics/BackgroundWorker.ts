@@ -30,6 +30,31 @@ const colorCache = {
     color1Alpha: (a: string) => applyAlpha(currentTheme?.color1 || '#000', a), // fallback
 };
 
+// --- Alpha-Lookup Cache (Zero-string-allocations) ---
+const alphaHexSlice = new Array(256);
+for (let i = 0; i < 256; i++) {
+    alphaHexSlice[i] = i.toString(16).padStart(2, '0');
+}
+
+let themeAlphaCache = {
+    particle: new Array(256),
+    grid: new Array(256),
+    color1: new Array(256)
+};
+
+function rebuildAlphaCache() {
+    if (!currentTheme) return;
+    const p = currentTheme.particleColor.slice(0, 7);
+    const g = currentTheme.gridColor.slice(0, 7);
+    const c1 = currentTheme.color1.slice(0, 7);
+    for (let i = 0; i < 256; i++) {
+        const hex = alphaHexSlice[i];
+        themeAlphaCache.particle[i] = p + hex;
+        themeAlphaCache.grid[i] = g + hex;
+        themeAlphaCache.color1[i] = c1 + hex;
+    }
+}
+
 // --- Cached wave gradients for drawWaves (rebuilt on resize/theme change) ---
 let cachedWaveGrads: (CanvasGradient | null)[] = [];
 let cachedWaveGridColor: string = '';
@@ -59,9 +84,9 @@ function invalidateAllCaches(full: boolean = false) {
     cachedGrid3DKey = '';
     if (full) {
         textureCache.clear();
+        rebuildAlphaCache();
     }
 }
-
 
 // --- TypedArray Particle Pool ---
 const MAX_PARTICLES = 2500;
@@ -130,11 +155,14 @@ function applyAlpha(color: string, alpha: string): string {
         const alphaFloat = (parseInt(alpha, 16) / 255).toFixed(2);
         return color.replace('rgb', 'rgba').replace(')', `, ${alphaFloat})`);
     }
+    // Optimization: Fallback to hex append if possible
+    if (color.length === 7) return color + alpha;
     return color.slice(0, 7) + alpha;
 }
 
 function setCompositeOperation(op: string) {
     if (!ctx) return;
+    // Mobile optimization: Skip expensive blending modes
     if (isMobile && (op === 'lighter' || op === 'screen')) {
         ctx.globalCompositeOperation = 'source-over';
     } else {
@@ -294,6 +322,7 @@ function drawStars(theme: ThemeConfig) {
 
     setCompositeOperation('screen');
     const nebCount = isMobile ? 2 : 3;
+
     for (let i = 0; i < nebCount; i++) {
         const shift = time * (0.02 + i * 0.01) + (i * 1.5);
         const nx = width * (0.3 + Math.sin(shift) * 0.2);
@@ -321,7 +350,7 @@ function drawStars(theme: ThemeConfig) {
         if (py[i] > height) py[i] = -20;
 
         const blink = Math.sin(time * 2 + phase[i]) * 0.3 + 0.7;
-        ctx.globalAlpha = life[i] * blink; // life acts as base alpha here
+        ctx.globalAlpha = life[i] * blink; 
         const s = size[i] * blink;
         ctx.drawImage(starTexture, px[i] - s, py[i] - s, s * 2, s * 2);
     }
@@ -332,14 +361,15 @@ function drawGrid3D(theme: ThemeConfig) {
     const fov = 420;
     const speed = (time * 150) % 100;
 
-    // 1. Horizon Glow (cache – position depends on height, color on particleColor)
+    // 1. Horizon Glow
     const grid3DKey = theme.particleColor + height;
     if (cachedGrid3DKey !== grid3DKey) {
         cachedGrid3DKey = grid3DKey;
         const glowHeight = 40;
         cachedGrid3DBloomGrad = ctx.createLinearGradient(0, horizon - glowHeight, 0, horizon + glowHeight);
         cachedGrid3DBloomGrad.addColorStop(0, 'transparent');
-        cachedGrid3DBloomGrad.addColorStop(0.5, applyAlpha(theme.particleColor, '66'));
+        // Use pre-computed alpha hex for gradient stops (66 = 0.4 alpha approx)
+        cachedGrid3DBloomGrad.addColorStop(0.5, theme.particleColor.slice(0, 7) + '66');
         cachedGrid3DBloomGrad.addColorStop(1, 'transparent');
     }
 
@@ -348,7 +378,8 @@ function drawGrid3D(theme: ThemeConfig) {
     ctx.fillRect(0, horizon - 40, width, 80);
 
     // 2. Perspective Grid
-    ctx.strokeStyle = colorCache.gridAlpha20;
+    const gArr = themeAlphaCache.grid;
+    ctx.strokeStyle = gArr[51]; // 20% alpha (0.2 * 255 = 51)
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     for (let x = -width * 1; x <= width * 2; x += 180) {
@@ -374,7 +405,7 @@ function drawGrid3D(theme: ThemeConfig) {
     const trailTex = getCachedTexture('grid_trail', 64, c => {
         const grad = c.createLinearGradient(32, 0, 32, 64);
         grad.addColorStop(0, 'transparent');
-        grad.addColorStop(1, colorCache.particleAlpha50);
+        grad.addColorStop(1, theme.particleColor.slice(0, 7) + '80'); // 50%
         c.fillStyle = grad;
         c.fillRect(0, 0, 64, 64);
     });
@@ -410,22 +441,16 @@ function drawMatrix(theme: ThemeConfig) {
     const charH = 22;
     const charW = 16;
     
-    // 1. Pre-render Glyph Sheet (One-time or per theme change)
+    // 1. Pre-render Glyph Sheet
     const glyphSheet = getCachedTexture('matrix_glyphs', 512, c => {
         c.font = 'bold 18px monospace';
         c.textAlign = 'center';
         c.textBaseline = 'middle';
-        
-        // Render 2 rows: White (heads) and Theme Color (trails)
         chars.split('').forEach((char, idx) => {
             const x = (idx % 16) * 32 + 16;
             const y = Math.floor(idx / 16) * 32 + 16;
-            
-            // White row
             c.fillStyle = '#FFFFFF';
             c.fillText(char, x, y);
-            
-            // Theme row
             c.fillStyle = theme.particleColor;
             c.fillText(char, x, y + 64);
         });
@@ -434,11 +459,13 @@ function drawMatrix(theme: ThemeConfig) {
     const headTex = getCachedTexture('matrix_head', 40, c => {
         const grad = c.createRadialGradient(20, 20, 0, 20, 20, 20);
         grad.addColorStop(0, '#FFFFFF');
-        grad.addColorStop(0.5, applyAlpha(theme.particleColor, '66'));
+        grad.addColorStop(0.5, theme.particleColor.slice(0, 7) + '66');
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
         c.fillRect(0, 0, 40, 40);
     });
+
+    const compOp = isMobile ? 'source-over' : 'lighter';
 
     for (let i = 0; i < aliveCount; i++) {
         py[i] += vy[i] * (1 + (3 - layer[i]) * 0.2);
@@ -452,7 +479,6 @@ function drawMatrix(theme: ThemeConfig) {
         for (let j = 0; j < size[i]; j++) {
             const charY = py[i] - j * charH;
             if (charY > -charH && charY < height + charH) {
-                // Use a stable random for glyph index to avoid jitter
                 const seed = Math.floor(px[i] + Math.floor(charY / charH) * 123);
                 let charIdx = seed % chars.length;
                 if (Math.random() > 0.985) charIdx = Math.floor(Math.random() * chars.length);
@@ -462,15 +488,13 @@ function drawMatrix(theme: ThemeConfig) {
                 const gy = Math.floor(charIdx / 16) * 32 + (32 - charH) / 2;
 
                 if (j === 0) {
-                    ctx.globalCompositeOperation = isMobile ? 'source-over' : 'lighter';
+                    ctx.globalCompositeOperation = compOp;
                     ctx.drawImage(headTex, px[i] - 20 - charW/2 + 11, charY - 20, 40, 40);
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.globalAlpha = alphaScale;
-                    // Draw white glyph (top row of sheet)
                     ctx.drawImage(glyphSheet, gx, gy, charW, charH, px[i] - charW/2, charY - charH/2, charW, charH);
                 } else {
                     ctx.globalAlpha = charAlpha * 0.7 * alphaScale;
-                    // Draw theme glyph (bottom row of sheet, offsetY = 64)
                     ctx.drawImage(glyphSheet, gx, gy + 64, charW, charH, px[i] - charW/2, charY - charH/2, charW, charH);
                 }
             }
@@ -817,31 +841,36 @@ function drawHexagons(theme: ThemeConfig) {
             if (pulse > 0.85) {
                 pulseList.push({x, y: py_, alpha: pulse});
             } else {
-                // Add to main batch path
-                for (let i = 0; i < 6; i++) {
-                    const angle = (Math.PI / 3) * i;
-                    const hx = x + Math.cos(angle) * size_;
-                    const hy = py_ + Math.sin(angle) * size_;
-                    if (i === 0) ctx.moveTo(hx, hy);
-                    else ctx.lineTo(hx, hy);
-                }
-                // Close hexagon manually to avoid separate closePath() overhead in large paths
-                const startAngle = 0;
-                ctx.lineTo(x + Math.cos(startAngle) * size_, py_ + Math.sin(startAngle) * size_);
+                // Add to main batch path (Pre-calculated angles/offsets for performance)
+                // 30, 90, 150, 210, 270, 330 degrees (Hexagon vertices)
+                const s = size_;
+                ctx.moveTo(x + s, py_); // 0 deg
+                ctx.lineTo(x + s * 0.5, py_ + s * 0.866); // 60 deg (approx sqrt(3)/2)
+                ctx.lineTo(x - s * 0.5, py_ + s * 0.866); // 120 deg
+                ctx.lineTo(x - s, py_); // 180 deg
+                ctx.lineTo(x - s * 0.5, py_ - s * 0.866); // 240 deg
+                ctx.lineTo(x + s * 0.5, py_ - s * 0.866); // 300 deg
+                ctx.lineTo(x + s, py_); // Close
             }
         }
     }
     ctx.stroke();
 
     // 2. Draw highlighted/pulsing hexagons (Few per frame)
-    pulseList.forEach(p => {
-        ctx.strokeStyle = applyAlpha(theme.particleColor, Math.floor(p.alpha * 255).toString(16).padStart(2, '0'));
+    const pArr = themeAlphaCache.particle;
+    for (let i = 0; i < pulseList.length; i++) {
+        const p = pulseList[i];
+        const alphaIdx = Math.floor(p.alpha * 255);
+        ctx.strokeStyle = pArr[alphaIdx];
         ctx.lineWidth = 2.5;
         ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i;
-            ctx.lineTo(p.x + Math.cos(angle) * size_, p.y + Math.sin(angle) * size_);
-        }
+        const s = size_;
+        ctx.moveTo(p.x + s, p.y);
+        ctx.lineTo(p.x + s * 0.5, p.y + s * 0.866);
+        ctx.lineTo(p.x - s * 0.5, p.y + s * 0.866);
+        ctx.lineTo(p.x - s, p.y);
+        ctx.lineTo(p.x - s * 0.5, p.y - s * 0.866);
+        ctx.lineTo(p.x + s * 0.5, p.y - s * 0.866);
         ctx.closePath();
         ctx.stroke();
 
@@ -853,7 +882,7 @@ function drawHexagons(theme: ThemeConfig) {
             ctx.fill();
             ctx.globalAlpha = 1.0;
         }
-    });
+    }
 }
 
 function drawScanlines(theme: ThemeConfig) {
@@ -1076,11 +1105,15 @@ self.onmessage = (e: MessageEvent) => {
     switch (data.type) {
         case 'INIT':
             canvas = data.canvas;
-            ctx = canvas.getContext('2d', { alpha: false, desynchronized: true }) as OffscreenCanvasRenderingContext2D;
+            isMobile = data.isMobile || false;
+            // Disable desynchronized on PC to prevent ghosting
+            ctx = canvas.getContext('2d', { 
+                alpha: false, 
+                desynchronized: isMobile 
+            }) as OffscreenCanvasRenderingContext2D;
             width = data.width;
             height = data.height;
             pixelRatio = data.pixelRatio;
-            isMobile = data.isMobile || false;
             dynamicMaxParticles = isMobile ? 1000 : 2500;
             applyResolution();
             break;

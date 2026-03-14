@@ -17,10 +17,8 @@ export class NoteRenderer {
         const noteImg = this.renderCache.notes[lane];
         if (!noteImg) return;
 
-        // Note: We avoid withAlpha helper for raw ctx mutation if performance is critical, 
-        // but here we maintain visual parity with the user's current logic.
-        ctx.save();
-        ctx.globalAlpha *= alpha;
+        // Optimization: Set alpha directly (main loop must handle restoration if needed)
+        ctx.globalAlpha = alpha;
 
         const paddingRatioX = noteImg.width / 100;
         const paddingRatioY = noteImg.height / 50;
@@ -31,6 +29,5 @@ export class NoteRenderer {
         const drawY = Math.round(y - drawH / 2);
 
         ctx.drawImage(noteImg, drawX, drawY, drawW, drawH);
-        ctx.restore();
     }
 }

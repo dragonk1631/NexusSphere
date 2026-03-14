@@ -17,13 +17,13 @@ export class PausedState extends BaseGameState {
         this.game.pauseAnimationTimer += delta / 1000;
     }
 
-    public render(ctx: CanvasRenderingContext2D): void {
+    public render(ctx: CanvasRenderingContext2D, alpha: number): void {
         const game = this.game;
         // Playing state usually renders behind the pause menu
         // But for simplicity in this refactor, we let RhythmGame handle the layering if needed
         // Or we can just call game.renderGameplay here if we want to see the frozen game.
         game.updatePauseRenderState();
-        game.pauseRenderer.render(ctx, game.pauseRenderState);
+        game.pauseRenderer.render(ctx, game.pauseRenderState, alpha);
     }
 
     public onKeyDown(code: string): void {
