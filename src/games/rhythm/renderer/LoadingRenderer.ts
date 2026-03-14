@@ -14,7 +14,7 @@ export interface LoadingRenderState {
  * It provides visual feedback during asset preparation and engine warming.
  */
 export class LoadingRenderer {
-    public render(ctx: CanvasRenderingContext2D, state: LoadingRenderState, alpha: number = 0): void {
+    public render(ctx: CanvasRenderingContext2D, state: LoadingRenderState, _alpha: number = 0): void {
         const { width, height, progress, song, statusText, cachedNow } = state;
 
         // Background: Deep dark gradient
