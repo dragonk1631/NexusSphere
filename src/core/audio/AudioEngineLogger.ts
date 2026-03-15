@@ -13,7 +13,8 @@ export type LogLevelType = typeof LogLevel[keyof typeof LogLevel];
  * Allows controlling verbosity and reducing performance impact of console calls.
  */
 export class AudioEngineLogger {
-    private static level: LogLevelType = LogLevel.INFO;
+    private static level: LogLevelType = LogLevel.WARN;
+    public static VERBOSE_LOGS: boolean = false;
 
     public static setLevel(level: LogLevelType) {
         this.level = level;
@@ -48,7 +49,7 @@ export class AudioEngineLogger {
      * Always logs regardless of current LogLevel (unless NONE).
      */
     public static metric(category: string, message: string, data?: any) {
-        if (this.level === LogLevel.NONE) return;
+        if (this.level === LogLevel.NONE || !this.VERBOSE_LOGS) return;
         
         const timestamp = performance.now().toFixed(2);
         const prefix = `[AudioPerf:${category.toUpperCase()}]`;

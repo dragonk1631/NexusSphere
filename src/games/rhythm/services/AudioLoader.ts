@@ -3,6 +3,7 @@ import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
 import { type BeatmapData } from '../types/BeatmapTypes';
 import { type TransitionData } from '../types/GameTypes';
 import { type CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
+import { LocalSongStorage } from '../services/LocalSongStorage';
 
 /**
  * AudioLoader handles MIDI and beatmap asset loading and caching.
@@ -14,6 +15,7 @@ export class AudioLoader {
     private cachedMidi: { url: string, buffer: ArrayBuffer, parsed: ParsedMidi } | null = null;
     private loadingPromise: Promise<void> | null = null;
     private audioEngine: CoreAudioEngine;
+    private storage = new LocalSongStorage();
 
     constructor(audioEngine: CoreAudioEngine) {
         this.audioEngine = audioEngine;
@@ -51,8 +53,18 @@ export class AudioLoader {
                     this.midiData = this.cachedMidi.parsed;
                     await this.audioEngine.loadMidi(this.cachedMidi.buffer);
                 } else {
-                    const midiRes = await fetch(midiUrl);
-                    const midiBuffer = await midiRes.arrayBuffer();
+                    let midiBuffer: ArrayBuffer;
+                    
+                    if (midiUrl.startsWith('file_')) {
+                        // Custom Song from Storage
+                        const blob = await this.storage.getSongBlob(midiUrl);
+                        if (!blob) throw new Error("Custom MIDI file not found.");
+                        midiBuffer = await blob.arrayBuffer();
+                    } else {
+                        // Normal Server Song
+                        const midiRes = await fetch(midiUrl);
+                        midiBuffer = await midiRes.arrayBuffer();
+                    }
 
                     const parser = new MidiParser();
                     this.midiData = await parser.parse(midiBuffer);

@@ -31,12 +31,14 @@ export type Judgment = typeof Judgment[keyof typeof Judgment];
  * Basic song information used in menus and loading.
  */
 export interface SongEntry {
+    id?: string;
     name: string;
     url: string;
     bpm?: number;
     duration?: number;
     noteCount?: number;
     difficulty?: number;
+    isCustom?: boolean;
 }
 
 /**
@@ -77,6 +79,7 @@ export interface MenuRenderState {
     songList: SongEntry[];
     selectedSongIndex: number;
     currentSortMode: 'name' | 'bpm' | 'duration' | 'noteCount';
+    currentFilter: 'all' | 'official' | 'custom';
 
     // -- Options --
     difficultyOptions: readonly string[];

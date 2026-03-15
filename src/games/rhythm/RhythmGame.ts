@@ -457,6 +457,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.songList = this.menuManager.songList;
         s.selectedSongIndex = this.menuManager.selectedSongIndex;
         s.currentSortMode = this.menuManager.currentSortMode;
+        s.currentFilter = this.menuManager.currentFilter;
         s.difficultyOptions = DIFFICULTY_OPTIONS;
         s.selectedDifficultyIndex = this.menuManager.selectedDifficultyIndex;
         s.speedOptions = SPEED_OPTIONS;

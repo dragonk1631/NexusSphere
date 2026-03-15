@@ -17,6 +17,7 @@ export class SmoothClock {
 
     private firstMoveDetected: boolean = false;
     private startWaitTime: number = 0;
+    private lastRawHardwareTime: number = -1;
 
     constructor() { }
 
@@ -73,7 +74,10 @@ export class SmoothClock {
 
         // 3. DRIFT MONITORING: Track divergence between performance.now and AudioContext
         const drift = Math.abs(preciseTime - rawAudioTime);
-        if (drift > 0.05 && this.firstMoveDetected && (now % 1000 < 20)) { // Log occasionally (approx every 1s)
+        const hasSignalMoved = rawAudioTime !== this.lastRawHardwareTime;
+        this.lastRawHardwareTime = rawAudioTime;
+
+        if (drift > 0.1 && this.firstMoveDetected && (now % 1000 < 20) && hasSignalMoved) { // Log occasionally (approx every 1s)
             AudioEngineLogger.metric('SYNC', `Drift detected: ${(drift * 1000).toFixed(1)}ms offset.`);
         }
 
