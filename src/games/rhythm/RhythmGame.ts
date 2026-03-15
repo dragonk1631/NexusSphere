@@ -223,6 +223,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         const transition = GameTransition.get();
         if (transition?.source === 'editor' && transition.midiBuffer) {
             this.isTestMode = true;
+            this.shouldAutoStart = true;
             this.transitionData = transition;
             if (transition.settings) {
                 this.scrollSpeed = transition.settings.speed || 1.0;
@@ -334,8 +335,16 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     public async load(): Promise<void> {
         this.audioEngine.resetTimeState();
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
-        const song = this.menuManager.getCurrentSong();
-        await this.audioLoader.load(song.url, this.isTestMode, this.transitionData);
+        
+        // Fix: In Test Mode, we don't have a menu selection. Use transition data instead.
+        let songUrl = "";
+        if (this.isTestMode && this.transitionData) {
+            songUrl = this.transitionData.midiName;
+        } else {
+            songUrl = this.menuManager.getCurrentSong().url;
+        }
+
+        await this.audioLoader.load(songUrl, this.isTestMode, this.transitionData);
         this.midiData = this.audioLoader.getMidiData();
     }
 
@@ -346,7 +355,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         await this.audioEngine.ensureReady();
 
         const difficulty = this.transitionData?.settings?.difficulty || this.menuManager.getCurrentDifficulty() || 'NORMAL';
-        this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, null, difficulty, null);
+        const config = this.audioLoader.getBeatmapData()?.measureConfig || null;
+        this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, null, difficulty, config);
         const totalJudgments = this.visualNotes.reduce((acc, note) => acc + (note.isHold ? 2 : 1), 0);
         this.scoreManager.setTotalNotes(totalJudgments);
 

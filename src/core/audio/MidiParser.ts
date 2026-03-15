@@ -39,12 +39,12 @@ export class MidiParser {
     /**
      * Parse MIDI from binary buffer
      */
-    public async parse(buffer: ArrayBuffer): Promise<ParsedMidi> {
+    public async parse(buffer: ArrayBuffer, defaultName?: string): Promise<ParsedMidi> {
         const midi = new Midi(buffer);
-        return this.convertToGameFormat(midi);
+        return this.convertToGameFormat(midi, defaultName);
     }
 
-    private convertToGameFormat(midi: Midi): ParsedMidi {
+    private convertToGameFormat(midi: Midi, defaultName?: string): ParsedMidi {
         const bpm = midi.header.tempos[0]?.bpm || 120;
 
         const tracks: GameTrack[] = midi.tracks.map((track, trackIndex) => {
@@ -109,7 +109,7 @@ export class MidiParser {
         }
 
         return {
-            name: midi.name || 'Untitled',
+            name: midi.name || defaultName || 'Untitled',
             bpm,
             duration,
             durationTicks: Math.max(...midi.tracks.map(t => t.durationTicks), 0),

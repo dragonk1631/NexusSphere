@@ -281,7 +281,7 @@ async function launchGame(GameClass: any) {
 
     console.log("[Launch] Starting display...");
     console.time("launch_create");
-    currentGame.create();
+    await currentGame.create();
     console.timeEnd("launch_create");
 
     // Reset Loop State

@@ -44,8 +44,22 @@ export class AudioLoader {
             if (isTestMode && transitionData) {
                 console.log("[AudioLoader] Test Mode: Loading MIDI from transition buffer.");
                 const parser = new MidiParser();
-                this.midiData = await parser.parse(transitionData.midiBuffer);
+                this.midiData = await parser.parse(transitionData.midiBuffer, transitionData.midiName);
                 await this.audioEngine.loadMidi(transitionData.midiBuffer);
+                
+                // [FIX] If transitionData has measureConfig, treat it as the active beatmapData
+                if (transitionData.settings?.measureConfig) {
+                    this.beatmapData = {
+                        version: "1.2",
+                        metadata: {
+                            title: transitionData.midiName,
+                            bpm: 120, // Default for synth
+                            duration: 0
+                        },
+                        measureConfig: transitionData.settings.measureConfig
+                    };
+                    console.log("[AudioLoader] Test Mode: Using measureConfig from Editor transition.");
+                }
             } else {
                 // Normal Mode: Check Cache for MIDI
                 if (this.cachedMidi && this.cachedMidi.url === midiUrl) {

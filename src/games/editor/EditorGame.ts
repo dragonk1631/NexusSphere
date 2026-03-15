@@ -157,19 +157,6 @@ export class EditorGame extends BaseGame {
         );
         this.ui.init();
 
-        // --- EMERGENCY CONFIG WIPE (Reverting to Clean State) ---
-        console.log('[EditorGame] !!! EMERGENCY WIPE REQUESTED !!!');
-        let count = 0;
-        const allKeys = Object.keys(localStorage);
-        allKeys.forEach(key => {
-            if (key.includes('beatmap_config')) {
-                localStorage.removeItem(key);
-                count++;
-            }
-        });
-        this.measureConfig.clear(); // Clear current memory as well
-        console.log(`[EditorGame] Successfully wiped ${count} items from storage and cleared memory.`);
-
         const container = this.ui.getTimelineContainer();
         if (container) {
             container.appendChild(this.canvas);
@@ -311,9 +298,9 @@ export class EditorGame extends BaseGame {
 
     private async loadMidiFile(name: string, file?: File, existingBuffer?: ArrayBuffer): Promise<void> {
         try {
-            this.currentMidiFileUrl = name;
-            // Ensure we capture the actual filename for localStorage consistency with RhythmGame
+            // CRITICAL: Set currentMidiFileName BEFORE any logic that uses it (like safeName generation)
             this.currentMidiFileName = name.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+            this.currentMidiFileUrl = name;
 
             let buffer: ArrayBuffer;
             if (existingBuffer) {
@@ -327,7 +314,7 @@ export class EditorGame extends BaseGame {
             this.rawMidiBuffer = buffer;
 
             const parser = new MidiParser();
-            this.midiData = await parser.parse(buffer);
+            this.midiData = await parser.parse(buffer, this.currentMidiFileName);
             await this.audioEngine.loadMidi(buffer);
 
 
@@ -713,7 +700,7 @@ export class EditorGame extends BaseGame {
                         GameTransition.set({
                             source: 'editor',
                             midiBuffer: this.rawMidiBuffer!,
-                            midiName: this.currentMidiFileUrl || this.midiData?.name || 'Test Song',
+                            midiName: this.currentMidiFileName || this.midiData?.name || 'Test Song',
                             forcedChannels: targetChannels,
                             settings: {
                                 mutedChannels: new Set(this.mutedTrackIndices),
@@ -796,8 +783,11 @@ export class EditorGame extends BaseGame {
 
         const outputData = {
             version: "1.2",
-            songName: this.currentMidiFileName,
-            bpm: this.midiData.bpm,
+            metadata: {
+                title: this.midiData.name,
+                bpm: this.midiData.bpm,
+                duration: this.midiData.duration
+            },
             measureConfig: measureObj
         };
 

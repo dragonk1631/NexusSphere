@@ -23,13 +23,15 @@ export class LaneAllocator {
 
         // Hand Tracking State
         let lastHand: 'left' | 'right' | null = null;
-        let consecutiveSameHand = 0;
-        const FATIGUE_THRESHOLD = 3; // Max consecutive notes per hand for single notes
+        // Jackhammer Prevention: Lanes shouldn't be reused too quickly for taps
+        const LANE_REUSE_COOLDOWN = 480; // 1 beat at 120bpm (480 ticks)
 
         // Track when each lane will be free (end tick of last note)
         const laneBusyUntil = new Array(totalLanes).fill(0);
         // Track when each hand will be free from a HOLD note (User requested Ergonomics fix)
         const handHoldBusyUntil = { left: 0, right: 0 };
+        
+        let lastNoteTick = -1000;
 
         segments.forEach(segment => {
             const { type, notes } = segment;
@@ -100,37 +102,44 @@ export class LaneAllocator {
                     ];
                     
                     // Valid options must have lanes from TWO available hands
-                    const validOptions = options.filter(pair => {
-                        const lLane = pair[0];
-                        const rLane = pair[1];
+                    let pair = options.find(p => {
+                        const lLane = p[0];
+                        const rLane = p[1];
                         return leftHandAvailable && rightHandAvailable &&
                                tick >= laneBusyUntil[lLane] && tick >= laneBusyUntil[rLane];
                     });
 
-                    if (validOptions.length > 0) {
-                        const chosenPair = rng.pick(validOptions);
-
-                        activeNotes.forEach((note, idx) => {
-                            const lane = chosenPair[idx];
-                            const isHold = (note as any).isHold;
-                            const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
-                            
-                            laneBusyUntil[lane] = tick + duration;
-                            if (isHold) {
-                                if (lane <= 2) handHoldBusyUntil.left = tick + duration;
-                                else handHoldBusyUntil.right = tick + duration;
-                            }
-
-                            result.push({ ...note, lane, isProcessed: false } as VisualNote);
-                            if (lane <= 2) lastLeftLane = lane;
-                            else lastRightLane = lane;
-                        });
-                        lastHand = null; 
-                        consecutiveSameHand = 0;
-                    } else {
-                        // Downgrade chord to a single note because one hand is held
-                        activeNotes = [activeNotes[0]];
+                    // [FIX] fallback for Chords: If no perfect symmetrical pair is free, find ANY two lanes
+                    if (!pair) {
+                        const allLanes = (laneCount === 4) ? [1, 2, 3, 4] : [0, 1, 2, 3, 4, 5];
+                        const sortedByAvailability = [...allLanes].sort((a, b) => laneBusyUntil[a] - laneBusyUntil[b]);
+                        pair = [sortedByAvailability[0], sortedByAvailability[1]];
                     }
+
+                    // Process Chord Notes
+                    pair.forEach((lane, idx) => {
+                        const note = activeNotes[idx];
+                        if (!note) return;
+
+                        const isHold = (note as any).isHold;
+                        const duration = isHold ? ((note.durationTicks || 10) + 240) : 10;
+                        const blockDuration = isHold ? duration : Math.max(duration, LANE_REUSE_COOLDOWN);
+                        
+                        if (lane <= 2) {
+                            lastLeftLane = lane;
+                            if (isHold) handHoldBusyUntil.left = tick + duration;
+                        } else {
+                            lastRightLane = lane;
+                            if (isHold) handHoldBusyUntil.right = tick + duration;
+                        }
+
+                        laneBusyUntil[lane] = tick + blockDuration;
+                        result.push({ ...note, lane, isProcessed: false } as VisualNote);
+                    });
+                    
+                    lastNoteTick = tick;
+                    lastHand = null; // Mixed hands
+                    return; // Progress to next tick
                 }
 
                 if (activeNotes.length === 1) {
@@ -138,21 +147,26 @@ export class LaneAllocator {
                     let useLeftHand = true;
 
                     // Decision Logic for Hand Assignment (Respect availability)
+                    const isRapid = (tick - lastNoteTick) < 240; // 8th note at 120bpm
+
                     if (!leftHandAvailable && rightHandAvailable) {
                         useLeftHand = false;
                     } else if (leftHandAvailable && !rightHandAvailable) {
                         useLeftHand = true;
                     } else if (!leftHandAvailable && !rightHandAvailable) {
-                        // BOTH HANDS BUSY HOLDING. Physically impossible to hit even a tap.
-                        return;
+                        // [FIX] Both hands busy holding. Force any hand based on least busy lane.
+                        const leftMin = Math.min(...leftLanes.map(l => laneBusyUntil[l]));
+                        const rightMin = Math.min(...rightLanes.map(l => laneBusyUntil[l]));
+                        useLeftHand = leftMin <= rightMin;
+                    } else if (isRapid && lastHand !== null) {
+                        // FORCE Alternation during rapid passages to prevent Jackhammers
+                        useLeftHand = (lastHand !== 'left');
                     } else if (type === 'stream' || type === 'burst') {
                         // Alternation
                         useLeftHand = (lastHand !== 'left');
                     } else {
                         const rhythmHint = rng.chance(0.5);
-                        if (consecutiveSameHand >= FATIGUE_THRESHOLD) {
-                            useLeftHand = (lastHand !== 'left'); 
-                        } else if (lastHand === null) {
+                        if (lastHand === null) {
                             useLeftHand = rhythmHint;
                         } else {
                             useLeftHand = rng.chance(0.3) ? !lastHand : rhythmHint;
@@ -187,27 +201,29 @@ export class LaneAllocator {
                         }
                     }
 
-                    if (lane === -1 || tick < laneBusyUntil[lane]) {
-                        return;
+                    // [FIX] Final Desperation Fallback: If still no lane, pick the absolute least busy one in the whole game
+                    if (lane === -1) {
+                        const allLanes = (laneCount === 4) ? [1, 2, 3, 4] : [0, 1, 2, 3, 4, 5];
+                        lane = allLanes.reduce((prev, curr) => laneBusyUntil[curr] < laneBusyUntil[prev] ? curr : prev);
                     }
 
                     // Update states for next notes
                     const isHold = (note as any).isHold;
-                    const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
+                    const duration = isHold ? ((note.durationTicks || 10) + 240) : 10;
+                    const blockDuration = isHold ? duration : Math.max(duration, LANE_REUSE_COOLDOWN);
                     
                     if (lane <= 2) {
                         lastLeftLane = lane;
                         if (isHold) handHoldBusyUntil.left = tick + duration;
-                        if (lastHand === 'left') consecutiveSameHand++;
-                        else { lastHand = 'left'; consecutiveSameHand = 1; }
+                        lastHand = 'left';
                     } else {
                         lastRightLane = lane;
                         if (isHold) handHoldBusyUntil.right = tick + duration;
-                        if (lastHand === 'right') consecutiveSameHand++;
-                        else { lastHand = 'right'; consecutiveSameHand = 1; }
+                        lastHand = 'right';
                     }
 
-                    laneBusyUntil[lane] = tick + duration;
+                    laneBusyUntil[lane] = tick + blockDuration;
+                    lastNoteTick = tick;
                     result.push({ ...note, lane, isProcessed: false } as VisualNote);
                 }
             });
