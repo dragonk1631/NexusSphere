@@ -22,9 +22,9 @@ export class MenuManager {
     public selectedSpeedIndex = 1; // Default 1.0x
     public selectedDifficultyIndex = 1; // Default NORMAL
     public scrollSpeed = 1.0;
-    public keyMode: 4 | 6 = 4;
+    public keyMode: 4 | 6 = 6;
     public menuAnimationTimer = 0;
-    public currentFilter: 'all' | 'official' | 'custom' = 'all';
+    public currentFilter: 'all' | 'official' | 'custom' | 'favorite' = 'all';
 
     private storage = new LocalSongStorage();
     private officialSongs: SongEntry[] = [];
@@ -42,6 +42,10 @@ export class MenuManager {
     /** Parsed MIDI of the currently-previewing song. Consumed by MenuRenderState → EQ visualizer. */
     public previewMidi: ParsedMidi | null = null;
     private _midiParser = new MidiParser();
+
+    // -- Toast Feedback --
+    public toastMessage: string | null = null;
+    public toastTimer = 0;
 
     constructor(
         audioEngine: CoreAudioEngine,
@@ -144,6 +148,8 @@ export class MenuManager {
             baseList = this.officialSongs;
         } else if (this.currentFilter === 'custom') {
             baseList = this.customSongs;
+        } else if (this.currentFilter === 'favorite') {
+            baseList = [...this.officialSongs, ...this.customSongs].filter(s => s.isFavorite);
         }
         this.songList = baseList;
         this.sortSongList();
@@ -200,6 +206,13 @@ export class MenuManager {
 
     public update(delta: number): void {
         this.menuAnimationTimer += delta * 0.001;
+
+        if (this.toastTimer > 0) {
+            this.toastTimer -= delta;
+            if (this.toastTimer <= 0) {
+                this.toastMessage = null;
+            }
+        }
     }
 
     public sortSongList(): void {
@@ -405,11 +418,12 @@ export class MenuManager {
     public handlePointerDown(x: number, y: number, width: number, height: number, isMobile: boolean): void {
         const layout = computeMenuLayout(width, height, isMobile);
 
-        // Main Menu Button
+        // Primary Exit (Deprecated, handled by bottom Back)
+        // Kept for hitting the corner but logically unified 
         if (x >= layout.mainMenuBtnX && x <= layout.mainMenuBtnX + layout.mainMenuBtnW &&
             y >= layout.mainMenuBtnY && y <= layout.mainMenuBtnY + layout.mainMenuBtnH) {
-            this.callbacks.onReturnToMainMenu();
-            return;
+            // this.callbacks.onReturnToMainMenu();
+            // return;
         }
 
         // ── Filter Tabs Interaction ──
@@ -417,7 +431,7 @@ export class MenuManager {
             if (x >= layout.tabAreaX && x <= layout.tabAreaX + layout.tabAreaW) {
                 const relativeX = x - layout.tabAreaX;
                 const tabIndex = Math.floor(relativeX / layout.tabWidth);
-                const filters: Array<'all' | 'official' | 'custom'> = ['all', 'official', 'custom'];
+                const filters: Array<'all' | 'official' | 'custom' | 'favorite'> = ['all', 'official', 'custom', 'favorite'];
                 if (tabIndex >= 0 && tabIndex < filters.length) {
                     this.currentFilter = filters[tabIndex];
                     this.selectedSongIndex = 0;
@@ -451,6 +465,13 @@ export class MenuManager {
             y >= layout.btnY && y <= layout.btnY + layout.btnH) {
             this.stopPreview();
             this.callbacks.onPlayRequested();
+            return;
+        }
+
+        // Back Button (Next to Play)
+        if (x >= layout.backBtnX && x <= layout.backBtnX + layout.backBtnW &&
+            y >= layout.backBtnY && y <= layout.backBtnY + layout.backBtnH) {
+            this.callbacks.onReturnToMainMenu();
             return;
         }
 
@@ -490,15 +511,10 @@ export class MenuManager {
             }
         }
 
-        // Sort Button (Check near the top of the list panel)
-        if (y > layout.listY && y < layout.listY + layout.tabH + (25 * layout.scaleFactor) && x > layout.listX + layout.listW - (130 * layout.scaleFactor)) {
-            this.cycleSortMode();
-            this.playPreview();
-            return;
-        }
+        // Hidden sort area removed per user request
 
         // Song Selection
-        if (x > layout.listContentX && x < layout.listHitMaxX &&
+        if (x > layout.listX && x < layout.listHitMaxX &&
             y > layout.listInnerY && y < layout.listInnerY + (layout.itemHeight * layout.visibleCount)) {
             const relativeY = y - layout.listInnerY;
             const clickedIndexOffset = Math.floor(relativeY / layout.itemHeight);
@@ -512,7 +528,27 @@ export class MenuManager {
             if (targetIndex >= 0 && targetIndex < this.songList.length) {
                 const song = this.songList[targetIndex];
 
-                // Check for Delete Button (on the right side of the item)
+                // 1. Check for Favorite Star Box (Leading area of the item)
+                const sf = layout.scaleFactor;
+                
+                // MATHEMATICAL SYNC & EXPANSION:
+                // The visual star box is at listX + 18*sf.
+                // To make it feel like a "reliable button", we expand the hit zone:
+                // It now starts from the absolute left edge of the list item and spans 
+                // past the visual star area.
+                const starBoxX = layout.listX; // Start from absolute left edge
+                const hitWidth = 65 * sf; // Generous hit area (visual box 18*sf offset + boxSize)
+                
+                const itemTopY = layout.listInnerY + clickedIndexOffset * layout.itemHeight;
+                const starBoxY = itemTopY; // Allow clicking anywhere in the vertical leading strip
+
+                if (x >= starBoxX && x <= starBoxX + hitWidth &&
+                    y >= starBoxY && y <= starBoxY + layout.itemHeight) {
+                    this.toggleFavorite(targetIndex);
+                    return;
+                }
+
+                // 2. Check for Delete Button (on the right side of the item)
                 if (song.isCustom) {
                     const delW = 24 * layout.scaleFactor;
                     const delX = layout.listX + (20 * layout.scaleFactor) + (layout.listW - 60 * layout.scaleFactor) - delW - 15 * layout.scaleFactor;
@@ -529,6 +565,22 @@ export class MenuManager {
             }
         }
     } // End of handlePointerDown
+
+    public toggleFavorite(index: number): void {
+        const song = this.songList[index];
+        if (song) {
+            song.isFavorite = !song.isFavorite;
+            console.log(`[MenuManager] Toggled favorite for ${song.name}: ${song.isFavorite}`);
+            
+            this.toastMessage = song.isFavorite ? "즐겨찾기에 등록되었습니다" : "즐겨찾기에서 해제되었습니다";
+            this.toastTimer = 2000; // 2 seconds
+
+            // If we are in FAVORITE mode, immediately refresh list to remove if untoggled
+            if (this.currentFilter === 'favorite') {
+                this.applyFilter();
+            }
+        }
+    }
 
     public handlePointerMove(_x: number, y: number, width: number, height: number, isMobile: boolean): void {
         if (!this.isDraggingScrollbar) return;

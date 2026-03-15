@@ -3,8 +3,7 @@ import { type MenuRenderState, type SongEntry } from '../../types/GameTypes';
 import {
     hexToRgb,
     lerpColor,
-    drawPremiumPanel,
-    drawPremiumTypography
+    drawPremiumPanel
 } from '../MenuUIUtils';
 
 export class SongListRenderer {
@@ -18,8 +17,8 @@ export class SongListRenderer {
 
         // ── Render Filter Tabs ──
         const { tabAreaX, tabAreaY, tabAreaH, tabWidth, uploadBtnX, uploadBtnY, uploadBtnW, uploadBtnH } = layout;
-        const filters: Array<MenuRenderState['currentFilter']> = ['all', 'official', 'custom'];
-        const labels = ['ALL', 'OFFICIAL', 'MY SONGS'];
+        const filters: Array<MenuRenderState['currentFilter']> = ['all', 'official', 'custom', 'favorite'];
+        const labels = ['ALL', 'OFFICIAL', 'MY SONGS', 'FAVORITES'];
 
         filters.forEach((f, i) => {
             const tx = tabAreaX + i * tabWidth;
@@ -40,11 +39,11 @@ export class SongListRenderer {
                 ctx.beginPath(); ctx.roundRect(tx, tabAreaY, tabWidth - 4 * sf, tabAreaH, 4 * sf); ctx.fill();
             }
 
-            ctx.font = `600 ${Math.floor(12 * sf)}px "Orbitron"`;
+            ctx.font = `800 ${Math.floor(13 * sf)}px "Orbitron"`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.4)';
-            ctx.fillText(labels[i], tx + tabWidth / 2 - 2 * sf, tabAreaY + tabAreaH / 2);
+            ctx.fillText(labels[i], tx + tabWidth / 2, tabAreaY + tabAreaH / 2);
             ctx.restore();
         });
 
@@ -86,20 +85,22 @@ export class SongListRenderer {
             const isSelected = i === state.selectedSongIndex;
             const y = listInnerY + (i - startIndex) * itemHeight;
 
-            this.renderPremiumSongItem(ctx, song, i, listX + (20 * sf), y, listW - (60 * sf), itemHeight, isSelected, sf, time, c1, c2);
+            // Enforce a strict gap: item width is list width minus scrollbar and extra margin
+            const safeItemW = listW - layout.scrollbarW - 25 * sf;
+            this.renderPremiumSongItem(ctx, song, listX + (10 * sf), y, safeItemW, itemHeight, isSelected, sf, time, c1, c2);
         }
         ctx.restore();
 
         // ── Scrollbar ──
-        const scrollbarW = 10 * sf;
+        const scrollbarW = layout.scrollbarW;
         const scrollbarX = listX + listW - scrollbarW - (8 * sf);
-        const scrollbarY = listInnerY;
-        const scrollbarTrackH = contentAreaH;
+        const scrollbarY = listInnerY + 6 * sf;
+        const scrollbarTrackH = layout.scrollbarTrackH;
 
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath(); ctx.roundRect(scrollbarX, scrollbarY, scrollbarW, scrollbarTrackH, 5 * sf); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(scrollbarX, scrollbarY, scrollbarW, scrollbarTrackH, 8 * sf); ctx.fill();
         ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.35)`;
-        ctx.lineWidth = 1.5 * sf;
+        ctx.lineWidth = 1.8 * sf;
         ctx.stroke();
 
         const thumbH = Math_max(scrollbarTrackH * (visibleCount / Math_max(1, state.songList.length)), 40 * sf);
@@ -114,15 +115,57 @@ export class SongListRenderer {
         ctx.save();
         ctx.shadowBlur = 16 * sf; ctx.shadowColor = c1;
         ctx.fillStyle = thumbGrad;
-        ctx.beginPath(); ctx.roundRect(scrollbarX, thumbY, scrollbarW, thumbH, 5 * sf);
+        ctx.beginPath(); ctx.roundRect(scrollbarX, thumbY, scrollbarW, thumbH, 8 * sf);
         ctx.fill();
         ctx.strokeStyle = c2;
         ctx.lineWidth = 1.5 * sf;
         ctx.stroke();
         ctx.restore();
+
+        // ── Render Toast ──
+        if (state.toastMessage) {
+            this.renderToast(ctx, state.toastMessage, listX, panelY, listW, sf, c1, state.toastTimer || 0);
+        }
     }
 
-    private renderPremiumSongItem(ctx: CanvasRenderingContext2D, song: SongEntry, index: number, x: number, y: number, contentW: number, itemHeight: number, isSelected: boolean, sf: number, time: number, c1: string, c2: string) {
+    private renderToast(ctx: CanvasRenderingContext2D, message: string, listX: number, panelY: number, listW: number, sf: number, color: string, timer: number) {
+        // Animation Logic: Fade in/out and Slide up
+        let alpha = 1;
+        let yOffset = 0;
+        const duration = 2000;
+        const animTime = 300;
+
+        if (timer > duration - animTime) {
+            const p = (duration - timer) / animTime;
+            alpha = p;
+            yOffset = (1 - p) * 15 * sf;
+        } else if (timer < animTime) {
+            const p = timer / animTime;
+            alpha = p;
+            yOffset = (p - 1) * 15 * sf;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        
+        const toastW = listW * 0.8;
+        const toastH = 55 * sf;
+        const toastX = listX + (listW - toastW) / 2;
+        const toastY = panelY + 120 * sf + yOffset; 
+
+        ctx.fillStyle = 'rgba(0,0,0,0.92)';
+        ctx.shadowBlur = 30 * sf; ctx.shadowColor = color;
+        ctx.beginPath(); ctx.roundRect(toastX, toastY, toastW, toastH, 12 * sf); ctx.fill();
+        ctx.strokeStyle = color; ctx.lineWidth = 3 * sf; ctx.stroke();
+
+        ctx.font = `900 ${Math.floor(22 * sf)}px "Orbitron"`;
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(message, toastX + toastW / 2, toastY + toastH / 2);
+        ctx.restore();
+    }
+
+    private renderPremiumSongItem(ctx: CanvasRenderingContext2D, song: SongEntry, x: number, y: number, contentW: number, itemHeight: number, isSelected: boolean, sf: number, time: number, c1: string, c2: string) {
         ctx.save();
         ctx.translate(x, y);
 
@@ -153,30 +196,60 @@ export class SongListRenderer {
             ctx.stroke();
         }
 
-        const indexStr = (index + 1).toString().padStart(2, '0');
-        const itemX = 35 * sf;
-        const itemY = itemHeight * 0.5;
-        if (isSelected) {
-            drawPremiumTypography(ctx, indexStr, itemX, itemY, 'center', itemHeight * 0.36, '#fff', true, c1, 60 * sf, 'rgba(0,0,0,0.65)');
+        // ── Favorite Star Box ──
+        const boxSize = innerH - 12 * sf;
+        const boxX = 8 * sf; // Constant offset within the item
+        const boxY = innerY + (innerH - boxSize) / 2;
+        
+        ctx.save();
+        // Star Box Background
+        ctx.fillStyle = isSelected ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.05)';
+        ctx.beginPath(); ctx.roundRect(boxX, boxY, boxSize, boxSize, 4 * sf); ctx.fill();
+        ctx.strokeStyle = isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1 * sf;
+        ctx.stroke();
+
+        // Star Icon (Favorite)
+        const starX = boxX + boxSize / 2;
+        const starY = boxY + boxSize / 2;
+        const starSize = boxSize * 0.35;
+        
+        ctx.save();
+        ctx.translate(starX, starY);
+        if (song.isFavorite) {
+            ctx.fillStyle = '#ffcc00'; // Gold
+            ctx.shadowBlur = 15 * sf; ctx.shadowColor = '#ffcc00';
+            this.drawStar(ctx, 0, 0, 5, starSize, starSize * 0.5);
+            ctx.fill();
         } else {
-            ctx.save();
-            ctx.font = `800 ${Math.floor(itemHeight * 0.32)}px "Orbitron"`;
-            ctx.fillStyle = 'rgba(255,255,255,0.85)';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(indexStr, itemX, itemY);
-            ctx.restore();
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1.5 * sf;
+            this.drawStar(ctx, 0, 0, 5, starSize, starSize * 0.5);
+            ctx.stroke();
         }
+        ctx.restore();
+        ctx.restore(); // Restores from Star Box translate/save
 
         const name = song.name.toUpperCase();
-        const maxW = contentW - 140 * sf;
-        const textX = 85 * sf;
-        const textY = itemHeight * 0.6; // Slightly lowered to make space for badge
+        const baseFontSize = itemHeight * 0.35; // Unified font size for all states
+        const gutter = 10 * sf;
+        const maxW = contentW - boxSize - 25 * sf - gutter; // Increased width to prevent shrinking
+        const textX = boxX + boxSize + 18 * sf; 
+        const textY = itemHeight * 0.6; 
         
         if (isSelected) {
-            drawPremiumTypography(ctx, name, textX, textY, 'left', itemHeight * 0.36, '#fff', true, c1, maxW, 'rgba(0,0,0,0.7)');
-        } else {
+            // Selected: White text with glow, but native scaling for size consistency
             ctx.save();
-            ctx.font = `700 ${Math.floor(itemHeight * 0.32)}px "Orbitron"`;
+            ctx.shadowBlur = 10 * sf; ctx.shadowColor = c1;
+            ctx.font = `900 ${Math.floor(baseFontSize)}px "Orbitron"`;
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.fillText(name, textX, textY, maxW);
+            ctx.restore();
+        } else {
+            // Unselected: Regular muted white, same size logic
+            ctx.save();
+            ctx.font = `700 ${Math.floor(baseFontSize)}px "Orbitron"`;
             ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
             ctx.fillText(name, textX, textY, maxW);
@@ -184,15 +257,16 @@ export class SongListRenderer {
         }
 
         // ── Badges and Delete Button ──
-        const badgeX = 85 * sf;
+        const badgeX = textX;
         const badgeY = innerY + 12 * sf;
 
         if (song.isCustom) {
+            // ... (keep logic same but use contentW relative positions)
+            const bW = 60 * sf;
+            const bH = 16 * sf;
             ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
             ctx.strokeStyle = '#ff00ff';
             ctx.lineWidth = 1 * sf;
-            const bW = 60 * sf;
-            const bH = 16 * sf;
             ctx.beginPath(); ctx.roundRect(badgeX, badgeY - bH/2, bW, bH, 4 * sf); ctx.fill(); ctx.stroke();
             ctx.fillStyle = '#ff00ff';
             ctx.font = `900 ${Math.floor(9 * sf)}px "Orbitron"`;
@@ -200,7 +274,7 @@ export class SongListRenderer {
             ctx.fillText("CUSTOM", badgeX + bW/2, badgeY);
 
             const delW = 24 * sf;
-            const delX = contentW - delW - 15 * sf;
+            const delX = contentW - delW - 5 * sf;
             const delY = itemHeight * 0.5;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
             ctx.beginPath(); ctx.arc(delX, delY, 10 * sf, 0, Math.PI * 2); ctx.fill();
@@ -223,13 +297,31 @@ export class SongListRenderer {
             ctx.fillText("OFFICIAL", badgeX + bW/2, badgeY);
         }
 
-        if (isSelected) {
-            const shift = Math.sin(time * 12) * 4 * sf;
-            ctx.fillStyle = c2; ctx.font = `900 ${Math.floor(18 * sf)}px "Orbitron"`;
-            ctx.shadowBlur = 10 * sf; ctx.shadowColor = c2;
-            ctx.fillText("»", contentW - 40 * sf + shift, itemHeight * 0.5);
-        }
+        // Indicator removed as requested to keep font size consistent
 
         ctx.restore();
+    }
+
+    private drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes: number, outerRadius: number, innerRadius: number) {
+        let rot = Math.PI / 2 * 3;
+        let x = cx;
+        let y = cy;
+        const step = Math.PI / spikes;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerRadius);
+        for (let i = 0; i < spikes; i++) {
+            x = cx + Math.cos(rot) * outerRadius;
+            y = cy + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+
+            x = cx + Math.cos(rot) * innerRadius;
+            y = cy + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+        }
+        ctx.lineTo(cx, cy - outerRadius);
+        ctx.closePath();
     }
 }

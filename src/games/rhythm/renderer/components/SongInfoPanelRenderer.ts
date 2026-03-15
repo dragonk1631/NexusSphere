@@ -8,10 +8,18 @@ import {
 } from '../MenuUIUtils';
 
 export class SongInfoPanelRenderer {
-    public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, currentSong: SongEntry, sf: number, c1: string, c2: string, bpm: number, eqRenderer: MidiEQRenderer) {
+    public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, currentSong: SongEntry | null, sf: number, c1: string, c2: string, bpm: number, eqRenderer: MidiEQRenderer) {
         const { visPanelY, leftPanelWidth, visPanelH, padding } = layout;
 
         drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf);
+
+        if (!currentSong) {
+            const cx = Math.floor(padding + leftPanelWidth / 2);
+            const cy = Math.floor(visPanelY + visPanelH / 2);
+            drawPremiumTypography(ctx, "ELEVATING DATA", cx, cy - 10 * sf, 'center', 24 * sf, '#fff', true, c1, leftPanelWidth * 0.8);
+            drawPremiumTypography(ctx, "NO TRACK DETECTED IN CURRENT DIRECTORY", cx, cy + 20 * sf, 'center', 10 * sf, 'rgba(255,255,255,0.4)', false, 'transparent', leftPanelWidth * 0.8);
+            return;
+        }
 
         const cx = Math.floor(padding + leftPanelWidth / 2);
 

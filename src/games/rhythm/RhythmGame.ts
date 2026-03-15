@@ -100,7 +100,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     public laneTopWidth = 10;
     public laneCount = 6;
     public scrollSpeed = 1.0;
-    public keyMode: 4 | 6 = 4;
+    public keyMode: 4 | 6 = 6;
     private startTimeout: ReturnType<typeof setTimeout> | null = null;
     public pauseSelectedButtonIndex: number = 0;
     public pauseAnimationTimer: number = 0;
@@ -472,6 +472,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.scoreManager = this.scoreManager;
         s.previewMidi = this.menuManager.previewMidi;
         s.previewTime = this.audioEngine.getPreciseTime() - this.audioEngine.getOutputLatency();
+        s.toastMessage = this.menuManager.toastMessage;
+        s.toastTimer = this.menuManager.toastTimer;
     }
 
     public updateLoadingRenderState(): void {
