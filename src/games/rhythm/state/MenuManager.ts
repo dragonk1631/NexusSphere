@@ -104,15 +104,22 @@ export class MenuManager {
         
         for (const s of targets) {
             // Yield to main thread to prevent UI lock
-            await new Promise(r => setTimeout(r, 200)); 
+            await new Promise(r => setTimeout(r, 400)); 
             
-            // PROFESSIONAL: Abort background tasks immediately if game is active
-            if (this.audioEngine.isPlaying() && !this.previewMidi) break; 
+            // PROFESSIONAL: Abort background tasks immediately if the engine is BUSY with a real game song.
+            // We check if it's playing AND NOT in the preview state.
+            if (this.audioEngine.isPlaying() && !this.previewMidi) {
+                console.log("[MenuManager] Aborting background parsing: Game active.");
+                break; 
+            }
 
             try {
                 const blob = await this.storage.getSongBlob(s.url);
                 if (blob) {
                     const buffer = await blob.arrayBuffer();
+                    // Double check before heavy parse
+                    if (this.audioEngine.isPlaying() && !this.previewMidi) break;
+
                     const parsed = await this._midiParser.parse(buffer);
                     s.duration = parsed.duration;
                     s.bpm = parsed.bpm || 120;
@@ -555,6 +562,7 @@ export class MenuManager {
     public stopPreview(): void {
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
         this.audioEngine.stop();
+        this.previewMidi = null; // IMPORTANT: Clear preview state so background tasks know we are not in Preview mode
     }
 
     private triggerFileUpload(): void {
