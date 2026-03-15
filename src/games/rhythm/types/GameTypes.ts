@@ -39,6 +39,7 @@ export interface SongEntry {
     noteCount?: number;
     difficulty?: number;
     isCustom?: boolean;
+    isFavorite?: boolean;
 }
 
 /**
@@ -58,13 +59,10 @@ export interface Explosion {
 export interface ParticleData {
     x: number;
     y: number;
-    vx: number;
-    vy: number;
     alpha: number;
     size: number;
     color: string;
     rotation: number;
-    rotationSpeed: number;
 }
 
 /**
@@ -79,7 +77,7 @@ export interface MenuRenderState {
     songList: SongEntry[];
     selectedSongIndex: number;
     currentSortMode: 'name' | 'bpm' | 'duration' | 'noteCount';
-    currentFilter: 'all' | 'official' | 'custom';
+    currentFilter: 'all' | 'official' | 'custom' | 'favorite';
 
     // -- Options --
     difficultyOptions: readonly string[];
@@ -105,6 +103,10 @@ export interface MenuRenderState {
     previewMidi?: ParsedMidi | null;
     /** Current audio playback position in seconds (for the EQ visualizer) */
     previewTime?: number;
+
+    // -- Feedback --
+    toastMessage?: string | null;
+    toastTimer?: number;
 }
 
 /**
@@ -146,9 +148,8 @@ export interface PauseRenderState {
  * Decouples physics logic from rendering logic.
  */
 export interface IParticleRenderData {
-    getParticles(): ReadonlyArray<ParticleData>;
     forEachActiveParticle(callback: (p: ParticleData) => void): void;
-    getExplosions(): ReadonlyArray<Explosion>;
+    forEachActiveExplosion(callback: (e: Explosion) => void): void;
 }
 
 /**

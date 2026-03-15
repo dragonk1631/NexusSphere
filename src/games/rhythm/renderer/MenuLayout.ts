@@ -40,6 +40,10 @@ export interface MenuLayoutResult {
     visibleCount: number;   // Number of visible items on screen
     itemHeight: number;     // Height of a single song list item
     
+    // -- Scrollbar --
+    scrollbarW: number;
+    scrollbarTrackH: number;
+    
     // -- Filter Tabs --
     tabAreaX: number;
     tabAreaY: number;
@@ -53,11 +57,16 @@ export interface MenuLayoutResult {
     uploadBtnW: number;
     uploadBtnH: number;
 
-    // ── PLAY Button ──
+    // ── ACTION Buttons (PLAY & BACK) ──
     btnX: number;
     btnY: number;
     btnW: number;
     btnH: number;
+
+    backBtnX: number;
+    backBtnY: number;
+    backBtnW: number;
+    backBtnH: number;
 
     // ── Top Main Menu Button ──
     mainMenuBtnX: number;   // Starting X of top right button
@@ -83,7 +92,7 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     scaleFactor = Math.max(0.65, scaleFactor) * visibilityBoost;
 
     const padding = Math.floor(20 * scaleFactor);
-    const tabH = Math.floor(26 * scaleFactor);
+    const tabH = Math.floor(32 * scaleFactor); // Increased from 26 for larger buttons
 
     // Panel Widths
     const leftPanelWidth = Math.min(width * 0.45, 540 * scaleFactor);
@@ -114,11 +123,19 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     const listAvailH = Math.floor(listH - tabH - (20 * scaleFactor) - btnAreaH);
     const itemHeight = Math.floor(listAvailH / visibleCount);
 
-    // Play Button
+    // Action Buttons (Play & Back) - Bounded within list width
+    const btnGap = Math.floor(12 * scaleFactor);
     const btnH = Math.floor(btnAreaH);
-    const btnW = Math.floor(listW);
-    const btnX = Math.floor(listX);
-    const btnY = Math.floor(listY + listH - btnH);
+    const totalBtnW = listW - (20 * scaleFactor); // Keep some margin within frame
+
+    const btnW = Math.floor((totalBtnW - btnGap) * 0.75); // Play (75%)
+    const btnX = Math.floor(listX + (10 * scaleFactor)); // Center within listX padding
+    const btnY = Math.floor(listY + listH - btnH - (10 * scaleFactor)); // Lift slightly from bottom border
+
+    const backBtnW = Math.floor((totalBtnW - btnGap) * 0.25); // Back (25%)
+    const backBtnX = Math.floor(btnX + btnW + btnGap);
+    const backBtnY = btnY;
+    const backBtnH = btnH;
 
     // Options Grid (Optimized for 3 items: Difficulty, Speed, KeyMode)
     const padUI = Math.floor(12 * scaleFactor);
@@ -138,16 +155,20 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     const hitHeight = Math.floor((infoH - 34 * scaleFactor) * 0.45);
 
     // Precise coordinates for Song titles and Hits
-    const scrollbarW = Math.floor(28 * scaleFactor);
-    const listContentX = Math.floor(listX + scrollbarW + (10 * scaleFactor));
+    const scrollbarW = Math.floor(32 * scaleFactor); // Increased from 28
+    const listContentX = Math.floor(listX + scrollbarW + (14 * scaleFactor));
     const listHitMaxX = Math.floor(listX + listW);
+
+    // Scrollbar spanning exactly 5 items (visual box top of #1 to bottom of #5)
+    // Vertical offset (6*sf) at top and bottom: total 12*sf subtracted.
+    const scrollbarTrackH = itemHeight * 5 - 12 * scaleFactor;
 
     // Filter Tabs
     const tabAreaX = listX + (10 * scaleFactor);
     const tabAreaY = listY + (3 * scaleFactor);
-    const tabAreaW = listW * 0.7;
-    const tabAreaH = tabH - (6 * scaleFactor);
-    const tabWidth = Math.floor(tabAreaW / 3);
+    const tabAreaW = listW * 0.9; // Increased area to fit 4 tabs
+    const tabAreaH = tabH - (4 * scaleFactor); 
+    const tabWidth = Math.floor(tabAreaW / 4);
 
     // Upload Button
     const uploadBtnW = Math.floor(36 * scaleFactor);
@@ -202,10 +223,16 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
         btnY: Math.floor(btnY),
         btnW: Math.floor(btnW),
         btnH: Math.floor(btnH),
+        backBtnX: Math.floor(backBtnX),
+        backBtnY: Math.floor(backBtnY),
+        backBtnW: Math.floor(backBtnW),
+        backBtnH: Math.floor(backBtnH),
         mainMenuBtnX,
         mainMenuBtnY,
         mainMenuBtnW,
         mainMenuBtnH,
+        scrollbarW,
+        scrollbarTrackH,
         scaleFactor
     };
 }

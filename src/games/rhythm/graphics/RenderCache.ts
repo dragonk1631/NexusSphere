@@ -26,6 +26,8 @@ export class RenderCache {
         ['#aa00ff', '#bb33ff'], // Lane 5
     ];
 
+    private currentSkinId: string | null = null;
+
     private constructor() { }
 
     public static getInstance(): RenderCache {
@@ -40,32 +42,31 @@ export class RenderCache {
     }
 
     public init(): void {
-        console.log("[RenderCache] Generating static assets...");
-        const skinId = NoteSkinManager.getInstance().getCurrentSkin().id;
+        const skin = NoteSkinManager.getInstance().getCurrentSkin();
+        if (this.currentSkinId === skin.id) return; // Guard: skip redundant generation
 
-        this.notes = this.COLORS.map(colors => this.createCachedNote(colors, skinId));
-        this.longNoteBodies = this.COLORS.map(colors => this.createLongNoteBody(colors, skinId));
+        console.log(`[RenderCache] Generating static assets for skin: ${skin.id}`);
+        this.currentSkinId = skin.id;
 
-        this.receptors = this.COLORS.map(colors => this.createCachedReceptor(colors, skinId, false));
-        this.receptorsActive = this.COLORS.map(colors => this.createCachedReceptor(colors, skinId, true));
+        this.notes = this.COLORS.map(colors => this.createCachedNote(colors, skin.id));
+        this.longNoteBodies = this.COLORS.map(colors => this.createLongNoteBody(colors, skin.id));
+
+        this.receptors = this.COLORS.map(colors => this.createCachedReceptor(colors, skin.id, false));
+        this.receptorsActive = this.COLORS.map(colors => this.createCachedReceptor(colors, skin.id, true));
 
         this.particleGlow = this.createGlowParticle();
     }
 
     /**
-     * Pre-warms the render cache for a specific configuration.
-     * Triggers canvas allocations and initial draws to avoid on-the-fly jank.
+     * PRE-CONDITION: init() must be called first to initialize sprites.
      */
     public async warmup(width: number, height: number, horizonY: number, bottomY: number, laneCount: number, getPerspectiveX: (l: number, y: number) => number, color1: string, color2: string, hitLineY: number): Promise<void> {
         return new Promise((resolve) => {
-            // Force recreation of the highway background to warm up GPU textures
+            // Re-warm background persistent canvas
             this.renderHighwayBackground(width, height, horizonY, bottomY, laneCount, getPerspectiveX, color1, color2, hitLineY);
 
-            // Re-init sprites if skin changed (already handled in init, but safe here)
-            this.init();
-
-            // Minimal delay to let the browser process the canvas operations
-            setTimeout(resolve, 50);
+            // Minimal delay for GPU state sync
+            setTimeout(resolve, 30);
         });
     }
 
@@ -684,10 +685,18 @@ export class RenderCache {
         themeColor2: string,
         hitLineY: number = bottomY
     ): HTMLCanvasElement {
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        if (!this.highwayBackground) {
+            this.highwayBackground = document.createElement('canvas');
+        }
+        
+        const canvas = this.highwayBackground;
+        if (canvas.width !== width || canvas.height !== height) {
+            canvas.width = width;
+            canvas.height = height;
+        }
+        
         const ctx = canvas.getContext('2d')!;
+        ctx.clearRect(0, 0, width, height);
 
         const tl = { x: getPerspectiveX(0, horizonY), y: horizonY };
         const tr = { x: getPerspectiveX(laneCount, horizonY), y: horizonY };

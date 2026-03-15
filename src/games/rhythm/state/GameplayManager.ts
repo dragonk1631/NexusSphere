@@ -219,6 +219,13 @@ export class GameplayManager {
     private applyLagGating(currentTime: number, lastRenderTime: number): number {
         const drift = currentTime - lastRenderTime;
 
+        // EMERGENCY: Hard Sync for massive drift (e.g. > 1s)
+        // This avoids the "teleporting/speeding up" effect when hardware clock jumps or arrives late.
+        if (Math.abs(drift) > 1000) {
+            console.log(`[GameplayManager] Massive drift (${drift.toFixed(0)}ms). Performing HARD SYNC.`);
+            return currentTime;
+        }
+
         if (drift > LAG_GATE_CONFIG.MAX_DRIFT_MS) {
             return lastRenderTime + LAG_GATE_CONFIG.MAX_STEP_MS;
         }

@@ -85,20 +85,17 @@ export class MenuRenderer {
             return;
         }
 
-        const currentSong = state.songList[state.selectedSongIndex];
-        if (currentSong) {
-            // Assign score manager dynamically if state lacks it, though ideally it should be inside state (or here)
-            if (!state.scoreManager) {
-                // Keep backward compatibility injection if needed
-                (state as any).scoreManager = this.scoreManager;
-            }
-            this.songInfoRenderer.render(ctx, layout, state, currentSong, sf, c1, c2, state.songList[state.selectedSongIndex].bpm || 120, this.midiEQRenderer);
+        const currentSong = state.songList[state.selectedSongIndex] || null;
+        if (!state.scoreManager) {
+            (state as any).scoreManager = this.scoreManager;
         }
+        this.songInfoRenderer.render(ctx, layout, state, currentSong, sf, c1, c2, currentSong?.bpm || 120, this.midiEQRenderer);
 
         this.optionsRenderer.render(ctx, layout, state, sf, c1, c2);
         this.songListRenderer.render(ctx, layout, state, sf, c1, c2, time);
+        
         this.controlsRenderer.renderPlayButton(ctx, layout, time, sf, c1, c2);
-        this.controlsRenderer.renderExitButton(ctx, layout, sf, c1);
+        this.controlsRenderer.renderBackButton(ctx, layout, sf, time); // Redesigned Red Back button
 
         ctx.restore();
     }

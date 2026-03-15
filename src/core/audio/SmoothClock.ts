@@ -58,9 +58,10 @@ export class SmoothClock {
                 this.perfAnchor = now;
                 this.firstMoveDetected = true;
             } else {
-                // Still waiting for signal. To avoid permanent freeze, use a 2s safety timeout.
+                // Still waiting for signal. To avoid permanent freeze, use a 0.5s safety timeout for PREVIEW, 
+                // but a longer 5s timeout for REAL gameplay to allow for mobile sample loading.
                 this.startWaitTime += delta;
-                if (this.startWaitTime > 2.0) {
+                if (this.startWaitTime > 5.0) {
                     this.firstMoveDetected = true;
                     this.perfAnchor = now;
                 }
