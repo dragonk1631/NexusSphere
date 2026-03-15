@@ -130,6 +130,7 @@ export class CoreAudioEngine {
         // Add Diagnostics
         this.sequencer.eventHandler.addEvent("songEnded", "engine-song-end", () => {
             AudioEngineLogger.info(`Song ended at ${this.currentTime.toFixed(2)}s`);
+            this.pause(); // PROFESSIONAL: Stop internal clocks when hardware stops
         });
 
         await this.sequencer.loadNewSongList([{ binary: buffer }]);

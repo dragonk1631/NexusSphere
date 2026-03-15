@@ -35,14 +35,14 @@ export class PlayingState extends BaseGameState {
         if (game.transitionSystem.isActive()) return;
 
         if (game.gameplayManager.isGameOver()) {
+            game.audioEngine.stop(); // PROFESSIONAL: Stop immediately to freeze clock
             game.transitionSystem.start(() => {
                 game.setState(GameState.GAMEOVER);
-                game.audioEngine.stop();
             }, 'glitch');
         } else if (game.gameplayManager.isSongCompleted(game.lastRenderTime, game.midiData?.duration ? game.midiData.duration * 1000 : 0, delta)) {
+            game.audioEngine.stop(); // PROFESSIONAL: Stop immediately to freeze clock
             game.transitionSystem.start(() => {
                 game.setState(GameState.RESULT);
-                game.audioEngine.stop();
                 if (!game.isTestMode && game.scoreManager) {
                     game.scoreManager.saveHighScore(game.menuManager.getCurrentSong().url);
                 }

@@ -37,8 +37,21 @@ export interface MenuLayoutResult {
     listInnerY: number;     // Starting Y of list content (below tabs)
     listContentX: number;   // Starting X of list content (excluding scrollbar)
     listHitMaxX: number;    // Max X for clicking on list items
-    itemHeight: number;     // Height of a single song list item
     visibleCount: number;   // Number of visible items on screen
+    itemHeight: number;     // Height of a single song list item
+    
+    // -- Filter Tabs --
+    tabAreaX: number;
+    tabAreaY: number;
+    tabAreaW: number;
+    tabAreaH: number;
+    tabWidth: number;
+
+    // -- Upload Button --
+    uploadBtnX: number;
+    uploadBtnY: number;
+    uploadBtnW: number;
+    uploadBtnH: number;
 
     // ── PLAY Button ──
     btnX: number;
@@ -129,6 +142,19 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     const listContentX = Math.floor(listX + scrollbarW + (10 * scaleFactor));
     const listHitMaxX = Math.floor(listX + listW);
 
+    // Filter Tabs
+    const tabAreaX = listX + (10 * scaleFactor);
+    const tabAreaY = listY + (3 * scaleFactor);
+    const tabAreaW = listW * 0.7;
+    const tabAreaH = tabH - (6 * scaleFactor);
+    const tabWidth = Math.floor(tabAreaW / 3);
+
+    // Upload Button
+    const uploadBtnW = Math.floor(36 * scaleFactor);
+    const uploadBtnH = tabAreaH;
+    const uploadBtnX = listX + listW - uploadBtnW - (10 * scaleFactor);
+    const uploadBtnY = tabAreaY;
+
     // Top Right Exit Button
     const mainMenuBtnW = Math.floor(120 * scaleFactor);
     const mainMenuBtnH = Math.floor(28 * scaleFactor);
@@ -163,6 +189,15 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
         listHitMaxX,
         itemHeight: Math.floor(itemHeight),
         visibleCount,
+        tabAreaX,
+        tabAreaY,
+        tabAreaW,
+        tabAreaH,
+        tabWidth,
+        uploadBtnX,
+        uploadBtnY,
+        uploadBtnW,
+        uploadBtnH,
         btnX: Math.floor(btnX),
         btnY: Math.floor(btnY),
         btnW: Math.floor(btnW),

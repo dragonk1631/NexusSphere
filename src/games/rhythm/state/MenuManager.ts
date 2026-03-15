@@ -1,8 +1,9 @@
+import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
+import { LocalSongStorage, type LocalSongMetadata } from '../services/LocalSongStorage';
 import { type SongEntry } from '../types/GameTypes';
 import { type CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
 import { SPEED_OPTIONS, DIFFICULTY_OPTIONS } from '../constants/GameConstants';
 import { computeMenuLayout } from '../renderer/MenuLayout';
-import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -14,13 +15,7 @@ export interface IMenuCallbacks {
  * It manages song selection, options, and playback previews.
  */
 export class MenuManager {
-    public songList: SongEntry[] = [
-        { name: "Neon Drift", bpm: 128, url: "assets/audio/neon_drift.mid", difficulty: 3 },
-        { name: "Cyber Pulse", bpm: 145, url: "assets/audio/cyber_pulse.mid", difficulty: 5 },
-        { name: "Midnight City", bpm: 110, url: "assets/audio/midnight_city.mid", difficulty: 2 },
-        { name: "Digital Love", bpm: 120, url: "assets/audio/digital_love.mid", difficulty: 4 },
-        { name: "System Overload", bpm: 180, url: "assets/audio/system_overload.mid", difficulty: 8 }
-    ];
+    public songList: SongEntry[] = [];
 
     public selectedSongIndex = 0;
     public currentSortMode: 'name' | 'bpm' | 'duration' | 'noteCount' = 'name';
@@ -29,6 +24,11 @@ export class MenuManager {
     public scrollSpeed = 1.0;
     public keyMode: 4 | 6 = 4;
     public menuAnimationTimer = 0;
+    public currentFilter: 'all' | 'official' | 'custom' = 'all';
+
+    private storage = new LocalSongStorage();
+    private officialSongs: SongEntry[] = [];
+    private customSongs: SongEntry[] = [];
 
     // Drag-to-scroll state
     private isDraggingScrollbar: boolean = false;
@@ -49,7 +49,129 @@ export class MenuManager {
     ) {
         this.audioEngine = audioEngine;
         this.callbacks = callbacks;
+        this.init();
+    }
+
+    private async init() {
+        await this.loadOfficialSongs();
+        await this.loadUserSongs();
         this.sortSongList();
+    }
+
+    public async loadOfficialSongs() {
+        try {
+            const res = await fetch('assets/data/official_songs.json');
+            if (!res.ok) throw new Error("Failed to load official songs list.");
+            const data = await res.json();
+            this.officialSongs = data.map((s: any) => ({
+                ...s,
+                isCustom: false
+            } as SongEntry));
+            this.applyFilter();
+        } catch (e) {
+            console.error("[MenuManager] Failed to load official songs:", e);
+        }
+    }
+
+    public async loadUserSongs() {
+        try {
+            const metas = await this.storage.getAllMetadata();
+            this.customSongs = metas.map(m => ({
+                id: m.id,
+                name: m.title,
+                bpm: m.bpm || 120, 
+                url: m.blobKey, 
+                duration: m.duration || 0,
+                difficulty: 5,
+                isCustom: true
+            } as SongEntry));
+            this.applyFilter();
+
+            // Background parsing to fill missing metadata (Fixes 0s duration bug for My Songs)
+            this.customSongs.forEach(async (s) => {
+                if (s.duration === 0) {
+                    try {
+                        const blob = await this.storage.getSongBlob(s.url);
+                        if (blob) {
+                            const buffer = await blob.arrayBuffer();
+                            const parsed = await this._midiParser.parse(buffer);
+                            s.duration = parsed.duration;
+                            s.bpm = parsed.bpm || 120;
+                            
+                            // Persist back to metadata store
+                            const meta = metas.find(m => m.id === s.id);
+                            if (meta) {
+                                meta.duration = s.duration;
+                                meta.bpm = s.bpm;
+                                await this.storage.saveSong(meta, blob); // Overwrite to update metadata
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`[MenuManager] Failed to pre-parse metadata for ${s.name}:`, e);
+                    }
+                }
+            });
+        } catch (e) {
+            console.error("[MenuManager] Failed to load user songs:", e);
+        }
+    }
+
+    public applyFilter() {
+        let baseList = [...this.officialSongs, ...this.customSongs];
+        if (this.currentFilter === 'official') {
+            baseList = this.officialSongs;
+        } else if (this.currentFilter === 'custom') {
+            baseList = this.customSongs;
+        }
+        this.songList = baseList;
+        this.sortSongList();
+
+        // ── Defensive: Re-validate index after filtering ──
+        if (this.songList.length === 0) {
+            this.selectedSongIndex = 0;
+        } else if (this.selectedSongIndex >= this.songList.length) {
+            this.selectedSongIndex = this.songList.length - 1;
+        }
+    }
+
+    public async addUserSong(file: File): Promise<void> {
+        // 1. Basic MIDI Validation (Header check)
+        const buffer = await file.arrayBuffer();
+        const header = new Uint8Array(buffer.slice(0, 4));
+        const isMidi = header[0] === 0x4D && header[1] === 0x54 && header[2] === 0x68 && header[3] === 0x64;
+        
+        if (!isMidi) {
+            throw new Error("Invalid MIDI file format.");
+        }
+
+        // 2. Extract Metadata
+        const id = `custom_${Date.now()}`;
+        const blobKey = `file_${id}`;
+        const metadata: LocalSongMetadata = {
+            id,
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            artist: 'Unknown',
+            duration: 0,
+            isCustom: true,
+            createdAt: Date.now(),
+            blobKey
+        };
+
+        // 3. Save to Storage
+        await this.storage.saveSong(metadata, new Blob([buffer]));
+
+        // 4. Update State
+        await this.loadUserSongs();
+        this.currentFilter = 'custom';
+        this.applyFilter();
+    }
+
+    public async deleteUserSong(id: string): Promise<void> {
+        const song = this.customSongs.find(s => s.id === id);
+        if (!song) return;
+
+        await this.storage.deleteSong(id, song.url);
+        await this.loadUserSongs();
     }
 
     private touchStartY = 0;
@@ -76,19 +198,36 @@ export class MenuManager {
     }
 
     public playPreview(): void {
-        if (this.currentSongUrl === this.songList[this.selectedSongIndex].url && this.audioEngine.isPlaying()) return;
+        if (this.songList.length === 0) {
+            this.stopPreview();
+            this.previewMidi = null;
+            return;
+        }
+
+        // Validate index again to prevent race conditions or unexpected state changes
+        if (this.selectedSongIndex < 0 || this.selectedSongIndex >= this.songList.length) {
+            this.selectedSongIndex = 0;
+        }
+
+        const currentSong = this.songList[this.selectedSongIndex];
+        if (this.currentSongUrl === currentSong.url && this.audioEngine.isPlaying()) return;
 
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
         this.audioEngine.stop();
 
         const previewId = ++this.currentPreviewId;
-        const currentSong = this.songList[this.selectedSongIndex];
-
         this.previewTimeout = setTimeout(async () => {
             if (previewId !== this.currentPreviewId) return;
             try {
-                const res = await fetch(currentSong.url);
-                const buffer = await res.arrayBuffer();
+                let buffer: ArrayBuffer;
+                if (currentSong.isCustom) {
+                    const blob = await this.storage.getSongBlob(currentSong.url);
+                    if (!blob) throw new Error("Custom MIDI file not found in storage.");
+                    buffer = await blob.arrayBuffer();
+                } else {
+                    const res = await fetch(currentSong.url);
+                    buffer = await res.arrayBuffer();
+                }
 
                 // 1. Parse MIDI
                 const parsedMidi = await this._midiParser.parse(buffer.slice(0));
@@ -110,7 +249,21 @@ export class MenuManager {
                     }
                 }
 
-                // 3. Prepare Engine
+                // 3. Update Metadata if missing (Fixes 0s duration bug)
+                if (!currentSong.duration || !currentSong.bpm) {
+                    currentSong.duration = parsedMidi.duration;
+                    currentSong.bpm = parsedMidi.bpm || 120;
+                    
+                    // Propagate to source catalogues to persist during filter changes
+                    const cat = currentSong.isCustom ? this.customSongs : this.officialSongs;
+                    const entry = cat.find(s => s.url === currentSong.url);
+                    if (entry) {
+                        entry.duration = currentSong.duration;
+                        entry.bpm = currentSong.bpm;
+                    }
+                }
+
+                // 4. Prepare Engine
                 await this.audioEngine.loadMidi(buffer);
 
                 // 4. ATOMIC UPDATE: Synchronize state switch
@@ -134,6 +287,7 @@ export class MenuManager {
     }
 
     public handleScroll(y: number): boolean {
+        if (this.songList.length === 0) return false;
         const diffY = y - this.touchStartY;
         const threshold = 30;
         const shift = Math.trunc(diffY / threshold);
@@ -147,6 +301,7 @@ export class MenuManager {
     }
 
     public handleWheel(deltaY: number): void {
+        if (this.songList.length === 0) return;
         if (deltaY > 0) {
             this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
         } else {
@@ -195,6 +350,7 @@ export class MenuManager {
     public getCurrentDifficulty(): string { return DIFFICULTY_OPTIONS[this.selectedDifficultyIndex]; }
 
     public handleKeyboardInput(code: string): void {
+        if (this.songList.length === 0) return;
         switch (code) {
             case 'ArrowUp':
                 this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
@@ -231,6 +387,29 @@ export class MenuManager {
         if (x >= layout.mainMenuBtnX && x <= layout.mainMenuBtnX + layout.mainMenuBtnW &&
             y >= layout.mainMenuBtnY && y <= layout.mainMenuBtnY + layout.mainMenuBtnH) {
             this.callbacks.onReturnToMainMenu();
+            return;
+        }
+
+        // ── Filter Tabs Interaction ──
+        if (y >= layout.tabAreaY && y <= layout.tabAreaY + layout.tabAreaH) {
+            if (x >= layout.tabAreaX && x <= layout.tabAreaX + layout.tabAreaW) {
+                const relativeX = x - layout.tabAreaX;
+                const tabIndex = Math.floor(relativeX / layout.tabWidth);
+                const filters: Array<'all' | 'official' | 'custom'> = ['all', 'official', 'custom'];
+                if (tabIndex >= 0 && tabIndex < filters.length) {
+                    this.currentFilter = filters[tabIndex];
+                    this.selectedSongIndex = 0;
+                    this.applyFilter();
+                    this.playPreview();
+                    return;
+                }
+            }
+        }
+
+        // ── Upload Button Interaction ──
+        if (x >= layout.uploadBtnX && x <= layout.uploadBtnX + layout.uploadBtnW &&
+            y >= layout.uploadBtnY && y <= layout.uploadBtnY + layout.uploadBtnH) {
+            this.triggerFileUpload();
             return;
         }
 
@@ -309,6 +488,18 @@ export class MenuManager {
 
             const targetIndex = visibleStartIndex + clickedIndexOffset;
             if (targetIndex >= 0 && targetIndex < this.songList.length) {
+                const song = this.songList[targetIndex];
+
+                // Check for Delete Button (on the right side of the item)
+                if (song.isCustom) {
+                    const delW = 24 * layout.scaleFactor;
+                    const delX = layout.listX + (20 * layout.scaleFactor) + (layout.listW - 60 * layout.scaleFactor) - delW - 15 * layout.scaleFactor;
+                    if (x >= delX - 15 * layout.scaleFactor && x <= delX + 15 * layout.scaleFactor) {
+                        this.deleteUserSong(song.id!);
+                        return;
+                    }
+                }
+
                 if (this.selectedSongIndex !== targetIndex) {
                     this.selectedSongIndex = targetIndex;
                     this.playPreview();
@@ -349,6 +540,23 @@ export class MenuManager {
     public stopPreview(): void {
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
         this.audioEngine.stop();
+    }
+
+    private triggerFileUpload(): void {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.mid,.midi';
+        input.onchange = async (e: any) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    await this.addUserSong(file);
+                } catch (err: any) {
+                    alert(err.message || "Failed to upload MIDI.");
+                }
+            }
+        };
+        input.click();
     }
 
     public destroy(): void {
