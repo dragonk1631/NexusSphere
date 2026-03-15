@@ -1,11 +1,13 @@
 import type { PatternSegment } from './PatternAnalyzer';
 import type { VisualNote } from '../NoteFactory';
+import { SeedRandom } from '../../../core/utils/SeedRandom';
 
 export class LaneAllocator {
     /**
      * Assign lanes to notes based on patterns and ergonomics.
      */
-    public static assignLanes(segments: PatternSegment[], laneCount: number = 6, difficulty: string = 'NORMAL'): VisualNote[] {
+    public static assignLanes(segments: PatternSegment[], laneCount: number = 6, difficulty: string = 'NORMAL', seed: number = 0): VisualNote[] {
+        const rng = new SeedRandom(seed);
         const result: VisualNote[] = [];
         if (laneCount !== 4 && laneCount !== 6) laneCount = 6; // Default to 6
 
@@ -13,8 +15,8 @@ export class LaneAllocator {
         const leftLanes = (laneCount === 4) ? [1, 2] : [0, 1, 2];
         const rightLanes = (laneCount === 4) ? [3, 4] : [3, 4, 5];
 
-        let lastLeftLane = leftLanes[Math.floor(leftLanes.length / 2)];
-        let lastRightLane = rightLanes[Math.floor(rightLanes.length / 2)];
+        let lastLeftLane = rng.pick(leftLanes);
+        let lastRightLane = rng.pick(rightLanes);
 
         // LIMIT: 1 for EASY/NORMAL, 2 for HARD (as requested)
         const maxChordSize = (difficulty === 'HARD') ? 2 : 1;
@@ -44,25 +46,16 @@ export class LaneAllocator {
                 const groupNotes = tickGroups.get(tick)!;
 
                 // Identify Primary notes in this tick to PROTECT them
-                // REFINED PROTECTION: If it's the primary melody, keep ALWAYS.
-                // This ensures fast polyphonic trills or unintended overlaps aren't deleted.
-
-                // Identify Primary notes in this tick to PROTECT them
                 const primaryInGroup = groupNotes.filter(n => (n as any).isPrimary);
 
                 const count = Math.min(groupNotes.length, maxChordSize);
                 let activeNotes = groupNotes.slice(0, count);
 
                 // EMERGENCY OVERRIDE for Primary Channel (Reliability / 100% Protection)
-                // If the group contains Primary notes, we ensure they are NOT deleted.
                 if (primaryInGroup.length > 0) {
-                    // Combine the sliced notes (for secondary) with ALL primary notes
-                    // This ensures primary notes are always present, while secondary respects maxChordSize
                     const nonPrimary = activeNotes.filter(n => !(n as any).isPrimary);
                     activeNotes = Array.from(new Set([...primaryInGroup, ...nonPrimary])).slice(0, Math.max(count, primaryInGroup.length));
 
-                    // Actually, if it's primary, we want to BE SURE it's not deleted by slice.
-                    // If we have 3 primary and max is 2, we keep all 3.
                     if (primaryInGroup.length > activeNotes.length) {
                         activeNotes = primaryInGroup;
                     }
@@ -70,12 +63,10 @@ export class LaneAllocator {
 
                 // Helper to find free lane
                 const findFreeLane = (preferred: number, hand: 'left' | 'right'): number => {
-                    // Check preferred first
                     if (tick >= laneBusyUntil[preferred]) return preferred;
 
                     // Search outwards from center of hand
                     const range = (hand === 'left') ? leftLanes : rightLanes;
-                    // Sort range by distance to preferred to pick closest free lane
                     const sortedRange = [...range].sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
 
                     for (const l of sortedRange) {
@@ -90,7 +81,6 @@ export class LaneAllocator {
                         if (tick >= laneBusyUntil[l]) return l;
                     }
 
-                    // If all busy, fallback to preferred (but the caller MUST check and drop the note)
                     return preferred;
                 };
 
@@ -108,16 +98,14 @@ export class LaneAllocator {
                     );
 
                     if (validOptions.length > 0) {
-                        const chosenPair = validOptions[Math.floor(Math.random() * validOptions.length)];
+                        const chosenPair = rng.pick(validOptions);
 
                         activeNotes.forEach((note, idx) => {
                             const lane = chosenPair[idx];
 
-                            // Update Busy State
                             const isHold = (note as any).isHold;
-                            // Add a small 60-tick buffer (approx 1/16th beat) so notes don't spawn exactly as the hold ends
                             const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
-                            laneBusyUntil[lane] = tick + duration; // Mark busy until end of note
+                            laneBusyUntil[lane] = tick + duration;
 
                             result.push({ ...note, lane, isProcessed: false } as VisualNote);
                             if (lane <= 2) lastLeftLane = lane;
@@ -141,7 +129,7 @@ export class LaneAllocator {
                         useLeftHand = (lastHand !== 'left');
                     } else {
                         // IGNORE MIDI PITCH HINT - Use random bias or simple alternation
-                        const rhythmHint = Math.random() > 0.5; // Random initial preference
+                        const rhythmHint = rng.chance(0.5);
 
                         if (consecutiveSameHand >= FATIGUE_THRESHOLD) {
                             useLeftHand = (lastHand !== 'left'); // Force swap
@@ -149,33 +137,31 @@ export class LaneAllocator {
                             useLeftHand = rhythmHint;
                         } else {
                             // High chance to keep pitch hint, but slightly bias towards alternation
-                            useLeftHand = (Math.random() > 0.7) ? !lastHand : rhythmHint;
+                            useLeftHand = rng.chance(0.3) ? !lastHand : rhythmHint;
                         }
                     }
 
                     // Assign Lane within hand area
                     let lane;
                     if (useLeftHand) {
-                        const move = (Math.random() > 0.5) ? 1 : -1;
+                        const move = rng.chance(0.5) ? 1 : -1;
                         let preferred = lastLeftLane + move;
                         if (!leftLanes.includes(preferred)) {
-                            preferred = leftLanes[Math.floor(Math.random() * leftLanes.length)];
+                            preferred = rng.pick(leftLanes);
                         }
 
                         lane = findFreeLane(preferred, 'left');
                     } else {
-                        const move = (Math.random() > 0.5) ? 1 : -1;
+                        const move = rng.chance(0.5) ? 1 : -1;
                         let preferred = lastRightLane + move;
                         if (!rightLanes.includes(preferred)) {
-                            preferred = rightLanes[Math.floor(Math.random() * rightLanes.length)];
+                            preferred = rng.pick(rightLanes);
                         }
 
                         lane = findFreeLane(preferred, 'right');
                     }
 
                     if (tick < laneBusyUntil[lane]) {
-                        // ALL active lanes are completely full (occupied by long notes).
-                        // Strictly DROP the note to prevent physically impossible overlaps.
                         return;
                     }
 
@@ -192,7 +178,6 @@ export class LaneAllocator {
 
                     // Update Busy State
                     const isHold = (note as any).isHold;
-                    // Add a small 60-tick buffer (approx 1/16th beat) so notes don't spawn exactly as the hold ends
                     const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
                     laneBusyUntil[lane] = tick + duration;
 
