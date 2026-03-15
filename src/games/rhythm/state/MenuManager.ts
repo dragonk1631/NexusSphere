@@ -88,32 +88,47 @@ export class MenuManager {
             this.applyFilter();
 
             // Background parsing to fill missing metadata (Fixes 0s duration bug for My Songs)
-            this.customSongs.forEach(async (s) => {
-                if (s.duration === 0) {
-                    try {
-                        const blob = await this.storage.getSongBlob(s.url);
-                        if (blob) {
-                            const buffer = await blob.arrayBuffer();
-                            const parsed = await this._midiParser.parse(buffer);
-                            s.duration = parsed.duration;
-                            s.bpm = parsed.bpm || 120;
-                            
-                            // Persist back to metadata store
-                            const meta = metas.find(m => m.id === s.id);
-                            if (meta) {
-                                meta.duration = s.duration;
-                                meta.bpm = s.bpm;
-                                await this.storage.saveSong(meta, blob); // Overwrite to update metadata
-                            }
-                        }
-                    } catch (e) {
-                        console.warn(`[MenuManager] Failed to pre-parse metadata for ${s.name}:`, e);
-                    }
-                }
-            });
+            // PROFESSIONAL: We use a serial queue to avoid main-thread stuttering
+            this.processMetadataQueue();
         } catch (e) {
             console.error("[MenuManager] Failed to load user songs:", e);
         }
+    }
+
+    private _isQueueRunning = false;
+    private async processMetadataQueue() {
+        if (this._isQueueRunning) return;
+        this._isQueueRunning = true;
+
+        const targets = this.customSongs.filter(s => s.duration === 0);
+        
+        for (const s of targets) {
+            // Yield to main thread to prevent UI lock
+            await new Promise(r => setTimeout(r, 200)); 
+            
+            // PROFESSIONAL: Abort background tasks immediately if game is active
+            if (this.audioEngine.isPlaying() && !this.previewMidi) break; 
+
+            try {
+                const blob = await this.storage.getSongBlob(s.url);
+                if (blob) {
+                    const buffer = await blob.arrayBuffer();
+                    const parsed = await this._midiParser.parse(buffer);
+                    s.duration = parsed.duration;
+                    s.bpm = parsed.bpm || 120;
+                    
+                    // Optimized single-field update
+                    await this.storage.updateSongMetadata(s.id!, { 
+                        duration: s.duration, 
+                        bpm: s.bpm 
+                    });
+                }
+            } catch (e) {
+                console.warn(`[MenuManager] Background parse failed for ${s.name}:`, e);
+            }
+        }
+
+        this._isQueueRunning = false;
     }
 
     public applyFilter() {

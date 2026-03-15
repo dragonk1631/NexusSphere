@@ -27,13 +27,13 @@ export class AudioEngineLogger {
     }
 
     public static info(message: string, ...args: any[]) {
-        if (this.level <= LogLevel.INFO) {
+        if (this.level <= LogLevel.INFO || this.VERBOSE_LOGS) {
             console.log(`[AudioEngine:INFO] ${message}`, ...args);
         }
     }
 
     public static warn(message: string, ...args: any[]) {
-        if (this.level <= LogLevel.WARN) {
+        if (this.level <= LogLevel.WARN || this.VERBOSE_LOGS) {
             console.warn(`[AudioEngine:WARN] ${message}`, ...args);
         }
     }
@@ -49,7 +49,11 @@ export class AudioEngineLogger {
      * Always logs regardless of current LogLevel (unless NONE).
      */
     public static metric(category: string, message: string, data?: any) {
-        if (this.level === LogLevel.NONE || !this.VERBOSE_LOGS) return;
+        if (this.level === LogLevel.NONE) return;
+        
+        // Only log if verbose is ON, UNLESS it's a critical performance metric
+        const isCritical = category.toUpperCase() === 'SYNC' || category.toUpperCase() === 'STALL';
+        if (!this.VERBOSE_LOGS && !isCritical) return;
         
         const timestamp = performance.now().toFixed(2);
         const prefix = `[AudioPerf:${category.toUpperCase()}]`;

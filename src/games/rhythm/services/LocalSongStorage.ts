@@ -97,4 +97,26 @@ export class LocalSongStorage {
             filesStore.delete(blobKey);
         });
     }
+
+    public async updateSongMetadata(id: string, metadataUpdates: Partial<LocalSongMetadata>): Promise<void> {
+        const db = await this.ensureDb();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(LocalSongStorage.STORE_SONGS, 'readwrite');
+            const store = transaction.objectStore(LocalSongStorage.STORE_SONGS);
+            
+            const getRequest = store.get(id);
+            getRequest.onsuccess = () => {
+                const data = getRequest.result;
+                if (!data) {
+                    reject(new Error(`Song ${id} not found.`));
+                    return;
+                }
+                const updatedData = { ...data, ...metadataUpdates };
+                const putRequest = store.put(updatedData);
+                putRequest.onsuccess = () => resolve();
+                putRequest.onerror = () => reject(putRequest.error);
+            };
+            getRequest.onerror = () => reject(getRequest.error);
+        });
+    }
 }
