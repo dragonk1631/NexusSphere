@@ -120,18 +120,18 @@ export class HighwayRenderer {
     private renderNotes(ctx: CanvasRenderingContext2D, state: HighwayRenderState, visualNotes: VisualNote[], lastNoteIndex: number, alpha: number = 0): void {
         const timeToReachHitLine = 2000 / state.scrollSpeed;
         const FIXED_STEP = 1000 / 60;
-        
-        // Use interpolated time for smoother visuals
         const interpolatedTime = state.currentTime + (FIXED_STEP * alpha);
-        
         const windowStart = interpolatedTime - 500;
         const windowEnd = interpolatedTime + timeToReachHitLine * HIGHWAY_CONFIG.NOTE_LOOKAHEAD;
 
+        // Optimization: Binary search for the first visible note if chart is huge 
+        // (Simplified here: use lastNoteIndex as starting point which is already judgmental boundary)
         let count = 0;
         for (let i = lastNoteIndex; i < visualNotes.length; i++) {
             const note = visualNotes[i];
             const noteTimeMs = note.time * 1000;
             const noteEndMs = note.isHold ? noteTimeMs + note.durationMs : noteTimeMs;
+            
             if (noteTimeMs > windowEnd) break;
             if (note.isProcessed && !note.isHolding) continue;
             if (noteEndMs < windowStart) continue;
@@ -142,12 +142,14 @@ export class HighwayRenderer {
         }
         this.visibleNoteCount = count;
 
-        // Optimization: Unified state for batch rendering
+        if (this.visibleNoteCount === 0) return;
+
         const horizonY = state.horizonY;
         const hitLineY = state.hitLineY;
         const baseNoteH = (HIGHWAY_CONFIG as any).NOTE_HEIGHT || LAYOUT.DEFAULT_NOTE_WIDTH / 2;
+        const hRangeInv = 1 / (hitLineY - horizonY); // Pre-calculate inverse for scale
 
-        ctx.save(); // Batch save for entire note layer
+        ctx.save(); 
 
         for (let j = this.visibleNoteCount - 1; j >= 0; j--) {
             const note = visualNotes[this.visibleIndices[j]];
@@ -159,14 +161,14 @@ export class HighwayRenderer {
             const noteY = this.cache.getProjectedY(linearProgress, state);
             if (noteY < horizonY) continue;
 
-            const projectedScale = (noteY - horizonY) / (hitLineY - horizonY);
+            const projectedScale = (noteY - horizonY) * hRangeInv;
             const nW = this.cache.getWidth(noteY, state);
             const nX = this.cache.getX(note.lane, noteY, state);
             const nH = baseNoteH * projectedScale;
 
-            let alpha = 1.0;
+            let noteAlpha = 1.0;
             if (linearProgress < HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD) {
-                alpha = Math.max(0, linearProgress / HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD);
+                noteAlpha = Math.max(0, linearProgress / HIGHWAY_CONFIG.NOTE_FADE_THRESHOLD);
             }
 
             if (note.isHold) {
@@ -176,15 +178,15 @@ export class HighwayRenderer {
                 if (tailProgress > 1) tailProgress = 1;
 
                 const tailY = this.cache.getProjectedY(tailProgress, state);
-                const tailScale = (tailY - horizonY) / (hitLineY - horizonY);
+                const tailScale = (tailY - horizonY) * hRangeInv;
                 const tailH = baseNoteH * tailScale;
 
-                this.holdRenderer.renderHoldNote(ctx, state, this.cache, note.lane, nX, noteY, nW, nH, tailY, tailH, note.isHolding, alpha);
+                this.holdRenderer.renderHoldNote(ctx, state, this.cache, note.lane, nX, noteY, nW, nH, tailY, tailH, note.isHolding, noteAlpha);
             } else {
-                // High-performance direct call (skip additional save/restore if possible)
-                this.noteRenderer.renderTapNote(ctx, nX, noteY, nW, nH, note.lane, alpha);
+                this.noteRenderer.renderTapNote(ctx, nX, noteY, nW, nH, note.lane, noteAlpha);
             }
         }
+        ctx.restore();
     }
 
     private drawLaneBeam(ctx: CanvasRenderingContext2D, lane: number, state: HighwayRenderState): void {

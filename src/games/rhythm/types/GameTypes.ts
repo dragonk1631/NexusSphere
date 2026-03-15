@@ -58,13 +58,10 @@ export interface Explosion {
 export interface ParticleData {
     x: number;
     y: number;
-    vx: number;
-    vy: number;
     alpha: number;
     size: number;
     color: string;
     rotation: number;
-    rotationSpeed: number;
 }
 
 /**
@@ -146,9 +143,8 @@ export interface PauseRenderState {
  * Decouples physics logic from rendering logic.
  */
 export interface IParticleRenderData {
-    getParticles(): ReadonlyArray<ParticleData>;
     forEachActiveParticle(callback: (p: ParticleData) => void): void;
-    getExplosions(): ReadonlyArray<Explosion>;
+    forEachActiveExplosion(callback: (e: Explosion) => void): void;
 }
 
 /**

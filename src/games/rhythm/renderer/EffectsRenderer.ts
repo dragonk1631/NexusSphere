@@ -148,10 +148,8 @@ export class EffectsRenderer {
     }
 
     private renderExplosions(ctx: CanvasRenderingContext2D): void {
-        const explosions = this.particleData.getExplosions();
-        for (let i = 0; i < explosions.length; i++) {
-            const exp = explosions[i];
-            if (exp.alpha <= 0.01) continue;
+        this.particleData.forEachActiveExplosion(exp => {
+            if (exp.alpha <= 0.01) return;
 
             ctx.save();
             ctx.globalAlpha = exp.alpha;
@@ -168,7 +166,7 @@ export class EffectsRenderer {
             ctx.globalAlpha = exp.alpha * EFFECTS_CONFIG.EXPLOSION_INNER_ALPHA;
             ctx.fill();
             ctx.restore();
-        }
+        });
     }
 
     private renderShockwaves(ctx: CanvasRenderingContext2D): void {

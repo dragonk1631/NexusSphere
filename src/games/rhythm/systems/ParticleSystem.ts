@@ -1,4 +1,4 @@
-import { type Explosion, type IParticleRenderData } from '../types/GameTypes';
+import { type IParticleRenderData } from '../types/GameTypes';
 import { MAX_PARTICLES } from '../constants/GameConstants';
 
 /**
@@ -23,7 +23,14 @@ export class ParticleSystem implements IParticleRenderData {
     private colorPalette: string[] = [];
     private activeCount: number = 0;
 
-    private explosions: Explosion[] = [];
+    // Zero-GC Explosions
+    private readonly MAX_E = 20;
+    private ex = new Float32Array(20);
+    private ey = new Float32Array(20);
+    private er = new Float32Array(20); // Radius
+    private ea = new Float32Array(20); // Alpha
+    private ecIdx = new Int32Array(20); // Color index
+    private activeECount: number = 0;
 
     constructor() {}
 
@@ -34,8 +41,7 @@ export class ParticleSystem implements IParticleRenderData {
     /**
      * PROFESSIONAL OPTIMIZATION: Zero-allocation iteration.
      */
-    public forEachActiveParticle(callback: (p: any) => void): void {
-        // We use a temporary object but reuse it to avoid GC
+    public forEachActiveParticle(callback: (p: { x: number, y: number, alpha: number, size: number, color: string, rotation: number }) => void): void {
         const pProxy = { x: 0, y: 0, alpha: 0, size: 0, color: '', rotation: 0 };
         for (let i = 0; i < this.activeCount; i++) {
             pProxy.x = this.px[i];
@@ -48,31 +54,27 @@ export class ParticleSystem implements IParticleRenderData {
         }
     }
 
-    public getParticles(): any[] {
-        const particles: any[] = [];
-        for (let i = 0; i < this.activeCount; i++) {
-            particles.push({
-                x: this.px[i],
-                y: this.py[i],
-                alpha: this.palpha[i],
-                size: this.psize[i],
-                color: this.colorPalette[this.pcolorIdx[i]],
-                rotation: this.prot[i]
-            });
+    public forEachActiveExplosion(callback: (e: { x: number, y: number, radius: number, alpha: number, color: string }) => void): void {
+        const eProxy = { x: 0, y: 0, radius: 0, alpha: 0, color: '' };
+        for (let i = 0; i < this.activeECount; i++) {
+            eProxy.x = this.ex[i];
+            eProxy.y = this.ey[i];
+            eProxy.radius = this.er[i];
+            eProxy.alpha = this.ea[i];
+            eProxy.color = this.colorPalette[this.ecIdx[i]];
+            callback(eProxy);
         }
-        return particles;
     }
-
-    public getExplosions(): ReadonlyArray<Explosion> { return this.explosions; }
 
     public update(delta: number): void {
         const speedMultiplier = delta / 16.67;
         const fadeRate = this.isMobile ? 0.06 : 0.03;
 
+        // 1. Update Particles
         for (let i = this.activeCount - 1; i >= 0; i--) {
             this.px[i] += this.pvx[i] * speedMultiplier;
             this.py[i] += this.pvy[i] * speedMultiplier;
-            this.pvy[i] += (this.isMobile ? 0.25 : 0.2) * speedMultiplier; // Slightly faster gravity on mobile
+            this.pvy[i] += (this.isMobile ? 0.25 : 0.2) * speedMultiplier; 
             this.palpha[i] -= fadeRate * speedMultiplier;
             this.prot[i] += this.protSpeed[i] * speedMultiplier;
 
@@ -81,6 +83,7 @@ export class ParticleSystem implements IParticleRenderData {
             }
         }
 
+        // 2. Update Explosions (Zero-GC)
         this.updateExplosions(delta);
     }
 
@@ -99,25 +102,36 @@ export class ParticleSystem implements IParticleRenderData {
         }
     }
 
+    private getOrCreateColorIndex(color: string): number {
+        let idx = this.colorPalette.indexOf(color);
+        if (idx === -1) {
+            idx = this.colorPalette.length;
+            this.colorPalette.push(color);
+        }
+        return idx;
+    }
+
     public triggerExplosion(x: number, y: number, color: string): void {
-        const limit = this.isMobile ? 2 : 8; // Drastically reduced for mobile
-        if (this.explosions.length >= limit) return;
-        this.explosions.push({ x, y, radius: 0, alpha: 1, color });
+        const limit = this.isMobile ? 5 : this.MAX_E;
+        if (this.activeECount >= limit) return;
+
+        const idx = this.activeECount;
+        this.ex[idx] = x;
+        this.ey[idx] = y;
+        this.er[idx] = 0;
+        this.ea[idx] = 1.0;
+        this.ecIdx[idx] = this.getOrCreateColorIndex(color);
+        this.activeECount++;
     }
 
     public triggerShatter(x: number, y: number, color: string, isHold: boolean = false): void {
         let count = isHold ? 6 : 16; 
-        if (this.isMobile) count = isHold ? 3 : 6; // Optimized counts
+        if (this.isMobile) count = isHold ? 3 : 6; 
 
-        // Map color to palette to avoid string storage per particle
-        let cIdx = this.colorPalette.indexOf(color);
-        if (cIdx === -1) {
-            cIdx = this.colorPalette.length;
-            this.colorPalette.push(color);
-        }
+        const cIdx = this.getOrCreateColorIndex(color);
 
         for (let i = 0; i < count; i++) {
-            if (this.activeCount >= (this.isMobile ? this.MAX_P / 2 : this.MAX_P)) break; // Respect mobile limit
+            if (this.activeCount >= (this.isMobile ? this.MAX_P / 2 : this.MAX_P)) break;
 
             const idx = this.activeCount;
             const angle = Math.random() * Math.PI * 2;
@@ -139,22 +153,32 @@ export class ParticleSystem implements IParticleRenderData {
 
     public clear(): void {
         this.activeCount = 0;
-        this.explosions = [];
+        this.activeECount = 0;
     }
 
     private updateExplosions(delta: number): void {
         const speedMultiplier = delta / 16.67;
-        const radialSpeed = this.isMobile ? 10 : 6; // Faster on mobile
+        const radialSpeed = this.isMobile ? 10 : 6;
         const fadeSpeed = this.isMobile ? 0.15 : 0.08;
 
-        for (let i = this.explosions.length - 1; i >= 0; i--) {
-            const exp = this.explosions[i];
-            exp.radius += radialSpeed * speedMultiplier;
-            exp.alpha -= fadeSpeed * speedMultiplier;
+        for (let i = this.activeECount - 1; i >= 0; i--) {
+            this.er[i] += radialSpeed * speedMultiplier;
+            this.ea[i] -= fadeSpeed * speedMultiplier;
 
-            if (exp.alpha <= 0) {
-                this.explosions.splice(i, 1);
+            if (this.ea[i] <= 0) {
+                this.removeExplosion(i);
             }
+        }
+    }
+
+    private removeExplosion(idx: number): void {
+        this.activeECount--;
+        if (idx < this.activeECount) {
+            this.ex[idx] = this.ex[this.activeECount];
+            this.ey[idx] = this.ey[this.activeECount];
+            this.er[idx] = this.er[this.activeECount];
+            this.ea[idx] = this.ea[this.activeECount];
+            this.ecIdx[idx] = this.ecIdx[this.activeECount];
         }
     }
 }
