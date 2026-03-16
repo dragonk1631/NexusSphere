@@ -190,15 +190,8 @@ export class NoteFactory {
             } as VisualNote;
         });
 
-        // 4. Pattern & Lane Analysis
-        // Generate a stable seed based on MIDI metadata (Fixes "random patterns" bug)
-        let seed = midi.ppq + Math.round(midi.bpm * 100) + notesToProcess.length;
-        // Simple 32-bit hash-like mixing to avoid small serial seeds
-        seed = ((seed << 5) - seed) + (midi.durationTicks || 0);
-        seed = seed | 0; // Force to 32bit int
-
         const patterns = PatternAnalyzer.analyze(preparedNotes as any[]);
-        const finalResult = LaneAllocator.assignLanes(patterns, laneCount, difficulty, seed);
+        const finalResult = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
 
         console.log(`[NoteFactory] Charted ${finalResult.length} notes (Holds: ${finalResult.filter(n => n.isHold).length}).`);
         if (finalResult.length > 0) {
