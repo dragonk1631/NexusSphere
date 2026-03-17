@@ -69,6 +69,9 @@ export class MainMenu {
         MenuMusicManager.getInstance().playMusic('main');
         const html = `
             <style>
+                /* ── IMPORT FONTS (Technika Gothic v17) ── */
+                @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Outfit:wght@900&display=swap');
+
                 /* =========================================
                    NEXUS SPHERE — MAIN MENU  (Premium v2)
                    Transparent bg: game canvas shows through
@@ -95,14 +98,16 @@ export class MainMenu {
                     100% { left: 200%; }
                 }
 
-                /* ── Container ── */
+                /* ── Container (Outfit v17 - Repaired) ── */
                 .mm-container {
                     position: fixed;
-                    inset: 0;
-                    background: transparent; /* Let game canvas show through */
-                    font-family: 'Nunito', 'Segoe UI', sans-serif;
+                    top: 0; left: 0; width: 100vw; height: 100vh;
+                    background: transparent; /* REDEEMED: Game canvas shows through */
                     display: grid;
                     grid-template-rows: auto 1fr auto;
+                    font-family: 'Outfit', 'Black Han Sans', sans-serif;
+                    overflow: hidden;
+                    color: white;
                     overflow: hidden;
                     padding-bottom: 0;
                     z-index: 50;
@@ -159,25 +164,39 @@ export class MainMenu {
                     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
                 }
                 .mm-main-title-text {
+                    font-family: 'Black Han Sans', sans-serif;
                     font-size: clamp(2.5rem, 8vh, 5.2rem);
-                    font-weight: 1000;
-                    letter-spacing: clamp(10px, 2vw, 25px);
-                    background: linear-gradient(to bottom, #ffffff 0%, #cbd5e1 50%, #64748b 100%);
+                    font-weight: 900;
+                    letter-spacing: clamp(4px, 1vw, 15px);
+                    /* Brighter Technika Style (v21 Repaired) */
+                    background: linear-gradient(to bottom, #ffffff 0%, #f0f4ff 50%, #cadbff 100%);
                     -webkit-background-clip: text;
+                    background-clip: text;
                     -webkit-text-fill-color: transparent;
-                    filter: drop-shadow(0 10px 20px rgba(165,180,252,0.4));
+                    color: transparent;
+                    /* Robust 1px Outline via Filter (v21) */
+                    filter: 
+                        drop-shadow(-1px -1px 0 rgba(0,0,0,0.8)) 
+                        drop-shadow(1px -1px 0 rgba(0,0,0,0.8)) 
+                        drop-shadow(-1px 1px 0 rgba(0,0,0,0.8)) 
+                        drop-shadow(1px 1px 0 rgba(0,0,0,0.8))
+                        drop-shadow(0 0 15px rgba(165,180,252,0.6));
                     text-transform: uppercase;
                     margin-left: clamp(10px, 2vw, 25px);
+                    display: inline-block; /* Ensure block model for clipping */
                 }
 
                 .mm-main-title-sub {
-                    font-size: 0.8rem;
+                    font-family: 'Outfit', sans-serif;
+                    font-size: 0.95rem;
                     color: #ff006e;
-                    letter-spacing: 8px;
+                    letter-spacing: 10px;
                     text-transform: uppercase;
-                    font-weight: 800;
+                    font-weight: 900;
                     margin-top: 5px;
-                    text-shadow: 0 0 10px rgba(255,0,110,0.5);
+                    text-shadow: 
+                        -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+                        0 0 12px rgba(255,0,110,0.6);
                 }
 
                 .mm-version-badge {
@@ -305,14 +324,19 @@ export class MainMenu {
                     box-shadow: 0 15px 35px rgba(0,0,0,0.25);
                 }
 
-                /* Technika Viterous Gloss Reflection */
+                /* Technika Liquid Gloss Reflection (v15 Refined) */
                 .mm-card::after {
                     content: '';
                     position: absolute;
-                    top: 0; left: 0; right: 0; height: 50%;
-                    background: linear-gradient(to bottom, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.05) 100%);
+                    top: -10%; left: -10%; right: -10%; height: 60%;
+                    background: linear-gradient(135deg, 
+                        rgba(255,255,255,0.55) 0%, 
+                        rgba(255,255,255,0.15) 45%, 
+                        transparent 100%);
+                    transform: skewY(-5deg);
                     pointer-events: none;
                     z-index: 2;
+                    border-radius: inherit;
                 }
 
                 .mm-card-content {
@@ -354,21 +378,21 @@ export class MainMenu {
                     pointer-events: none;
                 }
 
-                /* Individual Technika Colors */
+                /* Individual Technika Spectrum Gradients (v15) */
                 .mm-card-play {
-                    background: linear-gradient(135deg, #ff006e 0%, #ff5c8d 100%);
+                    background: linear-gradient(135deg, #ff006e 0%, #ff8040 50%, #ffd000 100%);
                     color: #ff006e;
                 }
                 .mm-card-editor {
-                    background: linear-gradient(135deg, #ffd000 0%, #ffec8d 100%);
+                    background: linear-gradient(135deg, #ffd000 0%, #d0ff00 50%, #a2ff00 100%);
                     color: #ffd000;
                 }
                 .mm-card-pong {
-                    background: linear-gradient(135deg, #a2ff00 0%, #d4ff8d 100%);
+                    background: linear-gradient(135deg, #a2ff00 0%, #00ffca 50%, #00d2ff 100%);
                     color: #a2ff00;
                 }
                 .mm-card-shop {
-                    background: linear-gradient(135deg, #00d2ff 0%, #8de9ff 100%);
+                    background: linear-gradient(135deg, #00d2ff 0%, #7000ff 50%, #ff006e 100%);
                     color: #00d2ff;
                 }
 
@@ -395,24 +419,30 @@ export class MainMenu {
                     transform: scale(1.1) translateY(-12px);
                 }
 
-                /* Card labels (Technika v14) */
+                /* Card labels (Technika Gothic v18 - Thinner Outline) */
                 .mm-card-label {
+                    font-family: 'Black Han Sans', sans-serif;
                     color: white;
-                    font-size: clamp(1.1rem, 2.5vh, 1.8rem);
-                    font-weight: 1000;
+                    font-size: clamp(1.1rem, 2.5vh, 2rem);
+                    font-weight: 900;
                     text-transform: uppercase;
-                    letter-spacing: clamp(1px, 0.3vw, 2px);
-                    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                    line-height: 1;
+                    letter-spacing: 1px;
+                    /* Refined 1px Stroke + Drop Shadow */
+                    text-shadow: 
+                        -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+                        0 5px 12px rgba(0,0,0,0.5);
+                    line-height: 1.1;
                     position: relative; z-index: 3;
                 }
 
                 .mm-card-sub {
-                    color: rgba(255,255,255,0.85);
-                    font-size: clamp(0.55rem, 1.3vh, 0.85rem);
-                    font-weight: 800;
+                    font-family: 'Outfit', sans-serif;
+                    color: rgba(255,255,255,0.9);
+                    font-size: clamp(0.55rem, 1.3vh, 0.9rem);
+                    font-weight: 900;
                     text-transform: uppercase;
-                    letter-spacing: 1px;
+                    letter-spacing: 1.5px;
+                    text-shadow: 1px 1px 4px rgba(0,0,0,0.8);
                     position: relative; z-index: 3;
                 }
 
