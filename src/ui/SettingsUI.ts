@@ -306,17 +306,39 @@ export class SettingsUI {
                     width: 24px; height: 24px; border-radius: 50%;
                     display: flex; align-items: center; justify-content: center;
                     font-size: 14px; font-weight: 900;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
                     z-index: 2;
                 }
 
                 .theme-name {
-                    position: relative; z-index: 1; 
+                    position: relative; z-index: 5; /* Above sparkles v44 */
                     font-family: 'Black Han Sans', sans-serif;
                     font-size: clamp(13px, 1.5vw, 17px); font-weight: 800;
                     color: #fff; 
                     text-align: center; width: 100%;
                     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                }
+
+                /* Marchen Icon Live Preview v44 */
+                .icon-sparkle-marchen {
+                    position: absolute;
+                    width: 4px; height: 4px;
+                    background: #fff;
+                    border-radius: 50%;
+                    box-shadow: 0 0 10px 2px #fff275, 0 0 4px 1px #fff; /* Pink Bloom Effect */
+                    opacity: 0;
+                    pointer-events: none;
+                    z-index: 1;
+                    animation: marchenIconTwinkle 1.8s infinite ease-in-out;
+                    will-change: transform, opacity;
+                }
+
+                @keyframes marchenIconTwinkle {
+                    0%, 100% { opacity: 0; transform: scale(0.3) rotate(45deg); }
+                    50% { opacity: 0.8; transform: scale(1.2) rotate(45deg); }
+                }
+
+                .theme-btn[data-theme="marchen"] {
+                    overflow: hidden;
                 }
 
                 /* Sliders & Rows (Technika Gothic v24) */
@@ -495,12 +517,28 @@ export class SettingsUI {
 
         if (this.activeTab === 'theme') {
             const themes = themeManager.getAllThemes();
-            const themesHtml = themes.map(t => `
+            const themesHtml = themes.map(t => {
+                let innerHtml = `<span class="theme-name">${t.name}</span>`;
+                
+                // v44: Inject live sparkles for Marchen
+                if (t.id === 'marchen') {
+                    const sparkles = Array.from({ length: 8 }).map((_, i) => {
+                        const top = Math.random() * 80 + 10;
+                        const left = Math.random() * 80 + 10;
+                        const delay = Math.random() * 2;
+                        const duration = 1.5 + Math.random() * 1;
+                        return `<span class="icon-sparkle-marchen" style="top:${top}%; left:${left}%; animation-delay:${delay}s; animation-duration:${duration}s;"></span>`;
+                    }).join('');
+                    innerHtml = sparkles + innerHtml;
+                }
+
+                return `
                 <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''}" data-theme="${t.id}"
                         style="background: linear-gradient(135deg, ${t.color1}, ${t.color2}); border-color: ${t.color3};">
-                    <span class="theme-name">${t.name}</span>
+                    ${innerHtml}
                 </button>
-            `).join('');
+                `;
+            }).join('');
 
             contentEl.innerHTML = `
                 <div class="theme-grid">

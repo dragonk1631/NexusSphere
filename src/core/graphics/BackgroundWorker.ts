@@ -725,27 +725,81 @@ function drawFloating(_theme: ThemeConfig) {
         c.fill();
     });
 
-    ctx.globalCompositeOperation = 'lighter';
+    // --- Marchen Exclusive Sprites v44 (Vivid Pink Glow) ---
+    const twinkleStarTex = getCachedTexture('twinkle_star_bloom_v2', 64, c => {
+        const cx = 32, cy = 32;
+        const outerGrad = c.createRadialGradient(cx, cy, 0, cx, cy, 32);
+        outerGrad.addColorStop(0, applyAlpha(currentTheme?.particleColor || '#FFF', '33'));
+        outerGrad.addColorStop(0.5, applyAlpha(currentTheme?.particleColor || '#FFF', '08'));
+        outerGrad.addColorStop(1, 'transparent');
+        c.fillStyle = outerGrad;
+        c.beginPath(); c.arc(cx, cy, 32, 0, Math.PI * 2); c.fill();
+        const innerGrad = c.createRadialGradient(cx, cy, 0, cx, cy, 12);
+        innerGrad.addColorStop(0, '#FFFFFF');
+        innerGrad.addColorStop(0.4, applyAlpha(currentTheme?.particleColor || '#FFF', '66'));
+        innerGrad.addColorStop(1, 'transparent');
+        c.fillStyle = innerGrad;
+        c.beginPath(); c.arc(cx, cy, 12, 0, Math.PI * 2); c.fill();
+        setCompositeOperation('lighter');
+        c.lineWidth = 1.5;
+        const rayGrad = c.createLinearGradient(cx - 28, cy, cx + 28, cy);
+        rayGrad.addColorStop(0, 'transparent'); rayGrad.addColorStop(0.5, '#FFFFFF'); rayGrad.addColorStop(1, 'transparent');
+        c.strokeStyle = rayGrad; c.beginPath(); c.moveTo(cx - 28, cy); c.lineTo(cx + 28, cy); c.stroke();
+        const vRayGrad = c.createLinearGradient(cx, cy - 28, cx, cy + 28);
+        vRayGrad.addColorStop(0, 'transparent'); vRayGrad.addColorStop(0.5, '#FFFFFF'); vRayGrad.addColorStop(1, 'transparent');
+        c.strokeStyle = vRayGrad; c.beginPath(); c.moveTo(cx, cy - 28); c.lineTo(cx, cy + 28); c.stroke();
+    });
+
+    const softBloomTex = getCachedTexture('soft_bloom_pink', 128, c => {
+        const grad = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+        grad.addColorStop(0, applyAlpha(currentTheme?.color2 || '#ec407a', '28'));
+        grad.addColorStop(0.7, applyAlpha(currentTheme?.color3 || '#ff80ab', '05'));
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.fillRect(0, 0, 128, 128);
+    });
+
+    const isMarchen = currentTheme?.id === 'marchen';
+
+    if (isMarchen) {
+        setCompositeOperation('screen');
+        for (let i = 0; i < 3; i++) {
+            const shift = time * (0.04 + i * 0.015) + (i * 2.1);
+            const bx = width * (0.5 + Math.sin(shift) * 0.3);
+            const by = height * (0.5 + Math.cos(shift * 0.7) * 0.2);
+            const bSize = height * (1.3 + i * 0.35);
+            ctx.globalAlpha = 0.6;
+            ctx.drawImage(softBloomTex, bx - bSize, by - bSize, bSize * 2, bSize * 2);
+        }
+    }
+
+    setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         const depthFactor = (1 - layer[i] * 0.25);
         const wind = Math.sin(time * 0.3 + py[i] * 0.001) * 15;
         px[i] += (vx[i] + wind * 0.05) * depthFactor;
         py[i] += (vy[i] + Math.cos(time * 0.2) * 0.2) * depthFactor;
 
-        if (px[i] < -100) px[i] = width + 100;
-        if (px[i] > width + 100) px[i] = -100;
-        if (py[i] < -100) py[i] = height + 100;
-        if (py[i] > height + 100) py[i] = -100;
+        if (px[i] < -150) px[i] = width + 150;
+        if (px[i] > width + 150) px[i] = -150;
+        if (py[i] < -150) py[i] = height + 150;
+        if (py[i] > height + 150) py[i] = -150;
 
-        const alpha = (0.3 + (1 - layer[i] * 0.2) * 0.5) * (0.7 + Math.sin(time + phase[i]) * 0.3);
+        const alpha = (0.2 + (1 - layer[i] * 0.2) * 0.5) * (0.7 + Math.sin(time + phase[i]) * 0.3);
         ctx.globalAlpha = alpha;
 
-        const glowSize = size[i] * (1.2 + Math.sin(time * 2 + phase[i]) * 0.4);
-        ctx.drawImage(floatGlowTexture, px[i] - glowSize, py[i] - glowSize, glowSize * 2, glowSize * 2);
-
-        ctx.globalAlpha = alpha * 0.8;
-        const coreSize = size[i] * 0.15 * 2;
-        ctx.drawImage(floatCoreTex, px[i] - coreSize * 0.5, py[i] - coreSize * 0.5, coreSize, coreSize);
+        if (isMarchen && layer[i] === 0) {
+            const breathing = Math.sin(time * 1.5 + phase[i]);
+            const tSize = size[i] * (1.0 + breathing * 0.3);
+            ctx.globalAlpha = alpha * (0.5 + breathing * 0.5);
+            ctx.drawImage(twinkleStarTex, px[i] - tSize, py[i] - tSize, tSize * 2, tSize * 2);
+        } else {
+            const glowSize = size[i] * (1.2 + Math.sin(time * 2 + phase[i]) * 0.4);
+            ctx.drawImage(floatGlowTexture, px[i] - glowSize, py[i] - glowSize, glowSize * 2, glowSize * 2);
+            ctx.globalAlpha = alpha * 0.8;
+            const coreSize = size[i] * 0.15 * 2;
+            ctx.drawImage(floatCoreTex, px[i] - coreSize * 0.5, py[i] - coreSize * 0.5, coreSize, coreSize);
+        }
     }
 }
 

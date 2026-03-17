@@ -53,22 +53,22 @@ export class ThemeManager {
             }
         },
         {
-            id: 'cyber-neon',
-            name: 'Cyber Neon',
+            id: 'technika-pink',
+            name: 'Technika Pink',
             pattern: 'grid3d',
-            color1: '#0B0B1A',
-            color2: '#FF0055',
-            color3: '#00F0FF',
-            particleColor: '#00F0FF',
-            gridColor: 'rgba(255, 0, 85, 0.1)',
-            bubblePulseGrad: ['rgba(0, 240, 255, 0.9)', 'rgba(255, 0, 85, 0.3)'],
+            color1: '#2A0515', // Warm Deep Plum
+            color2: '#FF006E', // Technika Pink
+            color3: '#FFD000', // Technika Yellow/Gold
+            particleColor: '#FFD000',
+            gridColor: 'rgba(255, 0, 110, 0.15)',
+            bubblePulseGrad: ['rgba(255, 208, 0, 0.9)', 'rgba(255, 0, 110, 0.3)'],
             semantic: {
-                levelEasy: '#00F0FF',
-                levelNormal: '#7000FF',
-                levelHard: '#FF0055',
-                levelExpert: '#FF0000',
-                speedOption: '#00F0FF',
-                modeOption: '#FF0055',
+                levelEasy: '#FFD000',
+                levelNormal: '#FF006E',
+                levelHard: '#FF8040',
+                levelExpert: '#FFD000',
+                speedOption: '#FFD000',
+                modeOption: '#FF006E',
             }
         },
         {
@@ -170,19 +170,19 @@ export class ThemeManager {
             id: 'marchen',
             name: 'Märchen',
             pattern: 'floating',
-            color1: '#1a0a2e',
-            color2: '#633194',
-            color3: '#ff9ff3',
-            particleColor: '#feca57',
-            gridColor: 'rgba(255, 159, 243, 0.15)',
-            bubblePulseGrad: ['rgba(254, 202, 87, 0.9)', 'rgba(99, 49, 148, 0.3)'],
+            color1: '#250a1d', // Berry Midnight
+            color2: '#ec407a', // Vibrant Rose Pink
+            color3: '#ff80ab', // Luminous Pink
+            particleColor: '#fff275', // Warm Sunlight Gold
+            gridColor: 'rgba(236, 64, 122, 0.15)', // Pink tinted grid
+            bubblePulseGrad: ['rgba(255, 242, 117, 0.9)', 'rgba(236, 64, 122, 0.3)'],
             semantic: {
-                levelEasy: '#feca57',
-                levelNormal: '#ff9ff3',
-                levelHard: '#ff6b6b',
-                levelExpert: '#48dbfb',
-                speedOption: '#feca57',
-                modeOption: '#ff9ff3',
+                levelEasy: '#fff275',
+                levelNormal: '#ff80ab',
+                levelHard: '#ec407a',
+                levelExpert: '#d81b60',
+                speedOption: '#fff275',
+                modeOption: '#ec407a',
             }
         },
         {
