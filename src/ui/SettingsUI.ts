@@ -4,13 +4,14 @@ import { NoteSkinManager } from '../core/NoteSkinManager';
 import { RenderCache } from '../games/rhythm/graphics/RenderCache';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 
-type Tab = 'visual' | 'skin' | 'audio' | 'gameplay';
+type Tab = 'theme' | 'note' | 'audio' | 'gameplay';
 
 export class SettingsUI {
     private ui: UIManager;
     private onAction: (action: string) => void;
-    private activeTab: Tab = 'visual';
+    private activeTab: Tab = 'theme';
     private isCreated: boolean = false;
+    private tabContainers: Map<Tab, HTMLElement> = new Map();
 
     constructor(onAction: (action: string) => void) {
         this.ui = UIManager.getInstance();
@@ -30,134 +31,260 @@ export class SettingsUI {
 
         const html = `
             <style>
+                @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Outfit:wght@900&display=swap');
+
                 .settings-overlay {
                     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: rgba(0, 0, 0, 0.08);
+                    background: transparent; /* FULLY TRANSPARENT v29 */
+                    backdrop-filter: none; /* NO BLUR v29 */
+                    -webkit-backdrop-filter: none;
                     display: flex; justify-content: center; align-items: center;
-                    z-index: 100; font-family: 'Nunito', sans-serif;
+                    z-index: 100; font-family: 'Outfit', 'Black Han Sans', sans-serif;
                     opacity: 0; animation: stFadeIn 0.3s forwards ease-out;
                     padding: 20px; box-sizing: border-box;
                 }
+
                 @keyframes stFadeIn { to { opacity: 1; } }
 
                 .settings-window {
-                    width: 98vw; max-width: 1600px;
-                    height: 94vh;
+                    width: 98vw; max-width: 1400px;
+                    height: 90vh;
                     display: flex; flex-direction: column;
+                    position: relative;
+                    --header-btn-height: clamp(50px, 6.5vh, 70px); /* Unified Height v38 */
                 }
 
-                /* Tabs */
-                .settings-tabs {
-                    display: flex; gap: clamp(6px, 1vw, 12px); margin-bottom: -4px; z-index: 10;
-                    flex-shrink: 0; overflow-x: auto; align-items: flex-end;
-                    padding-top: 15px;
+
+                /* Header Area (v37 Alignment) */
+                .settings-header {
+                    display: flex; justify-content: space-between; align-items: flex-end;
+                    padding-right: 0; /* Align with panel right edge v37 */
+                    gap: 30px; /* Space between tabs and return v37 */
                 }
-                .settings-tabs::-webkit-scrollbar { display: none; }
+
+
+                /* Tabs (v38 Fine-Tuned) */
+                .settings-tabs {
+                    display: flex; 
+                    gap: 6px; /* Breathing Space v38 */
+                    margin-bottom: -4px; 
+                    z-index: 10;
+                    flex-shrink: 0; 
+                    align-items: flex-end;
+                    padding-top: 15px;
+                    flex: 1;
+                }
+
+
+
                 .tab-btn {
-                    padding: clamp(6px, 1vw, 10px) clamp(12px, 2vw, 25px);
-                    background: rgba(30, 25, 45, 0.5);
-                    border: 4px solid transparent;
+                    flex: 1;
+                    min-width: 0;
+                    height: var(--header-btn-height); /* Precision Height v38 */
+                    display: flex; align-items: center; justify-content: center; /* Center Fit v38 */
+                    background: rgba(20, 15, 35, 0.8);
+                    border: 3px solid rgba(255, 255, 255, 0.2);
                     border-bottom: none;
                     border-radius: 12px 12px 0 0;
-                    color: rgba(255, 255, 255, 0.6);
-                    font-size: clamp(14px, 2.2vw, 18px); font-weight: 900; cursor: pointer;
+                    color: rgba(255, 255, 255, 0.4);
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: clamp(0.7rem, 1.8vw, 1.1rem); 
+                    box-sizing: border-box;
+                    font-weight: 900; 
+                    cursor: pointer;
                     white-space: nowrap;
-                    transition: all 0.25s ease;
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    text-transform: uppercase;
+                    /* High-Performance 1px Outline v31 */
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
                 }
-                .tab-btn.tab-visual.active {
-                    background: #00E5FF; color: #000; border-color: #00E5FF;
-                    box-shadow: 0 -8px 25px rgba(0, 229, 255, 0.5);
+                .tab-btn.active {
+                    color: #fff;
+                    background: var(--active-color, #00E5FF);
+                    border-color: rgba(255,255,255,0.8);
+                    z-index: 11;
+                    transform: translateY(-2px);
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                    filter: drop-shadow(0 0 15px var(--active-glow, rgba(0,229,255,0.6)));
                 }
-                .tab-btn.tab-audio.active {
-                    background: #FF007F; color: #fff; border-color: #FF007F;
-                    box-shadow: 0 -8px 25px rgba(255, 0, 127, 0.5);
-                }
-                .tab-btn.tab-gameplay.active {
-                    background: #A1C4FD; color: #000; border-color: #A1C4FD;
-                    box-shadow: 0 -8px 25px rgba(161, 196, 253, 0.5);
-                }
+
+                /* Specific Tab Colors (v25 - Swapped v26) */
+                .tab-btn.tab-theme.active { --active-color: #A2FF00; --active-glow: rgba(162,255,0,0.6); }
+                .tab-btn.tab-note.active { --active-color: #FFD700; --active-glow: rgba(255,215,0,0.6); }
+                .tab-btn.tab-audio.active { --active-color: #FF006E; --active-glow: rgba(255,0,110,0.6); }
+                .tab-btn.tab-gameplay.active { --active-color: #00E5FF; --active-glow: rgba(0,229,255,0.6); }
+
+
                 .tab-btn:hover:not(.active) {
                     color: rgba(255,255,255,0.9);
                     background: rgba(60, 50, 80, 0.7);
-                    transform: translateY(-2px);
+                    transform: translateY(-4px);
+                    border-color: rgba(255, 255, 255, 0.4);
                 }
-                .btn-return {
-                    margin-left: auto;
-                    background: linear-gradient(90deg, #ffba00, #ff6c00);
-                    color: #fff !important; border-color: transparent !important;
-                    border-radius: 20px 20px 0 0;
-                    box-shadow: 0 -4px 15px rgba(255, 150, 0, 0.4);
-                }
-                .btn-return:hover { filter: brightness(1.2); transform: translateY(-4px); }
 
-                /* Panel */
+                /* Fixed Return Button (v38 Perfect Sync) */
+                .btn-return-fixed {
+                    height: var(--header-btn-height); /* IDENTICAL HEIGHT v38 */
+                    padding: 0 40px; 
+                    margin-bottom: 0px; 
+                    background: linear-gradient(135deg, #FF0000 0%, #990000 100%);
+                    color: #fff;
+                    border: 3px solid #fff;
+                    border-radius: 12px;
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: 1.1rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                    box-shadow: 0 4px 15px rgba(255,0,0,0.3);
+                    display: flex; align-items: center; justify-content: center;
+                    white-space: nowrap;
+                    box-sizing: border-box;
+                }
+
+
+                .btn-return-fixed:hover {
+                    filter: brightness(1.2) drop-shadow(0 0 15px rgba(255,0,0,0.5));
+                    transform: scale(1.05) translateY(-2px);
+                }
+
+
+
+                /* Panel (Technika Glass v24 - v29 Pure-Outline) */
                 .settings-panel {
-                    background: rgba(10, 5, 20, 0.15);
+                    background: transparent; /* FULLY TRANSPARENT v29 */
                     border: 4px solid rgba(255, 255, 255, 0.8);
                     border-radius: 0 24px 24px 24px;
-                    padding: clamp(16px, 3vw, 32px); box-sizing: border-box;
+                    padding: 0;
                     color: #fff;
                     display: flex; flex-direction: column;
                     position: relative;
                     flex: 1; min-height: 0;
                     overflow: hidden;
-                    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+                    transition: border-color 0.4s ease, box-shadow 0.4s ease;
+                    backdrop-filter: none; /* NO BLUR v29 */
+                    -webkit-backdrop-filter: none;
+                    box-shadow: none; /* REMOVED INSET v29 */
+                    z-index: 20;
                 }
 
-                /* Tab content */
+
+
+                /* Tab Content Animation Wrapper (v35 Zero-Padding) */
                 #settings-tab-content {
                     flex: 1; display: flex; flex-direction: column;
-                    min-height: 0;
-                    width: 100%; box-sizing: border-box;
+                    min-height: 0; width: 100%; 
+                    padding: 0; /* Box-Free Restoration v35 */
+                    box-sizing: border-box;
                     align-items: stretch;
+                    opacity: 1; transform: none;
+                    transition: opacity 0.15s ease-out, transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    overflow: hidden; /* No global scroll v33 */
+                    will-change: opacity, transform;
                 }
-                .settings-section {
-                    display: flex; flex-direction: column; flex: 1;
-                    width: 100%; box-sizing: border-box;
-                    min-width: 0; align-self: stretch;
-                    overflow-y: auto; padding-right: 5px;
-                }
-                .settings-section::-webkit-scrollbar { width: 8px; }
-                .settings-section::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
 
-                /* Theme Grid */
+
+                #settings-tab-content.transitioning { opacity: 0; transform: scale(0.99) translateY(5px); }
+
+
+                #settings-tab-content::-webkit-scrollbar { width: 8px; }
+                #settings-tab-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+
+                /* Tab Containers (v36 Breathing Room) */
+                .tab-container-fit {
+                    height: 100%; width: 100%; 
+                    display: flex; flex-direction: column;
+                    overflow: hidden;
+                    padding: clamp(12px, 2vw, 24px); /* Professional spacing v36 */
+                    box-sizing: border-box;
+                }
+
+                .tab-container-scroll {
+                    height: 100%; width: 100%;
+                    overflow-y: auto;
+                    padding: 20px; /* Audio/Gameplay still need padding */
+                    box-sizing: border-box;
+                }
+
+                .tab-container-scroll::-webkit-scrollbar { width: 6px; }
+                .tab-container-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+
+                /* Deliberate Loading State (v34 Pure-Transparent) */
+                .settings-loading-overlay {
+                    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                    background: transparent; /* Box Removed v34 */
+                    display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    z-index: 100; opacity: 0; pointer-events: none;
+                    transition: opacity 0.2s ease;
+                    backdrop-filter: none; /* Blur Removed v34 */
+                }
+                .settings-loading-overlay.active { opacity: 1; pointer-events: all; }
+
+                .loading-text {
+                    font-family: 'Outfit', sans-serif;
+                    font-size: 3rem; font-weight: 900; color: #fff;
+                    letter-spacing: 15px; text-transform: uppercase;
+                    /* Stronger glow for transparent background v34 */
+                    text-shadow: 0 0 30px rgba(0, 229, 255, 1), 0 0 10px rgba(0, 229, 255, 0.8), -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+                    animation: readyPulse 0.8s ease-in-out infinite alternate;
+                }
+
+                @keyframes readyPulse {
+                    from { opacity: 0.5; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1.05); }
+                }
+
+
+
+                /* Theme Grid (v36 Balanced) */
                 .theme-grid {
                     display: grid;
                     grid-template-columns: repeat(5, 1fr);
-                    grid-template-rows: 1fr 1fr;
-                    gap: clamp(10px, 1.5vw, 18px);
+                    grid-template-rows: repeat(2, 1fr);
+                    gap: clamp(12px, 2vw, 24px); /* Breathing Room v36 */
+                    width: 100%; height: 100%; box-sizing: border-box;
+                    padding: 0;
                     flex: 1;
-                    width: 100%; box-sizing: border-box;
-                    padding: clamp(8px, 1vw, 16px) 0;
                 }
+
+
+
+
+
                 @media (max-width: 700px) {
                     .theme-grid { grid-template-columns: repeat(4, 1fr); }
                 }
 
-                /* Theme Buttons */
+                /* Theme Buttons (v36 Rounded Rect) */
                 .theme-btn {
-                    position: relative; border-radius: 14px; border: 3px solid;
+                    position: relative; border-radius: 16px; border: 2px solid rgba(255,255,255,0.3);
                     cursor: pointer; display: flex; align-items: flex-end; justify-content: center;
-                    padding: 10px; transition: all 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
-                    box-shadow: 0 6px 14px rgba(0,0,0,0.4); overflow: hidden;
-                    min-height: 60px;
+                    padding: clamp(10px, 1.5vh, 20px); transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow: hidden;
+                    height: 100%;
+                    background: rgba(255, 255, 255, 0.05);
                 }
+
+
+
                 .theme-btn::before {
                     content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
                     background: inherit; opacity: 0; transition: 0.2s;
                 }
-                .theme-btn:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+                .theme-btn:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(0,0,0,0.7); }
                 .theme-btn:hover::before { opacity: 0.4; }
 
-                /* NON-selected: dim slightly */
+                /* NON-selected: no box, just glass v35 */
                 .theme-btn:not(.active) {
-                    opacity: 0.6;
-                    filter: brightness(0.75);
+                    opacity: 1;
+                    filter: brightness(0.9);
                 }
                 .theme-btn:not(.active):hover {
-                    opacity: 0.9;
-                    filter: brightness(1);
+                    background: rgba(255, 255, 255, 0.15);
+                    filter: brightness(1.2);
                 }
+
 
                 /* ACTIVE theme: clean highlight + lighter pulse */
                 .theme-btn.active {
@@ -184,82 +311,189 @@ export class SettingsUI {
                 }
 
                 .theme-name {
-                    position: relative; z-index: 1; font-size: clamp(13px, 1.5vw, 17px); font-weight: 800;
-                    color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.9); text-align: center; width: 100%;
+                    position: relative; z-index: 1; 
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: clamp(13px, 1.5vw, 17px); font-weight: 800;
+                    color: #fff; 
+                    text-align: center; width: 100%;
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
                 }
 
-                /* Sliders */
+                /* Sliders & Rows (Technika Gothic v24) */
                 .setting-row {
                     display: flex; justify-content: space-between; align-items: center;
-                    margin-bottom: clamp(12px, 2vw, 20px); gap: 20px;
+                    margin-bottom: clamp(12px, 2vw, 24px); gap: 20px;
                     width: 100%; box-sizing: border-box;
                 }
-                .setting-row label { font-weight: 700; font-size: clamp(16px, 1.8vw, 22px); white-space: nowrap; min-width: 140px; }
-                input[type=range] { flex: 1; cursor: pointer; accent-color: #FF0055; }
+                .setting-row label { 
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-weight: 700; font-size: clamp(16px, 1.8vw, 24px); 
+                    white-space: nowrap; min-width: 140px; 
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                }
 
-                /* Buttons */
+                input[type=range] { flex: 1; cursor: pointer; accent-color: #FF006E; height: 8px; border-radius: 4px; }
+
+                /* Buttons & Global Text Outline (v30) */
                 .btn-row { display: flex; justify-content: center; align-items: center; gap: clamp(10px, 2vw, 20px); flex: 1; width: 100%; }
                 .glass-btn {
-                    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
-                    padding: clamp(12px, 2.5vw, 16px) clamp(24px, 4.5vw, 36px); border-radius: 30px; color: #fff; font-size: clamp(16px, 3.5vw, 20px); font-weight: 800;
+                    font-family: 'Black Han Sans', sans-serif;
+                    background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3);
+                    padding: clamp(12px, 2.5vw, 18px) clamp(24px, 4.5vw, 40px); border-radius: 30px; color: #fff; font-size: clamp(14px, 2.5vw, 20px); font-weight: 800;
                     cursor: pointer; transition: 0.2s;
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                    text-transform: uppercase;
                 }
-                .glass-btn:hover { background: rgba(255,255,255,0.25); transform: translateY(-2px); }
-                .glass-btn.primary { background: linear-gradient(45deg, #FF0055, #f093fb); border-color: #fff; }
-                .glass-btn.primary:hover { filter: brightness(1.2); box-shadow: 0 5px 15px rgba(255,0,85,0.4); }
+                .glass-btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); border-color: #fff; }
+                .glass-btn.primary { 
+                    background: linear-gradient(135deg, #ff006e 0%, #ff8040 100%); 
+                    border-color: #fff;
+                    box-shadow: 0 0 20px rgba(255, 0, 110, 0.3);
+                }
+                .glass-btn.primary:hover { filter: brightness(1.2) drop-shadow(0 0 15px rgba(255,0,110,0.5)); }
+
+                p {
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                }
+                
+                .setting-row label {
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                }
+
             </style>
+
 
             <div class="settings-overlay" id="settings-ui-root">
                 <div class="settings-window">
-                    <div class="settings-tabs" id="settings-tabs">
-                        <button class="tab-btn tab-visual active" data-tab="visual">VISUAL</button>
-                        <button class="tab-btn tab-skin" data-tab="skin">SKIN</button>
-                        <button class="tab-btn tab-audio" data-tab="audio">AUDIO</button>
-                        <button class="tab-btn tab-gameplay" data-tab="gameplay">GAMEPLAY</button>
-                        <button id="btn-back" class="tab-btn btn-return">← APPLY & RETURN</button>
+                    <div class="settings-header">
+                        <div class="settings-tabs" id="settings-tabs">
+                            <button class="tab-btn tab-theme active" data-tab="theme">THEME</button>
+                            <button class="tab-btn tab-note" data-tab="note">NOTE</button>
+                            <button class="tab-btn tab-audio" data-tab="audio">AUDIO</button>
+                            <button class="tab-btn tab-gameplay" data-tab="gameplay">GAMEPLAY</button>
+                        </div>
+                        <button id="btn-back" class="btn-return-fixed">← APPLY & RETURN</button>
                     </div>
                     <div class="settings-panel" id="settings-panel">
-                        <div id="settings-tab-content" style="flex:1;display:flex;flex-direction:column;width:100%;min-height:0;box-sizing:border-box;"></div>
+                        <div id="settings-tab-content"></div>
+                        <div id="settings-loading" class="settings-loading-overlay">
+                            <div class="loading-text">LOADING...</div>
+                        </div>
                     </div>
+
+
                 </div>
             </div>
         `;
 
         this.ui.createOverlay('settings-ui', html);
-        this.attachShellListeners();
-    }
-
-    /** Only swap the inner tab content + update tab button classes. No full DOM replace = zero flicker. */
-    private updateTabContent(): void {
+        
+        // Pre-render all containers v30
         const contentEl = document.getElementById('settings-tab-content');
-        if (!contentEl) return;
+        if (contentEl) {
+            ['theme', 'note', 'audio', 'gameplay'].forEach(t => {
+                const container = document.createElement('div');
+                container.style.display = 'none';
+                container.style.width = '100%';
+                // Use fit container for grid tabs, scroll for others v33
+                container.className = (t === 'theme' || t === 'note') ? 'tab-container-fit' : 'tab-container-scroll';
+                this.activeTab = t as Tab; 
+                this.renderActiveTabContent(container);
+                contentEl.appendChild(container);
+                this.tabContainers.set(t as Tab, container);
+                
+                if (t === 'theme') this.attachThemeListeners(container);
+                if (t === 'note') this.attachSkinListeners(container);
+            });
 
-        // 1. Update tab button active states (no re-render)
-        document.querySelectorAll('#settings-tabs .tab-btn[data-tab]').forEach(btn => {
-            const tab = btn.getAttribute('data-tab');
-            if (tab === this.activeTab) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-
-        // 2. Update panel border color smoothly via CSS transition
-        const panel = document.getElementById('settings-panel');
-        if (panel) {
-            let borderColor = '#00F0FF';
-            let boxShadow = '0 0 40px rgba(0, 240, 255, 0.3)';
-            if (this.activeTab === 'skin') { borderColor = '#FFD700'; boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)'; }
-            else if (this.activeTab === 'audio') { borderColor = '#FF007F'; boxShadow = '0 0 40px rgba(255, 0, 127, 0.3)'; }
-            else if (this.activeTab === 'gameplay') { borderColor = '#A1C4FD'; boxShadow = '0 0 40px rgba(161, 196, 253, 0.3)'; }
-            panel.style.borderColor = borderColor;
-            panel.style.boxShadow = `${boxShadow}, inset 0 0 30px ${borderColor}66`;
+            this.activeTab = 'theme'; 
         }
 
-        // 3. Build only the inner content
+        this.attachShellListeners();
+
+    }
+
+
+    /** Only swap visibility + update active states with a deliberate 'READY' loading phase. (v31) */
+    private updateTabContent(): void {
+        const contentEl = document.getElementById('settings-tab-content');
+        const loadingEl = document.getElementById('settings-loading');
+        if (!contentEl || !loadingEl) return;
+
+        // 1. Show 'READY' Loading Screen
+        loadingEl.classList.add('active');
+        contentEl.classList.add('transitioning');
+
+        // 2. Deliberate wait for smooth transition (150ms as requested)
+        setTimeout(() => {
+            requestAnimationFrame(() => {
+                // Update tab button active states
+                document.querySelectorAll('#settings-tabs .tab-btn[data-tab]').forEach(btn => {
+                    const tab = btn.getAttribute('data-tab');
+                    if (tab === this.activeTab) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+
+                // Update panel border color
+                const panel = document.getElementById('settings-panel');
+                if (panel) {
+                    let borderColor = '#FFD700';
+                    let boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)';
+                    if (this.activeTab === 'theme') { borderColor = '#A2FF00'; boxShadow = '0 0 40px rgba(162, 255, 0, 0.3)'; }
+                    else if (this.activeTab === 'note') { borderColor = '#FFD700'; boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)'; }
+                    else if (this.activeTab === 'audio') { borderColor = '#FF006E'; boxShadow = '0 0 40px rgba(255, 0, 110, 0.3)'; }
+                    else if (this.activeTab === 'gameplay') { borderColor = '#00E5FF'; boxShadow = '0 0 40px rgba(0, 229, 255, 0.3)'; }
+                    
+                    panel.style.borderColor = borderColor;
+                    panel.style.boxShadow = boxShadow;
+                }
+
+                // Toggle Container Visibility
+                this.tabContainers.forEach((container, tab) => {
+                    if (tab === this.activeTab) {
+                        container.style.display = 'block';
+                        this.refreshActiveStatesInContainer(container, tab);
+                    } else {
+                        container.style.display = 'none';
+                    }
+                });
+
+                // Clear Transition & Loading
+                setTimeout(() => {
+                    contentEl.classList.remove('transitioning');
+                    loadingEl.classList.remove('active');
+                }, 50);
+            });
+        }, 150);
+    }
+
+
+    /** Refresh internal button states (e.g. checkmarks) when returning to a tab. */
+    private refreshActiveStatesInContainer(container: HTMLElement, tab: Tab): void {
+        if (tab === 'theme') {
+            const currentThemeId = ThemeManager.getInstance().getCurrentTheme().id;
+            container.querySelectorAll('.theme-btn:not(.skin-btn)').forEach(btn => {
+                if (btn.getAttribute('data-theme') === currentThemeId) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+        } else if (tab === 'note') {
+            const currentSkinId = NoteSkinManager.getInstance().getCurrentSkin().id;
+            container.querySelectorAll('.skin-btn').forEach(btn => {
+                if (btn.getAttribute('data-skin') === currentSkinId) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+        }
+    }
+
+
+    private renderActiveTabContent(contentEl: HTMLElement): void {
         const themeManager = ThemeManager.getInstance();
         const currentThemeId = themeManager.getCurrentTheme().id;
         const skinManager = NoteSkinManager.getInstance();
         const currentSkinId = skinManager.getCurrentSkin().id;
 
-        if (this.activeTab === 'visual') {
+
+        if (this.activeTab === 'theme') {
             const themes = themeManager.getAllThemes();
             const themesHtml = themes.map(t => `
                 <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''}" data-theme="${t.id}"
@@ -269,15 +503,12 @@ export class SettingsUI {
             `).join('');
 
             contentEl.innerHTML = `
-                <div class="settings-section" style="width:100%;box-sizing:border-box;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 20px; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">Game Background Theme</h3>
-                    <div class="theme-grid" style="width:100%;box-sizing:border-box; margin-bottom: 24px;">
-                        ${themesHtml}
-                    </div>
+                <div class="theme-grid">
+                    ${themesHtml}
                 </div>
             `;
-            this.attachThemeListeners();
-        } else if (this.activeTab === 'skin') {
+
+        } else if (this.activeTab === 'note') {
             const renderCache = RenderCache.getInstance();
             const skins = skinManager.getAllSkins();
             const skinsHtml = skins.map(s => {
@@ -291,34 +522,32 @@ export class SettingsUI {
             `}).join('');
 
             contentEl.innerHTML = `
-                <div class="settings-section" style="width:100%;box-sizing:border-box;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 20px; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">Note & Receptor Skin</h3>
-                    <div class="theme-grid" style="width:100%;box-sizing:border-box; margin-bottom: 24px;">
-                        ${skinsHtml}
-                    </div>
+                <div class="theme-grid">
+                    ${skinsHtml}
                 </div>
             `;
-            this.attachSkinListeners();
+
+
         } else if (this.activeTab === 'audio') {
             contentEl.innerHTML = `
-                <div class="settings-section" style="width:100%;box-sizing:border-box;">
-                    <div class="setting-row" style="width:100%;box-sizing:border-box;">
-                        <label>Master Volume</label>
-                        <input type="range" id="master-volume" min="0" max="100" value="80">
-                    </div>
-                    <div class="setting-row" style="width:100%;box-sizing:border-box;">
-                        <label>SFX Volume</label>
-                        <input type="range" id="sfx-volume" min="0" max="100" value="100">
-                    </div>
+                <div class="setting-row" style="width:100%;box-sizing:border-box; padding-top: 10px;">
+                    <label>MASTER VOLUME</label>
+                    <input type="range" id="master-volume" min="0" max="100" value="80">
+                </div>
+                <div class="setting-row" style="width:100%;box-sizing:border-box;">
+                    <label>SFX VOLUME</label>
+                    <input type="range" id="sfx-volume" min="0" max="100" value="100">
                 </div>
             `;
         } else if (this.activeTab === 'gameplay') {
             contentEl.innerHTML = `
-                <div class="settings-section" style="width:100%;box-sizing:border-box;">
-                    <div class="btn-row" style="width:100%;box-sizing:border-box;">
-                        <button id="btn-layout-editor" class="glass-btn primary">🎨 Customize UI Layout</button>
-                    </div>
+                <div class="setting-row" style="width:100%;box-sizing:border-box; margin-bottom: 20px; padding-top: 10px;">
+                    <label style="flex:1;">UI LAYOUT CONFIGURATION</label>
+                    <button id="btn-layout-editor" class="glass-btn primary" style="flex:1;">🎨 OPEN LAYOUT EDITOR</button>
                 </div>
+                <p style="color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-top: 10px; font-family: 'Outfit';">
+                    * 아케이드 터치 스크린 규격에 맞춰 각 UI 요소의 위치와 크기를 자유롭게 조절할 수 있습니다.
+                </p>
             `;
             document.getElementById('btn-layout-editor')?.addEventListener('click', () => {
                 this.destroy();
@@ -346,22 +575,22 @@ export class SettingsUI {
         });
     }
 
-    /** Attach listeners for theme buttons (re-attached when visual tab content is swapped). */
-    private attachThemeListeners(): void {
-        document.querySelectorAll('.theme-btn:not(.skin-btn)').forEach(btn => {
+    /** Attach listeners for theme buttons (Scoped v30). */
+    private attachThemeListeners(container: HTMLElement = document.body): void {
+        container.querySelectorAll('.theme-btn:not(.skin-btn)').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 const themeId = target.getAttribute('data-theme');
                 if (themeId) {
                     ThemeManager.getInstance().setTheme(themeId);
-                    this.updateTabContent(); // Only updates inner content
+                    this.updateTabContent();
                 }
             });
         });
     }
 
-    private attachSkinListeners(): void {
-        document.querySelectorAll('.skin-btn').forEach(btn => {
+    private attachSkinListeners(container: HTMLElement = document.body): void {
+        container.querySelectorAll('.skin-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 const skinId = target.getAttribute('data-skin');
@@ -372,6 +601,7 @@ export class SettingsUI {
             });
         });
     }
+
 
     public hide(): void {
         this.destroy();
