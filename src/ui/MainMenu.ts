@@ -6,6 +6,58 @@ export class MainMenu {
     private ui: UIManager;
     private onStartGame: (mode: string) => void;
     private settingsUI: SettingsUI | null = null;
+    private currentLang: string = 'en';
+
+    private readonly l10n: any = {
+        en: {
+            title: 'MAIN MENU',
+            subTitle: 'Select Your Activity',
+            play: 'PLAY',
+            playDesc: 'Rhythm Game',
+            editor: 'EDITOR',
+            editorDesc: 'Create Maps',
+            pong: 'PONG',
+            pongDesc: 'Mini Game',
+            shop: 'SHOP',
+            shopDesc: 'Items & Skins',
+            friends: 'FRIENDS',
+            settings: 'SETTINGS',
+            inbox: 'INBOX',
+            version: 'TEST VERSION'
+        },
+        ko: {
+            title: '메인 메뉴',
+            subTitle: '활동을 선택하세요',
+            play: '플레이',
+            playDesc: '리듬 게임',
+            editor: '에디터',
+            editorDesc: '맵 제작',
+            pong: '퐁',
+            pongDesc: '미니 게임',
+            shop: '상점',
+            shopDesc: '아이템 및 스킨',
+            friends: '친구',
+            settings: '설정',
+            inbox: '메시지',
+            version: '테스트 버전'
+        },
+        ja: {
+            title: 'メインメニュー',
+            subTitle: 'アク티ビティを選択',
+            play: 'プレイ',
+            playDesc: 'リズムゲーム',
+            editor: 'エディター',
+            editorDesc: 'マップ作成',
+            pong: 'ポン',
+            pongDesc: 'ミニゲーム',
+            shop: 'ショップ',
+            shopDesc: 'アイテム＆スキン',
+            friends: 'フレンド',
+            settings: '設定',
+            inbox: '受信トレイ',
+            version: 'テストバージョン'
+        }
+    };
 
     constructor(onStartGame: (mode: string) => void) {
         this.ui = UIManager.getInstance();
@@ -13,297 +65,546 @@ export class MainMenu {
     }
 
     public show(): void {
+        const t = this.l10n[this.currentLang];
         MenuMusicManager.getInstance().playMusic('main');
         const html = `
             <style>
-                /* Base Reset specific to Main Menu to avoid bleeding */
+                /* =========================================
+                   NEXUS SPHERE — MAIN MENU  (Premium v2)
+                   Transparent bg: game canvas shows through
+                   ========================================= */
+
+                @keyframes mm-fadeInDown {
+                    from { opacity: 0; transform: translateY(-24px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes mm-fadeInUp {
+                    from { opacity: 0; transform: translateY(24px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes mm-cardIn {
+                    from { opacity: 0; transform: translateY(30px) scale(0.92); }
+                    to   { opacity: 1; transform: translateY(0)    scale(1); }
+                }
+                @keyframes mm-titlePulse {
+                    0%, 100% { text-shadow: 0 0 20px rgba(240,147,251,0.8), 0 0 40px rgba(240,147,251,0.4), 0 4px 0 rgba(0,0,0,0.5); }
+                    50%      { text-shadow: 0 0 30px rgba(245,87,108,1),     0 0 60px rgba(245,87,108,0.6), 0 4px 0 rgba(0,0,0,0.5); }
+                }
+                @keyframes mm-shimmer {
+                    0%   { left: -100%; }
+                    100% { left: 200%; }
+                }
+
+                /* ── Container ── */
                 .mm-container {
                     position: fixed;
-                    top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: transparent;
+                    inset: 0;
+                    background: transparent; /* Let game canvas show through */
                     font-family: 'Nunito', 'Segoe UI', sans-serif;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: space-between;
+                    display: grid;
+                    grid-template-rows: auto 1fr auto;
                     overflow: hidden;
+                    padding-bottom: 0;
                     z-index: 50;
                     user-select: none;
                     box-sizing: border-box;
+                    /* Subtle darkening vignette - preserves colour, adds depth */
+                    box-shadow: inset 0 0 180px rgba(0,0,0,0.45);
                 }
 
-                /* Top HUD */
-                .mm-top-hud {
-                    width: 100%;
-                    padding: clamp(8px, 2vw, 20px);
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    z-index: 2;
-                    box-sizing: border-box;
-                    flex-shrink: 0;
-                }
-                .mm-badge {
-                    background: rgba(255, 255, 255, 0.15);
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                    color: white;
-                    padding: clamp(5px, 1.5vw, 8px) clamp(8px, 2.5vw, 16px);
-                    border-radius: 20px;
-                    font-weight: 800;
-                    font-size: clamp(0.65rem, 2vw, 1.1rem);
-                    border: 1px solid rgba(255, 255, 255, 0.4);
-                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 5px;
-                    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-                    white-space: nowrap;
-                }
-                .mm-stats {
-                    display: flex;
-                    gap: 8px;
-                }
-
-                /* Ribbon Title */
-                .mm-ribbon-container {
-                    position: relative;
-                    margin-top: clamp(2vh, 4vh, 6vh);
-                    width: 100%;
-                    display: flex;
-                    justify-content: center;
-                    z-index: 2;
-                }
-                .mm-ribbon {
-                    background: linear-gradient(to bottom, #f093fb 0%, #f5576c 100%);
-                    padding: clamp(6px, 1.5vh, 10px) clamp(20px, 8vw, 50px);
-                    border-radius: 8px;
-                    box-shadow: 0 6px 0 #c2314a, 0 10px 20px rgba(0,0,0,0.4);
-                    border: 2px solid rgba(255,255,255,0.8);
-                    position: relative;
-                }
-                .mm-ribbon::before, .mm-ribbon::after {
+                /* ── Vignette overlay ── */
+                .mm-container::before {
                     content: '';
                     position: absolute;
-                    top: 15px;
-                    bottom: -10px;
-                    width: 30px;
-                    background: #c2314a;
-                    z-index: -1;
-                }
-                .mm-ribbon::before {
-                    left: -20px;
-                    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 50%);
-                }
-                .mm-ribbon::after {
-                    right: -20px;
-                    clip-path: polygon(0 0, 100% 0, 100% 50%, 0 100%);
-                }
-                .mm-ribbon h1 {
-                    margin: 0;
-                    font-size: clamp(1.2rem, 5vw, 2.5rem);
-                    font-weight: 900;
-                    color: white;
-                    text-transform: uppercase;
-                    text-shadow: 0 3px 0 #c2314a, 0 5px 10px rgba(0,0,0,0.5);
-                    letter-spacing: 2px;
+                    inset: 0;
+                    background:
+                        radial-gradient(ellipse 120% 60% at 50% 0%,   rgba(240,147,251,0.10) 0%, transparent 70%),
+                        radial-gradient(ellipse 120% 60% at 50% 100%, rgba(245, 87,108,0.12) 0%, transparent 70%);
+                    pointer-events: none;
+                    z-index: 0;
                 }
 
-                /* Center Buttons */
-                .mm-center {
-                    display: flex;
-                    gap: clamp(8px, 2.5vw, 20px);
-                    justify-content: center;
-                    align-items: center;
-                    flex: 1;
-                    flex-wrap: wrap;
-                    z-index: 2;
-                    margin-top: 2vh;
-                    padding: 0 clamp(8px, 3vw, 30px);
-                    max-width: 100%;
-                }
-                .mm-big-btn {
+                /* ── TOP HUD ── */
+                .mm-top-hud {
                     position: relative;
-                    width: clamp(80px, 20vw, 150px);
-                    height: clamp(80px, 20vw, 150px);
-                    border-radius: 25px;
-                    border: 3px solid rgba(255, 255, 255, 0.8);
+                    z-index: 2;
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: clamp(10px, 2vh, 18px) clamp(16px, 4vw, 48px);
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    animation: mm-fadeInDown 0.5s ease both;
+                    background: linear-gradient(to bottom, rgba(0,0,0,0.40), transparent);
+                }
+                /* Right-align the currency group */
+                .mm-hud-right {
+                    justify-self: end;
+                }
+                /* ── CENTERED MAIN TITLE ── */
+                .mm-main-title {
+                    text-align: center;
+                    margin-bottom: clamp(15px, 3vh, 35px);
+                    animation: mm-fadeInDown 0.6s 0.1s ease both;
+                    z-index: 2;
+                }
+                .mm-title-box {
+                    display: inline-block;
+                    padding: clamp(10px, 2.5vh, 20px) clamp(25px, 6vw, 60px);
+                    background: rgba(255,255,255,0.06);
+                    border: 1px solid rgba(255,255,255,0.20);
+                    border-radius: clamp(16px, 3vh, 32px);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                }
+                .mm-main-title-text {
+                    font-size: clamp(2.5rem, 8vh, 5.2rem);
+                    font-weight: 1000;
+                    letter-spacing: clamp(10px, 2vw, 25px);
+                    background: linear-gradient(to bottom, #ffffff 0%, #cbd5e1 50%, #64748b 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    filter: drop-shadow(0 10px 20px rgba(165,180,252,0.4));
+                    text-transform: uppercase;
+                    margin-left: clamp(10px, 2vw, 25px);
+                }
+
+                .mm-main-title-sub {
+                    font-size: 0.8rem;
+                    color: #ff006e;
+                    letter-spacing: 8px;
+                    text-transform: uppercase;
+                    font-weight: 800;
+                    margin-top: 5px;
+                    text-shadow: 0 0 10px rgba(255,0,110,0.5);
+                }
+
+                .mm-version-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: clamp(5px, 1.2vh, 9px) clamp(10px, 2.2vw, 20px);
+                    background: rgba(255,255,255,0.10);
+                    border: 1px solid rgba(255,255,255,0.25);
+                    border-radius: 999px;
+                    color: white;
+                    font-weight: 800;
+                    font-size: clamp(0.65rem, 1.5vh, 0.85rem);
+                    letter-spacing: 0.5px;
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+                    white-space: nowrap;
+                }
+
+                .mm-hud-right {
+                    display: flex;
+                    gap: clamp(6px, 1.5vw, 14px);
+                }
+
+                .mm-currency-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: clamp(4px, 0.8vw, 8px);
+                    padding: clamp(5px, 1.2vh, 9px) clamp(12px, 2.5vw, 22px);
+                    border-radius: 999px;
+                    color: white;
+                    font-weight: 900;
+                    font-size: clamp(0.7rem, 1.6vh, 0.9rem);
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+                    white-space: nowrap;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .mm-currency-badge.gold {
+                    background: linear-gradient(135deg, rgba(255,195,0,0.30), rgba(255,140,0,0.20));
+                    border: 1px solid rgba(255,210,80,0.50);
+                    box-shadow: 0 0 16px rgba(255,180,0,0.20), inset 0 1px 0 rgba(255,255,255,0.20);
+                }
+                .mm-currency-badge.gem {
+                    background: linear-gradient(135deg, rgba(130,180,255,0.30), rgba(80,130,255,0.20));
+                    border: 1px solid rgba(140,180,255,0.50);
+                    box-shadow: 0 0 16px rgba(100,160,255,0.20), inset 0 1px 0 rgba(255,255,255,0.20);
+                }
+
+                /* ── BODY (middle row) ── */
+                .mm-body {
+                    position: relative;
+                    z-index: 2;
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    cursor: pointer;
-                    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    /* Layered shadow: depth + glow */
-                    box-shadow:
-                        0 10px 0 rgba(0,0,0,0.2),
-                        0 15px 25px rgba(0,0,0,0.3),
-                        inset 0 1px 0 rgba(255,255,255,0.5);
-                    text-decoration: none;
-                    overflow: hidden;
-                }
-                /* Shimmer/light reflection pseudo-element */
-                .mm-big-btn::before {
-                    content: '';
-                    position: absolute;
-                    top: 0; left: -80%;
-                    width: 60%;
-                    height: 100%;
-                    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent);
-                    transform: skewX(-20deg);
-                    transition: left 0.5s;
-                    pointer-events: none;
-                }
-                .mm-big-btn:hover::before {
-                    left: 120%;
-                }
-                /* Top gloss overlay */
-                .mm-big-btn::after {
-                    content: '';
-                    position: absolute;
-                    top: 0; left: 0;
-                    right: 0;
-                    height: 50%;
-                    background: linear-gradient(to bottom, rgba(255,255,255,0.25), transparent);
-                    border-radius: 22px 22px 0 0;
-                    pointer-events: none;
-                }
-                .mm-big-btn:hover {
-                    transform: translateY(-5px) scale(1.05);
-                    box-shadow:
-                        0 15px 0 rgba(0,0,0,0.2),
-                        0 20px 30px rgba(0,0,0,0.4),
-                        0 0 20px rgba(255,255,255,0.2),
-                        inset 0 1px 0 rgba(255,255,255,0.5);
-                }
-                .mm-big-btn:active {
-                    transform: translateY(10px);
-                    box-shadow: 0 0px 0 rgba(0,0,0,0.2), 0 5px 10px rgba(0,0,0,0.3);
-                }
-                /* Unique button gradients with glow colors */
-                .mm-btn-play {
-                    background: linear-gradient(160deg, #ff9a9e 0%, #f772a1 50%, #fecfef 100%);
-                    border-color: rgba(255,255,255,0.9);
-                    filter: drop-shadow(0 0 8px rgba(255,100,170,0.4));
-                }
-                .mm-btn-songs {
-                    background: linear-gradient(160deg, #74b9ff 0%, #0984e3 50%, #c2e9fb 100%);
-                    border-color: rgba(255,255,255,0.9);
-                    filter: drop-shadow(0 0 8px rgba(9,132,227,0.4));
-                }
-                .mm-btn-chars {
-                    background: linear-gradient(160deg, #a29bfe 0%, #6c5ce7 50%, #fbc2eb 100%);
-                    border-color: rgba(255,255,255,0.9);
-                    filter: drop-shadow(0 0 8px rgba(108,92,231,0.4));
-                }
-                .mm-btn-shop {
-                    background: linear-gradient(160deg, #ffecd2 0%, #fcb69f 50%, #ffd6a5 100%);
-                    border-color: rgba(255,255,255,0.9);
-                    filter: drop-shadow(0 0 8px rgba(252,182,159,0.4));
-                }
-                
-                .mm-big-btn .icon {
-                    font-size: clamp(2rem, 6vw, 3.5rem);
-                    margin-bottom: clamp(6px, 1.5vw, 10px);
-                    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
-                    position: relative; z-index: 1;
-                }
-                .mm-big-btn .label {
-                    color: white;
-                    font-size: clamp(0.7rem, 2vw, 1.2rem);
-                    font-weight: 900;
-                    text-shadow: 0 3px 5px rgba(0,0,0,0.4);
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    position: relative; z-index: 1;
+                    /* Add explicit top/bottom gap to prevent touching screen edges */
+                    padding: clamp(20px, 4vh, 60px) 0;
                 }
 
-                /* Bottom Nav */
-                .mm-bottom-nav {
-                    width: 100%;
-                    padding: clamp(10px, 2.5vh, 20px) clamp(10px, 4vw, 40px);
-                    display: flex;
-                    justify-content: center;
-                    gap: clamp(20px, 8vw, 60px);
+                /* ── PANEL BOX wrapping the cards — Precise 5px Padding ── */
+                .mm-panel {
+                    position: relative;
                     z-index: 2;
-                    background: linear-gradient(to top, rgba(255,255,255,0.5), transparent);
-                    flex-shrink: 0;
+                    background: rgba(255,255,255,0.05);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: clamp(30px, 6vh, 60px);
+                    backdrop-filter: blur(28px);
+                    -webkit-backdrop-filter: blur(28px);
+                    box-shadow:
+                        0 12px 80px rgba(0,0,0,0.45),
+                        inset 0 1px 0 rgba(255,255,255,0.15);
+                    /* Breathable 20px vertical padding as requested v9 */
+                    padding: 20px clamp(20px, 4vw, 50px);
+                    animation: mm-cardIn 0.5s 0.05s ease both;
+                    /* Definitive Container Sizing v13 */
+                    width: clamp(320px, 94vw, 1300px);
+                    max-width: 95%;
+                    height: auto;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                /* ── CENTER BUTTON GRID (Dynamic Single Row v13) ── */
+                .mm-center {
+                    display: flex;
+                    align-items: stretch; /* Match heights across cards */
+                    justify-content: center;
+                    gap: clamp(12px, 2vw, 40px);
+                    flex-wrap: nowrap; /* FORCED SINGLE ROW */
+                    width: 100%;
+                    padding: 15px; /* Internal balance */
                     box-sizing: border-box;
                 }
+
+                /* ── GAME CARD BUTTON (Technika Glossy v14) ── */
+                .mm-card {
+                    position: relative;
+                    flex: 1; /* Scale to fill container */
+                    min-width: 0;
+                    max-width: none; /* Let container width divide space */
+                    aspect-ratio: 1.25 / 1;
+                    border-radius: clamp(16px, 3.5vh, 32px);
+                    border: 4px solid rgba(255,255,255,0.6);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: clamp(10px, 2vh, 25px);
+                    cursor: pointer;
+                    overflow: hidden;
+                    transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+                                box-shadow  0.4s cubic-bezier(0.23, 1, 0.32, 1),
+                                border-color 0.25s ease;
+                    /* Glass Glow effect */
+                    backdrop-filter: blur(10px);
+                    -webkit-backdrop-filter: blur(10px);
+                    padding: 10px clamp(15px, 2.5vw, 40px);
+                    box-sizing: border-box;
+                    box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+                }
+
+                /* Technika Viterous Gloss Reflection */
+                .mm-card::after {
+                    content: '';
+                    position: absolute;
+                    top: 0; left: 0; right: 0; height: 50%;
+                    background: linear-gradient(to bottom, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.05) 100%);
+                    pointer-events: none;
+                    z-index: 2;
+                }
+
+                .mm-card-content {
+                    display: contents; /* Revert to direct children in flex column */
+                }
+
+                /* Entrance staggering */
+                .mm-card:nth-child(1) { animation: mm-cardIn 0.55s 0.15s ease both; }
+                .mm-card:nth-child(2) { animation: mm-cardIn 0.55s 0.22s ease both; }
+                .mm-card:nth-child(3) { animation: mm-cardIn 0.55s 0.29s ease both; }
+                .mm-card:nth-child(4) { animation: mm-cardIn 0.55s 0.36s ease both; }
+
+                /* Shimmer sweep on hover */
+                .mm-card::before {
+                    content: '';
+                    position: absolute;
+                    top: 0; bottom: 0;
+                    left: -100%;
+                    width: 55%;
+                    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.18), transparent);
+                    transform: skewX(-18deg);
+                    transition: none;
+                    pointer-events: none;
+                }
+                .mm-card:hover::before {
+                    animation: mm-shimmer 0.65s ease forwards;
+                }
+
+                /* Top gloss */
+                .mm-card::after {
+                    content: '';
+                    position: absolute;
+                    top: 0; left: 0; right: 0;
+                    height: 45%;
+                    background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent);
+                    border-radius: inherit;
+                    border-bottom-left-radius: 0;
+                    border-bottom-right-radius: 0;
+                    pointer-events: none;
+                }
+
+                /* Individual Technika Colors */
+                .mm-card-play {
+                    background: linear-gradient(135deg, #ff006e 0%, #ff5c8d 100%);
+                    color: #ff006e;
+                }
+                .mm-card-editor {
+                    background: linear-gradient(135deg, #ffd000 0%, #ffec8d 100%);
+                    color: #ffd000;
+                }
+                .mm-card-pong {
+                    background: linear-gradient(135deg, #a2ff00 0%, #d4ff8d 100%);
+                    color: #a2ff00;
+                }
+                .mm-card-shop {
+                    background: linear-gradient(135deg, #00d2ff 0%, #8de9ff 100%);
+                    color: #00d2ff;
+                }
+
+                .mm-card:hover {
+                    transform: scale(1.05) translateY(-5px);
+                    box-shadow: 0 20px 45px rgba(0,0,0,0.3), 0 0 30px currentColor;
+                    border-color: white;
+                }
+                .mm-card:active {
+                    transform: translateY(2px) scale(0.97);
+                    transition-duration: 0.1s;
+                }
+
+                /* Card icon (Technika v14) */
+                .mm-card-icon {
+                    font-size: clamp(3.2rem, 10vh, 6.5rem);
+                    line-height: 1;
+                    filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2));
+                    transition: transform 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+                    position: relative; z-index: 3; /* Above gloss */
+                    color: white;
+                }
+                .mm-card:hover .mm-card-icon {
+                    transform: scale(1.1) translateY(-12px);
+                }
+
+                /* Card labels (Technika v14) */
+                .mm-card-label {
+                    color: white;
+                    font-size: clamp(1.1rem, 2.5vh, 1.8rem);
+                    font-weight: 1000;
+                    text-transform: uppercase;
+                    letter-spacing: clamp(1px, 0.3vw, 2px);
+                    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    line-height: 1;
+                    position: relative; z-index: 3;
+                }
+
+                .mm-card-sub {
+                    color: rgba(255,255,255,0.85);
+                    font-size: clamp(0.55rem, 1.3vh, 0.85rem);
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    position: relative; z-index: 3;
+                }
+
+                /* ── BOTTOM NAV ── */
+                .mm-bottom-nav {
+                    position: relative;
+                    z-index: 2;
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: clamp(10px, 2.5vh, 24px) clamp(16px, 4vw, 48px);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: clamp(20px, 5vw, 80px);
+                    background: linear-gradient(to top, rgba(0,0,0,0.50), transparent);
+                    animation: mm-fadeInUp 0.55s 0.1s ease both;
+                }
+
                 .mm-nav-item {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
+                    gap: 10px;
                     cursor: pointer;
-                    transition: transform 0.2s;
+                    opacity: 0.8;
+                    transition: opacity 0.2s, transform 0.25s cubic-bezier(0.23, 1, 0.32, 1);
+                    padding: 12px 24px;
+                    border-radius: 20px;
                 }
-                .mm-nav-item:hover { transform: scale(1.1); }
-                .mm-nav-item .icon {
-                    font-size: clamp(1.5rem, 5vw, 2.2rem);
-                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+                .mm-nav-item:hover {
+                    opacity: 1;
+                    transform: translateY(-8px);
+                    background: rgba(255,255,255,0.12);
                 }
-                .mm-nav-item .label {
-                    color: rgba(255, 255, 255, 0.9);
-                    font-weight: 800;
-                    margin-top: 6px;
-                    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-                    font-size: clamp(0.65rem, 2vw, 0.9rem);
-                    letter-spacing: 1px;
+                .mm-nav-item:active {
+                    transform: translateY(0);
+                    transition-duration: 0.08s;
+                }
+
+                .mm-nav-icon {
+                    font-size: clamp(2.5rem, 6vh, 4rem);
+                    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+                    line-height: 1;
+                }
+
+                .mm-nav-label {
+                    color: rgba(255,255,255,0.95);
+                    font-weight: 900;
+                    font-size: clamp(0.7rem, 1.8vh, 1.1rem);
+                    text-transform: uppercase;
+                    letter-spacing: clamp(1.5px, 0.4vw, 3px);
+                    text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+                }
+
+                .mm-nav-item.active .mm-nav-icon,
+                .mm-nav-item.active .mm-nav-label { color: #f093fb; }
+                .mm-nav-item.active { opacity: 1; }
+
+                /* ── LANG SWITCHER (Optimized v10) ── */
+                .mm-lang-group {
+                    display: flex;
+                    gap: clamp(8px, 1.5vw, 20px);
+                    margin-left: clamp(15px, 3vw, 40px);
+                    padding-left: clamp(15px, 3vw, 40px);
+                    border-left: 1px solid rgba(255,255,255,0.15);
+                }
+                .mm-flag-btn {
+                    font-size: 2rem;
+                    cursor: pointer;
+                    filter: grayscale(0.8) opacity(0.5);
+                    transition: all 0.2s;
+                }
+                .mm-flag-btn:hover {
+                    filter: grayscale(0) opacity(1);
+                    transform: scale(1.2);
+                }
+                .mm-flag-btn.active {
+                    filter: grayscale(0) opacity(1);
+                    transform: scale(1.1);
+                    text-shadow: 0 0 15px rgba(255,255,255,0.8);
+                }
+
+                /* Compact: Short landscape (mobile phones) */
+                @media (max-height: 480px) {
+                    .mm-main-title { margin-bottom: 5px; margin-top: -15px; }
+                    .mm-main-title-text { font-size: clamp(1rem, 4vh, 1.8rem); }
+                    .mm-main-title-sub { font-size: 0.4rem; }
+                    /* Strict 20px vertical padding v9 */
+                    .mm-panel { 
+                        padding: 20px clamp(20px, 4vw, 50px); 
+                        border-radius: 20px; 
+                        width: 95vw;
+                        height: auto; 
+                        max-height: 75vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .mm-center { gap: clamp(10px, 3vw, 25px); }
+                    .mm-card { max-width: 220px; aspect-ratio: 1.25 / 1; padding: 5px; border-width: 2px; }
+                    .mm-card-icon { font-size: clamp(2.5rem, 15vh, 4rem); }
+                    .mm-card-label { font-size: 1rem; }
+                    .mm-card-sub { display: none; }
+                    .mm-body { padding: 5px 0; }
+                    .mm-bottom-nav { padding: 5px 30px; gap: clamp(20px, 5vw, 60px); }
+                    .mm-nav-label { display: none; }
+                    .mm-lang-group { margin-left: 15px; padding-left: 15px; gap: 10px; }
+                    .mm-flag-btn { font-size: 1.5rem; }
+                }
+
+                /* Very wide screens — limit card size */
+                @media (min-width: 1800px) {
+                    .mm-center { gap: 56px; }
+                    .mm-card { max-width: 230px; }
                 }
             </style>
 
             <div class="mm-container">
+
+                <!-- TOP HUD: version | coins + gems -->
                 <div class="mm-top-hud">
-                    <div class="mm-badge"><span>🎮</span> VERSION 1.0</div>
-                    <div class="mm-stats">
-                        <div class="mm-badge"><span>🪙</span> COINS: 1000</div>
-                        <div class="mm-badge"><span>💎</span> GEMS: 50</div>
+                    <div class="mm-version-badge">🎮 <span>${t.version}</span></div>
+                    <div class="mm-hud-right">
+                        <div class="mm-currency-badge gold">🪙 <span>1,000</span></div>
+                        <div class="mm-currency-badge gem">💎 <span>50</span></div>
                     </div>
                 </div>
 
-                <div class="mm-ribbon-container">
-                    <div class="mm-ribbon">
-                        <h1>MAIN MENU</h1>
+                <!-- BODY: card panel, shifted slightly above center -->
+                <div class="mm-body">
+                    
+                    <!-- REPOSITIONED TITLE CLAM SHELL -->
+                    <div class="mm-main-title">
+                        <div class="mm-title-box">
+                            <div class="mm-main-title-text"><span>${t.title}</span></div>
+                            <div class="mm-main-title-sub">${t.subTitle}</div>
+                        </div>
                     </div>
-                </div>
 
-                <div class="mm-center">
-                    <!-- Rhythm Game -->
-                    <div class="mm-big-btn mm-btn-play" id="btn-rhythm">
-                        <div class="icon">🎵</div>
-                        <div class="label">PLAY</div>
-                    </div>
-                    <!-- Editor -->
-                    <div class="mm-big-btn mm-btn-songs" id="btn-editor">
-                        <div class="icon">💿</div>
-                        <div class="label">EDITOR</div>
-                    </div>
-                    <!-- Pong -->
-                    <div class="mm-big-btn mm-btn-chars" id="btn-pong">
-                        <div class="icon">🎾</div>
-                        <div class="label">PONG</div>
-                    </div>
-                    <!-- Shop (Placeholder) -->
-                    <div class="mm-big-btn mm-btn-shop" id="btn-shop">
-                        <div class="icon">🛒</div>
-                        <div class="label">SHOP</div>
-                    </div>
-                </div>
+                    <div class="mm-panel">
+                        <div class="mm-center">
 
+                            <div class="mm-card mm-card-play" id="btn-rhythm">
+                                <div class="mm-card-icon">🎵</div>
+                                <div class="mm-card-label">${t.play}</div>
+                                <div class="mm-card-sub">${t.playDesc}</div>
+                            </div>
+
+                            <div class="mm-card mm-card-editor" id="btn-editor">
+                                <div class="mm-card-icon">💿</div>
+                                <div class="mm-card-label">${t.editor}</div>
+                                <div class="mm-card-sub">${t.editorDesc}</div>
+                            </div>
+
+                            <div class="mm-card mm-card-pong" id="btn-pong">
+                                <div class="mm-card-icon">🎾</div>
+                                <div class="mm-card-label">${t.pong}</div>
+                                <div class="mm-card-sub">${t.pongDesc}</div>
+                            </div>
+
+                            <div class="mm-card mm-card-shop" id="btn-shop">
+                                <div class="mm-card-icon">🛒</div>
+                                <div class="mm-card-label">${t.shop}</div>
+                                <div class="mm-card-sub">${t.shopDesc}</div>
+                            </div>
+
+                        </div> <!-- /mm-center -->
+                    </div> <!-- /mm-panel -->
+                </div> <!-- /mm-body -->
+
+                <!-- BOTTOM NAV + LANG SWITCHER -->
                 <div class="mm-bottom-nav">
                     <div class="mm-nav-item">
-                        <div class="icon">👥</div>
-                        <div class="label">FRIENDS</div>
+                        <div class="mm-nav-icon">👥</div>
+                        <div class="mm-nav-label">${t.friends}</div>
                     </div>
                     <div class="mm-nav-item" id="btn-settings">
-                        <div class="icon">⚙️</div>
-                        <div class="label">SETTINGS</div>
+                        <div class="mm-nav-icon">⚙️</div>
+                        <div class="mm-nav-label">${t.settings}</div>
                     </div>
                     <div class="mm-nav-item">
-                        <div class="icon">✉️</div>
-                        <div class="label">INBOX</div>
+                        <div class="mm-nav-icon">✉️</div>
+                        <div class="mm-nav-label">${t.inbox}</div>
+                    </div>
+
+                    <div class="mm-lang-group">
+                        <div class="mm-flag-btn ${this.currentLang === 'en' ? 'active' : ''}" id="lang-en" title="English">🇺🇸</div>
+                        <div class="mm-flag-btn ${this.currentLang === 'ko' ? 'active' : ''}" id="lang-ko" title="한국어">🇰🇷</div>
+                        <div class="mm-flag-btn ${this.currentLang === 'ja' ? 'active' : ''}" id="lang-ja" title="日本語">🇯🇵</div>
                     </div>
                 </div>
+
             </div>
         `;
 
@@ -327,6 +628,23 @@ export class MainMenu {
         document.getElementById('btn-settings')?.addEventListener('click', () => {
             this.hide();
             this.showSettings();
+        });
+
+        // Language switchers
+        document.getElementById('lang-en')?.addEventListener('click', () => {
+            if (this.currentLang === 'en') return;
+            this.currentLang = 'en';
+            this.show();
+        });
+        document.getElementById('lang-ko')?.addEventListener('click', () => {
+            if (this.currentLang === 'ko') return;
+            this.currentLang = 'ko';
+            this.show();
+        });
+        document.getElementById('lang-ja')?.addEventListener('click', () => {
+            if (this.currentLang === 'ja') return;
+            this.currentLang = 'ja';
+            this.show();
         });
     }
 
