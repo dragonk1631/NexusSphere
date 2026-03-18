@@ -732,29 +732,44 @@ function drawFloating(_theme: ThemeConfig) {
         c.fill();
     });
 
-    // --- Marchen Exclusive Sprites v44 (Vivid Pink Glow) ---
-    const twinkleStarTex = getCachedTexture('twinkle_star_bloom_v2', 64, c => {
+    // --- Marchen Exclusive Magic Star (8-point Radiant) ---
+    const magicStarTex = getCachedTexture('magic_star_radiant_v1', 64, c => {
         const cx = 32, cy = 32;
-        const outerGrad = c.createRadialGradient(cx, cy, 0, cx, cy, 32);
-        outerGrad.addColorStop(0, applyAlpha(currentTheme?.particleColor || '#FFF', '33'));
-        outerGrad.addColorStop(0.5, applyAlpha(currentTheme?.particleColor || '#FFF', '08'));
-        outerGrad.addColorStop(1, 'transparent');
-        c.fillStyle = outerGrad;
+        // 1. Core Bloom
+        const bloom = c.createRadialGradient(cx, cy, 0, cx, cy, 32);
+        bloom.addColorStop(0, applyAlpha(currentTheme?.particleColor || '#FFF', '44'));
+        bloom.addColorStop(0.6, applyAlpha(currentTheme?.particleColor || '#FFF', '05'));
+        bloom.addColorStop(1, 'transparent');
+        c.fillStyle = bloom;
         c.beginPath(); c.arc(cx, cy, 32, 0, Math.PI * 2); c.fill();
-        const innerGrad = c.createRadialGradient(cx, cy, 0, cx, cy, 12);
-        innerGrad.addColorStop(0, '#FFFFFF');
-        innerGrad.addColorStop(0.4, applyAlpha(currentTheme?.particleColor || '#FFF', '66'));
-        innerGrad.addColorStop(1, 'transparent');
-        c.fillStyle = innerGrad;
-        c.beginPath(); c.arc(cx, cy, 12, 0, Math.PI * 2); c.fill();
+
+        // 2. Main Cross (Large)
         setCompositeOperation('lighter');
-        c.lineWidth = 1.5;
-        const rayGrad = c.createLinearGradient(cx - 28, cy, cx + 28, cy);
-        rayGrad.addColorStop(0, 'transparent'); rayGrad.addColorStop(0.5, '#FFFFFF'); rayGrad.addColorStop(1, 'transparent');
-        c.strokeStyle = rayGrad; c.beginPath(); c.moveTo(cx - 28, cy); c.lineTo(cx + 28, cy); c.stroke();
-        const vRayGrad = c.createLinearGradient(cx, cy - 28, cx, cy + 28);
-        vRayGrad.addColorStop(0, 'transparent'); vRayGrad.addColorStop(0.5, '#FFFFFF'); vRayGrad.addColorStop(1, 'transparent');
-        c.strokeStyle = vRayGrad; c.beginPath(); c.moveTo(cx, cy - 28); c.lineTo(cx, cy + 28); c.stroke();
+        c.lineWidth = 2;
+        const mainRay = c.createLinearGradient(cx - 30, cy, cx + 30, cy);
+        mainRay.addColorStop(0, 'transparent'); mainRay.addColorStop(0.5, '#FFFFFF'); mainRay.addColorStop(1, 'transparent');
+        c.strokeStyle = mainRay;
+        c.beginPath(); c.moveTo(cx - 30, cy); c.lineTo(cx + 30, cy); c.stroke();
+        c.beginPath(); c.moveTo(cx, cy - 30); c.lineTo(cx, cy + 30); c.stroke();
+
+        // 3. Secondary Cross (Small, 45deg)
+        c.lineWidth = 1;
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(Math.PI / 4);
+        const subRay = c.createLinearGradient(-20, 0, 20, 0);
+        subRay.addColorStop(0, 'transparent'); subRay.addColorStop(0.5, applyAlpha(currentTheme?.particleColor || '#FFF', 'AA')); subRay.addColorStop(1, 'transparent');
+        c.strokeStyle = subRay;
+        c.beginPath(); c.moveTo(-20, 0); c.lineTo(20, 0); c.stroke();
+        c.beginPath(); c.moveTo(0, -20); c.lineTo(0, 20); c.stroke();
+        c.restore();
+
+        // 4. Center Point
+        const center = c.createRadialGradient(cx, cy, 0, cx, cy, 8);
+        center.addColorStop(0, '#FFFFFF');
+        center.addColorStop(1, 'transparent');
+        c.fillStyle = center;
+        c.beginPath(); c.arc(cx, cy, 8, 0, Math.PI * 2); c.fill();
     });
 
     const softBloomTex = getCachedTexture('soft_bloom_pink', 128, c => {
@@ -818,11 +833,17 @@ function drawFloating(_theme: ThemeConfig) {
             ctx.globalAlpha = alpha;
         }
 
-        if (isMarchen && layer[i] === 0) {
-            const breathing = Math.sin(time * 1.5 + phase[i]);
-            const tSize = size[i] * (1.0 + breathing * 0.3);
-            ctx.globalAlpha = alpha * (0.5 + breathing * 0.5);
-            ctx.drawImage(twinkleStarTex, px[i] - tSize, py[i] - tSize, tSize * 2, tSize * 2);
+        if (isMarchen) {
+            const breathing = Math.sin(time * 1.8 + phase[i]);
+            const rotation = time * 0.5 + phase[i];
+            const tSize = size[i] * (1.0 + breathing * 0.25) * (layer[i] === 0 ? 1.0 : 0.6);
+            ctx.globalAlpha = alpha * (0.6 + breathing * 0.4);
+            
+            ctx.save();
+            ctx.translate(px[i], py[i]);
+            ctx.rotate(rotation);
+            ctx.drawImage(magicStarTex, -tSize, -tSize, tSize * 2, tSize * 2);
+            ctx.restore();
         } else {
             const glowSize = size[i] * (1.2 + Math.sin(time * 2 + phase[i]) * 0.4);
             ctx.drawImage(floatGlowTexture, px[i] - glowSize, py[i] - glowSize, glowSize * 2, glowSize * 2);

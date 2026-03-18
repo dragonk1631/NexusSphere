@@ -82,9 +82,9 @@ export class MarchenTheme implements IThemeStrategy {
 
             ctx.save();
             ctx.translate(sx, sy);
-            ctx.rotate(t * Math.PI * 2); // Subtle rotation
+            ctx.rotate(t * Math.PI * 4); // Faster rotation for magic impact
 
-            const colors = ['rgba(249, 168, 212', 'rgba(206, 147, 216', 'rgba(255, 220, 240'];
+            const colors = ['rgba(255, 255, 255', 'rgba(255, 242, 117', 'rgba(236, 64, 122']; // White, Gold, Pink
             ctx.fillStyle = `${colors[i % colors.length]}, ${alpha})`;
 
             ctx.beginPath();
