@@ -36,7 +36,7 @@ export class MarchenTheme implements IThemeStrategy {
         x: number,
         y: number,
         laneWidth: number,
-        judgment: Judgment,
+        _judgment: Judgment,
         t: number
     ): void {
         const ease = 1 - Math.pow(t, 1.5);
