@@ -100,6 +100,14 @@ const life = new Float32Array(MAX_PARTICLES);
 const phase = new Float32Array(MAX_PARTICLES);
 const layer = new Float32Array(MAX_PARTICLES);
 const custom1 = new Float32Array(MAX_PARTICLES); // For specific needs like 'va'
+const hx1 = new Float32Array(MAX_PARTICLES);
+const hy1 = new Float32Array(MAX_PARTICLES);
+const hx2 = new Float32Array(MAX_PARTICLES);
+const hy2 = new Float32Array(MAX_PARTICLES);
+const hx3 = new Float32Array(MAX_PARTICLES);
+const hy3 = new Float32Array(MAX_PARTICLES);
+const hx4 = new Float32Array(MAX_PARTICLES);
+const hy4 = new Float32Array(MAX_PARTICLES);
 
 let aliveCount = 0;
 
@@ -125,6 +133,14 @@ function kill(id: number) {
         phase[id] = phase[aliveCount];
         layer[id] = layer[aliveCount];
         custom1[id] = custom1[aliveCount];
+        hx1[id] = hx1[aliveCount];
+        hy1[id] = hy1[aliveCount];
+        hx2[id] = hx2[aliveCount];
+        hy2[id] = hy2[aliveCount];
+        hx3[id] = hx3[aliveCount];
+        hy3[id] = hy3[aliveCount];
+        hx4[id] = hx4[aliveCount];
+        hy4[id] = hy4[aliveCount];
     }
 }
 
@@ -237,17 +253,18 @@ function initPattern(pattern: string) {
             break;
         case 'floating':
             const isMarchenInit = currentTheme?.id === 'marchen';
-            const pCount = isMarchenInit ? 2000 : 100;
+            const pCount = isMarchenInit ? 1200 : 100; // Adjusted for performance with history
             for (let i = 0; i < pCount; i++) {
                 const id = spawn();
                 if (id === -1) break;
                 
                 if (isMarchenInit) {
-                    // Initialize as 'dead' but with burst metadata
-                    life[id] = 2.0; // Mark as inactive
-                    vx[id] = width * 0.5; // Origin X
-                    vy[id] = height * 0.5; // Origin Y
-                    custom1[id] = Math.random() * Math.PI * 2; // Angle
+                    life[id] = 2.0; 
+                    vx[id] = width * 0.5;
+                    vy[id] = height * 0.5;
+                    custom1[id] = Math.random() * Math.PI * 2;
+                    hx1[id] = hx2[id] = hx3[id] = hx4[id] = vx[id];
+                    hy1[id] = hy2[id] = hy3[id] = hy4[id] = vy[id];
                 } else {
                     const l = Math.floor(Math.random() * 3);
                     px[id] = Math.random() * width;
@@ -809,24 +826,25 @@ function drawFloating(_theme: ThemeConfig) {
     }
 
     if (isMarchen) {
-        // --- Magic Burst Controller ---
-        // Trigger a new burst group every few frames
-        const burstFreq = 25; // frames
+        // --- Magic Burst Controller (Graceful) ---
+        const burstFreq = 60; // Slower spawn rate
         if (Math.floor(time * 60) % burstFreq === 0) {
-            const burstOriginX = width * (0.2 + Math.random() * 0.6);
+            const burstOriginX = width * (0.1 + Math.random() * 0.8);
             const burstOriginY = height * (0.2 + Math.random() * 0.6);
-            const burstAngle = Math.random() * Math.PI * 2;
-            const burstSize = 40 + Math.floor(Math.random() * 40);
+            const burstAngle = (Math.random() - 0.5) * Math.PI * 0.5 - (burstOriginX > width * 0.5 ? Math.PI : 0);
+            const burstSize = 25 + Math.floor(Math.random() * 25);
             
             let triggered = 0;
             for (let i = 0; i < aliveCount && triggered < burstSize; i++) {
-                if (life[i] >= 1.0) { // Reuse dead particles
+                if (life[i] >= 1.0) {
                     life[i] = 0;
                     vx[i] = burstOriginX;
                     vy[i] = burstOriginY;
                     custom1[i] = burstAngle;
-                    phase[i] = (Math.random() - 0.5) * 0.4; // Spread within burst
-                    size[i] = 0.5 + Math.random() * 1.5; // Speed multiplier
+                    phase[i] = (Math.random() - 0.5) * 0.8; 
+                    size[i] = 0.3 + Math.random() * 0.4; // Slower speed
+                    hx1[i] = hx2[i] = hx3[i] = hx4[i] = burstOriginX;
+                    hy1[i] = hy2[i] = hy3[i] = hy4[i] = burstOriginY;
                     triggered++;
                 }
             }
@@ -839,37 +857,39 @@ function drawFloating(_theme: ThemeConfig) {
         let alpha = 0;
         
         if (isMarchen) {
-            // --- Magic Burst Physics ---
             if (life[i] >= 1.0) {
-                // Invisible/Dead particle
                 ctx.globalAlpha = 0;
                 continue;
             }
 
-            life[i] += 0.015 * size[i]; // Move along burst
+            // Update History
+            hx4[i] = hx3[i]; hy4[i] = hy3[i];
+            hx3[i] = hx2[i]; hy3[i] = hy2[i];
+            hx2[i] = hx1[i]; hy2[i] = hy1[i];
+            hx1[i] = px[i];  hy1[i] = py[i];
+
+            life[i] += 0.006 * size[i]; // Very graceful movement
             const t_ = life[i];
             
             const originX = vx[i];
             const originY = vy[i];
             const angle = custom1[i] + phase[i];
             
-            // Wiggle path (Magic Wand effect)
-            const wiggleAmp = 40 * t_ * (0.5 + Math.sin(time * 2) * 0.5);
-            const wiggle = Math.sin(t_ * 25 + phase[i] * 10) * wiggleAmp;
+            // Complex Organic Path (Slower, wispier)
+            const wiggleAmp = 60 * t_ * (Math.sin(time * 1.5 + phase[i]) * 0.5 + 0.5);
+            const wiggle = Math.sin(t_ * 15 + time * 2) * wiggleAmp;
             
-            const dist = t_ * 500 * (1 + phase[i]);
+            const dist = t_ * 600 * (1 + phase[i] * 0.5);
             const driftX = Math.cos(angle) * dist;
             const driftY = Math.sin(angle) * dist;
             
-            // Perpendicular wiggle
             const perpX = Math.cos(angle + Math.PI / 2) * wiggle;
             const perpY = Math.sin(angle + Math.PI / 2) * wiggle;
             
             px[i] = originX + driftX + perpX;
             py[i] = originY + driftY + perpY;
 
-            alpha = Math.sin(t_ * Math.PI) * 0.8;
-            ctx.globalAlpha = alpha;
+            alpha = Math.sin(Math.pow(t_, 0.5) * Math.PI) * 0.9;
         } else {
             // Standard Floating Movement
             const wind = Math.sin(time * 0.3 + py[i] * 0.001) * 15;
@@ -886,17 +906,34 @@ function drawFloating(_theme: ThemeConfig) {
         }
 
         if (isMarchen) {
+            // --- Ribbon Trail Rendering ---
+            ctx.globalAlpha = alpha * 0.4;
+            ctx.strokeStyle = applyAlpha(currentTheme?.particleColor || '#FFF', '66');
+            ctx.lineWidth = 3 * alpha;
+            ctx.beginPath();
+            ctx.moveTo(hx4[i], hy4[i]);
+            ctx.quadraticCurveTo(hx2[i], hy2[i], px[i], py[i]);
+            ctx.stroke();
+
+            // Core Flare
+            ctx.globalAlpha = alpha * 1.0;
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1 * alpha;
+            ctx.beginPath();
+            ctx.moveTo(hx2[i], hy2[i]);
+            ctx.lineTo(px[i], py[i]);
+            ctx.stroke();
+
+            // Tiny Dust
             const dustSize = size[i] * (0.8 + Math.sin(time * 3 + phase[i]) * 0.4);
-            // Draw tiny dust
             ctx.drawImage(magicDustTex, px[i] - dustSize, py[i] - dustSize, dustSize * 2, dustSize * 2);
             
-            // Occasionally draw a larger magic star for highlight
-            if (i % 25 === 0) {
-                const sSize = size[i] * 8 * (0.7 + Math.sin(time * 2 + phase[i]) * 0.3);
+            if (i % 40 === 0) {
+                const sSize = size[i] * 5 * (0.7 + Math.sin(time * 2 + phase[i]) * 0.3);
                 ctx.save();
                 ctx.translate(px[i], py[i]);
-                ctx.rotate(time * 0.5 + phase[i]);
-                ctx.globalAlpha = alpha * 0.6;
+                ctx.rotate(time * 0.8 + phase[i]);
+                ctx.globalAlpha = alpha * 0.5;
                 ctx.drawImage(magicStarTex, -sSize, -sSize, sSize * 2, sSize * 2);
                 ctx.restore();
             }
