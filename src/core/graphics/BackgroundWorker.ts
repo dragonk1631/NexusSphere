@@ -237,24 +237,20 @@ function initPattern(pattern: string) {
             break;
         case 'floating':
             const isMarchenInit = currentTheme?.id === 'marchen';
-            for (let i = 0; i < 100; i++) {
+            const pCount = isMarchenInit ? 2000 : 100; // Drastically increase for Marchen
+            for (let i = 0; i < pCount; i++) {
                 const id = spawn();
                 if (id === -1) break;
                 const l = Math.floor(Math.random() * 3);
-                if (isMarchenInit && l === 0) {
-                    // Cluster Marchen particles more towards center
-                    px[id] = width * 0.3 + Math.random() * width * 0.4;
-                    py[id] = height * 0.2 + Math.random() * height * 0.6;
-                } else {
-                    px[id] = Math.random() * width;
-                    py[id] = Math.random() * height;
-                }
-                size[id] = (Math.random() * 35 + 15) * (1 - l * 0.22);
-                vx[id] = (Math.random() * 0.8 + 0.5) * (1 - l * 0.15);
-                vy[id] = (Math.random() - 0.5) * 0.5;
+                px[id] = Math.random() * width;
+                py[id] = Math.random() * height;
+                size[id] = isMarchenInit ? (Math.random() * 2 + 1) : (Math.random() * 35 + 15) * (1 - l * 0.22);
+                vx[id] = (Math.random() * 0.8 + 0.5) * (1 - l * 0.15); // Used as 'speed' in Marchen
+                vy[id] = Math.random() * 40 + 10; // Used as 'swirlRadius' in Marchen
                 custom1[id] = (Math.random() - 0.5) * 0.03; 
                 phase[id] = Math.random() * Math.PI * 2;
                 layer[id] = l;
+                life[id] = Math.random(); // Start at random progress
             }
             break;
         case 'matrix':
@@ -772,6 +768,15 @@ function drawFloating(_theme: ThemeConfig) {
         c.beginPath(); c.arc(cx, cy, 8, 0, Math.PI * 2); c.fill();
     });
 
+    const magicDustTex = getCachedTexture('magic_dust_micro', 16, c => {
+        const grad = c.createRadialGradient(8, 8, 0, 8, 8, 8);
+        grad.addColorStop(0, '#FFFFFF');
+        grad.addColorStop(0.4, applyAlpha(currentTheme?.particleColor || '#FFF', 'AA'));
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.beginPath(); c.arc(8, 8, 8, 0, Math.PI * 2); c.fill();
+    });
+
     const softBloomTex = getCachedTexture('soft_bloom_pink', 128, c => {
         const grad = c.createRadialGradient(64, 64, 0, 64, 64, 64);
         grad.addColorStop(0, applyAlpha(currentTheme?.color2 || '#ec407a', '28'));
@@ -801,22 +806,27 @@ function drawFloating(_theme: ThemeConfig) {
         let alpha = 0;
         
         if (isMarchen) {
-            // Static Twinkle Logic for Marchen
-            const cycle = (time * 1.5 + phase[i]);
-            const alphaPulse = 0.5 + Math.sin(cycle) * 0.5;
-            
-            if (alphaPulse < 0.01) {
-                // Respawn at a new cluster location
-                if (layer[i] === 0) {
-                    px[i] = width * 0.3 + Math.random() * width * 0.4;
-                    py[i] = height * 0.2 + Math.random() * height * 0.6; 
-                } else {
-                    px[i] = Math.random() * width;
-                    py[i] = Math.random() * height;
-                }
+            // --- Spirit Path Physics (S-Curve Swarm) ---
+            life[i] += 0.002 * vx[i] * depthFactor; // Progress along path
+            if (life[i] > 1.0) {
+                life[i] = 0;
+                phase[i] = Math.random() * Math.PI * 2;
             }
-            
-            alpha = (0.3 + (1 - layer[i] * 0.2) * 0.5) * alphaPulse;
+
+            // Parametric S-Curve Path
+            const t_ = life[i];
+            const wave1 = Math.sin(t_ * Math.PI * 1.5 + time * 0.1) * (width * 0.25);
+            const wave2 = Math.cos(t_ * Math.PI * 0.8 - time * 0.05) * (width * 0.1);
+            const baseX = width * 0.5 + wave1 + wave2;
+            const baseY = height * 1.1 - t_ * (height * 1.2); // Flows bottom to top
+
+            // Swirl around the path
+            const swirlAngle = time * 2.5 + phase[i] + t_ * 10;
+            const r = vy[i] * (0.5 + Math.sin(t_ * Math.PI) * 1.5); // Radius tapers
+            px[i] = baseX + Math.cos(swirlAngle) * r;
+            py[i] = baseY + Math.sin(swirlAngle) * r;
+
+            alpha = Math.sin(t_ * Math.PI) * (0.4 + Math.random() * 0.6); // Fade in/out along path
             ctx.globalAlpha = alpha;
         } else {
             // Standard Floating Movement
@@ -834,16 +844,20 @@ function drawFloating(_theme: ThemeConfig) {
         }
 
         if (isMarchen) {
-            const breathing = Math.sin(time * 1.8 + phase[i]);
-            const rotation = time * 0.5 + phase[i];
-            const tSize = size[i] * (1.0 + breathing * 0.25) * (layer[i] === 0 ? 1.0 : 0.6);
-            ctx.globalAlpha = alpha * (0.6 + breathing * 0.4);
+            const dustSize = size[i] * (0.8 + Math.sin(time * 3 + phase[i]) * 0.4);
+            // Draw tiny dust
+            ctx.drawImage(magicDustTex, px[i] - dustSize, py[i] - dustSize, dustSize * 2, dustSize * 2);
             
-            ctx.save();
-            ctx.translate(px[i], py[i]);
-            ctx.rotate(rotation);
-            ctx.drawImage(magicStarTex, -tSize, -tSize, tSize * 2, tSize * 2);
-            ctx.restore();
+            // Occasionally draw a larger magic star for highlight
+            if (i % 25 === 0) {
+                const sSize = size[i] * 8 * (0.7 + Math.sin(time * 2 + phase[i]) * 0.3);
+                ctx.save();
+                ctx.translate(px[i], py[i]);
+                ctx.rotate(time * 0.5 + phase[i]);
+                ctx.globalAlpha = alpha * 0.6;
+                ctx.drawImage(magicStarTex, -sSize, -sSize, sSize * 2, sSize * 2);
+                ctx.restore();
+            }
         } else {
             const glowSize = size[i] * (1.2 + Math.sin(time * 2 + phase[i]) * 0.4);
             ctx.drawImage(floatGlowTexture, px[i] - glowSize, py[i] - glowSize, glowSize * 2, glowSize * 2);
