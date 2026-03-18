@@ -237,20 +237,28 @@ function initPattern(pattern: string) {
             break;
         case 'floating':
             const isMarchenInit = currentTheme?.id === 'marchen';
-            const pCount = isMarchenInit ? 2000 : 100; // Drastically increase for Marchen
+            const pCount = isMarchenInit ? 2000 : 100;
             for (let i = 0; i < pCount; i++) {
                 const id = spawn();
                 if (id === -1) break;
-                const l = Math.floor(Math.random() * 3);
-                px[id] = Math.random() * width;
-                py[id] = Math.random() * height;
-                size[id] = isMarchenInit ? (Math.random() * 2 + 1) : (Math.random() * 35 + 15) * (1 - l * 0.22);
-                vx[id] = (Math.random() * 0.8 + 0.5) * (1 - l * 0.15); // Used as 'speed' in Marchen
-                vy[id] = Math.random() * 40 + 10; // Used as 'swirlRadius' in Marchen
-                custom1[id] = (Math.random() - 0.5) * 0.03; 
-                phase[id] = Math.random() * Math.PI * 2;
-                layer[id] = l;
-                life[id] = Math.random(); // Start at random progress
+                
+                if (isMarchenInit) {
+                    // Initialize as 'dead' but with burst metadata
+                    life[id] = 2.0; // Mark as inactive
+                    vx[id] = width * 0.5; // Origin X
+                    vy[id] = height * 0.5; // Origin Y
+                    custom1[id] = Math.random() * Math.PI * 2; // Angle
+                } else {
+                    const l = Math.floor(Math.random() * 3);
+                    px[id] = Math.random() * width;
+                    py[id] = Math.random() * height;
+                    size[id] = (Math.random() * 35 + 15) * (1 - l * 0.22);
+                    vx[id] = (Math.random() * 0.8 + 0.5) * (1 - l * 0.15);
+                    vy[id] = (Math.random() - 0.5) * 0.5;
+                    custom1[id] = (Math.random() - 0.5) * 0.03; 
+                    phase[id] = Math.random() * Math.PI * 2;
+                    layer[id] = l;
+                }
             }
             break;
         case 'matrix':
@@ -800,33 +808,67 @@ function drawFloating(_theme: ThemeConfig) {
         }
     }
 
+    if (isMarchen) {
+        // --- Magic Burst Controller ---
+        // Trigger a new burst group every few frames
+        const burstFreq = 25; // frames
+        if (Math.floor(time * 60) % burstFreq === 0) {
+            const burstOriginX = width * (0.2 + Math.random() * 0.6);
+            const burstOriginY = height * (0.2 + Math.random() * 0.6);
+            const burstAngle = Math.random() * Math.PI * 2;
+            const burstSize = 40 + Math.floor(Math.random() * 40);
+            
+            let triggered = 0;
+            for (let i = 0; i < aliveCount && triggered < burstSize; i++) {
+                if (life[i] >= 1.0) { // Reuse dead particles
+                    life[i] = 0;
+                    vx[i] = burstOriginX;
+                    vy[i] = burstOriginY;
+                    custom1[i] = burstAngle;
+                    phase[i] = (Math.random() - 0.5) * 0.4; // Spread within burst
+                    size[i] = 0.5 + Math.random() * 1.5; // Speed multiplier
+                    triggered++;
+                }
+            }
+        }
+    }
+
     setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         const depthFactor = (1 - layer[i] * 0.25);
         let alpha = 0;
         
         if (isMarchen) {
-            // --- Spirit Path Physics (S-Curve Swarm) ---
-            life[i] += 0.002 * vx[i] * depthFactor; // Progress along path
-            if (life[i] > 1.0) {
-                life[i] = 0;
-                phase[i] = Math.random() * Math.PI * 2;
+            // --- Magic Burst Physics ---
+            if (life[i] >= 1.0) {
+                // Invisible/Dead particle
+                ctx.globalAlpha = 0;
+                continue;
             }
 
-            // Parametric S-Curve Path
+            life[i] += 0.015 * size[i]; // Move along burst
             const t_ = life[i];
-            const wave1 = Math.sin(t_ * Math.PI * 1.5 + time * 0.1) * (width * 0.25);
-            const wave2 = Math.cos(t_ * Math.PI * 0.8 - time * 0.05) * (width * 0.1);
-            const baseX = width * 0.5 + wave1 + wave2;
-            const baseY = height * 1.1 - t_ * (height * 1.2); // Flows bottom to top
+            
+            const originX = vx[i];
+            const originY = vy[i];
+            const angle = custom1[i] + phase[i];
+            
+            // Wiggle path (Magic Wand effect)
+            const wiggleAmp = 40 * t_ * (0.5 + Math.sin(time * 2) * 0.5);
+            const wiggle = Math.sin(t_ * 25 + phase[i] * 10) * wiggleAmp;
+            
+            const dist = t_ * 500 * (1 + phase[i]);
+            const driftX = Math.cos(angle) * dist;
+            const driftY = Math.sin(angle) * dist;
+            
+            // Perpendicular wiggle
+            const perpX = Math.cos(angle + Math.PI / 2) * wiggle;
+            const perpY = Math.sin(angle + Math.PI / 2) * wiggle;
+            
+            px[i] = originX + driftX + perpX;
+            py[i] = originY + driftY + perpY;
 
-            // Swirl around the path
-            const swirlAngle = time * 2.5 + phase[i] + t_ * 10;
-            const r = vy[i] * (0.5 + Math.sin(t_ * Math.PI) * 1.5); // Radius tapers
-            px[i] = baseX + Math.cos(swirlAngle) * r;
-            py[i] = baseY + Math.sin(swirlAngle) * r;
-
-            alpha = Math.sin(t_ * Math.PI) * (0.4 + Math.random() * 0.6); // Fade in/out along path
+            alpha = Math.sin(t_ * Math.PI) * 0.8;
             ctx.globalAlpha = alpha;
         } else {
             // Standard Floating Movement
