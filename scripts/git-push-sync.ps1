@@ -28,6 +28,15 @@ try {
     
     # 1. Ensure we are on develop
     Invoke-GitSafe checkout develop
+
+    # [NEW] Pre-push Build Verification
+    Write-Host "--- Running Build Verification (tsc) ---" -ForegroundColor Cyan
+    npx tsc
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Build Verification Failed! Fix TS errors before pushing." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "Build Verification Passed." -ForegroundColor Green
     
     # 2. Add and Commit
     # Note: Using . since we usually want to commit all changes in this workflow
