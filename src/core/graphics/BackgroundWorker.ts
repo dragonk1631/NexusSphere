@@ -236,16 +236,23 @@ function initPattern(pattern: string) {
             }
             break;
         case 'floating':
+            const isMarchenInit = currentTheme?.id === 'marchen';
             for (let i = 0; i < 100; i++) {
                 const id = spawn();
                 if (id === -1) break;
                 const l = Math.floor(Math.random() * 3);
-                px[id] = Math.random() * width;
-                py[id] = Math.random() * height;
+                if (isMarchenInit && l === 0) {
+                    // Cluster Marchen particles more towards center
+                    px[id] = width * 0.3 + Math.random() * width * 0.4;
+                    py[id] = height * 0.2 + Math.random() * height * 0.6;
+                } else {
+                    px[id] = Math.random() * width;
+                    py[id] = Math.random() * height;
+                }
                 size[id] = (Math.random() * 35 + 15) * (1 - l * 0.22);
                 vx[id] = (Math.random() * 0.8 + 0.5) * (1 - l * 0.15);
                 vy[id] = (Math.random() - 0.5) * 0.5;
-                custom1[id] = (Math.random() - 0.5) * 0.03; // angular velocity not used for circles, but kept if needed
+                custom1[id] = (Math.random() - 0.5) * 0.03; 
                 phase[id] = Math.random() * Math.PI * 2;
                 layer[id] = l;
             }
@@ -776,17 +783,40 @@ function drawFloating(_theme: ThemeConfig) {
     setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         const depthFactor = (1 - layer[i] * 0.25);
-        const wind = Math.sin(time * 0.3 + py[i] * 0.001) * 15;
-        px[i] += (vx[i] + wind * 0.05) * depthFactor;
-        py[i] += (vy[i] + Math.cos(time * 0.2) * 0.2) * depthFactor;
+        let alpha = 0;
+        
+        if (isMarchen) {
+            // Static Twinkle Logic for Marchen
+            const cycle = (time * 1.5 + phase[i]);
+            const alphaPulse = 0.5 + Math.sin(cycle) * 0.5;
+            
+            if (alphaPulse < 0.01) {
+                // Respawn at a new cluster location
+                if (layer[i] === 0) {
+                    px[i] = width * 0.3 + Math.random() * width * 0.4;
+                    py[i] = height * 0.2 + Math.random() * height * 0.6; 
+                } else {
+                    px[i] = Math.random() * width;
+                    py[i] = Math.random() * height;
+                }
+            }
+            
+            alpha = (0.3 + (1 - layer[i] * 0.2) * 0.5) * alphaPulse;
+            ctx.globalAlpha = alpha;
+        } else {
+            // Standard Floating Movement
+            const wind = Math.sin(time * 0.3 + py[i] * 0.001) * 15;
+            px[i] += (vx[i] + wind * 0.05) * depthFactor;
+            py[i] += (vy[i] + Math.cos(time * 0.2) * 0.2) * depthFactor;
 
-        if (px[i] < -150) px[i] = width + 150;
-        if (px[i] > width + 150) px[i] = -150;
-        if (py[i] < -150) py[i] = height + 150;
-        if (py[i] > height + 150) py[i] = -150;
+            if (px[i] < -150) px[i] = width + 150;
+            if (px[i] > width + 150) px[i] = -150;
+            if (py[i] < -150) py[i] = height + 150;
+            if (py[i] > height + 150) py[i] = -150;
 
-        const alpha = (0.2 + (1 - layer[i] * 0.2) * 0.5) * (0.7 + Math.sin(time + phase[i]) * 0.3);
-        ctx.globalAlpha = alpha;
+            alpha = (0.2 + (1 - layer[i] * 0.2) * 0.5) * (0.7 + Math.sin(time + phase[i]) * 0.3);
+            ctx.globalAlpha = alpha;
+        }
 
         if (isMarchen && layer[i] === 0) {
             const breathing = Math.sin(time * 1.5 + phase[i]);

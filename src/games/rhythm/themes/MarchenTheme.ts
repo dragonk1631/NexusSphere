@@ -69,20 +69,20 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.restore();
         }
 
-        // 2. Fairy Stardust (Optimized: Removed shadowBlur)
+        // 2. Fairy Stardust (Static Twinkle)
         ctx.globalCompositeOperation = 'lighter';
         for (let i = 0; i < sparkCount; i++) {
             const baseAngle = (i / sparkCount) * Math.PI * 2;
-            const radius = laneWidth * 0.15 + t * laneWidth * (2.2 + (i % 5) * 0.4);
+            const radius = laneWidth * (0.2 + (i % 5) * 0.15); // Fixed radii, no 't' in size
             const sx = x + Math.cos(baseAngle) * radius;
-            const sy = y + Math.sin(baseAngle) * radius * 0.5 - t * laneWidth * 0.6;
+            const sy = y + Math.sin(baseAngle) * radius * 0.5;
 
-            const alpha = ease * (0.7 + (i % 3) * 0.3);
-            const size = (2.5 + (i % 4)) * ease;
+            const alpha = ease * (0.8 + (i % 3) * 0.2);
+            const size = (3.0 + (i % 4)) * ease;
 
             ctx.save();
             ctx.translate(sx, sy);
-            ctx.rotate(t * Math.PI * 4);
+            ctx.rotate(t * Math.PI * 2); // Subtle rotation
 
             const colors = ['rgba(249, 168, 212', 'rgba(206, 147, 216', 'rgba(255, 220, 240'];
             ctx.fillStyle = `${colors[i % colors.length]}, ${alpha})`;
