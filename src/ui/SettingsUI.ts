@@ -522,7 +522,7 @@ export class SettingsUI {
                 
                 // v44: Inject live sparkles for Marchen
                 if (t.id === 'marchen') {
-                    const sparkles = Array.from({ length: 8 }).map((_, i) => {
+                    const sparkles = Array.from({ length: 8 }).map((_) => {
                         const top = Math.random() * 80 + 10;
                         const left = Math.random() * 80 + 10;
                         const delay = Math.random() * 2;
