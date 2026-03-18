@@ -811,16 +811,61 @@ function drawFloating(_theme: ThemeConfig) {
         c.fillRect(0, 0, 128, 128);
     });
 
+    const sparkSharpTex = getCachedTexture('magic_spark_sharp', 32, c => {
+        const cx = 16, cy = 16;
+        const grad = c.createRadialGradient(cx, cy, 0, cx, cy, 16);
+        grad.addColorStop(0, '#FFFFFF');
+        grad.addColorStop(0.2, applyAlpha(currentTheme?.particleColor || '#FFF', 'CC'));
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        // Draw a sharp cross
+        c.fillRect(cx - 1, 0, 2, 32);
+        c.fillRect(0, cy - 1, 32, 2);
+        c.beginPath(); c.arc(cx, cy, 4, 0, Math.PI * 2); c.fill();
+    });
+
+    const bokehOrbTex = getCachedTexture('bokeh_orb_soft', 64, c => {
+        const grad = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+        grad.addColorStop(0, applyAlpha(currentTheme?.color1 || '#FFF', '44'));
+        grad.addColorStop(0.6, applyAlpha(currentTheme?.color2 || '#FFF', '11'));
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.beginPath(); c.arc(32, 32, 32, 0, Math.PI * 2); c.fill();
+    });
+
     const isMarchen = currentTheme?.id === 'marchen';
 
     if (isMarchen) {
+        // --- 1. Atmospheric God Rays (Commercial Depth) ---
+        setCompositeOperation('screen');
+        const rayCount = 4;
+        for (let i = 0; i < rayCount; i++) {
+            const rayPhase = time * 0.15 + i * 2.5;
+            const rayX = width * (0.2 + i * 0.2 + Math.sin(rayPhase) * 0.1);
+            const rayWidth = 150 + Math.sin(rayPhase * 0.7) * 50;
+            const rayAlpha = 0.08 + Math.sin(rayPhase * 1.2) * 0.04;
+            
+            const rayGrad = ctx.createLinearGradient(rayX - rayWidth, 0, rayX + rayWidth, 0);
+            rayGrad.addColorStop(0, 'transparent');
+            rayGrad.addColorStop(0.5, applyAlpha(currentTheme?.color1 || '#FFF', Math.floor(rayAlpha * 255).toString(16).padStart(2, '0')));
+            rayGrad.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = rayGrad;
+            ctx.save();
+            ctx.translate(rayX, height * 0.5);
+            ctx.rotate(0.4 + Math.sin(rayPhase * 0.5) * 0.1);
+            ctx.fillRect(-rayWidth, -height, rayWidth * 2, height * 2);
+            ctx.restore();
+        }
+
+        // --- 2. Ambient Bloom Layers ---
         setCompositeOperation('screen');
         for (let i = 0; i < 3; i++) {
             const shift = time * (0.04 + i * 0.015) + (i * 2.1);
             const bx = width * (0.5 + Math.sin(shift) * 0.3);
             const by = height * (0.5 + Math.cos(shift * 0.7) * 0.2);
             const bSize = height * (1.3 + i * 0.35);
-            ctx.globalAlpha = 0.6;
+            ctx.globalAlpha = 0.5;
             ctx.drawImage(softBloomTex, bx - bSize, by - bSize, bSize * 2, bSize * 2);
         }
     }
@@ -906,35 +951,60 @@ function drawFloating(_theme: ThemeConfig) {
         }
 
         if (isMarchen) {
-            // --- Ribbon Trail Rendering ---
-            ctx.globalAlpha = alpha * 0.4;
-            ctx.strokeStyle = applyAlpha(currentTheme?.particleColor || '#FFF', '66');
-            ctx.lineWidth = 3 * alpha;
+            // --- 3. Commercial Grade Triple-Layer Ribbon ---
+            
+            // Layer A: Wide Bloom (Atmospheric)
+            ctx.globalAlpha = alpha * 0.15;
+            ctx.strokeStyle = applyAlpha(currentTheme?.color2 || '#F0F', '44');
+            ctx.lineWidth = 18 * alpha;
             ctx.beginPath();
             ctx.moveTo(hx4[i], hy4[i]);
             ctx.quadraticCurveTo(hx2[i], hy2[i], px[i], py[i]);
             ctx.stroke();
 
-            // Core Flare
+            // Layer B: Inner Glow with Pseudo Chromatic Aberration
+            const offset = 1.5 * alpha;
+            ctx.globalAlpha = alpha * 0.45;
+            ctx.lineWidth = 4 * alpha;
+            
+            // Red-ish Offset
+            ctx.strokeStyle = 'rgba(255, 50, 150, 0.4)';
+            ctx.beginPath(); ctx.moveTo(hx4[i] - offset, hy4[i]); ctx.quadraticCurveTo(hx2[i] - offset, hy2[i], px[i] - offset, py[i]); ctx.stroke();
+            
+            // Cyan-ish Offset
+            ctx.strokeStyle = 'rgba(50, 255, 255, 0.4)';
+            ctx.beginPath(); ctx.moveTo(hx4[i] + offset, hy4[i]); ctx.quadraticCurveTo(hx2[i] + offset, hy2[i], px[i] + offset, py[i]); ctx.stroke();
+            
+            // Main Glow
+            ctx.strokeStyle = applyAlpha(currentTheme?.particleColor || '#FFF', 'AA');
+            ctx.beginPath(); ctx.moveTo(hx4[i], hy4[i]); ctx.quadraticCurveTo(hx2[i], hy2[i], px[i], py[i]); ctx.stroke();
+
+            // Layer C: Radiant Core
             ctx.globalAlpha = alpha * 1.0;
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 1 * alpha;
+            ctx.lineWidth = 1.2 * alpha;
             ctx.beginPath();
             ctx.moveTo(hx2[i], hy2[i]);
             ctx.lineTo(px[i], py[i]);
             ctx.stroke();
 
-            // Tiny Dust
-            const dustSize = size[i] * (0.8 + Math.sin(time * 3 + phase[i]) * 0.4);
-            ctx.drawImage(magicDustTex, px[i] - dustSize, py[i] - dustSize, dustSize * 2, dustSize * 2);
+            // --- 4. Heterogeneous Magic Dust (Mixed Textures) ---
+            const dS = (0.7 + Math.sin(time * 3 + phase[i]) * 0.3) * size[i] * 1.5;
+            if (i % 3 === 0) {
+                ctx.drawImage(magicDustTex, px[i] - dS, py[i] - dS, dS * 2, dS * 2);
+            } else if (i % 7 === 0) {
+                const bS = dS * 2.5;
+                ctx.drawImage(bokehOrbTex, px[i] - bS, py[i] - bS, bS * 2, bS * 2);
+            }
             
-            if (i % 40 === 0) {
-                const sSize = size[i] * 5 * (0.7 + Math.sin(time * 2 + phase[i]) * 0.3);
+            // Strategic Spark Pop
+            if (i % 30 === 0) {
+                const sSize = size[i] * 7 * (0.6 + Math.sin(time * 4 + phase[i]) * 0.4);
                 ctx.save();
                 ctx.translate(px[i], py[i]);
-                ctx.rotate(time * 0.8 + phase[i]);
-                ctx.globalAlpha = alpha * 0.5;
-                ctx.drawImage(magicStarTex, -sSize, -sSize, sSize * 2, sSize * 2);
+                ctx.rotate(time * 2 + phase[i]);
+                ctx.globalAlpha = alpha * 0.7;
+                ctx.drawImage(sparkSharpTex, -sSize, -sSize, sSize * 2, sSize * 2);
                 ctx.restore();
             }
         } else {
@@ -944,6 +1014,18 @@ function drawFloating(_theme: ThemeConfig) {
             const coreSize = size[i] * 0.15 * 2;
             ctx.drawImage(floatCoreTex, px[i] - coreSize * 0.5, py[i] - coreSize * 0.5, coreSize, coreSize);
         }
+    }
+
+    // --- 5. Final Frame Polish (Vignetting) ---
+    if (isMarchen) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        const vGrad = ctx.createRadialGradient(width / 2, height / 2, width * 0.4, width / 2, height / 2, width * 0.8);
+        vGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)'); // No effect at center
+        vGrad.addColorStop(1, 'rgba(200, 200, 220, 0.8)'); // Slight blueish dark edge
+        ctx.fillStyle = vGrad;
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
     }
 }
 

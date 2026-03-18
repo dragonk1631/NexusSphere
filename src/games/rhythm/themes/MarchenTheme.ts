@@ -69,29 +69,42 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.restore();
         }
 
-        // 2. Fairy Stardust (Magic Swirl)
+        // 2. Fairy Stardust (Magic Swirl & Trails)
         ctx.globalCompositeOperation = 'lighter';
         for (let i = 0; i < sparkCount; i++) {
             const baseAngle = (i / sparkCount) * Math.PI * 2;
-            const swirl = t * Math.PI * 2.5; // Swirling offset over time
-            const rBase = laneWidth * (0.2 + (i % 5) * 0.15);
-            const radius = rBase * (0.8 + t * 0.4); // Slight expansion
+            const swirl = t * Math.PI * 3.5; 
+            const radius = laneWidth * (0.2 + (i % 5) * 0.25) * (0.5 + t * 1.5);
+            
             const sx = x + Math.cos(baseAngle + swirl) * radius;
-            const sy = y + Math.sin(baseAngle + swirl) * radius * 0.5;
+            const sy = y + Math.sin(baseAngle + swirl) * radius * 0.6;
+
+            // Short history trail for hit effect
+            const prevT = Math.max(0, t - 0.05);
+            const prevSwirl = prevT * Math.PI * 3.5;
+            const prevRadius = laneWidth * (0.2 + (i % 5) * 0.25) * (0.5 + prevT * 1.5);
+            const psx = x + Math.cos(baseAngle + prevSwirl) * prevRadius;
+            const psy = y + Math.sin(baseAngle + prevSwirl) * prevRadius * 0.6;
 
             const alpha = ease * (0.8 + (i % 3) * 0.2);
-            const size = (2.5 + (i % 4)) * ease;
+            const size = (3 + (i % 4)) * ease;
 
+            // Trail Line
+            ctx.strokeStyle = `rgba(255, 200, 230, ${alpha * 0.4})`;
+            ctx.lineWidth = size * 0.8;
+            ctx.beginPath(); ctx.moveTo(psx, psy); ctx.lineTo(sx, sy); ctx.stroke();
+
+            // Sparkle Point
             ctx.save();
             ctx.translate(sx, sy);
-            ctx.rotate(t * Math.PI * 8 + i); // Continuous rotation
+            ctx.rotate(t * Math.PI * 12 + i); 
             
-            const colors = ['rgba(255, 255, 255', 'rgba(255, 242, 117', 'rgba(236, 64, 122']; // White, Gold, Pink
+            const colors = ['rgba(255, 255, 255', 'rgba(255, 242, 117', 'rgba(236, 64, 122'];
             ctx.fillStyle = `${colors[i % colors.length]}, ${alpha})`;
 
             ctx.beginPath();
             for (let j = 0; j < 8; j++) {
-                const r = j % 2 === 0 ? size * 2.2 : size * 0.8;
+                const r = j % 2 === 0 ? size * 2.5 : size * 0.7;
                 const a = (j / 8) * Math.PI * 2;
                 ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
             }
@@ -100,11 +113,12 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.restore();
         }
 
-        // 3. Radiant Core
-        const coreR = laneWidth * (isPerfect ? 0.9 : 0.6) * ease;
+        // 3. Radiant Explosive Core
+        const coreR = laneWidth * (isPerfect ? 1.2 : 0.8) * ease;
         const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
         coreGrad.addColorStop(0, `rgba(255, 255, 255, ${ease * 1.0})`);
-        coreGrad.addColorStop(0.4, `rgba(249, 168, 212, ${ease * 0.7})`);
+        coreGrad.addColorStop(0.2, `rgba(255, 255, 255, ${ease * 0.9})`);
+        coreGrad.addColorStop(0.5, `rgba(249, 168, 212, ${ease * 0.6})`);
         coreGrad.addColorStop(1, 'transparent');
 
         ctx.fillStyle = coreGrad;
