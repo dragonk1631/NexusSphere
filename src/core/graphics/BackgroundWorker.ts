@@ -481,39 +481,53 @@ function drawStars(theme: ThemeConfig) {
         c.stroke();
     });
 
-    const shootStarTex = getCachedTexture('shoot_star_v3_epic', 400, (c) => {
-        // Multi-color trail (Blue -> White -> Gold)
-        const grad = c.createLinearGradient(0, 20, 400, 20);
-        grad.addColorStop(0, 'transparent');
-        grad.addColorStop(0.3, 'rgba(50, 100, 255, 0.2)');
-        grad.addColorStop(0.6, 'rgba(150, 220, 255, 0.5)');
-        grad.addColorStop(0.9, '#FFFFFF');
-        grad.addColorStop(1, '#FFD54F'); // Golden Head
+    const shootStarTex = getCachedTexture('shoot_star_v4_unified', 400, (c) => {
+        const cx = 380, cy = 30; // Lead head position
         
-        c.fillStyle = grad;
+        // --- 1. The Tail (Single Unified Tapered Shape) ---
+        const trailGrad = c.createLinearGradient(0, cy, 400, cy);
+        trailGrad.addColorStop(0, 'transparent');
+        trailGrad.addColorStop(0.5, 'rgba(100, 150, 255, 0.2)'); // Distant tail
+        trailGrad.addColorStop(0.8, 'rgba(200, 230, 255, 0.6)'); // Approaching head
+        trailGrad.addColorStop(1, '#FFFFFF');
+        
+        c.fillStyle = trailGrad;
         c.beginPath();
-        c.moveTo(0, 18); c.lineTo(380, 8); c.arc(380, 20, 12, -Math.PI/2, Math.PI/2); c.lineTo(0, 22);
+        c.moveTo(0, cy); // Start from a point to avoid "two-line" base
+        c.lineTo(cx, cy - 8);
+        c.arc(cx, cy, 8, -Math.PI / 2, Math.PI / 2);
+        c.lineTo(0, cy);
         c.fill();
         
-        // Secondary Hot Core
-        const coreGrad = c.createLinearGradient(300, 20, 400, 20);
+        // --- 2. Central Hot Core (Unifies the look) ---
+        const coreGrad = c.createLinearGradient(150, cy, 400, cy);
         coreGrad.addColorStop(0, 'transparent');
-        coreGrad.addColorStop(1, '#FFFFFF');
-        c.fillStyle = coreGrad;
-        c.beginPath(); c.moveTo(300, 17); c.lineTo(390, 15); c.lineTo(390, 25); c.lineTo(300, 23); c.fill();
+        coreGrad.addColorStop(1, 'rgba(255, 255, 255, 0.8)');
+        c.strokeStyle = coreGrad;
+        c.lineWidth = 2;
+        c.lineCap = 'round';
+        c.beginPath(); c.moveTo(150, cy); c.lineTo(cx, cy); c.stroke();
 
-        // Intense Head Glow
-        c.shadowBlur = 15; c.shadowColor = '#FFD54F';
-        c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(390, 20, 6, 0, Math.PI * 2); c.fill();
+        // --- 3. Glowy Head ---
+        const headGrad = c.createRadialGradient(cx, cy, 0, cx, cy, 15);
+        headGrad.addColorStop(0, '#FFFFFF');
+        headGrad.addColorStop(0.4, '#FFD54F'); // Golden spark
+        headGrad.addColorStop(1, 'transparent');
+        c.fillStyle = headGrad;
+        c.beginPath(); c.arc(cx, cy, 15, 0, Math.PI * 2); c.fill();
     });
 
-    const shootStarMist = getCachedTexture('shoot_star_mist', 500, (c) => {
-        const grad = c.createRadialGradient(400, 50, 0, 400, 50, 400);
-        grad.addColorStop(0, 'rgba(100, 200, 255, 0.3)');
-        grad.addColorStop(0.5, 'rgba(50, 50, 200, 0.05)');
+    const shootStarMist = getCachedTexture('shoot_star_mist_v2', 500, (c) => {
+        const cx = 400, cy = 60;
+        const grad = c.createRadialGradient(cx, cy, 0, cx, cy, 400);
+        grad.addColorStop(0, 'rgba(120, 180, 255, 0.25)'); // Softer blue
+        grad.addColorStop(0.6, 'rgba(60, 60, 180, 0.03)');
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
-        c.beginPath(); c.ellipse(250, 50, 250, 50, 0, 0, Math.PI * 2); c.fill();
+        c.beginPath(); 
+        // Elongated mist trail
+        c.ellipse(cx - 200, cy, 300, 60, 0, 0, Math.PI * 2); 
+        c.fill();
     });
 
     setCompositeOperation('lighter');
@@ -531,12 +545,12 @@ function drawStars(theme: ThemeConfig) {
             ctx.rotate(angle);
             
             // 1. Surrounding Mist (Background)
-            ctx.globalAlpha = 0.4;
-            ctx.drawImage(shootStarMist, -450, -50, 500, 100);
+            ctx.globalAlpha = 0.3;
+            ctx.drawImage(shootStarMist, -500, -60, 500, 120);
             
             // 2. The Main Epic Body
-            ctx.globalAlpha = 0.85;
-            ctx.drawImage(shootStarTex, -400, -20, 400, 40);
+            ctx.globalAlpha = 0.9;
+            ctx.drawImage(shootStarTex, -400, -30, 400, 60);
             ctx.restore();
         } else {
             py[i] += vy[i] * (5 - pz[i]);
