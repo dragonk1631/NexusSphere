@@ -39,15 +39,15 @@ export class DeepSpaceTheme implements IThemeStrategy {
         t: number
     ): void {
         const ease = 1 - Math.pow(t, 1.5);
-        const sparkCount = 10;
+        const starCount = 12;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Cosmic Swirl Particles
-        for (let i = 0; i < sparkCount; i++) {
+        // 1. Cosmic Swirl Stars (8-pointed)
+        for (let i = 0; i < starCount; i++) {
             const seed = (i * 123.45) % 1;
-            const baseAngle = (i / sparkCount) * Math.PI * 2;
+            const baseAngle = (i / starCount) * Math.PI * 2;
             const swirl = t * Math.PI * 5;
             const radius = laneWidth * (0.25 + (i % 4) * 0.3) * (0.4 + t * 2.2);
             
@@ -55,11 +55,11 @@ export class DeepSpaceTheme implements IThemeStrategy {
             const sy = y + Math.sin(baseAngle + swirl) * radius * 0.55;
 
             const alpha = ease * (0.7 + seed * 0.3);
-            const currentSize = (2 + seed * 3) * ease;
+            const currentSize = (3 + seed * 4) * ease; // Increased size
 
             // Light Trail
-            ctx.strokeStyle = `rgba(100, 200, 255, ${alpha * 0.5})`; 
-            ctx.lineWidth = currentSize * 0.5;
+            ctx.strokeStyle = `rgba(140, 200, 255, ${alpha * 0.4})`; 
+            ctx.lineWidth = currentSize * 0.4;
             ctx.beginPath();
             const prevT = Math.max(0, t - 0.04);
             const prevSwirl = prevT * Math.PI * 5;
@@ -68,10 +68,10 @@ export class DeepSpaceTheme implements IThemeStrategy {
             ctx.lineTo(sx, sy);
             ctx.stroke();
 
-            // Cosmic Star Point
+            // Cosmic 8-pointed Star Point
             ctx.save();
             ctx.translate(sx, sy);
-            ctx.rotate(t * Math.PI * 10 + i);
+            ctx.rotate(t * Math.PI * 8 + i);
             
             const colors = [
                 'rgba(255, 255, 255', // White
@@ -82,9 +82,9 @@ export class DeepSpaceTheme implements IThemeStrategy {
             ctx.fillStyle = `${colors[Math.floor(seed * colors.length)]}, ${alpha})`;
 
             ctx.beginPath();
-            for (let j = 0; j < 4; j++) {
-                const r = j % 2 === 0 ? currentSize * 3 : currentSize * 0.7;
-                const a = (j / 4) * Math.PI * 2;
+            for (let j = 0; j < 16; j++) {
+                const r = j % 2 === 0 ? currentSize * 2.5 : currentSize * 0.8;
+                const a = (j / 16) * Math.PI * 2;
                 ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
             }
             ctx.closePath();
@@ -93,10 +93,10 @@ export class DeepSpaceTheme implements IThemeStrategy {
         }
 
         // 2. Core Pulse
-        const coreR = laneWidth * 0.5 * (1 - t);
+        const coreR = laneWidth * 0.6 * (1 - t);
         const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
-        coreGrad.addColorStop(0, `rgba(255, 255, 255, ${(1 - t) * 0.9})`);
-        coreGrad.addColorStop(0.5, `rgba(100, 180, 255, ${(1 - t) * 0.6})`);
+        coreGrad.addColorStop(0, `rgba(255, 255, 255, ${(1 - t) * 0.95})`);
+        coreGrad.addColorStop(0.5, `rgba(140, 200, 255, ${(1 - t) * 0.7})`);
         coreGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = coreGrad;
         ctx.beginPath(); ctx.arc(x, y, coreR, 0, Math.PI * 2); ctx.fill();

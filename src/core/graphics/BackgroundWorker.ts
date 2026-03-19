@@ -197,8 +197,8 @@ function initPattern(pattern: string) {
     switch (pattern) {
         case 'stars':
             const isDeepSpaceInit = currentTheme?.id === 'deep-space';
-            // Scale density for more "epic" feel
-            const globalDensity = isMobile ? 0.7 : 1.2;
+            // Scale density for more "epic" feel - Request: 2x increase (1.2 -> 2.4)
+            const globalDensity = isMobile ? 1.4 : 2.4;
             
             for (let l = 0; l < 4; l++) {
                 const count = Math.floor(globalDensity * (isMobile ? (l === 0 ? 250 : 60) : (l === 0 ? 500 : 200 - l * 40)));
@@ -479,9 +479,9 @@ function drawStars(theme: ThemeConfig) {
             py[i] += vy[i] * (5 - pz[i]);
             if (py[i] > height) py[i] = -20;
 
-            const shineSpeed = isDeepSpace ? 0.7 : 2.0; // Slower, natural breathing
-            const blinkBase = Math.pow(Math.sin(time * shineSpeed + phase[i]), isDeepSpace ? 7 : 4);
-            const twinkle = 0.6 + blinkBase * 0.4;
+            const shineSpeed = isDeepSpace ? 1.0 : 2.0; // Slightly faster twinkle for Deep Space
+            const blinkBase = Math.pow(Math.sin(time * shineSpeed + phase[i]), isDeepSpace ? 5 : 4);
+            const twinkle = 0.4 + blinkBase * 0.6; // Wider range for more "blink"
             
             ctx.globalAlpha = life[i] * twinkle; 
             const s = size[i] * twinkle;
