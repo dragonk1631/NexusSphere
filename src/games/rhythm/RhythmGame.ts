@@ -48,6 +48,7 @@ import { MarchenTheme } from './themes/MarchenTheme';
 import { MonochromeTechTheme } from './themes/MonochromeTechTheme';
 import { WinterSnowTheme } from './themes/WinterSnowTheme';
 import { SunsetOverdriveTheme } from './themes/SunsetOverdriveTheme';
+import { FireworksTheme } from './themes/FireworksTheme';
 import * as PerspectiveUtils from './renderer/PerspectiveUtils';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { PauseRenderer } from './renderer/PauseRenderer';
@@ -187,7 +188,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             'marchen': MarchenTheme,
             'monochrome-tech': MonochromeTechTheme,
             'winter-snow': WinterSnowTheme,
-            'sunset-overdrive': SunsetOverdriveTheme
+            'sunset-overdrive': SunsetOverdriveTheme,
+            'fireworks': FireworksTheme
         };
 
         const ThemeClass = themeMap[themeId];

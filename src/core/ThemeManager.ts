@@ -53,11 +53,11 @@ export class ThemeManager {
             }
         },
         {
-            id: 'technika-pink',
-            name: 'Technika Pink',
+            id: 'fireworks',
+            name: 'Fireworks',
             pattern: 'grid3d',
             color1: '#2A0515', // Warm Deep Plum
-            color2: '#FF006E', // Technika Pink
+            color2: '#FF006E', // Technika Pink (keeping color palette)
             color3: '#FFD000', // Technika Yellow/Gold
             particleColor: '#FFD000',
             gridColor: 'rgba(255, 0, 110, 0.15)',
