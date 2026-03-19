@@ -481,18 +481,39 @@ function drawStars(theme: ThemeConfig) {
         c.stroke();
     });
 
-    const shootStarTex = getCachedTexture('shoot_star_v2', 200, (c) => {
-        const grad = c.createLinearGradient(0, 10, 200, 10);
+    const shootStarTex = getCachedTexture('shoot_star_v3_epic', 400, (c) => {
+        // Multi-color trail (Blue -> White -> Gold)
+        const grad = c.createLinearGradient(0, 20, 400, 20);
         grad.addColorStop(0, 'transparent');
-        grad.addColorStop(0.8, 'rgba(255, 255, 255, 0.4)');
-        grad.addColorStop(1, '#FFFFFF');
+        grad.addColorStop(0.3, 'rgba(50, 100, 255, 0.2)');
+        grad.addColorStop(0.6, 'rgba(150, 220, 255, 0.5)');
+        grad.addColorStop(0.9, '#FFFFFF');
+        grad.addColorStop(1, '#FFD54F'); // Golden Head
+        
         c.fillStyle = grad;
         c.beginPath();
-        c.moveTo(0, 8); c.lineTo(190, 4); c.arc(190, 10, 6, -Math.PI/2, Math.PI/2); c.lineTo(0, 12);
+        c.moveTo(0, 18); c.lineTo(380, 8); c.arc(380, 20, 12, -Math.PI/2, Math.PI/2); c.lineTo(0, 22);
         c.fill();
-        // Glow
-        c.shadowBlur = 10; c.shadowColor = '#FFFFFF';
-        c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(194, 10, 4, 0, Math.PI * 2); c.fill();
+        
+        // Secondary Hot Core
+        const coreGrad = c.createLinearGradient(300, 20, 400, 20);
+        coreGrad.addColorStop(0, 'transparent');
+        coreGrad.addColorStop(1, '#FFFFFF');
+        c.fillStyle = coreGrad;
+        c.beginPath(); c.moveTo(300, 17); c.lineTo(390, 15); c.lineTo(390, 25); c.lineTo(300, 23); c.fill();
+
+        // Intense Head Glow
+        c.shadowBlur = 15; c.shadowColor = '#FFD54F';
+        c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(390, 20, 6, 0, Math.PI * 2); c.fill();
+    });
+
+    const shootStarMist = getCachedTexture('shoot_star_mist', 500, (c) => {
+        const grad = c.createRadialGradient(400, 50, 0, 400, 50, 400);
+        grad.addColorStop(0, 'rgba(100, 200, 255, 0.3)');
+        grad.addColorStop(0.5, 'rgba(50, 50, 200, 0.05)');
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.beginPath(); c.ellipse(250, 50, 250, 50, 0, 0, Math.PI * 2); c.fill();
     });
 
     setCompositeOperation('lighter');
@@ -502,13 +523,20 @@ function drawStars(theme: ThemeConfig) {
         if (isShooting) {
             px[i] += vx[i];
             py[i] += vx[i] * 0.25;
-            if (px[i] > width + 300) { px[i] = -300; py[i] = Math.random() * height; }
+            if (px[i] > width + 500) { px[i] = -500; py[i] = Math.random() * height; }
             
-            ctx.globalAlpha = 0.8;
             ctx.save();
             ctx.translate(px[i], py[i]);
-            ctx.rotate(Math.atan2(vx[i] * 0.25, vx[i]));
-            ctx.drawImage(shootStarTex, -200, -10, 200, 20);
+            const angle = Math.atan2(vx[i] * 0.25, vx[i]);
+            ctx.rotate(angle);
+            
+            // 1. Surrounding Mist (Background)
+            ctx.globalAlpha = 0.4;
+            ctx.drawImage(shootStarMist, -450, -50, 500, 100);
+            
+            // 2. The Main Epic Body
+            ctx.globalAlpha = 0.85;
+            ctx.drawImage(shootStarTex, -400, -20, 400, 40);
             ctx.restore();
         } else {
             py[i] += vy[i] * (5 - pz[i]);
