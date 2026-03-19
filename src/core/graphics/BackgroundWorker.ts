@@ -320,10 +320,10 @@ function initPattern(pattern: string) {
                 const id = spawn();
                 if (id === -1) break;
                 
-                if (i < 15) {
-                    // 1. ROCKETS
+                if (i < 8) {
+                    // 1. ROCKETS (Reduced count for better pacing)
                     px[id] = Math.random() * width;
-                    py[id] = height + Math.random() * 500;
+                    py[id] = height + Math.random() * 800;
                     vx[id] = (Math.random() - 0.5) * 2;
                     vy[id] = -(Math.random() * 6 + 10);
                     custom1[id] = 0; // LAUNCH
@@ -1499,11 +1499,11 @@ function drawFireworksBackground(theme: ThemeConfig) {
             ctx.fillStyle = grad;
             ctx.beginPath(); ctx.arc(px[i], py[i], r, 0, Math.PI * 2); ctx.fill();
             
-            life[i] -= 0.1; // Slower fade for big bursts
+            life[i] -= 0.05; // Final: Slower, calmer explosions (Was 0.1)
             if (life[i] <= 0) {
-                // Return to launch pool
+                // Return to launch pool with longer delay
                 custom1[i] = 0;
-                py[i] = height + Math.random() * 500;
+                py[i] = height + Math.random() * 1000;
                 px[i] = Math.random() * width;
                 vy[i] = -(Math.random() * 6 + 10);
             }
