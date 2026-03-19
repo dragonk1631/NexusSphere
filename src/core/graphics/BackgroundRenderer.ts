@@ -67,14 +67,57 @@ export class BackgroundRenderer {
         });
     }
 
-    public setTheme(theme: ThemeConfig) {
+    public async setTheme(theme: ThemeConfig) {
         if (this.currentInstanceThemeId !== theme.id) {
             this.currentInstanceThemeId = theme.id;
-            // Send POJO theme config to worker
+            
+            // 1. Send theme config to worker
             this.worker.postMessage({
                 type: 'SET_THEME',
                 theme: JSON.parse(JSON.stringify(theme))
             });
+
+            // 2. Attempt to load background image
+            try {
+                // Determine potential image paths
+                // Priority: bg_space.png (for deep-space), bg.png, bg.jpg, bg.webp
+                const extensions = ['png', 'jpg', 'webp'];
+                const baseNames = theme.id === 'deep-space' ? ['bg_space', 'bg'] : ['bg'];
+                
+                let loadedBitmap: ImageBitmap | null = null;
+                
+                for (const base of baseNames) {
+                    for (const ext of extensions) {
+                        const url = `./assets/images/background-themes/${theme.id}/${base}.${ext}`;
+                        try {
+                            const response = await fetch(url);
+                            if (response.ok) {
+                                const blob = await response.blob();
+                                loadedBitmap = await createImageBitmap(blob);
+                                break;
+                            }
+                        } catch (e) {
+                            // Silently continue to next possible path
+                        }
+                    }
+                    if (loadedBitmap) break;
+                }
+
+                if (loadedBitmap) {
+                    this.worker.postMessage({
+                        type: 'SET_BG_IMAGE',
+                        bitmap: loadedBitmap
+                    }, [loadedBitmap]);
+                } else {
+                    // Signal worker to clear background image if none found
+                    this.worker.postMessage({
+                        type: 'SET_BG_IMAGE',
+                        bitmap: null
+                    });
+                }
+            } catch (error) {
+                console.error("[BackgroundRenderer] Failed to load background image:", error);
+            }
         }
     }
 

@@ -10,6 +10,7 @@ let currentTheme: ThemeConfig | null = null;
 let isRunning = false;
 // let rafId: number = 0; // Passive renderer
 let time = 0;
+let bgImageBitmap: ImageBitmap | null = null;
 // let lastDrawTime = 0; // Managed by main loop
 // const TARGET_INTERVAL = 1000 / 60; // Managed by main loop
 let isMobile = false;
@@ -376,132 +377,20 @@ function initPattern(pattern: string) {
 function drawStars(theme: ThemeConfig) {
     const isDeepSpace = theme.id === 'deep-space';
 
-    if (isDeepSpace) {
-        // --- 1. Masterpiece Static Base (Star Clusters & Dust) ---
+    if (bgImageBitmap) {
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(bgImageBitmap, 0, 0, width, height);
+    } else if (isDeepSpace) {
+        // --- Fallback: Procedural Nebula Master ---
         const staticBase = getCachedTexture('deep_space_master_base_v1', width, (c) => {
             for (let i = 0; i < 4000; i++) {
                 c.fillStyle = `rgba(150, 180, 255, ${Math.random() * 0.05})`;
                 c.fillRect(Math.random() * width, Math.random() * height, 1, 1);
             }
-            for (let j = 0; j < 5; j++) {
-                const cx = Math.random() * width, cy = Math.random() * height;
-                for (let i = 0; i < 200; i++) {
-                    const r = Math.pow(Math.random(), 2) * 100, a = Math.random() * Math.PI * 2;
-                    c.fillStyle = `rgba(255, 255, 255, ${0.1 + Math.random() * 0.4})`;
-                    c.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.8, 0.8);
-                }
-            }
         });
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(staticBase, 0, 0);
-
-        // --- 2. Planet & Hula-Hoop Rings ---
-        const drawMasterPlanet = (px: number, py: number, size: number) => {
-            const pr = size * 0.22, tilt = 0.45;
-
-            // Cached Planet Surface
-            const planetTex = getCachedTexture('cosmic_planet_v3', 512, (c) => {
-                const cx = 256, cy = 256, r = 200;
-                const bg = c.createRadialGradient(cx - 50, cy - 50, 10, cx, cy, r);
-                bg.addColorStop(0, '#78909C'); bg.addColorStop(0.5, '#37474F'); bg.addColorStop(1, '#101010');
-                c.fillStyle = bg; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-                c.save(); c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip();
-                for (let i = 0; i < 25; i++) {
-                    const y = cy - r + (i/25)*(r*2);
-                    c.fillStyle = i % 3 === 0 ? 'rgba(144, 164, 174, 0.25)' : 'rgba(38, 50, 56, 0.3)';
-                    c.fillRect(cx-r, y, r*2, 5 + Math.random()*15);
-                }
-                c.restore();
-                const shadow = c.createRadialGradient(cx+40, cy+40, 20, cx, cy, r*1.1);
-                shadow.addColorStop(0, 'transparent'); shadow.addColorStop(1, 'rgba(0,0,0,0.95)');
-                c.fillStyle = shadow; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-                const ag = c.createRadialGradient(cx, cy, r*0.8, cx, cy, r*1.2);
-                ag.addColorStop(0, 'rgba(100, 220, 255, 0.4)'); ag.addColorStop(0.7, 'rgba(50, 100, 255, 0.15)');
-                ag.addColorStop(1, 'transparent');
-                c.fillStyle = ag; c.beginPath(); c.arc(cx, cy, r*1.2, 0, Math.PI * 2); c.fill();
-            });
-
-            const drawRings = (isFront: boolean) => {
-                setCompositeOperation('screen');
-                const pCount = isMobile ? 400 : 800;
-                ctx.save(); ctx.translate(px, py); ctx.rotate(tilt);
-                for(let i=0; i<pCount; i++) {
-                    const seed = i * 1337.42;
-                    const r = pr * (1.6 + (Math.abs(Math.sin(seed)) * 0.65));
-                    const angle = (seed + time * 0.5) % (Math.PI * 2);
-                    if ((angle < Math.PI) !== isFront) continue;
-                    ctx.fillStyle = i % 2 === 0 ? 'rgba(180, 240, 255, 0.5)' : 'rgba(255, 180, 255, 0.5)';
-                    ctx.fillRect(Math.cos(angle)*r, Math.sin(angle)*r*0.32, 1.2, 1.2);
-                }
-                ctx.restore();
-            };
-
-            drawRings(false);
-            ctx.globalAlpha = 1.0; setCompositeOperation('source-over');
-            ctx.drawImage(planetTex, px-pr, py-pr, pr*2, pr*2);
-            drawRings(true);
-
-            // Moon
-            const moonX = px+pr*1.9, moonY = py+pr*0.45;
-            const moonTex = getCachedTexture('moon_v2', 64, (c) => {
-                const mG = c.createRadialGradient(24, 24, 2, 32, 32, 24);
-                mG.addColorStop(0, '#90A4AE'); mG.addColorStop(1, '#101010');
-                c.fillStyle = mG; c.beginPath(); c.arc(32, 32, 24, 0, Math.PI * 2); c.fill();
-            });
-            ctx.drawImage(moonTex, moonX-15, moonY-15, 30, 30);
-        };
-        drawMasterPlanet(width * 0.7, height * 0.18, 550);
-
-        // Filaments
-        const drawFilaments = (key: string, color: string, speed: number, yOff: number) => {
-            const fTex = getCachedTexture(key, 800, (c) => {
-                c.strokeStyle = color; c.globalAlpha = 0.15;
-                const fCount = isMobile ? 12 : 30;
-                for(let i=0; i<fCount; i++) {
-                    c.lineWidth = 1 + Math.random() * 4; c.beginPath();
-                    let x = Math.random()*800, y = Math.random()*800; c.moveTo(x,y);
-                    for(let j=0; j<4; j++) {
-                        x += (Math.random()-0.5)*200; y += (Math.random()-0.5)*100;
-                        c.bezierCurveTo(x-30,y,x+30,y,x,y);
-                    }
-                    c.stroke();
-                }
-            });
-            const fx = ((time * speed) % (width + 800)) - 800;
-            setCompositeOperation('screen');
-            ctx.drawImage(fTex, fx, yOff, width * 1.2, height * 0.8);
-        };
-        drawFilaments('fil_cyan', 'rgba(0, 255, 255, 0.4)', 12, -100);
-        drawFilaments('fil_mag', 'rgba(255, 0, 255, 0.4)', 18, 200);
-    }
-
-    if (isDeepSpace) {
-        ctx.globalAlpha = 0.8;
-        setCompositeOperation('screen');
-        const gx = width * 0.35 - 300, gy = height * 0.1, gw = 1200, gh = 600;
-        const pCount = isMobile ? 800 : 2000;
-        ctx.save();
-        ctx.translate(gx + gw/2, gy + gh/2);
-        for(let i=0; i<pCount; i++) {
-            const seed = i * 42.1337;
-            const t = (i / pCount);
-            const dist = t * (gw * 0.45);
-            const w = 0.3 + (1 / (0.1 + t)) * 0.15; // Differential rotation
-            const angle = (seed + time * w) % (Math.PI * 2);
-            ctx.fillStyle = idxToSpaceColor(Math.floor(Math.abs(Math.sin(seed)*5)), (1-t) * 0.6);
-            ctx.fillRect(Math.cos(angle)*dist, Math.sin(angle)*dist*0.6, 1.5, 1.5);
-        }
-        ctx.restore();
-    } else {
-        const nx = width * 0.6, ny = height * 0.5;
-        const simpleNeb = getCachedTexture('simple_neb', 256, c => {
-            const g = c.createRadialGradient(128,128,0,128,128,128);
-            g.addColorStop(0, theme.color2); g.addColorStop(1, 'transparent');
-            c.fillStyle = g; c.fillRect(0,0,256,256);
-        });
-        ctx.globalAlpha = 0.3;
-        setCompositeOperation('screen');
-        ctx.drawImage(simpleNeb, nx - 400, ny - 400, 800, 800);
     }
 
     // 3. Stars Palette
@@ -627,16 +516,6 @@ function drawStars(theme: ThemeConfig) {
     }
 }
 
-function idxToSpaceColor(idx: number, alpha: number): string {
-    const colors = [
-        `rgba(255, 255, 255, ${alpha})`,
-        `rgba(178, 235, 242, ${alpha})`,
-        `rgba(255, 241, 118, ${alpha})`,
-        `rgba(255, 138, 128, ${alpha})`,
-        `rgba(224, 190, 255, ${alpha})` // Extra purple for masterpiece
-    ];
-    return colors[idx % colors.length];
-}
 
 function drawGrid3D(theme: ThemeConfig) {
     const horizon = height * 0.45;
