@@ -504,6 +504,12 @@ function drawGrid3D(theme: ThemeConfig) {
     const fov = 420;
     const speed = (time * 150) % 100;
 
+    // --- NEW: Fireworks Special - No grid, just upper-half sky effects ---
+    if (theme.id === 'fireworks') {
+        drawFireworksBackground(theme);
+        return;
+    }
+
     // 1. Horizon Glow
     const grid3DKey = theme.particleColor + height;
     if (cachedGrid3DKey !== grid3DKey) {
@@ -511,7 +517,6 @@ function drawGrid3D(theme: ThemeConfig) {
         const glowHeight = 40;
         cachedGrid3DBloomGrad = ctx.createLinearGradient(0, horizon - glowHeight, 0, horizon + glowHeight);
         cachedGrid3DBloomGrad.addColorStop(0, 'transparent');
-        // Use pre-computed alpha hex for gradient stops (66 = 0.4 alpha approx)
         cachedGrid3DBloomGrad.addColorStop(0.5, theme.particleColor.slice(0, 7) + '66');
         cachedGrid3DBloomGrad.addColorStop(1, 'transparent');
     }
@@ -522,7 +527,7 @@ function drawGrid3D(theme: ThemeConfig) {
 
     // 2. Perspective Grid
     const gArr = themeAlphaCache.grid;
-    ctx.strokeStyle = gArr[51]; // 20% alpha (0.2 * 255 = 51)
+    ctx.strokeStyle = gArr[51]; 
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     for (let x = -width * 1; x <= width * 2; x += 180) {
@@ -1403,9 +1408,41 @@ function updateDynamicResolution(duration: number) {
 function applyResolution() {
     if (!canvas || !ctx) return;
     canvas.width = Math.floor(width * pixelRatio * renderResolutionScale);
-    canvas.height = Math.floor(height * pixelRatio * renderResolutionScale);
+        canvas.height = Math.floor(height * pixelRatio * renderResolutionScale);
     ctx.setTransform(pixelRatio * renderResolutionScale, 0, 0, pixelRatio * renderResolutionScale, 0, 0);
     invalidateAllCaches();
+}
+
+function drawFireworksBackground(theme: ThemeConfig) {
+    const horizon = height * 0.5; // Upper half limit
+    setCompositeOperation('screen');
+    
+    // Use floating particles as seed for bursts
+    for (let i = 0; i < aliveCount; i++) {
+        if (py[i] > horizon) continue; // Skip bottom half
+
+        const age = (time * 0.5 + phase[i]) % 2.0;
+        const burstTime = age > 1.6; // Simulate periodic bursts
+        
+        ctx.globalAlpha = life[i] * (burstTime ? 0.9 : 0.4);
+        const s = size[i] * (burstTime ? 3.0 : 1.2);
+        
+        // Draw sparkling dots in top half
+        ctx.fillStyle = theme.color2; // Pink sparks
+        ctx.beginPath();
+        ctx.arc(px[i], py[i], s, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (burstTime && i % 3 === 0) {
+            // Occasional ray from spark
+            ctx.strokeStyle = theme.color3; // Gold
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(px[i], py[i]);
+            ctx.lineTo(px[i] + Math.cos(phase[i] + time * 5) * 15, py[i] + Math.sin(phase[i] + time * 5) * 15);
+            ctx.stroke();
+        }
+    }
 }
 
 self.onmessage = (e: MessageEvent) => {
