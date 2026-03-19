@@ -54,8 +54,8 @@ export class MarchenTheme implements IThemeStrategy {
             const px = x + Math.cos(angle) * dist;
             const py = y + Math.sin(angle) * dist * 0.75;
 
-            const size = (6 + seed * 9) * ease; // Increased size (approx 1.5x)
-            const alpha = ease * 0.85;
+            const currentSize = (6 + seed * 9) * ease; // Approximately 1.5x larger
+            const alpha = ease; // Fully opaque
 
             ctx.save();
             ctx.translate(px, py);
@@ -65,13 +65,13 @@ export class MarchenTheme implements IThemeStrategy {
             // Draw a soft petal shape (elliptical heart-ish)
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.bezierCurveTo(-size, -size, -size * 1.5, size / 2, 0, size);
-            ctx.bezierCurveTo(size * 1.5, size / 2, size, -size, 0, 0);
+            ctx.bezierCurveTo(-currentSize, -currentSize, -currentSize * 1.5, currentSize / 2, 0, currentSize);
+            ctx.bezierCurveTo(currentSize * 1.5, currentSize / 2, currentSize, -currentSize, 0, 0);
             ctx.fill();
             ctx.restore();
         }
 
-        // 2. Pixie Dust (Sparkling Gold/White) - Doubled & Vibrant
+        // 2. Pixie Dust (Sparkling Gold/White) - Doubled & Opaque
         for (let i = 0; i < dustCount; i++) {
             const seed = (i * 0.33) % 1;
             const angle = seed * Math.PI * 2;

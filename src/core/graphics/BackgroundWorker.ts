@@ -937,8 +937,8 @@ function drawFloating(_theme: ThemeConfig) {
             const rW = 150 + Math.cos(rayP * 0.5) * 40;
             const rG = ctx.createLinearGradient(rX - rW, 0, rX + rW, 0);
             rG.addColorStop(0, 'transparent');
-            // Reduced alpha for rays
-            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 8).toString(16).padStart(2, '0'))); // Reduced from 12 to 8
+            // Opaque, distinct rays for high contrast
+            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 26).toString(16).padStart(2, '0'))); // Increased from 8 to 26 (Very Opaque)
             rG.addColorStop(1, 'transparent');
             ctx.fillStyle = rG;
             ctx.rotate(0.1 + Math.sin(time * 0.3) * 0.02);
@@ -951,8 +951,8 @@ function drawFloating(_theme: ThemeConfig) {
             const ox = width * (0.5 + Math.sin(oP) * 0.35);
             const oy = height * (0.5 + Math.cos(oP * 0.8) * 0.25);
             const os = height * (1.2 + Math.sin(time * 0.4 + i) * 0.2);
-            // Reduced alpha for orbs
-            ctx.globalAlpha = (0.12 + Math.sin(time * 0.8 + i) * 0.08) * 0.6; // Reduced by 40%
+            // Opaque, solid orbs for high contrast
+            ctx.globalAlpha = (0.35 + Math.sin(time * 0.8 + i) * 0.15); // Solid, no 0.6 reduction
             ctx.drawImage(softBloomTex, ox - os, oy - os, os * 2, os * 2);
         }
         ctx.restore();
@@ -1334,8 +1334,8 @@ function render(timestamp: number) {
         // 1. Draw Background Image (Reset transform first for physical pixel alignment)
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
-        // --- VISIBILITY FIX: Dim the background for Marchen/DeepSpace by 35% to improve note contrast ---
-        ctx.globalAlpha = 0.65; // User: "Please dim it slightly"
+        // --- VISIBILITY FIX: Dim the background for Marchen/DeepSpace by 50% to improve note contrast ---
+        ctx.globalAlpha = 0.5; // Final: 50% Dimming as requested
         ctx.drawImage(bgImageBitmap, 0, 0, canvas.width, canvas.height); // Draw to physical canvas size
         ctx.globalAlpha = 1.0; // Reset
         
