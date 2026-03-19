@@ -279,7 +279,8 @@ function initPattern(pattern: string) {
             break;
         case 'floating':
             const isMarchenInit = currentTheme?.id === 'marchen';
-            const pCount = isMarchenInit ? 270 : 100; // 1.5x increase for richer background (180 -> 270)
+            // Floating magical particles + soft blobs - Request: 2x increase (270 -> 540)
+            const pCount = isMarchenInit ? 540 : 100; 
             for (let i = 0; i < pCount; i++) {
                 const id = spawn();
                 if (id === -1) break;
@@ -924,7 +925,7 @@ function drawFloating(_theme: ThemeConfig) {
         
         ctx.save();
         setCompositeOperation('screen');
-        const rayCount = 2;
+        const rayCount = 15; // Increased from 8
         for (let i = 0; i < rayCount; i++) {
             const rayP = time * 0.1 + i * 2.0;
             const rX = width * (0.4 + i * 0.2 + Math.sin(rayP) * 0.05);

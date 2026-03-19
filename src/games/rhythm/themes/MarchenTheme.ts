@@ -40,26 +40,26 @@ export class MarchenTheme implements IThemeStrategy {
         t: number
     ): void {
         const ease = 1 - Math.pow(t, 1.2);
-        const petalCount = 8;
-        const dustCount = 15;
+        const petalCount = 16; // Doubled
+        const dustCount = 30;  // Doubled
 
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
 
-        // 1. Ethereal Petals (Soft Pink/Red)
+        // 1. Ethereal Petals (Soft Pink/Red) - Scaled Up
         for (let i = 0; i < petalCount; i++) {
             const seed = (i * 0.78) % 1;
-            const angle = (i / petalCount) * Math.PI * 2 + t * 2;
-            const dist = laneWidth * (0.3 + t * 1.8);
+            const angle = (i / petalCount) * Math.PI * 2 + t * 2.5;
+            const dist = laneWidth * (0.35 + t * 2.2); // Wider spread
             const px = x + Math.cos(angle) * dist;
-            const py = y + Math.sin(angle) * dist * 0.7;
+            const py = y + Math.sin(angle) * dist * 0.75;
 
-            const size = (4 + seed * 6) * ease;
-            const alpha = ease * 0.8;
+            const size = (6 + seed * 9) * ease; // Increased size (approx 1.5x)
+            const alpha = ease * 0.85;
 
             ctx.save();
             ctx.translate(px, py);
-            ctx.rotate(angle + t * 5);
+            ctx.rotate(angle + t * 6);
             ctx.fillStyle = `rgba(255, 120, 180, ${alpha})`;
             
             // Draw a soft petal shape (elliptical heart-ish)
@@ -71,16 +71,16 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.restore();
         }
 
-        // 2. Pixie Dust (Sparkling Gold/White)
+        // 2. Pixie Dust (Sparkling Gold/White) - Doubled & Vibrant
         for (let i = 0; i < dustCount; i++) {
             const seed = (i * 0.33) % 1;
             const angle = seed * Math.PI * 2;
-            const dist = laneWidth * seed * 1.5 * (0.5 + t * 1.2);
+            const dist = laneWidth * seed * 1.8 * (0.5 + t * 1.4);
             const dx = x + Math.cos(angle) * dist;
-            const dy = y + Math.sin(angle) * dist * 1.2;
+            const dy = y + Math.sin(angle) * dist * 1.3;
             
-            const alpha = Math.max(0, (1 - t * 1.2)) * (0.5 + Math.sin(t * 20 + i) * 0.5);
-            const dSize = (1 + seed * 2) * (1 - t);
+            const alpha = Math.max(0, (1 - t * 1.3)) * (0.6 + Math.sin(t * 25 + i) * 0.4);
+            const dSize = (1.5 + seed * 2.5) * (1 - t); // Slightly larger dust
 
             ctx.fillStyle = i % 2 === 0 ? `rgba(255, 230, 150, ${alpha})` : `rgba(255, 255, 255, ${alpha})`;
             ctx.beginPath();
@@ -88,10 +88,10 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.fill();
         }
 
-        // 3. Soft Magic Glow
-        const bloomR = laneWidth * 0.6 * ease;
+        // 3. Strong Magic Glow (Feedback)
+        const bloomR = laneWidth * 0.75 * ease; // Larger bloom
         const bloomGrad = ctx.createRadialGradient(x, y, 0, x, y, bloomR);
-        bloomGrad.addColorStop(0, `rgba(255, 210, 230, ${ease * 0.6})`);
+        bloomGrad.addColorStop(0, `rgba(255, 220, 240, ${ease * 0.8})`); // Brighter
         bloomGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = bloomGrad;
         ctx.beginPath(); ctx.arc(x, y, bloomR, 0, Math.PI * 2); ctx.fill();
