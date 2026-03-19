@@ -92,24 +92,28 @@ export class BackgroundRenderer {
                         try {
                             const response = await fetch(url);
                             if (response.ok) {
+                                console.log(`[BackgroundRenderer] Found image at: ${url}`);
                                 const blob = await response.blob();
                                 loadedBitmap = await createImageBitmap(blob);
                                 break;
+                            } else {
+                                console.warn(`[BackgroundRenderer] Image not found at: ${url} (Status: ${response.status})`);
                             }
                         } catch (e) {
-                            // Silently continue to next possible path
+                            console.error(`[BackgroundRenderer] Fetch error for ${url}:`, e);
                         }
                     }
                     if (loadedBitmap) break;
                 }
 
                 if (loadedBitmap) {
+                    console.log(`[BackgroundRenderer] Successfully loaded bitmap for theme: ${theme.id}`);
                     this.worker.postMessage({
                         type: 'SET_BG_IMAGE',
                         bitmap: loadedBitmap
                     }, [loadedBitmap]);
                 } else {
-                    // Signal worker to clear background image if none found
+                    console.warn(`[BackgroundRenderer] No background image bitmap found for theme: ${theme.id}`);
                     this.worker.postMessage({
                         type: 'SET_BG_IMAGE',
                         bitmap: null

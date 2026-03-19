@@ -375,6 +375,7 @@ function initPattern(pattern: string) {
 
 
 function drawStars(theme: ThemeConfig) {
+    if (bgImageBitmap) return;
     const isDeepSpace = theme.id === 'deep-space';
 
     if (!bgImageBitmap && isDeepSpace) {
@@ -514,6 +515,7 @@ function drawStars(theme: ThemeConfig) {
 
 
 function drawGrid3D(theme: ThemeConfig) {
+    if (bgImageBitmap) return;
     const horizon = height * 0.45;
     const fov = 420;
     const speed = (time * 150) % 100;
@@ -594,6 +596,7 @@ function drawGrid3D(theme: ThemeConfig) {
 
 
 function drawMatrix(theme: ThemeConfig) {
+    if (bgImageBitmap) return;
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*";
     const charH = 22;
     const charW = 16;
@@ -1332,20 +1335,17 @@ function render(timestamp: number) {
         cachedBgGrad.addColorStop(1, currentTheme.color3);
     }
 
-    setCompositeOperation('source-over');
-    ctx.globalAlpha = 1.0;
-    ctx.globalCompositeOperation = 'source-over';
-    
     if (bgImageBitmap) {
         // Draw background image scaled to fit
         ctx.drawImage(bgImageBitmap, 0, 0, width, height);
-    } else if (cachedBgGrad) {
-        // Fallback to procedural gradient
-        ctx.fillStyle = cachedBgGrad;
+    } else {
+        // Clear to solid black for testing
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, width, height);
     }
 
     ctx.save();
+    /*
     switch (currentTheme.pattern) {
         case 'stars': drawStars(currentTheme); break;
         case 'grid3d': drawGrid3D(currentTheme); break;
@@ -1359,6 +1359,7 @@ function render(timestamp: number) {
         case 'floating': drawFloating(currentTheme); break;
         case 'snow': drawSnow(currentTheme); break;
     }
+    */
     ctx.restore();
 
     const frameEnd = performance.now();
