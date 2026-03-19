@@ -101,6 +101,8 @@ const phase = new Float32Array(MAX_PARTICLES);
 const layer = new Float32Array(MAX_PARTICLES);
 const custom1 = new Float32Array(MAX_PARTICLES); 
 const custom2 = new Float32Array(MAX_PARTICLES); // For star color indexing
+const pulseSpeed = new Float32Array(MAX_PARTICLES);
+const pulseMag = new Float32Array(MAX_PARTICLES);
 const hx1 = new Float32Array(MAX_PARTICLES);
 const hy1 = new Float32Array(MAX_PARTICLES);
 const hx2 = new Float32Array(MAX_PARTICLES);
@@ -135,6 +137,8 @@ function kill(id: number) {
         layer[id] = layer[aliveCount];
         custom1[id] = custom1[aliveCount];
         custom2[id] = custom2[aliveCount];
+        pulseSpeed[id] = pulseSpeed[aliveCount];
+        pulseMag[id] = pulseMag[aliveCount];
         hx1[id] = hx1[aliveCount];
         hy1[id] = hy1[aliveCount];
         hx2[id] = hx2[aliveCount];
@@ -255,7 +259,7 @@ function initPattern(pattern: string) {
             break;
         case 'floating':
             const isMarchenInit = currentTheme?.id === 'marchen';
-            const pCount = isMarchenInit ? 180 : 100; // Normalized density for subtle background
+            const pCount = isMarchenInit ? 270 : 100; // 1.5x increase for richer background (180 -> 270)
             for (let i = 0; i < pCount; i++) {
                 const id = spawn();
                 if (id === -1) break;
@@ -271,6 +275,8 @@ function initPattern(pattern: string) {
                     custom2[id] = Math.floor(Math.random() * 5); // 5 Colors
                     phase[id] = Math.random() * Math.PI * 2; // Spiral Offset
                     size[id] = 0.5 + Math.random() * 1.5;
+                    pulseSpeed[id] = 1.2 + Math.random() * 2.8;
+                    pulseMag[id] = 0.15 + Math.random() * 0.35;
                     // Fix: Immediate visibility (no negative value)
                     life[id] = Math.random(); 
                     hx1[id] = hx2[id] = hx3[id] = hx4[id] = px[id];
@@ -858,7 +864,7 @@ function drawFloating(_theme: ThemeConfig) {
         
         if (isMarchen) {
             // --- 3. Balanced Star Weaving (Zero-GC Optimized) ---
-            const isMainSpirit = i < 60; 
+            const isMainSpirit = i < (isMobile ? 45 : 90); // 1.5x increase (60 -> 90), reduced for mobile
             
             // Ultra-Slow life cycle for stable, relaxed atmosphere
             life[i] += 0.0002 * size[i] * (isMainSpirit ? 1.0 : 0.6); 
@@ -867,6 +873,8 @@ function drawFloating(_theme: ThemeConfig) {
                 vx[i] = Math.random() * width;
                 vy[i] = Math.random() * height;
                 custom2[i] = Math.floor(Math.random() * magicStars.length); 
+                pulseSpeed[i] = 1.2 + Math.random() * 2.8;
+                pulseMag[i] = 0.15 + Math.random() * 0.35;
             }
 
             if (life[i] < 0) return; 
@@ -879,16 +887,17 @@ function drawFloating(_theme: ThemeConfig) {
             px[i] = vx[i] + wX;
             py[i] = vy[i] + wY;
 
-            // Slow, Breathing Twinkle Effect
-            const blink = Math.pow(Math.sin(time * 1.0 + phase[i]), 4); 
-            const twinkle = 0.8 + blink * 0.2;
-            const alphaVal = Math.sin(t_ * Math.PI) * (isMainSpirit ? 0.75 : 0.4) * twinkle;
+            // Dynamic, Multi-layered Shining/Twinkle Effect (requested)
+            const shineSpeed = 1.2 + (pulseSpeed[i] * 0.4); 
+            const blink = Math.pow(Math.sin(time * shineSpeed + phase[i]), 6); // Sharper brightness peaks
+            const twinkle = 0.5 + blink * 0.5; // Wider alpha variation (50% to 100%)
+            const alphaVal = Math.sin(t_ * Math.PI) * (isMainSpirit ? 0.85 : 0.5) * twinkle;
             ctx.globalAlpha = alphaVal;
 
             if (isMainSpirit) {
-                // High-End Radiant Spirit with Bakend Bloom
-                // Larger stars as requested: 10 + size[i] * 12
-                const starSize = 10 + size[i] * 12 * alphaVal;
+                // Randomized High-Frequency Pulse (requested)
+                const pulse = Math.sin(time * pulseSpeed[i] + phase[i]) * pulseMag[i];
+                const starSize = (10 + size[i] * 12 * (1 + pulse + blink * 0.25)) * alphaVal;
                 
                 // Pure White Trail for clarity
                 const aIdx = Math.floor(alphaVal * 40);
@@ -900,7 +909,7 @@ function drawFloating(_theme: ThemeConfig) {
 
                 ctx.save();
                 ctx.translate(px[i], py[i]);
-                ctx.rotate(time * 1.0 + phase[i]);
+                ctx.rotate(time * (0.8 + blink * 0.7) + phase[i]); // Spin faster when shining
                 ctx.drawImage(magicStars[colorIdx], -starSize, -starSize, starSize * 2, starSize * 2);
                 ctx.restore();
             } else {
