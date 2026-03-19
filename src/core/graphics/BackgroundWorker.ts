@@ -377,82 +377,108 @@ function drawStars(theme: ThemeConfig) {
     const isDeepSpace = theme.id === 'deep-space';
 
     if (isDeepSpace) {
-        // --- 1. Static Cosmic Background (Cached) ---
-        const staticBase = getCachedTexture('deep_space_base_v5', width, (c) => {
-            // Faint Noise / Cosmic Dust
-            for (let i = 0; i < 3000; i++) {
+        // --- 1. Masterpiece Static Base (Star Clusters & Dust) ---
+        const staticBase = getCachedTexture('deep_space_master_base_v1', width, (c) => {
+            // Background Texture
+            for (let i = 0; i < 4000; i++) {
                 const x = Math.random() * width;
                 const y = Math.random() * height;
-                const s = 0.5 + Math.random();
-                c.fillStyle = `rgba(180, 220, 255, ${Math.random() * 0.04})`;
-                c.fillRect(x, y, s, s);
+                c.fillStyle = `rgba(150, 180, 255, ${Math.random() * 0.05})`;
+                c.fillRect(x, y, 1, 1);
             }
-            // Background Depth Glows (Dark Blue/Purple)
-            const rg1 = c.createRadialGradient(width * 0.2, height * 0.3, 0, width * 0.2, height * 0.3, width * 0.7);
-            rg1.addColorStop(0, 'rgba(15, 25, 60, 0.5)'); rg1.addColorStop(1, 'transparent');
-            c.fillStyle = rg1; c.fillRect(0, 0, width, height);
-            
-            const rg2 = c.createRadialGradient(width * 0.8, height * 0.7, 0, width * 0.8, height * 0.7, width * 0.6);
-            rg2.addColorStop(0, 'rgba(40, 15, 60, 0.4)'); rg2.addColorStop(1, 'transparent');
-            c.fillStyle = rg2; c.fillRect(0, 0, width, height);
+            // Star Clusters
+            for (let j = 0; j < 5; j++) {
+                const cx = Math.random() * width, cy = Math.random() * height;
+                for (let i = 0; i < 200; i++) {
+                    const r = Math.pow(Math.random(), 2) * 100;
+                    const a = Math.random() * Math.PI * 2;
+                    c.fillStyle = `rgba(255, 255, 255, ${0.1 + Math.random() * 0.4})`;
+                    c.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.8, 0.8);
+                }
+            }
         });
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(staticBase, 0, 0);
 
-        // --- 2. Multi-Layered Procedural Nebulae ---
-        const drawCosmicNebula = (key: string, color: string, speed: number, size: number, yOff: number) => {
-            const nTex = getCachedTexture(key, 1000, (c) => {
-                for (let i = 0; i < 20; i++) {
-                    const cx = Math.random() * 1000, cy = Math.random() * 1000;
-                    const r = 150 + Math.random() * 400;
-                    const g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
-                    g.addColorStop(0, color); g.addColorStop(1, 'transparent');
-                    c.fillStyle = g; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+        // --- 2. Planet with Rings (Masterpiece) ---
+        const planetTex = getCachedTexture('cosmic_planet_v2', 600, (c) => {
+            const cx = 300, cy = 300, pr = 120;
+            // 1. Rings (Draw behind planet first?) No, draw all in one sprite
+            c.save(); c.translate(cx, cy); c.rotate(0.4);
+            for(let i=0; i<40; i++) {
+                const rSize = pr * (1.6 + i*0.02);
+                c.strokeStyle = `rgba(180, 220, 255, ${0.05 + Math.random()*0.1})`;
+                c.lineWidth = 1;
+                c.beginPath(); c.ellipse(0, 0, rSize, rSize * 0.3, 0, 0, Math.PI * 2); c.stroke();
+            }
+            c.restore();
+
+            // 2. Planet Surface
+            const g = c.createRadialGradient(cx - 40, cy - 40, 20, cx, cy, pr);
+            g.addColorStop(0, '#455A64'); g.addColorStop(0.5, '#263238'); g.addColorStop(1, '#000000');
+            c.fillStyle = g; c.beginPath(); c.arc(cx, cy, pr, 0, Math.PI * 2); c.fill();
+            
+            // 3. Atmosphere Glow
+            const ag = c.createRadialGradient(cx, cy, pr * 0.8, cx, cy, pr * 1.1);
+            ag.addColorStop(0, 'rgba(100, 200, 255, 0.3)'); ag.addColorStop(1, 'transparent');
+            c.fillStyle = ag; c.beginPath(); c.arc(cx, cy, pr * 1.1, 0, Math.PI * 2); c.fill();
+        });
+        
+        ctx.globalAlpha = 0.9;
+        ctx.drawImage(planetTex, width * 0.7, height * 0.2, 500, 500);
+
+        // --- 3. Filament Nebula Master ---
+        const drawFilaments = (key: string, color: string, speed: number, yOff: number) => {
+            const fTex = getCachedTexture(key, 1200, (c) => {
+                c.strokeStyle = color; c.globalAlpha = 0.15;
+                for(let i=0; i<30; i++) {
+                    c.lineWidth = 1 + Math.random() * 5;
+                    c.beginPath();
+                    let x = Math.random() * 1200, y = Math.random() * 1200;
+                    c.moveTo(x, y);
+                    for(let j=0; j<5; j++) {
+                        x += (Math.random() - 0.5) * 300; y += (Math.random() - 0.5) * 150;
+                        c.bezierCurveTo(x-50, y, x+50, y, x, y);
+                    }
+                    c.stroke();
                 }
             });
-            const nx = ((time * speed) % (width + 1000)) - 1000;
-            ctx.globalAlpha = 0.2;
+            const fx = ((time * speed) % (width + 1200)) - 1200;
             setCompositeOperation('screen');
-            ctx.drawImage(nTex, nx, yOff, 1000 * size, 1000 * size);
+            ctx.drawImage(fTex, fx, yOff, 1500, 1000);
         };
-
-        drawCosmicNebula('nebula_deep_cyan', 'rgba(0, 230, 255, 0.25)', 8, 2.5, -200);
-        drawCosmicNebula('nebula_deep_magenta', 'rgba(230, 0, 255, 0.3)', 12, 3.0, 100);
-        drawCosmicNebula('nebula_deep_gold', 'rgba(255, 180, 50, 0.15)', 6, 2.2, -400);
+        drawFilaments('filaments_cyan', 'rgba(0, 255, 255, 0.4)', 12, -100);
+        drawFilaments('filaments_magenta', 'rgba(255, 0, 255, 0.4)', 18, 200);
     }
 
-    // 3. Featured Deep Space Objects (Galaxies/Clusters)
-    const galSize = isMobile ? 800 : 1200;
-    const galaxyTexture = getCachedTexture('spiral_galaxy_v3', galSize, (c) => {
+    // 4. Ultra-Dense Spiral Galaxy (v4 Master)
+    const galSize = isMobile ? 800 : 1500;
+    const galaxyTexture = getCachedTexture('spiral_galaxy_v4_master', galSize, (c) => {
         const cx = galSize / 2, cy = galSize / 2;
-        // Core
-        const coreGrad = c.createRadialGradient(cx, cy, 0, cx, cy, galSize * 0.25);
-        coreGrad.addColorStop(0, 'rgba(255, 255, 240, 0.95)');
-        coreGrad.addColorStop(0.3, 'rgba(100, 180, 255, 0.4)');
-        coreGrad.addColorStop(0.7, 'rgba(50, 50, 180, 0.1)');
-        coreGrad.addColorStop(1, 'transparent');
-        c.fillStyle = coreGrad; c.fillRect(0, 0, galSize, galSize);
+        // Intense Bloom Core
+        const core = c.createRadialGradient(cx, cy, 0, cx, cy, galSize * 0.3);
+        core.addColorStop(0, '#FFFFFF'); core.addColorStop(0.2, 'rgba(255, 200, 255, 0.6)');
+        core.addColorStop(0.5, 'rgba(100, 150, 255, 0.2)'); core.addColorStop(1, 'transparent');
+        c.fillStyle = core; c.fillRect(0, 0, galSize, galSize);
 
-        // Dense Spiral Arms
-        const pCount = isMobile ? 1500 : 4000;
+        // 8,000 Particle Arms
+        const pCount = isMobile ? 2000 : 8000;
         for (let i = 0; i < pCount; i++) {
-            const t = i / pCount;
+            const t = Math.pow(i / pCount, 0.7);
             const angle = t * 7.5 + (Math.random() < 0.5 ? 0 : Math.PI);
-            const dist = t * galSize * 0.45 + (Math.random() * 40);
+            const dist = t * galSize * 0.45 + (Math.random() * 30);
             const x = cx + Math.cos(angle) * dist;
             const y = cy + Math.sin(angle) * dist * 0.6;
-            const s = 0.5 + Math.random() * 3;
-            c.fillStyle = idxToSpaceColor(Math.floor(Math.random() * 4), (1 - t) * 0.8);
-            c.fillRect(x, y, s, s);
+            c.fillStyle = idxToSpaceColor(Math.floor(Math.random() * 5), (1 - t) * 0.9);
+            c.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
         }
     });
 
     if (isDeepSpace) {
-        ctx.globalAlpha = 0.45;
+        ctx.globalAlpha = 0.6;
         setCompositeOperation('screen');
-        ctx.drawImage(galaxyTexture, width * 0.4 - 200, height * 0.1, galSize * 0.8, galSize * 0.5);
+        ctx.drawImage(galaxyTexture, width * 0.1 - 200, height * 0.3, galSize * 0.7, galSize * 0.45);
     } else {
-        // Simple nebula for other themes
         const shift = time * 0.01;
         const nx = width * (0.5 + Math.sin(shift) * 0.1);
         const ny = height * (0.5 + Math.cos(shift) * 0.05);
@@ -593,7 +619,8 @@ function idxToSpaceColor(idx: number, alpha: number): string {
         `rgba(255, 255, 255, ${alpha})`,
         `rgba(178, 235, 242, ${alpha})`,
         `rgba(255, 241, 118, ${alpha})`,
-        `rgba(255, 138, 128, ${alpha})`
+        `rgba(255, 138, 128, ${alpha})`,
+        `rgba(224, 190, 255, ${alpha})` // Extra purple for masterpiece
     ];
     return colors[idx % colors.length];
 }
