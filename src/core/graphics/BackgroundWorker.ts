@@ -303,16 +303,27 @@ function initPattern(pattern: string) {
                     hx1[id] = hx2[id] = hx3[id] = hx4[id] = px[id];
                     hy1[id] = hy2[id] = hy3[id] = hy4[id] = py[id];
                 } else {
-                    const l = Math.floor(Math.random() * 3);
                     px[id] = Math.random() * width;
                     py[id] = Math.random() * height;
-                    size[id] = (Math.random() * 35 + 15) * (1 - l * 0.22);
-                    vx[id] = (Math.random() * 0.8 + 0.5) * (1 - l * 0.15);
+                    vx[id] = (Math.random() - 0.5) * 0.5;
                     vy[id] = (Math.random() - 0.5) * 0.5;
-                    custom1[id] = (Math.random() - 0.5) * 0.03; 
+                    size[id] = Math.random() * 2 + 1;
                     phase[id] = Math.random() * Math.PI * 2;
-                    layer[id] = l;
+                    layer[id] = Math.floor(Math.random() * 3);
                 }
+            }
+            break;
+        case 'fireworks':
+            // Background Stars/Sparks for the Firework Sky
+            for (let i = 0; i < 200; i++) {
+                const id = spawn();
+                if (id === -1) break;
+                px[id] = Math.random() * width;
+                py[id] = Math.random() * (height * 0.6); // Mostly in upper sky
+                size[id] = Math.random() * 2.5 + 0.5;
+                phase[id] = Math.random() * Math.PI * 2;
+                life[id] = 0.5 + Math.random() * 0.5;
+                layer[id] = Math.floor(Math.random() * 3);
             }
             break;
         case 'matrix':
@@ -1356,6 +1367,7 @@ function render(timestamp: number) {
     ctx.save();
     switch (currentTheme.pattern) {
         case 'stars': drawStars(currentTheme); break;
+        case 'fireworks':
         case 'grid3d': drawGrid3D(currentTheme); break;
         case 'scanlines': drawScanlines(currentTheme); break;
         case 'matrix': drawMatrix(currentTheme); break;

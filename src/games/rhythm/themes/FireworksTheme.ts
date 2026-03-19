@@ -28,7 +28,8 @@ export class FireworksTheme implements IThemeStrategy {
     }
 
     /**
-     * Fireworks Burst + Expanding Ring Hit Effect
+     * Realistic Fireworks Burst + Expanding Ring Hit Effect
+     * Features: Gravity, Friction, Multi-stage Color Transitions
      */
     public renderHitEffect(
         ctx: CanvasRenderingContext2D,
@@ -38,58 +39,77 @@ export class FireworksTheme implements IThemeStrategy {
         judgment: Judgment,
         t: number
     ): void {
-        const ease = 1 - Math.pow(t, 2); // Fast out
-        const alpha = ease;
-        const color = this.getColorForJudgment(judgment);
+        const alpha = 1 - t;
+        const baseColor = this.getColorForJudgment(judgment);
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Expanding Ring (Shockwave)
-        const ringR = laneWidth * (0.4 + t * 1.5);
-        ctx.strokeStyle = applyAlpha(color, Math.floor(alpha * 128).toString(16).padStart(2, '0'));
-        ctx.lineWidth = 3 * ease;
-        ctx.beginPath();
-        ctx.arc(x, y, ringR, 0, Math.PI * 2);
-        ctx.stroke();
+        // 1. Expanding Ring (Shockwave) - Faster fade
+        const ringAlpha = Math.max(0, 1 - t * 2);
+        if (ringAlpha > 0) {
+            const ringR = laneWidth * (0.4 + t * 1.8);
+            ctx.strokeStyle = applyAlpha(baseColor, Math.floor(ringAlpha * 140).toString(16).padStart(2, '0'));
+            ctx.lineWidth = 4 * ringAlpha;
+            ctx.beginPath();
+            ctx.arc(x, y, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+        }
 
-        // 2. Central Glow
-        const coreR = laneWidth * 0.5 * ease;
-        const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
-        coreGrad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-        coreGrad.addColorStop(0.3, applyAlpha(color, Math.floor(alpha * 220).toString(16).padStart(2, '0')));
-        coreGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = coreGrad;
-        ctx.beginPath(); 
-        ctx.arc(x, y, coreR, 0, Math.PI * 2); 
-        ctx.fill();
+        // 2. Central Flash (The initial explosion)
+        if (t < 0.3) {
+            const flashAlpha = (1 - t / 0.3) * 0.8;
+            const flashR = laneWidth * 0.6 * (1 + t);
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, flashR);
+            grad.addColorStop(0, `rgba(255, 255, 255, ${flashAlpha})`);
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(x, y, flashR, 0, Math.PI * 2); ctx.fill();
+        }
 
-        // 3. Fireworks Particle Burst
-        const sparkCount = judgment === Judgment.PERFECT ? 16 : 10;
+        // 3. Fireworks Particle Burst with Physics
+        const sparkCount = judgment === Judgment.PERFECT ? 20 : 12;
+        const gravity = t * t * 80; // Downward pull increases over time
+        const friction = Math.pow(0.92, t * 15); // Velocity decay
+
         for (let i = 0; i < sparkCount; i++) {
             const angle = (i / sparkCount) * Math.PI * 2 + (phaseSeed[i % 8] || 0);
-            const speed = 1.0 + (i % 3) * 0.5;
-            const dist = laneWidth * (0.2 + t * 3.5 * speed);
-            const sx = x + Math.cos(angle) * dist;
-            const sy = y + Math.sin(angle) * dist;
+            const speed = (0.8 + (i % 5) * 0.4);
+            const initialDist = laneWidth * 0.2;
+            const travelDist = laneWidth * 4.0 * speed * friction * t;
             
-            // Traveling sparks with tail
-            const tailLen = 10 * ease;
-            const tx = sx - Math.cos(angle) * tailLen;
-            const ty = sy - Math.sin(angle) * tailLen;
+            const sx = x + Math.cos(angle) * (initialDist + travelDist);
+            const sy = y + Math.sin(angle) * (initialDist + travelDist) + gravity;
+            
+            // Dynamic Color Transition
+            let sparkColor = baseColor;
+            if (t < 0.15) sparkColor = '#ffffff'; // White hot start
+            else if (t > 0.7) {
+                // Cooling down to dark red/orange flicker
+                const flicker = Math.sin(t * 50 + i) > 0 ? 1 : 0.3;
+                sparkColor = applyAlpha('#ff4400', Math.floor(alpha * 255 * flicker).toString(16).padStart(2, '0'));
+            }
 
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2 * ease;
+            // Draw spark with trail
+            const trailLen = 12 * (1 - t) * friction;
+            const tx = sx - Math.cos(angle) * trailLen;
+            const ty = sy - Math.sin(angle) * trailLen;
+
+            ctx.strokeStyle = sparkColor;
+            ctx.lineWidth = (2.5 - t * 1.5) * friction;
+            ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(tx, ty);
             ctx.lineTo(sx, sy);
             ctx.stroke();
 
-            // Spark head
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(sx, sy, 1.5 * ease, 0, Math.PI * 2);
-            ctx.fill();
+            // Head glow
+            if (t < 0.6) {
+                ctx.fillStyle = (t < 0.2) ? '#fff' : sparkColor;
+                ctx.beginPath();
+                ctx.arc(sx, sy, 1.5 * (1 - t), 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         ctx.restore();

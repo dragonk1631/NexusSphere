@@ -55,7 +55,7 @@ export class ThemeManager {
         {
             id: 'fireworks',
             name: 'Fireworks',
-            pattern: 'grid3d',
+            pattern: 'fireworks',
             color1: '#2A0515', // Warm Deep Plum
             color2: '#FF006E', // Technika Pink (keeping color palette)
             color3: '#FFD000', // Technika Yellow/Gold
