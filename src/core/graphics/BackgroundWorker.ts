@@ -221,10 +221,10 @@ function initPattern(pattern: string) {
                         layer[id] = l;
                         life[id] = 0.4 + Math.random() * 0.6;
                         
-                        // Slightly higher rate of shooting stars for Deep Space
-                        if (Math.random() > 0.993) {
+                        // Rare Shooting Star (0.5% chance)
+                        if (Math.random() > 0.995) {
                             life[id] = -1.0; 
-                            vx[id] = 12 + Math.random() * 12; 
+                            vx[id] = 6 + Math.random() * 6; // Slower, more graceful speed
                         }
                     } else {
                         size[id] = l === 0 ? Math.random() * 0.4 : (4 - l) * 0.7 + Math.random();
@@ -467,11 +467,11 @@ function drawStars(theme: ThemeConfig) {
     const starCrossSprite = getCachedTexture('star_cross_premium', 128, (c) => {
         const cx = 64, cy = 64;
         const g = c.createRadialGradient(cx, cy, 0, cx, cy, 64);
-        g.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-        g.addColorStop(0.3, 'rgba(255, 255, 255, 0.1)');
+        g.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+        g.addColorStop(0.3, 'rgba(255, 255, 255, 0.15)');
         g.addColorStop(1, 'transparent');
         c.fillStyle = g; c.beginPath(); c.arc(cx, cy, 64, 0, Math.PI * 2); c.fill();
-        c.strokeStyle = 'rgba(255,255,255,0.6)'; c.lineWidth = 1;
+        c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 1.2;
         c.beginPath(); 
         c.moveTo(cx, 0); c.lineTo(cx, 128); 
         c.moveTo(0, cy); c.lineTo(128, cy); 
@@ -479,6 +479,20 @@ function drawStars(theme: ThemeConfig) {
         c.moveTo(cx-30, cy-30); c.lineTo(cx+30, cy+30);
         c.moveTo(cx+30, cy-30); c.lineTo(cx-30, cy+30);
         c.stroke();
+    });
+
+    const shootStarTex = getCachedTexture('shoot_star_v2', 200, (c) => {
+        const grad = c.createLinearGradient(0, 10, 200, 10);
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(0.8, 'rgba(255, 255, 255, 0.4)');
+        grad.addColorStop(1, '#FFFFFF');
+        c.fillStyle = grad;
+        c.beginPath();
+        c.moveTo(0, 8); c.lineTo(190, 4); c.arc(190, 10, 6, -Math.PI/2, Math.PI/2); c.lineTo(0, 12);
+        c.fill();
+        // Glow
+        c.shadowBlur = 10; c.shadowColor = '#FFFFFF';
+        c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(194, 10, 4, 0, Math.PI * 2); c.fill();
     });
 
     setCompositeOperation('lighter');
@@ -489,16 +503,19 @@ function drawStars(theme: ThemeConfig) {
             px[i] += vx[i];
             py[i] += vx[i] * 0.25;
             if (px[i] > width + 300) { px[i] = -300; py[i] = Math.random() * height; }
-            ctx.globalAlpha = 0.9;
-            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.moveTo(px[i], py[i]); ctx.lineTo(px[i] - 150, py[i] - 37); ctx.stroke();
-            ctx.drawImage(starSprites[0], px[i] - 4, py[i] - 4, 8, 8);
+            
+            ctx.globalAlpha = 0.8;
+            ctx.save();
+            ctx.translate(px[i], py[i]);
+            ctx.rotate(Math.atan2(vx[i] * 0.25, vx[i]));
+            ctx.drawImage(shootStarTex, -200, -10, 200, 20);
+            ctx.restore();
         } else {
             py[i] += vy[i] * (5 - pz[i]);
             if (py[i] > height) py[i] = -20;
 
-            const shineSpeed = isDeepSpace ? 1.8 : 2.0;
-            const blinkBase = Math.pow(Math.sin(time * shineSpeed + phase[i]), isDeepSpace ? 10 : 4);
+            const shineSpeed = isDeepSpace ? 0.7 : 2.0; // Slower, natural breathing
+            const blinkBase = Math.pow(Math.sin(time * shineSpeed + phase[i]), isDeepSpace ? 7 : 4);
             const twinkle = 0.6 + blinkBase * 0.4;
             
             ctx.globalAlpha = life[i] * twinkle; 
