@@ -113,13 +113,11 @@ export class BackgroundRenderer {
                 }
 
                 if (loadedBitmap) {
-                    console.log(`[BackgroundRenderer] Successfully loaded bitmap for theme: ${theme.id}`);
                     this.worker.postMessage({
                         type: 'SET_BG_IMAGE',
                         bitmap: loadedBitmap
                     }, [loadedBitmap]);
                 } else {
-                    console.warn(`[BackgroundRenderer] No background image bitmap found for theme: ${theme.id}`);
                     this.worker.postMessage({
                         type: 'SET_BG_IMAGE',
                         bitmap: null

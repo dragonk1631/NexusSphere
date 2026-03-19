@@ -8,11 +8,8 @@ let height = 600;
 let pixelRatio = 1;
 let currentTheme: ThemeConfig | null = null;
 let isRunning = false;
-// let rafId: number = 0; // Passive renderer
 let time = 0;
 let bgImageBitmap: ImageBitmap | null = null;
-// let lastDrawTime = 0; // Managed by main loop
-// const TARGET_INTERVAL = 1000 / 60; // Managed by main loop
 let isMobile = false;
 let dynamicMaxParticles = 2500;
 
@@ -377,19 +374,7 @@ function initPattern(pattern: string) {
 function drawStars(theme: ThemeConfig) {
     const isDeepSpace = theme.id === 'deep-space';
 
-    if (!bgImageBitmap && isDeepSpace) {
-        // --- Fallback Nebula (only if no image) ---
-        const staticBase = getCachedTexture('deep_space_master_base_v1', width, (c) => {
-            for (let i = 0; i < 4000; i++) {
-                c.fillStyle = `rgba(150, 180, 255, ${Math.random() * 0.05})`;
-                c.fillRect(Math.random() * width, Math.random() * height, 1, 1);
-            }
-        });
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(staticBase, 0, 0);
-    }
-
-    // 3. Stars Palette
+    // 1. Stars Palette
     const starColors = ['#FFFFFF', '#B2EBF2', '#FFF176', '#FF8A80', '#D1C4E9']; 
     const starSprites = starColors.map((col, idx) => 
         getCachedTexture(`star_v3_${idx}`, 32, (c) => {
@@ -1344,9 +1329,9 @@ function render(timestamp: number) {
         const physH = canvas.height;
         ctx.drawImage(bgImageBitmap, 0, 0, physW, physH);
         ctx.restore();
-    } else {
-        // Clear to solid black for testing
-        ctx.fillStyle = '#000000';
+    } else if (cachedBgGrad) {
+        // Fallback to procedural gradient
+        ctx.fillStyle = cachedBgGrad;
         ctx.fillRect(0, 0, width, height);
     }
 
