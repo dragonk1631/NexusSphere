@@ -327,6 +327,7 @@ function initPattern(pattern: string) {
                     vx[id] = (Math.random() - 0.5) * 2;
                     vy[id] = -(Math.random() * 6 + 10);
                     custom1[id] = 0; // LAUNCH
+                    custom2[id] = 0.6 + Math.random() * 0.8; // Random burst scale
                 } else if (i < 115) {
                     // 2. SHRAPNEL (Reserved for bursts)
                     custom1[id] = -1; // INACTIVE
@@ -1486,11 +1487,19 @@ function drawFireworksBackground(theme: ThemeConfig) {
                 }
             }
         } else if (state === 1) {
-            // --- BURST FLASH ---
-            ctx.fillStyle = '#fff';
-            ctx.globalAlpha = life[i] * 0.8;
-            ctx.beginPath(); ctx.arc(px[i], py[i], 30 * life[i], 0, Math.PI * 2); ctx.fill();
-            life[i] -= 0.15;
+            // --- BURST GLOW --- (Soft radial flash instead of circles)
+            const burstScale = custom2[i] || 1.0;
+            const r = 40 * life[i] * burstScale;
+            
+            const grad = ctx.createRadialGradient(px[i], py[i], 0, px[i], py[i], r);
+            grad.addColorStop(0, `rgba(255, 255, 255, ${life[i] * 0.9})`);
+            grad.addColorStop(0.3, `rgba(255, 255, 255, ${life[i] * 0.4})`);
+            grad.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(px[i], py[i], r, 0, Math.PI * 2); ctx.fill();
+            
+            life[i] -= 0.12;
             if (life[i] <= 0) {
                 // Return to launch pool
                 custom1[i] = 0;

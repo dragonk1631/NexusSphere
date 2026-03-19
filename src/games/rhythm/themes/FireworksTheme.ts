@@ -46,7 +46,7 @@ export class FireworksTheme implements IThemeStrategy {
         ctx.globalCompositeOperation = 'lighter';
 
         // 1. Concentric Expanding Rings (Shockwaves)
-        const ringCount = 3;
+        const ringCount = 2;
         for (let i = 0; i < ringCount; i++) {
             const delay = i * 0.15;
             const progress = Math.max(0, (t - delay) / (1 - delay));
