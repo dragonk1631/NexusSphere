@@ -400,32 +400,48 @@ function drawStars(theme: ThemeConfig) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(staticBase, 0, 0);
 
-        // --- 2. Planet with Rings (Masterpiece) ---
-        const planetTex = getCachedTexture('cosmic_planet_v2', 600, (c) => {
-            const cx = 300, cy = 300, pr = 120;
-            // 1. Rings (Draw behind planet first?) No, draw all in one sprite
-            c.save(); c.translate(cx, cy); c.rotate(0.4);
-            for(let i=0; i<40; i++) {
-                const rSize = pr * (1.6 + i*0.02);
-                c.strokeStyle = `rgba(180, 220, 255, ${0.05 + Math.random()*0.1})`;
-                c.lineWidth = 1;
-                c.beginPath(); c.ellipse(0, 0, rSize, rSize * 0.3, 0, 0, Math.PI * 2); c.stroke();
-            }
-            c.restore();
+        // --- 2. Planet with Rings (Masterpiece Polish) ---
+        const drawPlanetSystem = (px: number, py: number, size: number) => {
+            const pr = size * 0.25;
+            const tilt = 0.5;
+
+            // 1. Back Rings (Draw behind planet)
+            const drawRingsPart = (isFront: boolean) => {
+                const start = isFront ? 0 : Math.PI;
+                const end = isFront ? Math.PI : Math.PI * 2;
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.rotate(tilt);
+                for(let i=0; i<40; i++) {
+                    const rSize = pr * (1.6 + i*0.02);
+                    ctx.strokeStyle = i % 2 === 0 ? `rgba(0, 255, 255, ${0.1 + i*0.005})` : `rgba(255, 0, 255, ${0.1 + i*0.005})`;
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, rSize, rSize * 0.35, 0, start, end);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            };
+
+            drawRingsPart(false); // Back
 
             // 2. Planet Surface
-            const g = c.createRadialGradient(cx - 40, cy - 40, 20, cx, cy, pr);
-            g.addColorStop(0, '#455A64'); g.addColorStop(0.5, '#263238'); g.addColorStop(1, '#000000');
-            c.fillStyle = g; c.beginPath(); c.arc(cx, cy, pr, 0, Math.PI * 2); c.fill();
-            
-            // 3. Atmosphere Glow
-            const ag = c.createRadialGradient(cx, cy, pr * 0.8, cx, cy, pr * 1.1);
-            ag.addColorStop(0, 'rgba(100, 200, 255, 0.3)'); ag.addColorStop(1, 'transparent');
-            c.fillStyle = ag; c.beginPath(); c.arc(cx, cy, pr * 1.1, 0, Math.PI * 2); c.fill();
-        });
+            const planetTex = getCachedTexture('cosmic_planet_v3', 400, (c) => {
+                const cx = 200, cy = 200, r = 100;
+                const g = c.createRadialGradient(cx - 30, cy - 30, 10, cx, cy, r);
+                g.addColorStop(0, '#607D8B'); g.addColorStop(0.5, '#263238'); g.addColorStop(1, '#000000');
+                c.fillStyle = g; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+                // Atmosphere
+                const ag = c.createRadialGradient(cx, cy, r*0.8, cx, cy, r*1.15);
+                ag.addColorStop(0, 'rgba(100, 200, 255, 0.4)'); ag.addColorStop(1, 'transparent');
+                c.fillStyle = ag; c.beginPath(); c.arc(cx, cy, r*1.15, 0, Math.PI * 2); c.fill();
+            });
+            ctx.drawImage(planetTex, px - pr, py - pr, pr * 2, pr * 2);
+
+            drawRingsPart(true); // Front
+        };
         
-        ctx.globalAlpha = 0.9;
-        ctx.drawImage(planetTex, width * 0.7, height * 0.2, 500, 500);
+        drawPlanetSystem(width * 0.75, height * 0.25, 500);
 
         // --- 3. Filament Nebula Master ---
         const drawFilaments = (key: string, color: string, speed: number, yOff: number) => {
@@ -475,9 +491,14 @@ function drawStars(theme: ThemeConfig) {
     });
 
     if (isDeepSpace) {
-        ctx.globalAlpha = 0.6;
+        ctx.globalAlpha = 0.7;
         setCompositeOperation('screen');
-        ctx.drawImage(galaxyTexture, width * 0.1 - 200, height * 0.3, galSize * 0.7, galSize * 0.45);
+        const gx = width * 0.1, gy = height * 0.4, gw = galSize * 0.7, gh = galSize * 0.45;
+        ctx.save();
+        ctx.translate(gx + gw/2, gy + gh/2);
+        ctx.rotate(time * 0.03); // Very slow rotation
+        ctx.drawImage(galaxyTexture, -gw/2, -gh/2, gw, gh);
+        ctx.restore();
     } else {
         const shift = time * 0.01;
         const nx = width * (0.5 + Math.sin(shift) * 0.1);
