@@ -45,12 +45,18 @@ export class FireworksTheme implements IThemeStrategy {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Expanding Ring (Shockwave) - Faster fade
-        const ringAlpha = Math.max(0, 1 - t * 2);
-        if (ringAlpha > 0) {
-            const ringR = laneWidth * (0.4 + t * 1.8);
-            ctx.strokeStyle = applyAlpha(baseColor, Math.floor(ringAlpha * 140).toString(16).padStart(2, '0'));
-            ctx.lineWidth = 4 * ringAlpha;
+        // 1. Concentric Expanding Rings (Shockwaves)
+        const ringCount = 3;
+        for (let i = 0; i < ringCount; i++) {
+            const delay = i * 0.15;
+            const progress = Math.max(0, (t - delay) / (1 - delay));
+            if (progress <= 0 || progress >= 1) continue;
+
+            const ringAlpha = (1 - progress) * 0.6;
+            const ringR = laneWidth * (0.3 + progress * 2.2 * (1 + i * 0.2));
+            
+            ctx.strokeStyle = applyAlpha(baseColor, Math.floor(ringAlpha * 255).toString(16).padStart(2, '0'));
+            ctx.lineWidth = 4 * (1 - progress);
             ctx.beginPath();
             ctx.arc(x, y, ringR, 0, Math.PI * 2);
             ctx.stroke();

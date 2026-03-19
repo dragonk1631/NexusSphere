@@ -314,15 +314,32 @@ function initPattern(pattern: string) {
             }
             break;
         case 'fireworks':
-            // Background Stars/Sparks for the Firework Sky
+            // High-fidelity Sky Sparkle & Rocket System
+            // Rockets: 0-14, Shrapnel: 15-114, Ambient Stars: 115-199
             for (let i = 0; i < 200; i++) {
                 const id = spawn();
                 if (id === -1) break;
-                px[id] = Math.random() * width;
-                py[id] = Math.random() * (height * 0.6); // Mostly in upper sky
-                size[id] = Math.random() * 2.5 + 0.5;
-                phase[id] = Math.random() * Math.PI * 2;
-                life[id] = 0.5 + Math.random() * 0.5;
+                
+                if (i < 15) {
+                    // 1. ROCKETS
+                    px[id] = Math.random() * width;
+                    py[id] = height + Math.random() * 500;
+                    vx[id] = (Math.random() - 0.5) * 2;
+                    vy[id] = -(Math.random() * 6 + 10);
+                    custom1[id] = 0; // LAUNCH
+                } else if (i < 115) {
+                    // 2. SHRAPNEL (Reserved for bursts)
+                    custom1[id] = -1; // INACTIVE
+                } else {
+                    // 3. AMBIENT STARS
+                    px[id] = Math.random() * width;
+                    py[id] = Math.random() * (height * 0.6);
+                    custom1[id] = 2; // STAR
+                    phase[id] = Math.random() * Math.PI * 2;
+                }
+                
+                size[id] = Math.random() * 2.0 + 0.5;
+                life[id] = 1.0;
                 layer[id] = Math.floor(Math.random() * 3);
             }
             break;
@@ -1426,33 +1443,83 @@ function applyResolution() {
 }
 
 function drawFireworksBackground(theme: ThemeConfig) {
-    const horizon = height * 0.5; // Upper half limit
     setCompositeOperation('screen');
     
-    // Use floating particles as seed for bursts
     for (let i = 0; i < aliveCount; i++) {
-        if (py[i] > horizon) continue; // Skip bottom half
+        const state = custom1[i]; // 0: LAUNCH, 1: BURST, 2: STAR/DECAY, 3: SHRAPNEL
 
-        const age = (time * 0.5 + phase[i]) % 2.0;
-        const burstTime = age > 1.6; // Simulate periodic bursts
-        
-        ctx.globalAlpha = life[i] * (burstTime ? 0.9 : 0.4);
-        const s = size[i] * (burstTime ? 3.0 : 1.2);
-        
-        // Draw sparkling dots in top half
-        ctx.fillStyle = theme.color2; // Pink sparks
-        ctx.beginPath();
-        ctx.arc(px[i], py[i], s, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (burstTime && i % 3 === 0) {
-            // Occasional ray from spark
-            ctx.strokeStyle = theme.color3; // Gold
-            ctx.lineWidth = 0.8;
+        if (state === 0) {
+            // --- LAUNCH STATE ---
+            py[i] += vy[i];
+            px[i] += vx[i];
+            vy[i] += 0.05; // Slight air drag
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.5;
             ctx.beginPath();
-            ctx.moveTo(px[i], py[i]);
-            ctx.lineTo(px[i] + Math.cos(phase[i] + time * 5) * 15, py[i] + Math.sin(phase[i] + time * 5) * 15);
+            ctx.moveTo(px[i], py[i] + 12);
+            ctx.lineTo(px[i], py[i]);
             ctx.stroke();
+
+            // Transition to burst if slow or high enough
+            if (vy[i] >= -2 || py[i] < height * (0.1 + Math.random() * 0.2)) {
+                custom1[i] = 1; // BURST
+                life[i] = 1.0;
+                
+                // Spawn shrapnel from reserved pool
+                const burstX = px[i];
+                const burstY = py[i];
+                let spawned = 0;
+                for (let j = 0; j < aliveCount && spawned < 12; j++) {
+                    if (custom1[j] === -1) { // inactive
+                        custom1[j] = 3; // SHRAPNEL
+                        px[j] = burstX;
+                        py[j] = burstY;
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 2 + Math.random() * 5;
+                        vx[j] = Math.cos(angle) * speed;
+                        vy[j] = Math.sin(angle) * speed;
+                        life[j] = 1.0;
+                        spawned++;
+                    }
+                }
+            }
+        } else if (state === 1) {
+            // --- BURST FLASH ---
+            ctx.fillStyle = '#fff';
+            ctx.globalAlpha = life[i] * 0.8;
+            ctx.beginPath(); ctx.arc(px[i], py[i], 30 * life[i], 0, Math.PI * 2); ctx.fill();
+            life[i] -= 0.15;
+            if (life[i] <= 0) {
+                // Return to launch pool
+                custom1[i] = 0;
+                py[i] = height + Math.random() * 500;
+                px[i] = Math.random() * width;
+                vy[i] = -(Math.random() * 6 + 10);
+            }
+        } else if (state === 3) {
+            // --- SHRAPNEL STATE ---
+            px[i] += vx[i];
+            py[i] += vy[i];
+            vy[i] += 0.15; // Gravity
+            vx[i] *= 0.96; // Air Resistance
+            life[i] -= 0.02;
+            
+            if (life[i] > 0) {
+                ctx.globalAlpha = life[i];
+                ctx.fillStyle = i % 2 === 0 ? theme.color2 : theme.color3; // Pink and Gold mix
+                ctx.beginPath(); ctx.arc(px[i], py[i], 2 * life[i], 0, Math.PI * 2); ctx.fill();
+            } else {
+                custom1[i] = -1; // Reset to inactive pool
+            }
+        } else if (state === 2) {
+            // --- AMBIENT STARS ---
+            const age = (time * 0.4 + phase[i]) % 2.0;
+            const blink = age > 1.8;
+            ctx.globalAlpha = blink ? 0.9 : 0.3;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(px[i], py[i], size[i], 0, Math.PI * 2); ctx.fill();
         }
     }
 }
