@@ -62,7 +62,7 @@ export class MenuRenderer {
 
         // 2. static Background Caching (OffscreenCanvas)
         const theme = ThemeManager.getInstance().getCurrentTheme();
-        const pal = HUD_PALETTES[theme.id];
+        const pal = HUD_PALETTES[theme.id] || HUD_PALETTES['deep-space']; // Safety fallback
         const c1 = (pal as any).scorePanel || '#00e5ff';
         const c2 = (pal as any).comboGlow || (pal as any).scoreGlow || '#ffffff';
 

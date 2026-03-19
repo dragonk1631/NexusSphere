@@ -124,6 +124,15 @@ export const HUD_PALETTES: Record<string, {
         comboGradTop: '#b2ebf2', comboGradBot: '#0288d1',
         scoreFill: '#ffffff', scoreGlow: '#80deea',
     },
+    'fireworks': {
+        hpPanel: '#FF006E',
+        scorePanel: '#FFD000',
+        hpBarMid: '#FF006E', hpBarEnd: '#FFD000', hpBarStart: '#FF8040',
+        labelFill: '#fff5e6', labelShadow: '#FF006E',
+        comboFill: '#ffffff', comboOutline: '#1a1a2e', comboGlow: '#FFD000',
+        comboGradTop: '#FFD000', comboGradBot: '#FF006E',
+        scoreFill: '#ffffff', scoreGlow: '#FFD000',
+    },
 };
 
 export const MAX_PARTICLES = 300;
