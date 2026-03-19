@@ -920,32 +920,31 @@ function drawFloating(_theme: ThemeConfig) {
     if (isMarchen) {
         // --- 1. Global Breathing Atmosphere ---
         const breathing = Math.sin(time * 0.8) * 0.5 + 0.5;
-        const pulseAlpha = 0.3 + breathing * 0.4;
+        const pulseAlpha = 0.2 + breathing * 0.3;
         
         ctx.save();
         setCompositeOperation('screen');
-        const rayCount = 2; // Reduced from 3
+        const rayCount = 2;
         for (let i = 0; i < rayCount; i++) {
             const rayP = time * 0.1 + i * 2.0;
             const rX = width * (0.4 + i * 0.2 + Math.sin(rayP) * 0.05);
-            const rW = 150 + Math.cos(rayP * 0.5) * 40; // Smaller rays
+            const rW = 150 + Math.cos(rayP * 0.5) * 40;
             const rG = ctx.createLinearGradient(rX - rW, 0, rX + rW, 0);
             rG.addColorStop(0, 'transparent');
-            // Even lower alpha for 'moderate' effect
-            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 15).toString(16).padStart(2, '0')));
+            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 12).toString(16).padStart(2, '0')));
             rG.addColorStop(1, 'transparent');
             ctx.fillStyle = rG;
-            ctx.rotate(0.1 + Math.sin(time * 0.3) * 0.03);
+            ctx.rotate(0.1 + Math.sin(time * 0.3) * 0.02);
             ctx.fillRect(rX - rW, -height, rW * 2, height * 3);
         }
 
         // --- 2. Floating Breathing Orbs (Subtle Depth) ---
-        for (let i = 0; i < 2; i++) { // Reduced from 4
+        for (let i = 0; i < 2; i++) {
             const oP = time * 0.05 + i * 2.5;
             const ox = width * (0.5 + Math.sin(oP) * 0.35);
             const oy = height * (0.5 + Math.cos(oP * 0.8) * 0.25);
             const os = height * (1.2 + Math.sin(time * 0.4 + i) * 0.2);
-            ctx.globalAlpha = 0.15 + Math.sin(time * 0.8 + i) * 0.1;
+            ctx.globalAlpha = 0.12 + Math.sin(time * 0.8 + i) * 0.08;
             ctx.drawImage(softBloomTex, ox - os, oy - os, os * 2, os * 2);
         }
         ctx.restore();

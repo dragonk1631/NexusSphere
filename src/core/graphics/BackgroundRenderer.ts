@@ -82,7 +82,7 @@ export class BackgroundRenderer {
                 // Determine potential image paths
                 // Priority: bg_space.png (for deep-space), bg.png, bg.jpg, bg.webp
                 const extensions = ['png', 'jpg', 'webp'];
-                const baseNames = theme.id === 'deep-space' ? ['bg_space', 'bg'] : ['bg'];
+                const baseNames = [`bg_${theme.id}`, 'bg'];
                 
                 let loadedBitmap: ImageBitmap | null = null;
                 
