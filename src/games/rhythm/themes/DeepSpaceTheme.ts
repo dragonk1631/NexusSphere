@@ -92,7 +92,24 @@ export class DeepSpaceTheme implements IThemeStrategy {
             ctx.restore();
         }
 
-        // 2. Core Pulse
+        // 2. Interstellar Shockwaves (Concentric rings)
+        const ringCount = 2;
+        for (let i = 0; i < ringCount; i++) {
+            const delay = i * 0.15;
+            const progress = Math.max(0, (t - delay) / (1 - delay));
+            if (progress <= 0 || progress >= 1) continue;
+
+            const ringAlpha = (1 - progress) * 0.6;
+            const ringR = laneWidth * (0.35 + progress * 2.8 * (1 + i * 0.25));
+            
+            ctx.strokeStyle = `rgba(140, 200, 255, ${ringAlpha})`;
+            ctx.lineWidth = 2 * (1 - progress); // Thinner, sharper rings
+            ctx.beginPath();
+            ctx.arc(x, y, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // 3. Core Pulse
         const coreR = laneWidth * 0.6 * (1 - t);
         const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
         coreGrad.addColorStop(0, `rgba(255, 255, 255, ${(1 - t) * 0.95})`);

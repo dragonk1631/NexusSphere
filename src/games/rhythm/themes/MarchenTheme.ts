@@ -88,7 +88,24 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.fill();
         }
 
-        // 3. Strong Magic Glow (Feedback)
+        // 3. Concentric Magic Rings (Expanding ripples)
+        const ringCount = 2;
+        for (let i = 0; i < ringCount; i++) {
+            const delay = i * 0.15;
+            const progress = Math.max(0, (t - delay) / (1 - delay));
+            if (progress <= 0 || progress >= 1) continue;
+
+            const ringAlpha = (1 - progress) * 0.5;
+            const ringR = laneWidth * (0.3 + progress * 2.5 * (1 + i * 0.2));
+            
+            ctx.strokeStyle = `rgba(255, 180, 220, ${ringAlpha})`;
+            ctx.lineWidth = 3 * (1 - progress);
+            ctx.beginPath();
+            ctx.arc(x, y, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // 4. Strong Magic Glow (Feedback)
         const bloomR = laneWidth * 0.75 * ease; // Larger bloom
         const bloomGrad = ctx.createRadialGradient(x, y, 0, x, y, bloomR);
         bloomGrad.addColorStop(0, `rgba(255, 220, 240, ${ease * 0.8})`); // Brighter
