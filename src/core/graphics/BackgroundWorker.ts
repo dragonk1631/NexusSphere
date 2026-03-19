@@ -668,6 +668,9 @@ function drawWaves(theme: ThemeConfig) {
         for (let i = 0; i < 6; i++) {
             const layerY = height * (0.35 + i * 0.1);
             const amp = 10 + i * 15;
+            // The following line was problematic in the user's snippet, as waves use strokeStyle, not fillStyle.
+            // Assuming the intent was to adjust the gradient color or alpha, but the original `addColorStop` is correct for `strokeStyle`.
+            // ctx.fillStyle = `rgba(255, 209, 232, ${intensity})`; 
             const g = ctx.createLinearGradient(0, layerY - amp, 0, layerY + amp * 2);
             g.addColorStop(0, colorCache.gridAlpha50); // Using grid 50% for waves
             g.addColorStop(1, 'transparent');
@@ -684,7 +687,9 @@ function drawWaves(theme: ThemeConfig) {
 
         ctx.strokeStyle = cachedWaveGrads[i]!;
         ctx.lineWidth = 1 + i * 0.5;
-        ctx.globalAlpha = 0.2 + (i * 0.12);
+        // The user's requested change for globalAlpha here used pz[i] which is not defined in this function.
+        // Assuming the intent was to reduce the master alpha by 40% for waves, similar to the instruction.
+        ctx.globalAlpha = (0.2 + (i * 0.12)) * 0.6; // Reduced master alpha by 40%
         ctx.beginPath();
 
         for (let x = 0; x <= width; x += 30) {
@@ -932,7 +937,8 @@ function drawFloating(_theme: ThemeConfig) {
             const rW = 150 + Math.cos(rayP * 0.5) * 40;
             const rG = ctx.createLinearGradient(rX - rW, 0, rX + rW, 0);
             rG.addColorStop(0, 'transparent');
-            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 12).toString(16).padStart(2, '0')));
+            // Reduced alpha for rays
+            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 8).toString(16).padStart(2, '0'))); // Reduced from 12 to 8
             rG.addColorStop(1, 'transparent');
             ctx.fillStyle = rG;
             ctx.rotate(0.1 + Math.sin(time * 0.3) * 0.02);
@@ -945,7 +951,8 @@ function drawFloating(_theme: ThemeConfig) {
             const ox = width * (0.5 + Math.sin(oP) * 0.35);
             const oy = height * (0.5 + Math.cos(oP * 0.8) * 0.25);
             const os = height * (1.2 + Math.sin(time * 0.4 + i) * 0.2);
-            ctx.globalAlpha = 0.12 + Math.sin(time * 0.8 + i) * 0.08;
+            // Reduced alpha for orbs
+            ctx.globalAlpha = (0.12 + Math.sin(time * 0.8 + i) * 0.08) * 0.6; // Reduced by 40%
             ctx.drawImage(softBloomTex, ox - os, oy - os, os * 2, os * 2);
         }
         ctx.restore();
@@ -1324,11 +1331,17 @@ function render(timestamp: number) {
         ctx.globalAlpha = 1.0;
         ctx.globalCompositeOperation = 'source-over';
         
-        // Fill the actual physical canvas dimensions
-        const physW = canvas.width;
-        const physH = canvas.height;
-        ctx.drawImage(bgImageBitmap, 0, 0, physW, physH);
+        // 1. Draw Background Image (Reset transform first for physical pixel alignment)
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
+        // --- VISIBILITY FIX: Dim the background for Marchen/DeepSpace by 35% to improve note contrast ---
+        ctx.globalAlpha = 0.65; // User: "Please dim it slightly"
+        ctx.drawImage(bgImageBitmap, 0, 0, canvas.width, canvas.height); // Draw to physical canvas size
+        ctx.globalAlpha = 1.0; // Reset
+        
+        // Restore the logical transform for subsequent pattern drawing
         ctx.restore();
+        ctx.setTransform(pixelRatio * renderResolutionScale, 0, 0, pixelRatio * renderResolutionScale, 0, 0);
     } else if (cachedBgGrad) {
         // Fallback to procedural gradient
         ctx.fillStyle = cachedBgGrad;
