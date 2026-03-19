@@ -401,51 +401,59 @@ function drawStars(theme: ThemeConfig) {
         ctx.drawImage(staticBase, 0, 0);
 
         // --- 2. Photorealistic Planet & Ring System (Masterpiece v2) ---
+        // --- 2. Photorealistic Planet & Ring System (Optimized & Cached) ---
         const drawMasterPlanet = (px: number, py: number, size: number) => {
             const pr = size * 0.22;
             const tilt = 0.45;
 
-            // 1. Particle-based Dusty Rings
-            const drawDustyRings = (isFront: boolean) => {
-                const start = isFront ? -0.1 : Math.PI - 0.1;
-                const end = isFront ? Math.PI + 0.1 : Math.PI * 2 + 0.1;
-                ctx.save(); ctx.translate(px, py); ctx.rotate(tilt);
-                setCompositeOperation('screen');
-                for(let i=0; i<2500; i++) {
-                    const rBase = pr * (1.6 + Math.random() * 0.6);
-                    // Create Cassini Division (Gap)
-                    const normalizedR = (rBase / pr - 1.6) / 0.6;
-                    if (normalizedR > 0.45 && normalizedR < 0.55) continue;
+            // 1. Caching the Dusty Rings (Performance Fix)
+            const getRingsTex = (isFront: boolean) => {
+                const key = `cosmic_rings_${isFront ? 'front' : 'back'}_v2`;
+                return getCachedTexture(key, 800, (c) => {
+                    const cx = 400, cy = 400;
+                    const start = isFront ? -0.1 : Math.PI - 0.1;
+                    const end = isFront ? Math.PI + 0.1 : Math.PI * 2 + 0.1;
+                    c.save(); c.translate(cx, cy); c.rotate(tilt);
+                    // No separate composite op inside cache, render as raw color
+                    const pCount = isMobile ? 1000 : 2500;
+                    for(let i=0; i<pCount; i++) {
+                        const localPr = 150; // Use fixed local radius for cache consistency
+                        const localR = localPr * (1.6 + Math.random() * 0.6);
+                        const normalizedR = (localR / localPr - 1.6) / 0.6;
+                        if (normalizedR > 0.45 && normalizedR < 0.55) continue;
 
-                    const angle = start + Math.random() * (end - start);
-                    const rx = Math.cos(angle) * rBase;
-                    const ry = Math.sin(angle) * rBase * 0.32;
-                    const s = 0.5 + Math.random();
-                    ctx.fillStyle = i % 2 === 0 ? `rgba(180, 240, 255, ${0.1 + Math.random()*0.2})` : `rgba(255, 180, 255, ${0.1 + Math.random()*0.2})`;
-                    ctx.fillRect(rx, ry, s, s);
-                }
-                ctx.restore();
+                        const angle = start + Math.random() * (end - start);
+                        const rx = Math.cos(angle) * localR;
+                        const ry = Math.sin(angle) * localR * 0.32;
+                        c.fillStyle = i % 2 === 0 ? `rgba(180, 240, 255, 0.6)` : `rgba(255, 180, 255, 0.6)`;
+                        c.fillRect(cx + rx, cy + ry, 1, 1);
+                    }
+                    c.restore();
+                });
             };
 
-            drawDustyRings(false); // Back Part
+            setCompositeOperation('screen');
+            ctx.globalAlpha = 0.8;
+            ctx.drawImage(getRingsTex(false), px - size, py - size, size * 2, size * 2);
 
             // 2. Planet Surface (High Intensity)
             const planetTex = getCachedTexture('cosmic_planet_master_v1', 400, (c) => {
                 const cx = 200, cy = 200, r = 100;
-                // Base
                 const g = c.createRadialGradient(cx - 35, cy - 35, 5, cx, cy, r);
                 g.addColorStop(0, '#78909C'); g.addColorStop(0.4, '#37474F'); g.addColorStop(1, '#000000');
                 c.fillStyle = g; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-                // Atmosphere Halo (Intense)
                 const ag = c.createRadialGradient(cx, cy, r*0.7, cx, cy, r*1.2);
                 ag.addColorStop(0, 'rgba(100, 220, 255, 0.4)'); ag.addColorStop(0.8, 'rgba(50, 100, 255, 0.1)');
                 ag.addColorStop(1, 'transparent');
                 c.fillStyle = ag; c.beginPath(); c.arc(cx, cy, r*1.2, 0, Math.PI * 2); c.fill();
             });
             ctx.globalAlpha = 1.0;
+            setCompositeOperation('source-over');
             ctx.drawImage(planetTex, px - pr, py - pr, pr * 2, pr * 2);
 
-            drawDustyRings(true); // Front Part
+            setCompositeOperation('screen');
+            ctx.globalAlpha = 0.8;
+            ctx.drawImage(getRingsTex(true), px - size, py - size, size * 2, size * 2);
 
             // 3. Small Moon
             const moonX = px + pr * 1.8, moonY = py + pr * 0.5;
@@ -462,26 +470,27 @@ function drawStars(theme: ThemeConfig) {
 
         // --- 3. Filament Nebula Master ---
         const drawFilaments = (key: string, color: string, speed: number, yOff: number) => {
-            const fTex = getCachedTexture(key, 1200, (c) => {
+            const fTex = getCachedTexture(key, 800, (c) => {
                 c.strokeStyle = color; c.globalAlpha = 0.15;
-                for(let i=0; i<30; i++) {
-                    c.lineWidth = 1 + Math.random() * 5;
+                const fCount = isMobile ? 12 : 30;
+                for(let i=0; i<fCount; i++) {
+                    c.lineWidth = 1 + Math.random() * 4;
                     c.beginPath();
-                    let x = Math.random() * 1200, y = Math.random() * 1200;
+                    let x = Math.random() * 800, y = Math.random() * 800;
                     c.moveTo(x, y);
-                    for(let j=0; j<5; j++) {
-                        x += (Math.random() - 0.5) * 300; y += (Math.random() - 0.5) * 150;
-                        c.bezierCurveTo(x-50, y, x+50, y, x, y);
+                    for(let j=0; j<4; j++) {
+                        x += (Math.random() - 0.5) * 200; y += (Math.random() - 0.5) * 100;
+                        c.bezierCurveTo(x-30, y, x+30, y, x, y);
                     }
                     c.stroke();
                 }
             });
-            const fx = ((time * speed) % (width + 1200)) - 1200;
+            const fx = ((time * speed) % (width + 800)) - 800;
             setCompositeOperation('screen');
-            ctx.drawImage(fTex, fx, yOff, 1500, 1000);
+            ctx.drawImage(fTex, fx, yOff, width * 1.2, height * 0.8);
         };
-        drawFilaments('filaments_cyan', 'rgba(0, 255, 255, 0.4)', 12, -100);
-        drawFilaments('filaments_magenta', 'rgba(255, 0, 255, 0.4)', 18, 200);
+        drawFilaments('filaments_cyan_v2', 'rgba(0, 255, 255, 0.4)', 12, -100);
+        drawFilaments('filaments_magenta_v2', 'rgba(255, 0, 255, 0.4)', 18, 200);
     }
 
     // 4. Ultra-Dense Spiral Galaxy (v4 Master)
