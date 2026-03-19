@@ -35,64 +35,71 @@ export class DeepSpaceTheme implements IThemeStrategy {
         x: number,
         y: number,
         laneWidth: number,
-        judgment: Judgment,
+        _judgment: Judgment,
         t: number
     ): void {
-        const isPerfect = judgment === Judgment.PERFECT;
+        const ease = 1 - Math.pow(t, 1.5);
+        const sparkCount = 10;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Triple Concentric Shockwaves
-        const ringCount = isPerfect ? 3 : 2;
-        for (let i = 0; i < ringCount; i++) {
-            const delay = i * 0.18;
-            const lt = Math.max(0, t - delay);
-            if (lt <= 0) continue;
-            const ringEase = 1 - Math.pow(lt, 1.8);
-            const ringR = laneWidth * 0.2 + lt * laneWidth * (1.5 + i * 0.7);
+        // 1. Cosmic Swirl Particles
+        for (let i = 0; i < sparkCount; i++) {
+            const seed = (i * 123.45) % 1;
+            const baseAngle = (i / sparkCount) * Math.PI * 2;
+            const swirl = t * Math.PI * 5;
+            const radius = laneWidth * (0.25 + (i % 4) * 0.3) * (0.4 + t * 2.2);
+            
+            const sx = x + Math.cos(baseAngle + swirl) * radius;
+            const sy = y + Math.sin(baseAngle + swirl) * radius * 0.55;
 
+            const alpha = ease * (0.7 + seed * 0.3);
+            const currentSize = (2 + seed * 3) * ease;
+
+            // Light Trail
+            ctx.strokeStyle = `rgba(100, 200, 255, ${alpha * 0.5})`; 
+            ctx.lineWidth = currentSize * 0.5;
             ctx.beginPath();
-            ctx.arc(x, y, ringR, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(140, 170, 255, ${ringEase * (0.8 - i * 0.25)})`;
-            ctx.lineWidth = (3 - i) * ringEase;
+            const prevT = Math.max(0, t - 0.04);
+            const prevSwirl = prevT * Math.PI * 5;
+            const prevRadius = laneWidth * (0.25 + (i % 4) * 0.3) * (0.4 + prevT * 2.2);
+            ctx.moveTo(x + Math.cos(baseAngle + prevSwirl) * prevRadius, y + Math.sin(baseAngle + prevSwirl) * prevRadius * 0.55);
+            ctx.lineTo(sx, sy);
             ctx.stroke();
-        }
 
-        // 2. Stellar debris (small bright dots that scatter outward)
-        const debrisCount = isPerfect ? 12 : 7;
-        const maxDebrisR = laneWidth * (0.3 + t * 2.5);
-        for (let i = 0; i < debrisCount; i++) {
-            const angle = (i / debrisCount) * Math.PI * 2;
-            const dist = maxDebrisR * (0.5 + (i % 3) * 0.2);
-            const dx = x + Math.cos(angle) * dist;
-            const dy = y + Math.sin(angle) * dist * 0.5;
-            const debrisAlpha = (1 - t) * (i % 2 === 0 ? 0.9 : 0.5);
-            const size = (1 + (i % 3)) * (1 - t);
+            // Cosmic Star Point
+            ctx.save();
+            ctx.translate(sx, sy);
+            ctx.rotate(t * Math.PI * 10 + i);
+            
+            const colors = [
+                'rgba(255, 255, 255', // White
+                'rgba(140, 200, 255', // Blue
+                'rgba(180, 255, 240', // Cyan
+                'rgba(160, 160, 255'  // Indigo
+            ]; 
+            ctx.fillStyle = `${colors[Math.floor(seed * colors.length)]}, ${alpha})`;
 
             ctx.beginPath();
-            ctx.arc(dx, dy, size, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(200, 220, 255, ${debrisAlpha})`;
-            ctx.fill();
-
-            if (i % 3 === 0) {
-                ctx.beginPath();
-                ctx.arc(dx, dy, size * 2.5, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(120, 150, 255, ${debrisAlpha * 0.3})`;
-                ctx.fill();
+            for (let j = 0; j < 4; j++) {
+                const r = j % 2 === 0 ? currentSize * 3 : currentSize * 0.7;
+                const a = (j / 4) * Math.PI * 2;
+                ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
             }
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
         }
 
-        // 3. Core nebula flash
-        const coreR = laneWidth * 0.4 * (1 - t);
+        // 2. Core Pulse
+        const coreR = laneWidth * 0.5 * (1 - t);
         const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
         coreGrad.addColorStop(0, `rgba(255, 255, 255, ${(1 - t) * 0.9})`);
-        coreGrad.addColorStop(0.3, `rgba(160, 196, 255, ${(1 - t) * 0.6})`);
-        coreGrad.addColorStop(1, 'rgba(80, 100, 200, 0)');
+        coreGrad.addColorStop(0.5, `rgba(100, 180, 255, ${(1 - t) * 0.6})`);
+        coreGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = coreGrad;
-        ctx.beginPath();
-        ctx.arc(x, y, coreR, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, coreR, 0, Math.PI * 2); ctx.fill();
 
         ctx.restore();
     }
