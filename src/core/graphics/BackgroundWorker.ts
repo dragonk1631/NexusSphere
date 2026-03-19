@@ -1333,8 +1333,17 @@ function render(timestamp: number) {
     }
 
     if (bgImageBitmap) {
-        // Draw background image scaled to fit
-        ctx.drawImage(bgImageBitmap, 0, 0, width, height);
+        // Force draw to full physical canvas size to avoid transformation/scaling issues
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to physical pixels
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Fill the actual physical canvas dimensions
+        const physW = canvas.width;
+        const physH = canvas.height;
+        ctx.drawImage(bgImageBitmap, 0, 0, physW, physH);
+        ctx.restore();
     } else {
         // Clear to solid black for testing
         ctx.fillStyle = '#000000';
@@ -1417,7 +1426,6 @@ self.onmessage = (e: MessageEvent) => {
         case 'INIT':
             canvas = data.canvas;
             isMobile = data.isMobile || false;
-            // Disable desynchronized on PC to prevent ghosting
             ctx = canvas.getContext('2d', { 
                 alpha: false, 
                 desynchronized: isMobile 
@@ -1441,18 +1449,13 @@ self.onmessage = (e: MessageEvent) => {
         case 'SET_THEME':
             const newTheme = data.theme as ThemeConfig;
             const themeChanged = !currentTheme || currentTheme.id !== newTheme.id;
-            
             currentTheme = newTheme;
-            
-            // Populating high-perf color cache
             colorCache.particle = currentTheme.particleColor;
             colorCache.particleAlpha50 = applyAlpha(currentTheme.particleColor, '80');
             colorCache.particleAlpha20 = applyAlpha(currentTheme.particleColor, '33');
             colorCache.grid = currentTheme.gridColor;
             colorCache.gridAlpha50 = applyAlpha(currentTheme.gridColor, '80');
             colorCache.gridAlpha20 = applyAlpha(currentTheme.gridColor, '33');
-            
-            // Texture cache is only cleared on actual theme change
             invalidateAllCaches(themeChanged);
             if (currentTheme) {
                 initPattern(currentTheme.pattern);
@@ -1460,6 +1463,23 @@ self.onmessage = (e: MessageEvent) => {
             } else {
                 isRunning = false;
             }
+            break;
+
+        case 'SET_BG_IMAGE':
+            bgImageBitmap = data.bitmap;
+            if (bgImageBitmap) {
+                console.log(`[BackgroundWorker] 🖼️ ImageBitmap received: ${bgImageBitmap.width}x${bgImageBitmap.height}`);
+            } else {
+                console.log(`[BackgroundWorker] 🌑 Background image cleared`);
+            }
+            break;
+
+        case 'START':
+            isRunning = true;
+            break;
+
+        case 'STOP':
+            isRunning = false;
             break;
     }
 };
