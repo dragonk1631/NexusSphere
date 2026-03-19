@@ -88,7 +88,7 @@ export class BackgroundRenderer {
                 
                 for (const base of baseNames) {
                     for (const ext of extensions) {
-                        const url = `./assets/images/background-themes/${theme.id}/${base}.${ext}`;
+                        const url = `/assets/images/background-themes/${theme.id}/${base}.${ext}`;
                         try {
                             const response = await fetch(url);
                             if (response.ok) {

@@ -377,12 +377,8 @@ function initPattern(pattern: string) {
 function drawStars(theme: ThemeConfig) {
     const isDeepSpace = theme.id === 'deep-space';
 
-    if (bgImageBitmap) {
-        ctx.globalAlpha = 1.0;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(bgImageBitmap, 0, 0, width, height);
-    } else if (isDeepSpace) {
-        // --- Fallback: Procedural Nebula Master ---
+    if (!bgImageBitmap && isDeepSpace) {
+        // --- Fallback Nebula (only if no image) ---
         const staticBase = getCachedTexture('deep_space_master_base_v1', width, (c) => {
             for (let i = 0; i < 4000; i++) {
                 c.fillStyle = `rgba(150, 180, 255, ${Math.random() * 0.05})`;
@@ -1338,8 +1334,16 @@ function render(timestamp: number) {
 
     setCompositeOperation('source-over');
     ctx.globalAlpha = 1.0;
-    ctx.fillStyle = cachedBgGrad;
-    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = 'source-over';
+    
+    if (bgImageBitmap) {
+        // Draw background image scaled to fit
+        ctx.drawImage(bgImageBitmap, 0, 0, width, height);
+    } else if (cachedBgGrad) {
+        // Fallback to procedural gradient
+        ctx.fillStyle = cachedBgGrad;
+        ctx.fillRect(0, 0, width, height);
+    }
 
     ctx.save();
     switch (currentTheme.pattern) {
