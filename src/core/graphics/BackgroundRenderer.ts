@@ -88,20 +88,26 @@ export class BackgroundRenderer {
                 
                 for (const base of baseNames) {
                     for (const ext of extensions) {
-                        const url = `/assets/images/background-themes/${theme.id}/${base}.${ext}`;
-                        try {
-                            const response = await fetch(url);
-                            if (response.ok) {
-                                console.log(`[BackgroundRenderer] Found image at: ${url}`);
-                                const blob = await response.blob();
-                                loadedBitmap = await createImageBitmap(blob);
-                                break;
-                            } else {
-                                console.warn(`[BackgroundRenderer] Image not found at: ${url} (Status: ${response.status})`);
+                        const pathVariants = [
+                            `/assets/images/background-themes/${theme.id}/${base}.${ext}`,
+                            `assets/images/background-themes/${theme.id}/${base}.${ext}`,
+                            `./assets/images/background-themes/${theme.id}/${base}.${ext}`
+                        ];
+                        
+                        for (const url of pathVariants) {
+                            try {
+                                const response = await fetch(url);
+                                if (response.ok) {
+                                    console.log(`[BackgroundRenderer] ✅ Found image! URL: ${url}`);
+                                    const blob = await response.blob();
+                                    loadedBitmap = await createImageBitmap(blob);
+                                    break;
+                                }
+                            } catch (e) {
+                                // Silent retry
                             }
-                        } catch (e) {
-                            console.error(`[BackgroundRenderer] Fetch error for ${url}:`, e);
                         }
+                        if (loadedBitmap) break;
                     }
                     if (loadedBitmap) break;
                 }
