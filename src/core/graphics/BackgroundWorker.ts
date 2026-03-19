@@ -327,7 +327,7 @@ function initPattern(pattern: string) {
                     vx[id] = (Math.random() - 0.5) * 2;
                     vy[id] = -(Math.random() * 6 + 10);
                     custom1[id] = 0; // LAUNCH
-                    custom2[id] = 0.6 + Math.random() * 0.8; // Random burst scale
+                    custom2[id] = 1.0 + Math.random() * 1.5; // Final: Larger burst scale (Min 1.0)
                 } else if (i < 115) {
                     // 2. SHRAPNEL (Reserved for bursts)
                     custom1[id] = -1; // INACTIVE
@@ -339,7 +339,7 @@ function initPattern(pattern: string) {
                     phase[id] = Math.random() * Math.PI * 2;
                 }
                 
-                size[id] = Math.random() * 2.0 + 0.5;
+                size[id] = 1.2 + Math.random() * 2.5; // Final: Larger particles (Min 1.2)
                 life[id] = 1.0;
                 layer[id] = Math.floor(Math.random() * 3);
             }
@@ -1472,13 +1472,13 @@ function drawFireworksBackground(theme: ThemeConfig) {
                 const burstX = px[i];
                 const burstY = py[i];
                 let spawned = 0;
-                for (let j = 0; j < aliveCount && spawned < 12; j++) {
+                for (let j = 0; j < aliveCount && spawned < 15; j++) {
                     if (custom1[j] === -1) { // inactive
                         custom1[j] = 3; // SHRAPNEL
                         px[j] = burstX;
                         py[j] = burstY;
                         const angle = Math.random() * Math.PI * 2;
-                        const speed = 2 + Math.random() * 5;
+                        const speed = 3 + Math.random() * 9; // Final: Wider scattering
                         vx[j] = Math.cos(angle) * speed;
                         vy[j] = Math.sin(angle) * speed;
                         life[j] = 1.0;
@@ -1488,18 +1488,18 @@ function drawFireworksBackground(theme: ThemeConfig) {
             }
         } else if (state === 1) {
             // --- BURST GLOW --- (Soft radial flash instead of circles)
-            const burstScale = custom2[i] || 1.0;
-            const r = 40 * life[i] * burstScale;
+            const burstScale = custom2[i] || 1.2;
+            const r = 70 * life[i] * burstScale; // Final: Larger glow radius (Base 70)
             
             const grad = ctx.createRadialGradient(px[i], py[i], 0, px[i], py[i], r);
-            grad.addColorStop(0, `rgba(255, 255, 255, ${life[i] * 0.9})`);
-            grad.addColorStop(0.3, `rgba(255, 255, 255, ${life[i] * 0.4})`);
+            grad.addColorStop(0, `rgba(255, 255, 255, ${life[i] * 0.95})`);
+            grad.addColorStop(0.3, `rgba(255, 255, 255, ${life[i] * 0.5})`);
             grad.addColorStop(1, 'transparent');
             
             ctx.fillStyle = grad;
             ctx.beginPath(); ctx.arc(px[i], py[i], r, 0, Math.PI * 2); ctx.fill();
             
-            life[i] -= 0.12;
+            life[i] -= 0.1; // Slower fade for big bursts
             if (life[i] <= 0) {
                 // Return to launch pool
                 custom1[i] = 0;
