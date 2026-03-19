@@ -400,48 +400,65 @@ function drawStars(theme: ThemeConfig) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(staticBase, 0, 0);
 
-        // --- 2. Planet with Rings (Masterpiece Polish) ---
-        const drawPlanetSystem = (px: number, py: number, size: number) => {
-            const pr = size * 0.25;
-            const tilt = 0.5;
+        // --- 2. Photorealistic Planet & Ring System (Masterpiece v2) ---
+        const drawMasterPlanet = (px: number, py: number, size: number) => {
+            const pr = size * 0.22;
+            const tilt = 0.45;
 
-            // 1. Back Rings (Draw behind planet)
-            const drawRingsPart = (isFront: boolean) => {
-                const start = isFront ? 0 : Math.PI;
-                const end = isFront ? Math.PI : Math.PI * 2;
-                ctx.save();
-                ctx.translate(px, py);
-                ctx.rotate(tilt);
-                for(let i=0; i<40; i++) {
-                    const rSize = pr * (1.6 + i*0.02);
-                    ctx.strokeStyle = i % 2 === 0 ? `rgba(0, 255, 255, ${0.1 + i*0.005})` : `rgba(255, 0, 255, ${0.1 + i*0.005})`;
-                    ctx.lineWidth = 1.2;
-                    ctx.beginPath();
-                    ctx.ellipse(0, 0, rSize, rSize * 0.35, 0, start, end);
-                    ctx.stroke();
+            // 1. Particle-based Dusty Rings
+            const drawDustyRings = (isFront: boolean) => {
+                const start = isFront ? -0.1 : Math.PI - 0.1;
+                const end = isFront ? Math.PI + 0.1 : Math.PI * 2 + 0.1;
+                ctx.save(); ctx.translate(px, py); ctx.rotate(tilt);
+                setCompositeOperation('screen');
+                for(let i=0; i<2500; i++) {
+                    const rBase = pr * (1.6 + Math.random() * 0.6);
+                    // Create Cassini Division (Gap)
+                    const normalizedR = (rBase / pr - 1.6) / 0.6;
+                    if (normalizedR > 0.45 && normalizedR < 0.55) continue;
+
+                    const angle = start + Math.random() * (end - start);
+                    const rx = Math.cos(angle) * rBase;
+                    const ry = Math.sin(angle) * rBase * 0.32;
+                    const s = 0.5 + Math.random();
+                    ctx.fillStyle = i % 2 === 0 ? `rgba(180, 240, 255, ${0.1 + Math.random()*0.2})` : `rgba(255, 180, 255, ${0.1 + Math.random()*0.2})`;
+                    ctx.fillRect(rx, ry, s, s);
                 }
                 ctx.restore();
             };
 
-            drawRingsPart(false); // Back
+            drawDustyRings(false); // Back Part
 
-            // 2. Planet Surface
-            const planetTex = getCachedTexture('cosmic_planet_v3', 400, (c) => {
+            // 2. Planet Surface (High Intensity)
+            const planetTex = getCachedTexture('cosmic_planet_master_v1', 400, (c) => {
                 const cx = 200, cy = 200, r = 100;
-                const g = c.createRadialGradient(cx - 30, cy - 30, 10, cx, cy, r);
-                g.addColorStop(0, '#607D8B'); g.addColorStop(0.5, '#263238'); g.addColorStop(1, '#000000');
+                // Base
+                const g = c.createRadialGradient(cx - 35, cy - 35, 5, cx, cy, r);
+                g.addColorStop(0, '#78909C'); g.addColorStop(0.4, '#37474F'); g.addColorStop(1, '#000000');
                 c.fillStyle = g; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-                // Atmosphere
-                const ag = c.createRadialGradient(cx, cy, r*0.8, cx, cy, r*1.15);
-                ag.addColorStop(0, 'rgba(100, 200, 255, 0.4)'); ag.addColorStop(1, 'transparent');
-                c.fillStyle = ag; c.beginPath(); c.arc(cx, cy, r*1.15, 0, Math.PI * 2); c.fill();
+                // Atmosphere Halo (Intense)
+                const ag = c.createRadialGradient(cx, cy, r*0.7, cx, cy, r*1.2);
+                ag.addColorStop(0, 'rgba(100, 220, 255, 0.4)'); ag.addColorStop(0.8, 'rgba(50, 100, 255, 0.1)');
+                ag.addColorStop(1, 'transparent');
+                c.fillStyle = ag; c.beginPath(); c.arc(cx, cy, r*1.2, 0, Math.PI * 2); c.fill();
             });
+            ctx.globalAlpha = 1.0;
             ctx.drawImage(planetTex, px - pr, py - pr, pr * 2, pr * 2);
 
-            drawRingsPart(true); // Front
+            drawDustyRings(true); // Front Part
+
+            // 3. Small Moon
+            const moonX = px + pr * 1.8, moonY = py + pr * 0.5;
+            const moonTex = getCachedTexture('cosmic_moon_v1', 64, (c) => {
+                const mG = c.createRadialGradient(24, 24, 2, 32, 32, 24);
+                mG.addColorStop(0, '#90A4AE'); mG.addColorStop(1, '#101010');
+                c.fillStyle = mG; c.beginPath(); c.arc(32, 32, 24, 0, Math.PI * 2); c.fill();
+            });
+            ctx.drawImage(moonTex, moonX - 15, moonY - 15, 30, 30);
         };
         
-        drawPlanetSystem(width * 0.75, height * 0.25, 500);
+        // Revert to original good position (Top Right)
+        drawMasterPlanet(width * 0.7, height * 0.18, 550);
 
         // --- 3. Filament Nebula Master ---
         const drawFilaments = (key: string, color: string, speed: number, yOff: number) => {
@@ -491,12 +508,13 @@ function drawStars(theme: ThemeConfig) {
     });
 
     if (isDeepSpace) {
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = 0.75;
         setCompositeOperation('screen');
-        const gx = width * 0.1, gy = height * 0.4, gw = galSize * 0.7, gh = galSize * 0.45;
+        // Revert to original good position (Top Left)
+        const gx = width * 0.35 - 300, gy = height * 0.1, gw = galSize * 0.8, gh = galSize * 0.5;
         ctx.save();
         ctx.translate(gx + gw/2, gy + gh/2);
-        ctx.rotate(time * 0.03); // Very slow rotation
+        ctx.rotate(time * 0.025); // Cinematic rotation
         ctx.drawImage(galaxyTexture, -gw/2, -gh/2, gw, gh);
         ctx.restore();
     } else {
