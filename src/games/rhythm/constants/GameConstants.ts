@@ -66,8 +66,8 @@ export const HUD_PALETTES: Record<string, {
         scorePanel: '#00FF00',
         hpBarMid: '#00CC66', hpBarEnd: '#00FF00', hpBarStart: '#003300',
         labelFill: '#b8f5d0', labelShadow: '#009933',
-        comboFill: '#00FF00', comboOutline: '#001a00', comboGlow: '#00FF00',
-        comboGradTop: '#88FF88', comboGradBot: '#00CC00',
+        comboFill: '#ffffff', comboOutline: '#001a00', comboGlow: '#00FF41',
+        comboGradTop: '#00FF41', comboGradBot: '#008F11',
         scoreFill: '#00FF00', scoreGlow: '#00FF00',
     },
     'vaporwave': {

@@ -44,6 +44,13 @@ The "Sunset Overdrive" theme has been completely reimagined with a focus on orga
 *   **Performance Stability**: Sustained a consistent 60 FPS even with complex procedural turbulence and gradient rendering.
 *   **Clean Code Architecture**: Refactored `BackgroundWorker.ts` to remove dead code and optimize rendering loops for zero-GC execution.
 
+## 5. Matrix Grid: Atmospheric Depth & UI Polish
+
+The "Matrix Grid" theme was enhanced to provide a more immersive "hacker" aesthetic:
+
+*   **Background Asset Integration**: Updated the rendering engine to explicitly support `bg_matrix.jpg`, allowing the iconic digital rain to fall over a high-fidelity cinematic vista.
+*   **Premium Combo Visuals**: Overhauled the `matrix-grid` HUD palette to include a high-contrast white-to-green gradient for combo numbers. This ensures critical gameplay feedback remains sharp and readable against the new textured background.
+
 ## Next Steps
 With the core aesthetic foundations and premium theme overhauls complete, the next phase will involve finalizing the remaining themes and preparing for the public beta release.
 
