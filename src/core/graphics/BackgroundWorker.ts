@@ -226,17 +226,18 @@ function initPattern(pattern: string) {
             }
             break;
         case 'bubbles':
-            for (let i = 0; i < 80; i++) {
+            // Marine Snow & Bubbles (Varying sizes, sharp outlines)
+            for (let i = 0; i < 120; i++) {
                 const id = spawn();
                 if (id === -1) break;
-                const l = Math.floor(Math.random() * 3);
                 px[id] = Math.random() * width;
-                py[id] = height + Math.random() * height;
-                size[id] = (Math.random() * 30 + 5) * (1 - l * 0.2);
-                vy[id] = -(Math.random() * 1.5 + 0.5) * (1 - l * 0.2);
-                vx[id] = (Math.random() - 0.5) * 0.8;
+                py[id] = Math.random() * height;
+                // Significant range: from small specks to large bubbles
+                size[id] = (Math.random() * 25 + 5); 
+                vy[id] = -(Math.random() * 0.6 + 0.2);
+                vx[id] = (Math.random() - 0.5) * 0.3;
                 phase[id] = Math.random() * Math.PI * 2;
-                layer[id] = l;
+                layer[id] = Math.floor(Math.random() * 3);
             }
             break;
         case 'embers':
@@ -452,23 +453,18 @@ function drawStars(theme: ThemeConfig) {
 
     const shootStarTex = getCachedTexture('shoot_star_v4_unified', 400, (c) => {
         const cx = 380, cy = 30; // Lead head position
-        
-        // --- 1. The Tail (Single Unified Tapered Shape) ---
         const trailGrad = c.createLinearGradient(0, cy, 400, cy);
         trailGrad.addColorStop(0, 'transparent');
-        trailGrad.addColorStop(0.5, 'rgba(100, 150, 255, 0.2)'); // Distant tail
-        trailGrad.addColorStop(0.8, 'rgba(200, 230, 255, 0.6)'); // Approaching head
+        trailGrad.addColorStop(0.5, 'rgba(100, 150, 255, 0.2)');
+        trailGrad.addColorStop(0.8, 'rgba(200, 230, 255, 0.6)');
         trailGrad.addColorStop(1, '#FFFFFF');
-        
         c.fillStyle = trailGrad;
         c.beginPath();
-        c.moveTo(0, cy); // Start from a point to avoid "two-line" base
+        c.moveTo(0, cy);
         c.lineTo(cx, cy - 8);
         c.arc(cx, cy, 8, -Math.PI / 2, Math.PI / 2);
         c.lineTo(0, cy);
         c.fill();
-        
-        // --- 2. Central Hot Core (Unifies the look) ---
         const coreGrad = c.createLinearGradient(150, cy, 400, cy);
         coreGrad.addColorStop(0, 'transparent');
         coreGrad.addColorStop(1, 'rgba(255, 255, 255, 0.8)');
@@ -476,11 +472,9 @@ function drawStars(theme: ThemeConfig) {
         c.lineWidth = 2;
         c.lineCap = 'round';
         c.beginPath(); c.moveTo(150, cy); c.lineTo(cx, cy); c.stroke();
-
-        // --- 3. Glowy Head ---
         const headGrad = c.createRadialGradient(cx, cy, 0, cx, cy, 15);
         headGrad.addColorStop(0, '#FFFFFF');
-        headGrad.addColorStop(0.4, '#FFD54F'); // Golden spark
+        headGrad.addColorStop(0.4, '#FFD54F');
         headGrad.addColorStop(1, 'transparent');
         c.fillStyle = headGrad;
         c.beginPath(); c.arc(cx, cy, 15, 0, Math.PI * 2); c.fill();
@@ -489,12 +483,11 @@ function drawStars(theme: ThemeConfig) {
     const shootStarMist = getCachedTexture('shoot_star_mist_v2', 500, (c) => {
         const cx = 400, cy = 60;
         const grad = c.createRadialGradient(cx, cy, 0, cx, cy, 400);
-        grad.addColorStop(0, 'rgba(120, 180, 255, 0.25)'); // Softer blue
+        grad.addColorStop(0, 'rgba(120, 180, 255, 0.25)');
         grad.addColorStop(0.6, 'rgba(60, 60, 180, 0.03)');
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
         c.beginPath(); 
-        // Elongated mist trail
         c.ellipse(cx - 200, cy, 300, 60, 0, 0, Math.PI * 2); 
         c.fill();
     });
@@ -512,27 +505,20 @@ function drawStars(theme: ThemeConfig) {
             ctx.translate(px[i], py[i]);
             const angle = Math.atan2(vx[i] * 0.25, vx[i]);
             ctx.rotate(angle);
-            
-            // 1. Surrounding Mist (Background)
             ctx.globalAlpha = 0.3;
             ctx.drawImage(shootStarMist, -500, -60, 500, 120);
-            
-            // 2. The Main Epic Body
             ctx.globalAlpha = 0.9;
             ctx.drawImage(shootStarTex, -400, -30, 400, 60);
             ctx.restore();
         } else {
             py[i] += vy[i] * (5 - pz[i]);
             if (py[i] > height) py[i] = -20;
-
-            const shineSpeed = isDeepSpace ? 1.0 : 2.0; // Slightly faster twinkle for Deep Space
+            const shineSpeed = isDeepSpace ? 1.0 : 2.0;
             const blinkBase = Math.pow(Math.sin(time * shineSpeed + phase[i]), isDeepSpace ? 5 : 4);
-            const twinkle = 0.4 + blinkBase * 0.6; // Wider range for more "blink"
-            
+            const twinkle = 0.4 + blinkBase * 0.6;
             ctx.globalAlpha = life[i] * twinkle; 
             const s = size[i] * twinkle;
             const colIdx = (custom2[i] || 0) % starSprites.length;
-            
             if (isDeepSpace && pz[i] === 2 && size[i] > 3.5 && blinkBase > 0.92) {
                 const cs = s * 6;
                 ctx.drawImage(starCrossSprite, px[i] - cs, py[i] - cs, cs * 2, cs * 2);
@@ -797,67 +783,88 @@ function drawWaves(theme: ThemeConfig) {
 
 
 function drawBubbles(theme: ThemeConfig) {
-    const surfaceGrad = getCachedTexture('surface_bloom', 200, c => {
-        const grad = c.createLinearGradient(0, 0, 0, 200);
-        grad.addColorStop(0, colorCache.particleAlpha50);
-        grad.addColorStop(0.5, colorCache.particleAlpha20);
+    // 1. Surface Bloom (Top Center Gradient)
+    const surfaceGrad = getCachedTexture('ocean_surface_radial', 400, c => {
+        const grad = c.createRadialGradient(200, 0, 0, 200, 0, 400);
+        grad.addColorStop(0, applyAlpha(theme.color3, '88'));
+        grad.addColorStop(0.6, applyAlpha(theme.color3, '22'));
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
-        c.fillRect(0, 0, 200, 200);
+        c.fillRect(0, 0, 400, 400);
     });
-
     setCompositeOperation('lighter');
-    ctx.drawImage(surfaceGrad, 0, 0, width, height * 0.2);
+    ctx.drawImage(surfaceGrad, width * 0.5 - 400, -100, 800, 600);
 
-    for (let i = 0; i < 12; i++) {
-        const angle = Math.sin(time * 0.1 + i) * 0.15 - 0.45;
-        const xPos = width * (0.05 + i * 0.12);
-        const rayWidth = 80 + Math.sin(time * 0.4 + i) * 50;
-        const rayGrad = getCachedTexture('god_ray', 150, c => {
-            const grad = c.createLinearGradient(0, 0, 150, 150);
-            grad.addColorStop(0, colorCache.particleAlpha20);
-            grad.addColorStop(0.5, applyAlpha(theme.particleColor, '15')); // Custom alpha for rays
-            grad.addColorStop(1, 'transparent');
-            c.fillStyle = grad;
-            c.fillRect(0, 0, 150, 150);
-        });
-
+    // 2. Cinematic Radial God Rays (From Top Center)
+    const rayCount = 18; // Increased for richness
+    const originX = width * 0.5;
+    const originY = -80; // Slightly higher for better spreading
+    
+    for (let i = 0; i < rayCount; i++) {
+        // Spread rays in a wide cone from -110 to 110 degrees
+        const ratio = i / (rayCount - 1);
+        const baseAngle = (ratio - 0.5) * Math.PI * 1.2; 
+        const drift = Math.sin(time * 0.2 + i) * 0.08;
+        const angle = baseAngle + drift + Math.PI * 0.5;
+        
         ctx.save();
-        ctx.translate(xPos, -80);
+        ctx.translate(originX, originY);
         ctx.rotate(angle);
-        ctx.drawImage(rayGrad, -rayWidth / 2, 0, rayWidth, height * 2.2);
+        
+        // Dynamic ray width with breathing effect
+        const breath = Math.sin(time * 0.4 + i * 0.5) * 20;
+        const rayW = 60 + breath + Math.sin(time * 0.8 + i) * 30;
+        
+        const rayGrad = ctx.createLinearGradient(0, 0, 0, height * 2.0);
+        const rayAlpha = (0.2 + Math.sin(time * 0.5 + i) * 0.1) * (1 - Math.abs(ratio - 0.5) * 0.5);
+        
+        rayGrad.addColorStop(0, applyAlpha(theme.color3, Math.floor(rayAlpha * 255).toString(16).padStart(2, '0')));
+        rayGrad.addColorStop(0.5, applyAlpha(theme.color3, '05'));
+        rayGrad.addColorStop(1, 'transparent');
+        
+        ctx.fillStyle = rayGrad;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(-rayW * 0.2, 0);
+        ctx.lineTo(rayW * 0.2, 0);
+        ctx.lineTo(rayW * 6, height * 2.5); // Wider spread at the bottom
+        ctx.lineTo(-rayW * 6, height * 2.5);
+        ctx.fill();
         ctx.restore();
     }
 
-    const bubbleTexture = getCachedTexture('bubble_ring', 64, c => {
-        c.strokeStyle = '#FFFFFF';
-        c.lineWidth = 2;
+    // 3. Sharp Outlined Bubbles (Professional Feel)
+    const bubbleTex = getCachedTexture('ocean_bubble_sharp', 64, c => {
+        c.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        c.lineWidth = 1.5;
         c.beginPath();
-        c.arc(32, 32, 28, 0, Math.PI * 2);
+        c.arc(32, 32, 30, 0, Math.PI * 2);
         c.stroke();
-        const highlight = c.createRadialGradient(22, 22, 0, 22, 22, 10);
-        highlight.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-        highlight.addColorStop(1, 'transparent');
-        c.fillStyle = highlight;
-        c.beginPath();
-        c.arc(22, 22, 10, 0, Math.PI * 2);
+        c.fillStyle = 'rgba(255, 255, 255, 0.05)';
         c.fill();
+        const hl = c.createRadialGradient(20, 20, 0, 20, 20, 8);
+        hl.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+        hl.addColorStop(1, 'transparent');
+        c.fillStyle = hl;
+        c.beginPath(); c.arc(20, 20, 8, 0, Math.PI * 2); c.fill();
     });
 
+    setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
-        const depthFactor = (1 - layer[i] * 0.28);
-        py[i] += vy[i] * depthFactor;
-        px[i] += Math.sin(time * 1.8 + phase[i]) * 1.2 * depthFactor;
+        const depth = (1 - layer[i] * 0.25);
+        px[i] += vx[i] * depth;
+        const sway = Math.sin(time * 0.6 + phase[i]) * 0.4 * depth;
+        py[i] += (vy[i] + sway) * depth;
 
-        if (py[i] < -size[i]) {
-            py[i] = height + size[i];
-            px[i] = Math.random() * width;
-        }
+        if (py[i] < -50) py[i] = height + 50;
+        if (px[i] < -50) px[i] = width + 50;
+        if (px[i] > width + 50) px[i] = -50;
 
-        const bAlpha = (0.2 + Math.sin(time + phase[i]) * 0.08) * depthFactor;
-        ctx.globalAlpha = bAlpha;
-        const s = size[i];
-        ctx.drawImage(bubbleTexture, px[i] - s, py[i] - s, s * 2, s * 2);
+        const twinkle = 0.5 + Math.sin(time * 2 + phase[i]) * 0.5;
+        ctx.globalAlpha = 0.6 * twinkle * (1 - layer[i] * 0.2);
+        
+        const s = size[i] * (1.1 - layer[i] * 0.2);
+        ctx.drawImage(bubbleTex, px[i] - s, py[i] - s, s * 2, s * 2);
     }
 }
 
@@ -910,10 +917,8 @@ function drawEmbers(theme: ThemeConfig) {
         const eSize = size[i] * (0.5 + lf * 0.7) * (0.8 + flicker * 0.4);
 
         if (lf > 0.4) {
-            // Hot ember
             ctx.drawImage(emberPointTex, px[i] - eSize, py[i] - eSize, eSize * 2, eSize * 2);
         } else {
-            // Cold ember - just use fillRect to save arc calls
             ctx.fillStyle = theme.color2;
             ctx.fillRect(px[i] - eSize, py[i] - eSize, eSize * 2, eSize * 2);
         }
@@ -950,7 +955,6 @@ function drawBokeh(_theme: ThemeConfig) {
     }
 }
 
-
 function drawFloating(_theme: ThemeConfig) {
     const floatGlowTexture = getCachedTexture('float_glow', 64, c => {
         const grad = c.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -967,7 +971,6 @@ function drawFloating(_theme: ThemeConfig) {
         c.fill();
     });
 
-    // --- Pre-render 5 Varied Colored & Shaped Stars (v4) ---
     const starColors = ['#FFFFFF', '#FFB7D5', '#FFE082', '#B2FFD8', '#E8B2FF']; 
     const magicStars = starColors.map((col, idx) => 
         getCachedTexture(`magic_star_v4_${idx}`, 96, c => {
@@ -978,22 +981,14 @@ function drawFloating(_theme: ThemeConfig) {
             bloom.addColorStop(1, 'transparent');
             c.fillStyle = bloom;
             c.beginPath(); c.arc(cx, cy, 48, 0, Math.PI * 2); c.fill();
-
             c.strokeStyle = '#FFFFFF';
             c.lineWidth = 1.2;
             c.beginPath();
-            
-            // Mix: Odd indices get a 4-point Cross star, Even get 8-point
             const isFourPoint = idx % 2 !== 0;
             const points = isFourPoint ? 8 : 16;
             for (let i = 0; i < points; i++) {
                 const angle = (i / points) * Math.PI * 2;
-                let r = 8;
-                if (isFourPoint) {
-                    r = i % 2 === 0 ? 32 : 6; // Long thin rays for cross
-                } else {
-                    r = i % 2 === 0 ? 25 : 8; // Standard star
-                }
+                let r = i % 2 === 0 ? (isFourPoint ? 32 : 25) : (isFourPoint ? 6 : 8);
                 const x = cx + Math.cos(angle) * r;
                 const y = cy + Math.sin(angle) * r;
                 if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
@@ -1018,119 +1013,87 @@ function drawFloating(_theme: ThemeConfig) {
     const isMarchen = currentTheme?.id === 'marchen';
 
     if (isMarchen) {
-        // --- 1. Global Breathing Atmosphere ---
         const breathing = Math.sin(time * 0.8) * 0.5 + 0.5;
         const pulseAlpha = 0.2 + breathing * 0.3;
-        
         ctx.save();
         setCompositeOperation('screen');
-        const rayCount = 15; // Increased from 8
+        const rayCount = 15;
         for (let i = 0; i < rayCount; i++) {
             const rayP = time * 0.1 + i * 2.0;
             const rX = width * (0.4 + i * 0.2 + Math.sin(rayP) * 0.05);
             const rW = 150 + Math.cos(rayP * 0.5) * 40;
             const rG = ctx.createLinearGradient(rX - rW, 0, rX + rW, 0);
             rG.addColorStop(0, 'transparent');
-            // Opaque, distinct rays for high contrast
-            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 26).toString(16).padStart(2, '0'))); // Increased from 8 to 26 (Very Opaque)
+            rG.addColorStop(0.5, applyAlpha(currentTheme?.color2 || '#FFF', Math.floor(pulseAlpha * 26).toString(16).padStart(2, '0')));
             rG.addColorStop(1, 'transparent');
             ctx.fillStyle = rG;
             ctx.rotate(0.1 + Math.sin(time * 0.3) * 0.02);
             ctx.fillRect(rX - rW, -height, rW * 2, height * 3);
         }
-
-        // --- 2. Floating Breathing Orbs (Subtle Depth) ---
         for (let i = 0; i < 2; i++) {
             const oP = time * 0.05 + i * 2.5;
             const ox = width * (0.5 + Math.sin(oP) * 0.35);
             const oy = height * (0.5 + Math.cos(oP * 0.8) * 0.25);
             const os = height * (1.2 + Math.sin(time * 0.4 + i) * 0.2);
-            // Opaque, solid orbs for high contrast
-            ctx.globalAlpha = (0.35 + Math.sin(time * 0.8 + i) * 0.15); // Solid, no 0.6 reduction
+            ctx.globalAlpha = (0.35 + Math.sin(time * 0.8 + i) * 0.15);
             ctx.drawImage(softBloomTex, ox - os, oy - os, os * 2, os * 2);
         }
         ctx.restore();
     }
 
-    if (isMarchen) {
-        // Parametrically managed spirits
-    }
-
     setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         const depthFactor = (1 - layer[i] * 0.25);
-        let alpha = 0;
-        
         if (isMarchen) {
-            // --- 3. Balanced Star Weaving (Zero-GC Optimized) ---
-            const isMainSpirit = i < (isMobile ? 45 : 90); // 1.5x increase (60 -> 90), reduced for mobile
-            
-            // Ultra-Slow life cycle for stable, relaxed atmosphere
+            const isMainSpirit = i < (isMobile ? 45 : 90);
             life[i] += 0.0002 * size[i] * (isMainSpirit ? 1.0 : 0.6); 
             if (life[i] >= 1.0) {
-                life[i] = 0; // Immediate respawn
+                life[i] = 0;
                 vx[i] = Math.random() * width;
                 vy[i] = Math.random() * height;
                 custom2[i] = Math.floor(Math.random() * magicStars.length); 
                 pulseSpeed[i] = 1.2 + Math.random() * 2.8;
                 pulseMag[i] = 0.15 + Math.random() * 0.35;
             }
-
-            if (life[i] < 0) return; 
-
+            if (life[i] < 0) continue; 
             const t_ = life[i];
             const weavingScale = (isMainSpirit ? 80 : 30) * (Math.sin(time * 0.08 + custom1[i]) * 0.5 + 1.0);
-            const wX = Math.cos(t_ * Math.PI * 1.5 + custom1[i]) * weavingScale;
-            const wY = Math.sin(t_ * Math.PI * 2 + phase[i]) * (weavingScale * 0.4);
-            
-            px[i] = vx[i] + wX;
-            py[i] = vy[i] + wY;
-
-            // Dynamic, Multi-layered Shining/Twinkle Effect (requested)
+            px[i] = vx[i] + Math.cos(t_ * Math.PI * 1.5 + custom1[i]) * weavingScale;
+            py[i] = vy[i] + Math.sin(t_ * Math.PI * 2 + phase[i]) * (weavingScale * 0.4);
             const shineSpeed = 1.2 + (pulseSpeed[i] * 0.4); 
-            const blink = Math.pow(Math.sin(time * shineSpeed + phase[i]), 6); // Sharper brightness peaks
-            const twinkle = 0.5 + blink * 0.5; // Wider alpha variation (50% to 100%)
+            const blink = Math.pow(Math.sin(time * shineSpeed + phase[i]), 6);
+            const twinkle = 0.5 + blink * 0.5;
             const alphaVal = Math.sin(t_ * Math.PI) * (isMainSpirit ? 0.85 : 0.5) * twinkle;
             ctx.globalAlpha = alphaVal;
-
             if (isMainSpirit) {
-                // Randomized High-Frequency Pulse (requested)
                 const pulse = Math.sin(time * pulseSpeed[i] + phase[i]) * pulseMag[i];
                 const starSize = (10 + size[i] * 12 * (1 + pulse + blink * 0.25)) * alphaVal;
-                
-                // Pure White Trail for clarity
                 const aIdx = Math.floor(alphaVal * 40);
-                const colorIdx = (custom2[i] || 0) % magicStars.length; // Use assigned texture index
-                ctx.strokeStyle = themeAlphaCache.color1[aIdx]; // Using white/color1 cache
+                const colorIdx = (custom2[i] || 0) % magicStars.length;
+                ctx.strokeStyle = themeAlphaCache.color1[aIdx];
                 ctx.lineWidth = 1.2;
                 ctx.beginPath(); ctx.moveTo(hx1[i], hy1[i]); ctx.lineTo(px[i], py[i]); ctx.stroke();
                 hx1[i] = px[i]; hy1[i] = py[i];
-
                 ctx.save();
                 ctx.translate(px[i], py[i]);
-                ctx.rotate(time * (0.8 + blink * 0.7) + phase[i]); // Spin faster when shining
+                ctx.rotate(time * (0.8 + blink * 0.7) + phase[i]);
                 ctx.drawImage(magicStars[colorIdx], -starSize, -starSize, starSize * 2, starSize * 2);
                 ctx.restore();
             } else {
-                // Dimmer, softer background dust
-                const dustSize = size[i] * 2.0 * alphaVal; // Slightly larger dust
+                const dustSize = size[i] * 2.0 * alphaVal;
                 ctx.fillStyle = themeAlphaCache.particle[Math.floor(alphaVal * 80)];
                 ctx.fillRect(px[i] - dustSize, py[i] - dustSize, dustSize * 2, dustSize * 2);
             }
         } else {
-            // Standard Floating Movement
             const wind = Math.sin(time * 0.3 + py[i] * 0.001) * 15;
             px[i] += (vx[i] + wind * 0.05) * depthFactor;
             py[i] += (vy[i] + Math.cos(time * 0.2) * 0.2) * depthFactor;
-
             if (px[i] < -150) px[i] = width + 150;
             if (px[i] > width + 150) px[i] = -150;
             if (py[i] < -150) py[i] = height + 150;
             if (py[i] > height + 150) py[i] = -150;
-
-            alpha = (0.2 + (1 - layer[i] * 0.2) * 0.5) * (0.7 + Math.sin(time + phase[i]) * 0.3);
+            const alpha = (0.2 + (1 - layer[i] * 0.2) * 0.5) * (0.7 + Math.sin(time + phase[i]) * 0.3);
             ctx.globalAlpha = alpha;
-
             const glowSize = size[i] * (1.2 + Math.sin(time * 2 + phase[i]) * 0.4);
             ctx.drawImage(floatGlowTexture, px[i] - glowSize, py[i] - glowSize, glowSize * 2, glowSize * 2);
             ctx.globalAlpha = alpha * 0.8;
@@ -1138,15 +1101,13 @@ function drawFloating(_theme: ThemeConfig) {
             ctx.drawImage(floatCoreTex, px[i] - coreSize * 0.5, py[i] - coreSize * 0.5, coreSize, coreSize);
         }
     }
-
-    // Vignetting removed for performance optimization (requested 60fps)
 }
 
 function drawSnow(theme: ThemeConfig) {
     const fogGrad = getCachedTexture('snow_fog', 256, c => {
         const grad = c.createLinearGradient(0, 0, 0, 256);
         grad.addColorStop(0, 'transparent');
-        grad.addColorStop(1, applyAlpha(theme.color3, '66')); // Keep specialized one
+        grad.addColorStop(1, applyAlpha(theme.color3, '66'));
         c.fillStyle = grad;
         c.fillRect(0, 0, 256, 256);
     });
@@ -1155,8 +1116,7 @@ function drawSnow(theme: ThemeConfig) {
     const snowFlakeTex = getCachedTexture('snowflake', 64, c => {
         c.strokeStyle = theme.particleColor;
         c.lineWidth = 1.5;
-        const s = 16;
-        const cx = 32, cy = 32;
+        const s = 16, cx = 32, cy = 32;
         c.beginPath();
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
@@ -1164,36 +1124,25 @@ function drawSnow(theme: ThemeConfig) {
             c.lineTo(cx + Math.cos(angle) * s, cy + Math.sin(angle) * s);
             const bx = cx + Math.cos(angle) * s * 0.6;
             const by = cy + Math.sin(angle) * s * 0.6;
-            const bAngle1 = angle + Math.PI / 4;
-            const bAngle2 = angle - Math.PI / 4;
             c.moveTo(bx, by);
-            c.lineTo(bx + Math.cos(bAngle1) * s * 0.3, by + Math.sin(bAngle1) * s * 0.3);
+            c.lineTo(bx + Math.cos(angle + Math.PI / 4) * s * 0.3, by + Math.sin(angle + Math.PI / 4) * s * 0.3);
             c.moveTo(bx, by);
-            c.lineTo(bx + Math.cos(bAngle2) * s * 0.3, by + Math.sin(bAngle2) * s * 0.3);
+            c.lineTo(bx + Math.cos(angle - Math.PI / 4) * s * 0.3, by + Math.sin(angle - Math.PI / 4) * s * 0.3);
         }
         c.stroke();
         c.fillStyle = '#FFFFFF';
         c.globalAlpha = 0.5;
-        c.beginPath();
-        c.arc(cx, cy, s * 0.2, 0, Math.PI * 2);
-        c.fill();
+        c.beginPath(); c.arc(cx, cy, s * 0.2, 0, Math.PI * 2); c.fill();
     });
 
-    ctx.globalCompositeOperation = 'lighter';
+    setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         const depthFactor = (1 - layer[i] * 0.25);
         py[i] += vy[i] * depthFactor;
         px[i] += (vx[i] + Math.sin(time + phase[i]) * 0.5) * depthFactor;
-
-        if (py[i] > height + 20) {
-            py[i] = -20;
-            px[i] = Math.random() * width;
-        }
-
-        const alpha = (0.4 + (1 - layer[i] * 0.3) * 0.6) * (0.8 + Math.sin(time * 1.5 + phase[i]) * 0.2);
-        ctx.globalAlpha = alpha;
-
-        const s = size[i] * (1.5 - layer[i] * 0.3); // Adjust relative scale
+        if (py[i] > height + 20) { py[i] = -20; px[i] = Math.random() * width; }
+        ctx.globalAlpha = (0.4 + (1 - layer[i] * 0.3) * 0.6) * (0.8 + Math.sin(time * 1.5 + phase[i]) * 0.2);
+        const s = size[i] * (1.5 - layer[i] * 0.3);
         ctx.drawImage(snowFlakeTex, px[i] - s * 2, py[i] - s * 2, s * 4, s * 4);
     }
 }
@@ -1201,29 +1150,22 @@ function drawSnow(theme: ThemeConfig) {
 function drawSunset(theme: ThemeConfig) {
     const cloudTex = getCachedTexture('sunset_cloud_v2', 512, c => {
         const grad = c.createRadialGradient(256, 256, 0, 256, 256, 256);
-        grad.addColorStop(0.1, applyAlpha(theme.color2, 'bb')); // Vibrant core
+        grad.addColorStop(0.1, applyAlpha(theme.color2, 'bb'));
         grad.addColorStop(0.4, applyAlpha(theme.color2, '44')); 
         grad.addColorStop(1, 'transparent');
         c.fillStyle = grad;
         c.fillRect(0, 0, 512, 512);
     });
-
-    // 1. Single Loop for Maximum Performance
     setCompositeOperation('screen');
-    const drift = vx;
     for (let i = 0; i < aliveCount; i++) {
-        // Natural "gust" effect: secondary noise for non-linear motion
         const gust = Math.sin(time * 0.7 + phase[i] * 0.5) * 1.2;
-        
-        if (custom1[i] === 0) { // CLOUD
-            px[i] += (drift[i] + gust * 0.2); // Slower, more massive feeling clouds
+        if (custom1[i] === 0) {
+            px[i] += (vx[i] + gust * 0.2);
             if (px[i] > width + size[i]) px[i] = -size[i] * 2;
-            
             ctx.globalAlpha = (0.3 + Math.sin(time * 0.4 + phase[i]) * 0.1);
-            const sw = size[i] * 2.2;
-            const sh = sw * 0.45; 
+            const sw = size[i] * 2.2, sh = sw * 0.45; 
             ctx.drawImage(cloudTex, px[i] - sw, py[i] - sh, sw * 2, sh * 2);
-        } else { // DUST GRAINS (Swirling turbulent wind)
+        } else {
             const dustTex = getCachedTexture('sunset_dust_grain', 32, c => {
                 const grad = c.createRadialGradient(16, 16, 0, 16, 16, 16);
                 grad.addColorStop(0, '#FFFFFFCC');
@@ -1232,109 +1174,46 @@ function drawSunset(theme: ThemeConfig) {
                 c.fillStyle = grad;
                 c.fillRect(0, 0, 32, 32);
             });
-
-            // Procedural Multi-Octave Turbulence for fluid feel
-            const windX = Math.sin(time * 0.35 + py[i] * 0.002) * 5.0; // Slightly increased for impact
-            const windY = Math.sin(time * 0.5 + px[i] * 0.003) * 3.5 + Math.cos(time * 0.8 - phase[i]) * 2.5;
-
-            px[i] += (drift[i] + gust * 2.8 + windX); 
-            py[i] += vy[i] + (gust * 0.35) + windY;
-            
-            if (px[i] > width + 150) {
-                px[i] = -200;
-                py[i] = Math.random() * height; // Fixed: py[i] (was py[id])
-                phase[i] = Math.random() * Math.PI * 2;
-            }
+            px[i] += (vx[i] + gust * 2.8 + Math.sin(time * 0.35 + py[i] * 0.002) * 5.0); 
+            py[i] += vy[i] + (gust * 0.35) + Math.sin(time * 0.5 + px[i] * 0.003) * 3.5 + Math.cos(time * 0.8 - phase[i]) * 2.5;
+            if (px[i] > width + 150) { px[i] = -200; py[i] = Math.random() * height; phase[i] = Math.random() * Math.PI * 2; }
             if (py[i] < -100) py[i] = height + 100;
             if (py[i] > height + 100) py[i] = -100;
-
-            const alpha = 0.4 + Math.sin(time * 4 + phase[i]) * 0.2;
-            ctx.globalAlpha = alpha;
-            
-            const s = size[i];
-            ctx.drawImage(dustTex, px[i] - s, py[i] - s, s * 2, s * 2);
+            ctx.globalAlpha = 0.4 + Math.sin(time * 4 + phase[i]) * 0.2;
+            ctx.drawImage(dustTex, px[i] - size[i], py[i] - size[i], size[i] * 2, size[i] * 2);
         }
     }
 }
 
-
-
-
 function drawHexagons(theme: ThemeConfig) {
-    const size_ = 60;
-    const hStep = size_ * 1.5;
-    const vStep = size_ * Math.sqrt(3);
-
+    const size_ = 60, hStep = size_ * 1.5, vStep = size_ * Math.sqrt(3);
     const pTime = (time * 0.125) % 3;
-    const isRadial = pTime < 1;
-    const isLinear = pTime >= 1 && pTime < 2;
-
-    // 1. Draw static/low-alpha grid in ONE batch
+    const isRadial = pTime < 1, isLinear = pTime >= 1 && pTime < 2;
     ctx.strokeStyle = colorCache.gridAlpha20;
     ctx.lineWidth = 1.0;
     ctx.beginPath();
-    
     const pulseList: {x: number, y: number, alpha: number}[] = [];
-
     for (let x = -size_; x < width + size_; x += hStep) {
         const isOdd = Math.floor((x + size_) / hStep) % 2 === 1;
         for (let y = -size_; y < height + size_; y += vStep) {
             const py_ = isOdd ? y + vStep / 2 : y;
-
-            let pulse = 0;
-            if (isRadial) {
-                const dist = Math.sqrt((x - width / 2) ** 2 + (py_ - height / 2) ** 2);
-                pulse = Math.sin(time * 3 - dist * 0.008) * 0.5 + 0.5;
-            } else if (isLinear) {
-                pulse = Math.sin(time * 4 - (x + py_) * 0.005) * 0.5 + 0.5;
-            } else {
-                const seed = Math.sin(x * 0.05) * Math.cos(py_ * 0.05) * 2000;
-                pulse = Math.sin(time * 2.5 + seed) * 0.5 + 0.5;
-            }
-
-            if (pulse > 0.85) {
-                pulseList.push({x, y: py_, alpha: pulse});
-            } else {
-                // Add to main batch path (Pre-calculated angles/offsets for performance)
-                // 30, 90, 150, 210, 270, 330 degrees (Hexagon vertices)
-                const s = size_;
-                ctx.moveTo(x + s, py_); // 0 deg
-                ctx.lineTo(x + s * 0.5, py_ + s * 0.866); // 60 deg (approx sqrt(3)/2)
-                ctx.lineTo(x - s * 0.5, py_ + s * 0.866); // 120 deg
-                ctx.lineTo(x - s, py_); // 180 deg
-                ctx.lineTo(x - s * 0.5, py_ - s * 0.866); // 240 deg
-                ctx.lineTo(x + s * 0.5, py_ - s * 0.866); // 300 deg
-                ctx.lineTo(x + s, py_); // Close
+            let pulse = isRadial ? Math.sin(time * 3 - Math.sqrt((x - width / 2) ** 2 + (py_ - height / 2) ** 2) * 0.008) * 0.5 + 0.5 
+                             : isLinear ? Math.sin(time * 4 - (x + py_) * 0.005) * 0.5 + 0.5 
+                                      : Math.sin(time * 2.5 + Math.sin(x * 0.05) * Math.cos(py_ * 0.05) * 2000) * 0.5 + 0.5;
+            if (pulse > 0.85) { pulseList.push({x, y: py_, alpha: pulse}); }
+            else {
+                ctx.moveTo(x + size_, py_); ctx.lineTo(x + size_ * 0.5, py_ + size_ * 0.866); ctx.lineTo(x - size_ * 0.5, py_ + size_ * 0.866); ctx.lineTo(x - size_, py_); ctx.lineTo(x - size_ * 0.5, py_ - size_ * 0.866); ctx.lineTo(x + size_ * 0.5, py_ - size_ * 0.866); ctx.lineTo(x + size_, py_);
             }
         }
     }
     ctx.stroke();
-
-    // 2. Draw highlighted/pulsing hexagons (Few per frame)
     const pArr = themeAlphaCache.particle;
     for (let i = 0; i < pulseList.length; i++) {
-        const p = pulseList[i];
-        const alphaIdx = Math.floor(p.alpha * 255);
-        ctx.strokeStyle = pArr[alphaIdx];
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        const s = size_;
-        ctx.moveTo(p.x + s, p.y);
-        ctx.lineTo(p.x + s * 0.5, p.y + s * 0.866);
-        ctx.lineTo(p.x - s * 0.5, p.y + s * 0.866);
-        ctx.lineTo(p.x - s, p.y);
-        ctx.lineTo(p.x - s * 0.5, p.y - s * 0.866);
-        ctx.lineTo(p.x + s * 0.5, p.y - s * 0.866);
-        ctx.closePath();
-        ctx.stroke();
-
+        const p = pulseList[i], alphaIdx = Math.floor(p.alpha * 255);
+        ctx.strokeStyle = pArr[alphaIdx]; ctx.lineWidth = 2.5; ctx.beginPath();
+        ctx.moveTo(p.x + size_, p.y); ctx.lineTo(p.x + size_ * 0.5, p.y + size_ * 0.866); ctx.lineTo(p.x - size_ * 0.5, p.y + size_ * 0.866); ctx.lineTo(p.x - size_, p.y); ctx.lineTo(p.x - size_ * 0.5, p.y - size_ * 0.866); ctx.lineTo(p.x + size_ * 0.5, p.y - size_ * 0.866); ctx.closePath(); ctx.stroke();
         if (p.alpha > 0.92) {
-            ctx.fillStyle = theme.particleColor;
-            ctx.globalAlpha = (p.alpha - 0.9) * 10;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = theme.particleColor; ctx.globalAlpha = (p.alpha - 0.9) * 10; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
         }
     }
 }
@@ -1369,9 +1248,9 @@ function render(timestamp: number) {
         // 1. Draw Background Image (Reset transform first for physical pixel alignment)
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
-        // --- VISIBILITY FIX: Dim the background for Marchen by 50% to improve note contrast ---
-        const isMarchen = currentTheme?.id === 'marchen';
-        ctx.globalAlpha = isMarchen ? 0.5 : 1.0; 
+        // --- VISIBILITY FIX: Dim background for readability ---
+        const isDimmed = currentTheme?.id === 'marchen' || currentTheme?.id === 'midnight-ocean';
+        ctx.globalAlpha = isDimmed ? 0.5 : 1.0; 
         ctx.drawImage(bgImageBitmap, 0, 0, canvas.width, canvas.height); // Draw to physical canvas size
         ctx.globalAlpha = 1.0; // Reset
         
@@ -1387,7 +1266,7 @@ function render(timestamp: number) {
     ctx.save();
     switch (currentTheme.pattern) {
         case 'stars': drawStars(currentTheme); break;
-        case 'fireworks':
+        case 'fireworks': drawFireworksBackground(currentTheme); break;
         case 'grid3d': drawGrid3D(currentTheme); break;
         case 'matrix': drawMatrix(currentTheme); break;
         case 'waves': drawWaves(currentTheme); break;
