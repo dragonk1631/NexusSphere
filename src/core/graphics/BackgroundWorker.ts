@@ -54,20 +54,21 @@ function rebuildAlphaCache() {
 }
 
 // --- Cached wave gradients for drawWaves (rebuilt on resize/theme change) ---
-let cachedWaveGrads: (CanvasGradient | null)[] = [];
-let cachedWaveGridColor: string = '';
-let cachedWaveHeight: number = 0;
 
 // --- Cached grid3d glow gradient ---
 let cachedGrid3DBloomGrad: CanvasGradient | null = null;
 let cachedGrid3DKey: string = '';
 
+// --- Retro Equalizer & Waveform State ---
+const EQ_BARS = 32;
+const eqCurrentHeights = new Float32Array(EQ_BARS);
+const eqPeaks = new Float32Array(EQ_BARS);
+const eqPeakVels = new Float32Array(EQ_BARS);
+let lastBeatHit = 0;
+
 function invalidateAllCaches(full: boolean = false) {
     cachedBgGrad = null;
     cachedBgColors = '';
-    cachedWaveGrads = [];
-    cachedWaveGridColor = '';
-    cachedWaveHeight = 0;
     cachedGrid3DBloomGrad = null;
     cachedGrid3DKey = '';
     if (full) {
@@ -694,59 +695,103 @@ function drawMatrix(theme: ThemeConfig) {
     }
 }
 
+
 function drawWaves(theme: ThemeConfig) {
-    const moonX = width * 0.8;
-    const moonY = height * 0.25;
-
-    const moonTex = getCachedTexture('waves_moon', 240, c => {
-        const grad = c.createRadialGradient(120, 120, 0, 120, 120, 120);
-        grad.addColorStop(0, theme.color3 + '88');
-        grad.addColorStop(0.7, theme.color2 + '44');
-        grad.addColorStop(1, 'transparent');
-        c.fillStyle = grad;
-        c.fillRect(0, 0, 240, 240);
-    });
-    setCompositeOperation('lighter');
-    ctx.drawImage(moonTex, moonX - 120, moonY - 120, 240, 240);
-
-    // Rebuild wave gradients only when height or theme color changes
-    if (cachedWaveGrads.length !== 6 || cachedWaveGridColor !== theme.gridColor || cachedWaveHeight !== height) {
-        cachedWaveGrads = [];
-        cachedWaveGridColor = theme.gridColor;
-        cachedWaveHeight = height;
-        for (let i = 0; i < 6; i++) {
-            const layerY = height * (0.35 + i * 0.1);
-            const amp = 10 + i * 15;
-            // The following line was problematic in the user's snippet, as waves use strokeStyle, not fillStyle.
-            // Assuming the intent was to adjust the gradient color or alpha, but the original `addColorStop` is correct for `strokeStyle`.
-            // ctx.fillStyle = `rgba(255, 209, 232, ${intensity})`; 
-            const g = ctx.createLinearGradient(0, layerY - amp, 0, layerY + amp * 2);
-            g.addColorStop(0, colorCache.gridAlpha50); // Using grid 50% for waves
-            g.addColorStop(1, 'transparent');
-            cachedWaveGrads.push(g);
+    const barCount = EQ_BARS;
+    const padding = 6;
+    const barW = (width / barCount) - padding;
+    const horizon = height * 0.85;
+    
+    // 1. Beat Simulation (Attack/Decay)
+    const beatInterval = 60 / 128; 
+    const currentBeat = Math.floor(time / beatInterval);
+    const beatPhase = (time % beatInterval) / beatInterval;
+    
+    if (currentBeat !== lastBeatHit) {
+        lastBeatHit = currentBeat;
+        for (let i = 0; i < barCount; i++) {
+            if (Math.random() > 0.35) {
+                const surge = Math.random() * (height * 0.38);
+                eqCurrentHeights[i] = Math.max(eqCurrentHeights[i], surge);
+            }
         }
     }
 
-    setCompositeOperation('screen');
-    for (let i = 0; i < 6; i++) {
-        const layerY = height * (0.35 + i * 0.1);
-        const speed = time * (0.5 + i * 0.25);
-        const amp = 10 + i * 15;
-        const freq = 0.004 + i * 0.001;
+    // 2. Center Waveform (WAV file style: Spiky, Mirrored)
+    const centerY = height * 0.52;
+    const waveAmpRoot = (height * 0.12) * (Math.exp(-beatPhase * 2.5) + 0.15);
+    const wavePoints = 120;
+    const waveW = width;
+    
+    ctx.save();
+    setCompositeOperation('lighter');
+    ctx.fillStyle = theme.color3; // Cyan
+    ctx.globalAlpha = 0.7; // Increased to 70%
+    
+    for (let i = 0; i < wavePoints; i++) {
+        const wx = (i / wavePoints) * waveW;
+        // Seeded random-like noise for "spiky" WAV feel
+        const t = time * 20 + i;
+        const noise = (Math.sin(t * 0.5) * 0.5 + Math.sin(t * 1.2) * 0.3 + Math.sin(t * 3.5) * 0.2);
+        const wh = Math.abs(noise) * waveAmpRoot * (0.5 + Math.random() * 0.5);
+        
+        // Draw mirrored bars for authentic WAV look
+        ctx.fillRect(wx, centerY - wh, 2, wh * 2);
+    }
+    
+    // Chromatic offset layer
+    ctx.fillStyle = theme.color2; // Pink
+    ctx.globalAlpha = 0.35; // Proportionally increased
+    for (let i = 0; i < wavePoints; i++) {
+        const wx = (i / wavePoints) * waveW + 2;
+        const t = time * 20 + i + 10;
+        const noise = (Math.sin(t * 0.5) * 0.5 + Math.sin(t * 1.2) * 0.3);
+        const wh = Math.abs(noise) * waveAmpRoot * 0.8;
+        ctx.fillRect(wx, centerY - wh, 1, wh * 2);
+    }
+    ctx.restore();
 
-        ctx.strokeStyle = cachedWaveGrads[i]!;
-        ctx.lineWidth = 1 + i * 0.5;
-        // The user's requested change for globalAlpha here used pz[i] which is not defined in this function.
-        // Assuming the intent was to reduce the master alpha by 40% for waves, similar to the instruction.
-        ctx.globalAlpha = (0.2 + (i * 0.12)) * 0.6; // Reduced master alpha by 40%
-        ctx.beginPath();
-
-        for (let x = 0; x <= width; x += 30) {
-            const waveY = Math.sin((x * freq) + speed + (i * 1.2)) * amp;
-            if (x === 0) ctx.moveTo(x, layerY + waveY);
-            else ctx.lineTo(x, layerY + waveY);
+    // 3. Responsive Equalizer Bars
+    setCompositeOperation('lighter');
+    for (let i = 0; i < barCount; i++) {
+        // Slow decay (much more lingering)
+        eqCurrentHeights[i] *= 0.98; // Lingering effect
+        const h = eqCurrentHeights[i];
+        const x = i * (barW + padding) + padding / 2;
+        
+        // Update Peak
+        if (h > eqPeaks[i]) {
+            eqPeaks[i] = h;
+            eqPeakVels[i] = 0;
+        } else {
+            eqPeakVels[i] += 0.45; // Gravity
+            eqPeaks[i] -= eqPeakVels[i];
+            if (eqPeaks[i] < 0) eqPeaks[i] = 0;
         }
-        ctx.stroke();
+
+        // 1. Draw Ground Reflection
+        ctx.globalAlpha = 0.05; 
+        const reflGrad = ctx.createLinearGradient(0, horizon, 0, horizon + h * 0.8);
+        reflGrad.addColorStop(0, theme.color2 + '88');
+        reflGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = reflGrad;
+        ctx.fillRect(x, horizon, barW, h * 0.8);
+
+        // 2. Draw Main Bar
+        ctx.globalAlpha = 0.7; // Increased to 70%
+        const barGrad = ctx.createLinearGradient(0, horizon - h, 0, horizon);
+        barGrad.addColorStop(0, theme.color3); 
+        barGrad.addColorStop(0.6, theme.color2);
+        barGrad.addColorStop(1, theme.color2 + '22');
+        ctx.fillStyle = barGrad;
+        ctx.fillRect(x, horizon - h, barW, h);
+
+        // 3. Draw Peak Line
+        if (eqPeaks[i] > 2) {
+            ctx.globalAlpha = 0.8; // Increased for clarity
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x, horizon - eqPeaks[i] - 1, barW, 1);
+        }
     }
 }
 
