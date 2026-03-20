@@ -21,8 +21,13 @@ export class SunsetOverdriveTheme implements IThemeStrategy {
         }
     }
 
+    public preWarm(_ctx: CanvasRenderingContext2D, _laneWidth: number): void {
+        console.log("[SunsetOverdriveTheme] Pre-warmed.");
+    }
+
     /**
-     * Golden Flame Pillar: A lance of sunset fire shoots upward + oval horizon ripple
+     * High-Quality Procedural Hit Effect:
+     * Features concentric shockwaves, solar flares, and sunset dust.
      */
     public renderHitEffect(
         ctx: CanvasRenderingContext2D,
@@ -32,49 +37,84 @@ export class SunsetOverdriveTheme implements IThemeStrategy {
         judgment: Judgment,
         t: number
     ): void {
-        const ease = 1 - Math.pow(t, 2);
         const isPerfect = judgment === Judgment.PERFECT;
+        const colorMain = '#E3C1A1'; // Luminous Gold
+        const colorAccent = '#8E4A42'; // Rose Crimson
+        
+        const easeOut = 1 - Math.pow(1 - t, 3);
+        const easeIn = t * t;
+        const opacity = 1 - Math.pow(t, 2);
 
         ctx.save();
-
-        // 1. Upward flame pillar
-        const pHeight = laneWidth * 1.5 + ease * laneWidth * 4;
-        const pWidth = laneWidth * (0.3 + ease * 0.2);
-        const flameGrad = ctx.createLinearGradient(x, y, x, y - pHeight);
-        flameGrad.addColorStop(0, `rgba(255, 200, 100, ${ease * 0.95})`);
-        flameGrad.addColorStop(0.4, `rgba(227, 140, 60, ${ease * 0.7})`);
-        flameGrad.addColorStop(0.8, `rgba(142, 74, 66, ${ease * 0.3})`);
-        flameGrad.addColorStop(1, 'transparent');
-
         ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = flameGrad;
-        ctx.beginPath();
-        ctx.ellipse(x, y - pHeight * 0.4, pWidth * 0.5, pHeight * 0.6, 0, 0, Math.PI * 2);
-        ctx.fill();
 
-        // 2. Horizontal sunset ripple (oval wave)
-        const rippleW = laneWidth * (0.5 + t * 3.5);
-        const rippleH = laneWidth * 0.18;
-        ctx.strokeStyle = `rgba(227, 193, 161, ${ease * 0.8})`;
-        ctx.lineWidth = 2 * ease;
-        ctx.beginPath();
-        ctx.ellipse(x, y, rippleW, rippleH, 0, 0, Math.PI * 2);
-        ctx.stroke();
+        // 1. Concentric Shockwaves (Expanding Rings)
+        const ringCount = isPerfect ? 2 : 1;
+        for (let i = 0; i < ringCount; i++) {
+            const ringT = Math.max(0, t - i * 0.1);
+            if (ringT <= 0 || ringT >= 1) continue;
+            
+            const ringEase = 1 - Math.pow(1 - ringT, 2);
+            const radius = laneWidth * (1.0 + ringEase * 2.5);
+            const ringOpacity = (1 - ringT) * 0.6;
+            
+            ctx.strokeStyle = i === 0 ? this.applyAlpha(colorMain, Math.floor(ringOpacity * 255).toString(16).padStart(2, '0')) 
+                                     : this.applyAlpha(colorAccent, Math.floor(ringOpacity * 255 * 0.7).toString(16).padStart(2, '0'));
+            ctx.lineWidth = 3 * (1 - ringT);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Subtle glow fill for the first ring
+            if (i === 0) {
+                ctx.fillStyle = this.applyAlpha(colorMain, Math.floor(ringOpacity * 40).toString(16).padStart(2, '0'));
+                ctx.fill();
+            }
+        }
 
-        // 3. Perfect burst — extra warm gold spray
-        if (isPerfect) {
-            for (let i = 0; i < 6; i++) {
-                const angle = -Math.PI / 2 + (i - 2.5) * 0.3;
-                const len = laneWidth * (0.4 + ease * 1.2);
-                ctx.strokeStyle = `rgba(255, 220, 140, ${ease * 0.7})`;
-                ctx.lineWidth = 1.5;
+        // 2. Solar Flares (Ray bursts)
+        if (isPerfect || judgment === Judgment.GREAT) {
+            const flareCount = isPerfect ? 12 : 8;
+            const flareLen = laneWidth * (0.8 + easeOut * 1.5);
+            ctx.lineWidth = 2 * opacity;
+            
+            for (let i = 0; i < flareCount; i++) {
+                const angle = (i / flareCount) * Math.PI * 2 + t * 0.5;
+                const lx = Math.cos(angle);
+                const ly = Math.sin(angle);
+                
+                const grad = ctx.createLinearGradient(x, y, x + lx * flareLen, y + ly * flareLen);
+                grad.addColorStop(0, this.applyAlpha(colorMain, 'aa'));
+                grad.addColorStop(1, 'transparent');
+                
+                ctx.strokeStyle = grad;
                 ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+                ctx.moveTo(x + lx * laneWidth * 0.2, y + ly * laneWidth * 0.2);
+                ctx.lineTo(x + lx * flareLen, y + ly * flareLen);
                 ctx.stroke();
             }
         }
 
+        // 3. Central Glow
+        const glowSize = laneWidth * (1.2 - easeIn * 0.4);
+        const glowGrad = ctx.createRadialGradient(x, y, 0, x, y, glowSize);
+        glowGrad.addColorStop(0, this.applyAlpha(colorMain, '88'));
+        glowGrad.addColorStop(0.5, this.applyAlpha(colorAccent, '33'));
+        glowGrad.addColorStop(1, 'transparent');
+        
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(x, y, glowSize, 0, Math.PI * 2);
+        ctx.fill();
+
         ctx.restore();
+    }
+
+    private applyAlpha(color: string, alphaHex: string): string {
+        if (color.startsWith('#')) {
+            return color.substring(0, 7) + alphaHex;
+        }
+        return color;
     }
 }

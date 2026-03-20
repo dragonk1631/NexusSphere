@@ -39,7 +39,7 @@ export class DeepSpaceTheme implements IThemeStrategy {
         t: number
     ): void {
         const ease = 1 - Math.pow(t, 1.5);
-        const starCount = 12;
+        const starCount = 6; // Reduced from 12
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
@@ -55,7 +55,7 @@ export class DeepSpaceTheme implements IThemeStrategy {
             const sy = y + Math.sin(baseAngle + swirl) * radius * 0.55;
 
             const alpha = ease * (0.7 + seed * 0.3);
-            const currentSize = (3 + seed * 4) * ease; // Increased size
+            const currentSize = (2 + seed * 8) * ease; // More random size variance (formerly 3+seed*4)
 
             // Light Trail
             ctx.strokeStyle = `rgba(140, 200, 255, ${alpha * 0.4})`; 
@@ -94,11 +94,9 @@ export class DeepSpaceTheme implements IThemeStrategy {
 
         // 2. Interstellar Shockwave (Single additive ripple)
         const progress = t;
-        const ringAlpha = (1 - progress) * 0.5;
         const ringR = laneWidth * (0.35 + progress * 3.0);
-        
-        ctx.strokeStyle = `rgba(140, 200, 255, ${ringAlpha})`;
-        ctx.lineWidth = 2 * (1 - progress);
+        ctx.strokeStyle = `rgba(140, 200, 255, ${(1 - progress) * 0.8})`; // More vivid (formerly 0.5)
+        ctx.lineWidth = 3 * (1 - progress); // Slightly thicker (formerly 2)
         ctx.beginPath();
         ctx.arc(x, y, ringR, 0, Math.PI * 2);
         ctx.stroke();

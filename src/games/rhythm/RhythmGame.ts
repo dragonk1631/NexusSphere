@@ -402,7 +402,10 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         const { width, height } = this.canvas;
         if (height > width) { this.renderRotateRequest(ctx, width, height); return; }
 
+        // 1. Current Game State (Menu, Loading, Playing, etc.)
         this.currentStateObj.render(ctx, alpha);
+
+        // 3. Effects and Overlays
         this.effectsRenderer.render(ctx, width, height, this.themeStrategy, alpha);
     }
 

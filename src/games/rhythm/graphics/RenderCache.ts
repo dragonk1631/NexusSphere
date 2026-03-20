@@ -774,14 +774,8 @@ export class RenderCache {
         ctx.moveTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y);
         ctx.stroke();
 
-        const roadGrad = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-        roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.9)');
-        roadGrad.addColorStop(0.5, 'rgba(30, 10, 60, 0.8)');
-        roadGrad.addColorStop(1, 'rgba(20, 20, 80, 0.95)');
-        ctx.fillStyle = roadGrad;
-        ctx.beginPath();
-        ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
-        ctx.fill();
+        // Legacy Road Gradient removed - Handled by HighwayBackgroundRenderer or ThemeBackground
+
 
         // Dividers: fade from horizon and stop at hit line (no overlap with judgment area)
         ctx.lineWidth = 1.5;

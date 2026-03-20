@@ -79,20 +79,13 @@ export class EffectsRenderer {
         }
     }
 
-    public render(ctx: CanvasRenderingContext2D, width: number, height: number, theme: IThemeStrategy, alpha: number = 0): void {
-        const currentTime = performance.now();
-        
-        // Render theme-specific background effects first (if any)
-        if (theme.renderBackground) {
-            theme.renderBackground(ctx, width, height, currentTime, alpha);
-        }
-
+    public render(ctx: CanvasRenderingContext2D, _width: number, _height: number, theme: IThemeStrategy, _alpha: number = 0): void {
         ctx.save();
         this.renderParticles(ctx);
         this.renderExplosions(ctx);
         this.renderShockwaves(ctx);
         this.renderHitEffects(ctx, theme);
-        this.renderTransition(ctx, width, height);
+        this.renderTransition(ctx, _width, _height);
         ctx.restore();
     }
 

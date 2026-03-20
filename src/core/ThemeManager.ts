@@ -74,7 +74,7 @@ export class ThemeManager {
         {
             id: 'sunset-overdrive',
             name: 'Sunset Overdrive',
-            pattern: 'scanlines',
+            pattern: 'sunset',
             color1: '#1A0B25', // Deep desaturated purple
             color2: '#8E4A42', // Muted Rose Gold/Crimson
             color3: '#E3C1A1', // Soft Beige/Gold Sun

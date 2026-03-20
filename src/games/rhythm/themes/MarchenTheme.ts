@@ -40,8 +40,8 @@ export class MarchenTheme implements IThemeStrategy {
         t: number
     ): void {
         const ease = 1 - Math.pow(t, 1.2);
-        const petalCount = 16; // Doubled
-        const dustCount = 30;  // Doubled
+        const petalCount = 8; // Half of 16
+        const dustCount = 15;  // Half of 30
 
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
@@ -54,7 +54,7 @@ export class MarchenTheme implements IThemeStrategy {
             const px = x + Math.cos(angle) * dist;
             const py = y + Math.sin(angle) * dist * 0.75;
 
-            const currentSize = (6 + seed * 9) * ease; // Approximately 1.5x larger
+            const currentSize = (4 + seed * 14) * ease; // Wider random range (formerly 6+seed*9)
             const alpha = ease; // Fully opaque
 
             ctx.save();
@@ -80,7 +80,7 @@ export class MarchenTheme implements IThemeStrategy {
             const dy = y + Math.sin(angle) * dist * 1.3;
             
             const alpha = Math.max(0, (1 - t * 1.3)) * (0.6 + Math.sin(t * 25 + i) * 0.4);
-            const dSize = (1.5 + seed * 2.5) * (1 - t); // Slightly larger dust
+            const dSize = (1 + seed * 4) * (1 - t); // Wider random range (formerly 1.5+seed*2.5)
 
             ctx.fillStyle = i % 2 === 0 ? `rgba(255, 230, 150, ${alpha})` : `rgba(255, 255, 255, ${alpha})`;
             ctx.beginPath();
@@ -90,11 +90,9 @@ export class MarchenTheme implements IThemeStrategy {
 
         // 3. Concentric Magic Ring (Single additive ripple)
         const progress = t; 
-        const ringAlpha = (1 - progress) * 0.5;
         const ringR = laneWidth * (0.3 + progress * 2.8);
-        
-        ctx.strokeStyle = `rgba(255, 180, 220, ${ringAlpha})`;
-        ctx.lineWidth = 3 * (1 - progress);
+        ctx.strokeStyle = `rgba(255, 180, 220, ${(1 - progress) * 0.8})`; // More vivid (formerly 0.5)
+        ctx.lineWidth = 4 * (1 - progress); // Slightly thicker (formerly 3)
         ctx.beginPath();
         ctx.arc(x, y, ringR, 0, Math.PI * 2);
         ctx.stroke();

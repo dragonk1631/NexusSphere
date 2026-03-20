@@ -58,12 +58,6 @@ let cachedWaveGrads: (CanvasGradient | null)[] = [];
 let cachedWaveGridColor: string = '';
 let cachedWaveHeight: number = 0;
 
-// --- Cached scanlines gradients (rebuilt on resize/theme change) ---
-let cachedScanlinesCoreGrad: CanvasGradient | null = null;
-let cachedScanlinesMountainGrads: (CanvasGradient | null)[] = [];
-let cachedScanlinesShimmerGrad: CanvasGradient | null = null;
-let cachedScanlinesKey: string = '';
-
 // --- Cached grid3d glow gradient ---
 let cachedGrid3DBloomGrad: CanvasGradient | null = null;
 let cachedGrid3DKey: string = '';
@@ -74,10 +68,6 @@ function invalidateAllCaches(full: boolean = false) {
     cachedWaveGrads = [];
     cachedWaveGridColor = '';
     cachedWaveHeight = 0;
-    cachedScanlinesCoreGrad = null;
-    cachedScanlinesMountainGrads = [];
-    cachedScanlinesShimmerGrad = null;
-    cachedScanlinesKey = '';
     cachedGrid3DBloomGrad = null;
     cachedGrid3DKey = '';
     if (full) {
@@ -391,6 +381,31 @@ function initPattern(pattern: string) {
                 vx[id] = (Math.random() - 0.5) * 0.5;
                 phase[id] = Math.random() * Math.PI * 2;
                 layer[id] = l;
+            }
+            break;
+        case 'sunset':
+            // 1. Red Clouds (Using large particles as "Blobs")
+            for (let i = 0; i < 20; i++) {
+                const id = spawn();
+                if (id === -1) break;
+                px[id] = Math.random() * width;
+                py[id] = Math.random() * (height * 0.6); // Sky area
+                size[id] = 250 + Math.random() * 400;
+                vx[id] = 0.3 + Math.random() * 0.8; // Constant drift
+                phase[id] = Math.random() * Math.PI * 2;
+                custom1[id] = 0; // CLOUD
+            }
+            // 2. Wind-blown Dust Particles (Optimized count, richer size)
+            for (let i = 0; i < 80; i++) {
+                const id = spawn();
+                if (id === -1) break;
+                px[id] = Math.random() * width;
+                py[id] = Math.random() * height;
+                size[id] = 1.2 + Math.random() * 5.5; // Wider range (1.2 - 6.7)
+                vx[id] = 2.0 + Math.random() * 10.0; // Diverse speeds
+                vy[id] = (Math.random() - 0.5) * 0.5;
+                phase[id] = Math.random() * Math.PI * 2;
+                custom1[id] = 1; // DUST
             }
             break;
         case 'waves':
@@ -1138,6 +1153,67 @@ function drawSnow(theme: ThemeConfig) {
     }
 }
 
+function drawSunset(theme: ThemeConfig) {
+    const cloudTex = getCachedTexture('sunset_cloud_v2', 512, c => {
+        const grad = c.createRadialGradient(256, 256, 0, 256, 256, 256);
+        grad.addColorStop(0.1, applyAlpha(theme.color2, 'bb')); // Vibrant core
+        grad.addColorStop(0.4, applyAlpha(theme.color2, '44')); 
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.fillRect(0, 0, 512, 512);
+    });
+
+    // 1. Single Loop for Maximum Performance
+    setCompositeOperation('screen');
+    const drift = vx;
+    for (let i = 0; i < aliveCount; i++) {
+        // Natural "gust" effect: secondary noise for non-linear motion
+        const gust = Math.sin(time * 0.7 + phase[i] * 0.5) * 1.2;
+        
+        if (custom1[i] === 0) { // CLOUD
+            px[i] += (drift[i] + gust * 0.2); // Slower, more massive feeling clouds
+            if (px[i] > width + size[i]) px[i] = -size[i] * 2;
+            
+            ctx.globalAlpha = (0.3 + Math.sin(time * 0.4 + phase[i]) * 0.1);
+            const sw = size[i] * 2.2;
+            const sh = sw * 0.45; 
+            ctx.drawImage(cloudTex, px[i] - sw, py[i] - sh, sw * 2, sh * 2);
+        } else { // DUST GRAINS (Swirling turbulent wind)
+            const dustTex = getCachedTexture('sunset_dust_grain', 32, c => {
+                const grad = c.createRadialGradient(16, 16, 0, 16, 16, 16);
+                grad.addColorStop(0, '#FFFFFFCC');
+                grad.addColorStop(0.4, applyAlpha(theme.particleColor, '88'));
+                grad.addColorStop(1, 'transparent');
+                c.fillStyle = grad;
+                c.fillRect(0, 0, 32, 32);
+            });
+
+            // Procedural Multi-Octave Turbulence for fluid feel
+            const windX = Math.sin(time * 0.35 + py[i] * 0.002) * 5.0; // Slightly increased for impact
+            const windY = Math.sin(time * 0.5 + px[i] * 0.003) * 3.5 + Math.cos(time * 0.8 - phase[i]) * 2.5;
+
+            px[i] += (drift[i] + gust * 2.8 + windX); 
+            py[i] += vy[i] + (gust * 0.35) + windY;
+            
+            if (px[i] > width + 150) {
+                px[i] = -200;
+                py[i] = Math.random() * height; // Fixed: py[i] (was py[id])
+                phase[i] = Math.random() * Math.PI * 2;
+            }
+            if (py[i] < -100) py[i] = height + 100;
+            if (py[i] > height + 100) py[i] = -100;
+
+            const alpha = 0.4 + Math.sin(time * 4 + phase[i]) * 0.2;
+            ctx.globalAlpha = alpha;
+            
+            const s = size[i];
+            ctx.drawImage(dustTex, px[i] - s, py[i] - s, s * 2, s * 2);
+        }
+    }
+}
+
+
+
 
 function drawHexagons(theme: ThemeConfig) {
     const size_ = 60;
@@ -1218,126 +1294,6 @@ function drawHexagons(theme: ThemeConfig) {
     }
 }
 
-function drawScanlines(theme: ThemeConfig) {
-    const horizon = height * 0.55;
-    const sunR = Math.min(width, height) * 0.35;
-    const sunPulse = Math.sin(time * 0.8) * 0.03 + 1;
-
-    const sunGlowGrad = getCachedTexture('sun_glow', 512, c => {
-        const grad = c.createRadialGradient(256, 256, 128 * 0.2, 256, 256, 128 * 1.5);
-        grad.addColorStop(0, applyAlpha(theme.color3, '66'));
-        grad.addColorStop(0.5, applyAlpha(theme.color2, '22'));
-        grad.addColorStop(1, 'transparent');
-        c.fillStyle = grad;
-        c.fillRect(0, 0, 512, 512);
-    });
-
-    setCompositeOperation('screen');
-    ctx.drawImage(sunGlowGrad, width / 2 - sunR * 1.5 * sunPulse, horizon - sunR * 1.5 * sunPulse, sunR * 3 * sunPulse, sunR * 1.5 * sunPulse);
-
-    // --- Rebuild cached gradients only on theme/size change ---
-    const scanlinesKey = theme.color2 + theme.color3 + width + height;
-    if (cachedScanlinesKey !== scanlinesKey) {
-        cachedScanlinesKey = scanlinesKey;
-
-        // Sun core gradient (horizon depends on height)
-        cachedScanlinesCoreGrad = ctx.createLinearGradient(0, horizon - sunR, 0, horizon);
-        cachedScanlinesCoreGrad.addColorStop(0, theme.color3);
-        cachedScanlinesCoreGrad.addColorStop(1, theme.color2);
-
-        // Mountain gradients (3 layers)
-        cachedScanlinesMountainGrads = [];
-        for (let l = 2; l >= 0; l--) {
-            const mHeight = height * (0.12 + l * 0.08);
-            const g = ctx.createLinearGradient(0, horizon - mHeight, 0, horizon);
-            g.addColorStop(0, applyAlpha(theme.color2, '44'));
-            g.addColorStop(1, '#000000');
-            cachedScanlinesMountainGrads[l] = g;
-        }
-
-        // Shimmer gradient (position is fixed, only alpha varies via globalAlpha)
-        const floorY = horizon;
-        cachedScanlinesShimmerGrad = ctx.createLinearGradient(0, floorY - 50, 0, floorY + 100);
-        cachedScanlinesShimmerGrad.addColorStop(0, 'transparent');
-        cachedScanlinesShimmerGrad.addColorStop(0.4, theme.color3);
-        cachedScanlinesShimmerGrad.addColorStop(1, 'transparent');
-    }
-
-    ctx.globalAlpha = 0.9;
-    ctx.beginPath();
-    ctx.arc(width / 2, horizon, sunR * sunPulse, Math.PI, 0, false);
-    ctx.fillStyle = cachedScanlinesCoreGrad!;
-    ctx.fill();
-
-    for (let l = 2; l >= 0; l--) {
-        const mHeight = height * (0.12 + l * 0.08);
-        const mCount = 3 + l;
-        const mWidth = width / mCount;
-
-        ctx.fillStyle = cachedScanlinesMountainGrads[l]!;
-        ctx.strokeStyle = applyAlpha(theme.gridColor, '33');
-        ctx.lineWidth = 1;
-
-        ctx.beginPath();
-        ctx.moveTo(-100, horizon);
-        for (let i = 0; i <= mCount; i++) {
-            const mx = i * mWidth;
-            const mSeed = (i + l * 5) * 2.1;
-            const mh = (Math.sin(mSeed) * 0.5 + 0.5) * mHeight;
-            ctx.lineTo(mx, horizon - mh);
-            ctx.lineTo(mx + mWidth * 0.5, horizon);
-        }
-        ctx.lineTo(width + 100, horizon);
-        ctx.fill();
-        ctx.stroke();
-    }
-
-    const floorY = horizon;
-    // Shimmer alpha animates, but we avoid a per-frame gradient allocation by varying globalAlpha
-    const shimmerAlphaVal = Math.sin(time * 1.5) * 0.05 + 0.15;
-    setCompositeOperation('lighter');
-    ctx.globalAlpha = shimmerAlphaVal;
-    ctx.fillStyle = cachedScanlinesShimmerGrad!;
-    ctx.fillRect(0, floorY - 50, width, 150);
-
-    setCompositeOperation('source-over');
-    ctx.strokeStyle = applyAlpha(theme.gridColor, '22');
-    for (let x = -width * 0.5; x <= width * 1.5; x += 150) {
-        ctx.beginPath();
-        ctx.moveTo(width / 2 + (x - width / 2) * 0.1, floorY);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-    }
-    for (let i = 0; i < 10; i++) {
-        const py_ = floorY + Math.pow(i / 10, 2) * (height - floorY);
-        const alpha = (i / 10) * 0.3;
-        ctx.globalAlpha = alpha;
-        ctx.beginPath();
-        ctx.moveTo(0, py_);
-        ctx.lineTo(width, py_);
-        ctx.stroke();
-    }
-
-    const moteTex = getCachedTexture('scanline_mote', 16, c => {
-        const grad = c.createRadialGradient(8, 8, 0, 8, 8, 8);
-        grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-        grad.addColorStop(1, 'transparent');
-        c.fillStyle = grad;
-        c.fillRect(0, 0, 16, 16);
-    });
-
-    for (let i = 0; i < aliveCount; i++) {
-        px[i] = (px[i] + vx[i] * 0.3) % (width + 400);
-        py[i] += Math.sin(time * 0.5 + px[i] * 0.01) * 0.2;
-
-        const driftAlpha = (0.2 + (3 - layer[i]) * 0.1) * (0.7 + Math.sin(time * 0.8 + px[i] * 0.005) * 0.3);
-        ctx.globalAlpha = driftAlpha;
-        const s = 2 + (3 - layer[i]) * 1.5;
-
-        ctx.drawImage(moteTex, px[i] - 200 - s * 2.5, py[i] - s * 2.5, s * 5, s * 5);
-    }
-}
-
 // --- Main Render Loop ---
 
 
@@ -1368,8 +1324,9 @@ function render(timestamp: number) {
         // 1. Draw Background Image (Reset transform first for physical pixel alignment)
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
-        // --- VISIBILITY FIX: Dim the background for Marchen/DeepSpace by 50% to improve note contrast ---
-        ctx.globalAlpha = 0.5; // Final: 50% Dimming as requested
+        // --- VISIBILITY FIX: Dim the background for Marchen by 50% to improve note contrast ---
+        const isMarchen = currentTheme?.id === 'marchen';
+        ctx.globalAlpha = isMarchen ? 0.5 : 1.0; 
         ctx.drawImage(bgImageBitmap, 0, 0, canvas.width, canvas.height); // Draw to physical canvas size
         ctx.globalAlpha = 1.0; // Reset
         
@@ -1387,7 +1344,6 @@ function render(timestamp: number) {
         case 'stars': drawStars(currentTheme); break;
         case 'fireworks':
         case 'grid3d': drawGrid3D(currentTheme); break;
-        case 'scanlines': drawScanlines(currentTheme); break;
         case 'matrix': drawMatrix(currentTheme); break;
         case 'waves': drawWaves(currentTheme); break;
         case 'bubbles': drawBubbles(currentTheme); break;
@@ -1396,6 +1352,7 @@ function render(timestamp: number) {
         case 'hexagons': drawHexagons(currentTheme); break;
         case 'floating': drawFloating(currentTheme); break;
         case 'snow': drawSnow(currentTheme); break;
+        case 'sunset': drawSunset(currentTheme); break;
     }
     ctx.restore();
 
