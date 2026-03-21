@@ -21,10 +21,6 @@ export class WinterSnowTheme implements IThemeStrategy {
         }
     }
 
-    /**
-     * Ice Crystal Shatter: A hexagonal ice shard fracture pattern blooms from the
-     * hit point — 6 symmetric crystal shards burst outward, rotating as they fly.
-     */
     public renderHitEffect(
         ctx: CanvasRenderingContext2D,
         x: number,
@@ -34,67 +30,108 @@ export class WinterSnowTheme implements IThemeStrategy {
         t: number,
         _seed: number
     ): void {
-        const ease = 1 - Math.pow(t, 1.6);
+        const ease = 1 - Math.pow(t, 1.4);
+        const outEase = 1 - Math.pow(t, 3);
         const isPerfect = judgment === Judgment.PERFECT;
-        const shardCount = isPerfect ? 12 : 6;
 
         ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Ice crystal shards (hexagonal points, rotate as they fly)
-        for (let i = 0; i < shardCount; i++) {
-            const baseAngle = (i / shardCount) * Math.PI * 2;
-            const radius = laneWidth * (0.2 + t * 1.8);
-            const cx = x + Math.cos(baseAngle) * radius;
-            const cy = y + Math.sin(baseAngle) * radius;
-            const rotation = baseAngle + t * Math.PI; // spin as they fly
-            const shardAlpha = ease * (0.9 - (i % 3) * 0.15);
-            const shardSize = (4 + (i % 2) * 3) * ease;
+        // 1. Expanding Snowflake Bloom (Static orientation, like a concentric wave)
+        const snowflakeCount = isPerfect ? 3 : 2;
+        const baseR = laneWidth * 0.45;
+
+        for (let j = 0; j < snowflakeCount; j++) {
+            const progress = Math.pow(Math.max(0, t - j * 0.12), 0.7);
+            if (progress >= 1.0) continue;
+
+            const r = baseR + progress * laneWidth * 1.6;
+            const alpha = (1 - progress) * 0.7;
 
             ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(rotation);
-            ctx.globalAlpha = shardAlpha;
-
-            // Draw hexagonal shard (6-pointed crystal)
-            ctx.beginPath();
-            for (let j = 0; j < 6; j++) {
-                const a = (j / 6) * Math.PI * 2;
-                const r = j % 2 === 0 ? shardSize : shardSize * 0.5;
-                const px = Math.cos(a) * r;
-                const py = Math.sin(a) * r;
-                if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(220, 248, 255, 0.9)';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(180, 230, 255, 0.6)';
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-
+            ctx.translate(x, y);
+            // No rotation - keep it steady and natural like a frozen bloom
+            
+            // a. Prism Glow (Cyan glow)
+            ctx.strokeStyle = `rgba(178, 235, 242, ${alpha * 0.4})`;
+            ctx.lineWidth = 10 * ease;
+            this.drawSnowflake(ctx, 0, 0, r);
+            
+            // b. Main Structure (White core)
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.lineWidth = 2.5 * ease;
+            this.drawSnowflake(ctx, 0, 0, r);
+            
             ctx.restore();
         }
 
-        // 2. Frost ring
-        const frostR = laneWidth * (0.15 + t * 2.2);
+        // 2. Fragmented Ice Core (Hexagonal Structure)
+        const coreR = baseR * 0.5 * outEase;
+        ctx.fillStyle = `rgba(224, 247, 250, ${outEase * 0.7})`;
         ctx.beginPath();
-        ctx.arc(x, y, frostR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(200, 240, 255, ${ease * 0.6})`;
-        ctx.lineWidth = 2 * ease;
-        ctx.globalAlpha = 1;
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
+            ctx.lineTo(x + Math.cos(a) * coreR, y + Math.sin(a) * coreR);
+        }
+        ctx.closePath();
+        ctx.fill();
+        
+        // Inner core stroke
+        ctx.strokeStyle = `rgba(255, 255, 255, ${outEase})`;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // 3. Core icy flash
-        ctx.globalCompositeOperation = 'lighter';
-        const coreR = laneWidth * 0.4 * ease;
-        const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
-        coreGrad.addColorStop(0, `rgba(255, 255, 255, ${ease * 0.95})`);
-        coreGrad.addColorStop(0.4, `rgba(178, 235, 242, ${ease * 0.5})`);
-        coreGrad.addColorStop(1, 'rgba(79, 195, 247, 0)');
-        ctx.fillStyle = coreGrad;
-        ctx.beginPath();
-        ctx.arc(x, y, coreR, 0, Math.PI * 2);
-        ctx.fill();
+        // 3. Ambient Frost "Shards" (Expanding slowly)
+        if (isPerfect) {
+            const pCount = 10;
+            for (let i = 0; i < pCount; i++) {
+                const angle = (i / pCount) * Math.PI * 2 + (i % 2 === 0 ? t : -t) * 0.5;
+                const dist = laneWidth * 0.9 * (0.2 + t * 1.8);
+                const px = x + Math.cos(angle) * dist;
+                const py = y + Math.sin(angle) * dist;
+                const pSize = (4 + (i % 3) * 2) * ease;
+                
+                ctx.save();
+                ctx.translate(px, py);
+                // Subtle individual rotation for shards is okay, but hit core stays static
+                ctx.rotate(angle + t * 2); 
+                ctx.strokeStyle = `rgba(255, 255, 255, ${ease * 0.5})`;
+                ctx.lineWidth = 1;
+                this.drawSnowflake(ctx, 0, 0, pSize);
+                ctx.restore();
+            }
+        }
 
         ctx.restore();
+    }
+
+    private drawSnowflake(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            
+            // Main arm
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + cos * r, y + sin * r);
+            
+            // 1. Outer branches (V-shape)
+            const b1Pos = r * 0.72;
+            const b1Size = r * 0.28;
+            ctx.moveTo(x + cos * b1Pos, y + sin * b1Pos);
+            ctx.lineTo(x + Math.cos(angle - 0.75) * (b1Pos + b1Size), y + Math.sin(angle - 0.75) * (b1Pos + b1Size));
+            ctx.moveTo(x + cos * b1Pos, y + sin * b1Pos);
+            ctx.lineTo(x + Math.cos(angle + 0.75) * (b1Pos + b1Size), y + Math.sin(angle + 0.75) * (b1Pos + b1Size));
+
+            // 2. Inner branches (Simple ticks)
+            const b2Pos = r * 0.42;
+            const b2Size = r * 0.18;
+            ctx.moveTo(x + cos * b2Pos, y + sin * b2Pos);
+            ctx.lineTo(x + Math.cos(angle - 0.8) * (b2Pos + b2Size), y + Math.sin(angle - 0.8) * (b2Pos + b2Size));
+            ctx.moveTo(x + cos * b2Pos, y + sin * b2Pos);
+            ctx.lineTo(x + Math.cos(angle + 0.8) * (b2Pos + b2Size), y + Math.sin(angle + 0.8) * (b2Pos + b2Size));
+        }
+        ctx.stroke();
     }
 }

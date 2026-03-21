@@ -1113,37 +1113,67 @@ function drawSnow(theme: ThemeConfig) {
     });
     ctx.drawImage(fogGrad, 0, height * 0.6, width, height * 0.4);
 
-    const snowFlakeTex = getCachedTexture('snowflake', 64, c => {
-        c.strokeStyle = theme.particleColor;
-        c.lineWidth = 1.5;
-        const s = 16, cx = 32, cy = 32;
+    const snowFlakeTex = getCachedTexture('snowflake_v2', 64, c => {
+        c.strokeStyle = '#FFFFFF';
+        c.lineWidth = 1.8;
+        c.lineCap = 'round';
+        const s = 22, cx = 32, cy = 32;
+        
         c.beginPath();
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            
+            // Main arm
             c.moveTo(cx, cy);
-            c.lineTo(cx + Math.cos(angle) * s, cy + Math.sin(angle) * s);
-            const bx = cx + Math.cos(angle) * s * 0.6;
-            const by = cy + Math.sin(angle) * s * 0.6;
-            c.moveTo(bx, by);
-            c.lineTo(bx + Math.cos(angle + Math.PI / 4) * s * 0.3, by + Math.sin(angle + Math.PI / 4) * s * 0.3);
-            c.moveTo(bx, by);
-            c.lineTo(bx + Math.cos(angle - Math.PI / 4) * s * 0.3, by + Math.sin(angle - Math.PI / 4) * s * 0.3);
+            c.lineTo(cx + cos * s, cy + sin * s);
+            
+            // Outer branches (V-shape)
+            const b1Pos = s * 0.7;
+            const b1Size = s * 0.3;
+            c.moveTo(cx + cos * b1Pos, cy + sin * b1Pos);
+            c.lineTo(cx + Math.cos(angle - 0.6) * (b1Pos + b1Size), cy + Math.sin(angle - 0.6) * (b1Pos + b1Size));
+            c.moveTo(cx + cos * b1Pos, cy + sin * b1Pos);
+            c.lineTo(cx + Math.cos(angle + 0.6) * (b1Pos + b1Size), cy + Math.sin(angle + 0.6) * (b1Pos + b1Size));
+
+            // Inner branches (Simple ticks)
+            const b2Pos = s * 0.4;
+            const b2Size = s * 0.15;
+            c.moveTo(cx + cos * b2Pos, cy + sin * b2Pos);
+            c.lineTo(cx + Math.cos(angle - 0.8) * (b2Pos + b2Size), cy + Math.sin(angle - 0.8) * (b2Pos + b2Size));
+            c.moveTo(cx + cos * b2Pos, cy + sin * b2Pos);
+            c.lineTo(cx + Math.cos(angle + 0.8) * (b2Pos + b2Size), cy + Math.sin(angle + 0.8) * (b2Pos + b2Size));
         }
         c.stroke();
-        c.fillStyle = '#FFFFFF';
-        c.globalAlpha = 0.5;
-        c.beginPath(); c.arc(cx, cy, s * 0.2, 0, Math.PI * 2); c.fill();
+        
+        // Central icy core
+        const grad = c.createRadialGradient(cx, cy, 0, cx, cy, 8);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.beginPath(); c.arc(cx, cy, 8, 0, Math.PI * 2); c.fill();
     });
 
     setCompositeOperation('lighter');
     for (let i = 0; i < aliveCount; i++) {
         const depthFactor = (1 - layer[i] * 0.25);
         py[i] += vy[i] * depthFactor;
-        px[i] += (vx[i] + Math.sin(time + phase[i]) * 0.5) * depthFactor;
+        px[i] += (vx[i] + Math.sin(time * 0.5 + phase[i]) * 1.5) * depthFactor;
+        
         if (py[i] > height + 20) { py[i] = -20; px[i] = Math.random() * width; }
-        ctx.globalAlpha = (0.4 + (1 - layer[i] * 0.3) * 0.6) * (0.8 + Math.sin(time * 1.5 + phase[i]) * 0.2);
-        const s = size[i] * (1.5 - layer[i] * 0.3);
-        ctx.drawImage(snowFlakeTex, px[i] - s * 2, py[i] - s * 2, s * 4, s * 4);
+        if (px[i] > width + 20) px[i] = -20;
+        if (px[i] < -20) px[i] = width + 20;
+
+        const twinkle = 0.7 + Math.sin(time * 2 + phase[i]) * 0.3;
+        ctx.globalAlpha = (0.4 + (1 - layer[i] * 0.3) * 0.6) * twinkle;
+        const s = size[i] * (1.2 - layer[i] * 0.3);
+        const rotation = time * (0.5 + phase[i] * 0.2);
+
+        ctx.save();
+        ctx.translate(px[i], py[i]);
+        ctx.rotate(rotation);
+        ctx.drawImage(snowFlakeTex, -s * 2, -s * 2, s * 4, s * 4);
+        ctx.restore();
     }
 }
 
@@ -1296,7 +1326,7 @@ function render(timestamp: number) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
         // --- VISIBILITY FIX: Dim background for readability ---
-        const isDimmed = currentTheme?.id === 'marchen' || currentTheme?.id === 'midnight-ocean' || currentTheme?.id === 'crimson-flare';
+        const isDimmed = currentTheme?.id === 'marchen' || currentTheme?.id === 'midnight-ocean' || currentTheme?.id === 'crimson-flare' || currentTheme?.id === 'winter-snow';
         ctx.globalAlpha = isDimmed ? 0.5 : 1.0; 
         ctx.drawImage(bgImageBitmap, 0, 0, canvas.width, canvas.height); // Draw to physical canvas size
         ctx.globalAlpha = 1.0; // Reset
