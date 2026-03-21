@@ -1249,7 +1249,7 @@ function render(timestamp: number) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
         // --- VISIBILITY FIX: Dim background for readability ---
-        const isDimmed = currentTheme?.id === 'marchen' || currentTheme?.id === 'midnight-ocean';
+        const isDimmed = currentTheme?.id === 'marchen' || currentTheme?.id === 'midnight-ocean' || currentTheme?.id === 'crimson-flare';
         ctx.globalAlpha = isDimmed ? 0.5 : 1.0; 
         ctx.drawImage(bgImageBitmap, 0, 0, canvas.width, canvas.height); // Draw to physical canvas size
         ctx.globalAlpha = 1.0; // Reset

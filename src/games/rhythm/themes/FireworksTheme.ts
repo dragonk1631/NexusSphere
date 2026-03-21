@@ -37,7 +37,8 @@ export class FireworksTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         judgment: Judgment,
-        t: number
+        t: number,
+        _seed: number
     ): void {
         const alpha = 1 - t;
         const baseColor = this.getColorForJudgment(judgment);

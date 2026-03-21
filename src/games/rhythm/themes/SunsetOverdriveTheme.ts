@@ -35,7 +35,8 @@ export class SunsetOverdriveTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         judgment: Judgment,
-        t: number
+        t: number,
+        _seed: number
     ): void {
         const isPerfect = judgment === Judgment.PERFECT;
         const colorMain = '#E3C1A1'; // Luminous Gold

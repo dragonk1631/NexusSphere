@@ -31,7 +31,8 @@ export class WinterSnowTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         judgment: Judgment,
-        t: number
+        t: number,
+        _seed: number
     ): void {
         const ease = 1 - Math.pow(t, 1.6);
         const isPerfect = judgment === Judgment.PERFECT;

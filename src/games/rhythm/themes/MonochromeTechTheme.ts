@@ -32,7 +32,8 @@ export class MonochromeTechTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         judgment: Judgment,
-        t: number
+        t: number,
+        _seed: number
     ): void {
         const ease = 1 - Math.pow(t, 2);
         const isPerfect = judgment === Judgment.PERFECT;

@@ -25,6 +25,36 @@ export class CrimsonFlareTheme implements IThemeStrategy {
         }
     }
 
+    private static dropletSprite: HTMLCanvasElement | null = null;
+
+    private getDropletSprite(): HTMLCanvasElement {
+        if (CrimsonFlareTheme.dropletSprite) return CrimsonFlareTheme.dropletSprite;
+        
+        const s = 48; // Size for the sprite
+        const canvas = document.createElement('canvas');
+        canvas.width = s;
+        canvas.height = s;
+        const c = canvas.getContext('2d')!;
+        
+        const cx = s / 2;
+        const cy = s / 2;
+        const radius = (s / 2) - 2;
+
+        const grad = c.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        grad.addColorStop(0, 'rgba(255, 240, 150, 1.0)'); // White-hot core
+        grad.addColorStop(0.4, 'rgba(255, 100, 0, 0.8)'); // Bright orange
+        grad.addColorStop(0.7, 'rgba(200, 20, 0, 0.3)');  // Deep red glow
+        grad.addColorStop(1, 'rgba(150, 0, 0, 0)');
+        
+        c.fillStyle = grad;
+        c.beginPath();
+        c.arc(cx, cy, radius, 0, Math.PI * 2);
+        c.fill();
+
+        CrimsonFlareTheme.dropletSprite = canvas;
+        return canvas;
+    }
+
     /**
      * Lava Eruption: Crimson/ember droplets arc upward in a fountain then fall
      * due to gravity, with a searing blast ring at impact point.
@@ -35,7 +65,8 @@ export class CrimsonFlareTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         judgment: Judgment,
-        t: number
+        t: number,
+        seed: number // Added seed parameter
     ): void {
         const ease = 1 - Math.pow(t, 2);
         const isPerfect = judgment === Judgment.PERFECT;
@@ -44,37 +75,29 @@ export class CrimsonFlareTheme implements IThemeStrategy {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Lava droplets: parabolic arcs (fountain pattern)
+        // 1. Lava droplets: Upward random movement (Ember-style)
+        const sprite = this.getDropletSprite();
         for (let i = 0; i < dropCount; i++) {
-            // Fan spread — symmetric on both sides
-            const fanRatio = (i / (dropCount - 1)) - 0.5;
-            const launchAngle = -Math.PI / 2 + fanRatio * 1.4; // -90° ± 40° spread
-            const speed = 0.8 + Math.abs(fanRatio) * 0.4; // center drops go higher
+            // Incorporate the global hit seed into the per-particle seed
+            const pSeed = i * 123.456 + seed * 678.910;
+            const randVX = (Math.sin(pSeed) * 2 - 1) * 0.4; // Initial horizontal spread
+            const upwardSpeed = 1.8 + Math.abs(Math.cos(pSeed)) * 2.2; // 1.8 to 4.0
+            const swayAmp = Math.sin(pSeed * 2) * 25; // Sway amplitude
+            const swayFreq = 10 + Math.cos(pSeed) * 3; // Sway frequency
 
-            // Parabolic: horizontal constant, vertical = initial velocity - gravity
-            const vx = Math.cos(launchAngle) * speed;
-            const vy = Math.sin(launchAngle) * speed;
-            const g = 1.8; // gravity constant
+            const dt = t * 1.2; 
+            const px = x + (randVX * laneWidth) + (Math.sin(t * swayFreq + pSeed) * swayAmp * t);
+            const py = y - (dt * upwardSpeed * laneWidth * 1.1);
 
-            const dt = t * 1.4; // time in flight
-            const px = x + vx * dt * laneWidth * 1.5;
-            const py = y + (vy * dt - 0.5 * g * dt * dt) * laneWidth * 1.3;
+            if (py < -50) continue; // Skip if off-screen top
 
-            if (py > y + 10) continue; // skip if fallen below hit line
+            const dropAlpha = ease * (0.95 - Math.abs(randVX) * 0.2);
+            const dropSize = (3 + Math.abs(Math.sin(pSeed)) * 5) * ease;
 
-            const dropAlpha = ease * (0.95 - Math.abs(fanRatio) * 0.2);
-            const dropSize = (3 + (1 - Math.abs(fanRatio)) * 4) * ease;
-
-            // Ember glow: bright core → fading orange rim
-            const dropGrad = ctx.createRadialGradient(px, py, 0, px, py, dropSize * 2);
-            dropGrad.addColorStop(0, `rgba(255, 240, 150, ${dropAlpha})`);
-            dropGrad.addColorStop(0.4, `rgba(255, 80, 0, ${dropAlpha * 0.7})`);
-            dropGrad.addColorStop(1, 'rgba(150, 0, 0, 0)');
-            ctx.fillStyle = dropGrad;
-            ctx.beginPath();
-            ctx.arc(px, py, dropSize * 2, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.globalAlpha = dropAlpha;
+            ctx.drawImage(sprite, px - dropSize * 2, py - dropSize * 2, dropSize * 4, dropSize * 4);
         }
+        ctx.globalAlpha = 1.0;
 
         // 2. Blast shockwave ring
         const blastR = laneWidth * (0.1 + t * 2.4);
@@ -86,12 +109,12 @@ export class CrimsonFlareTheme implements IThemeStrategy {
         ctx.arc(x, y, blastR, 0, Math.PI * 2);
         ctx.fill();
 
-        // 3. Blazing core
-        const coreR = laneWidth * 0.45 * ease;
+        // 3. Blazing core - Slightly more vibrant to stand out against background
+        const coreR = laneWidth * 0.5 * ease;
         const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
-        coreGrad.addColorStop(0, `rgba(255, 255, 200, ${ease * 0.95})`);
-        coreGrad.addColorStop(0.3, `rgba(255, 160, 0, ${ease * 0.7})`);
-        coreGrad.addColorStop(0.8, `rgba(200, 30, 0, ${ease * 0.3})`);
+        coreGrad.addColorStop(0, `rgba(255, 255, 220, ${ease * 1.0})`); // Whiter core
+        coreGrad.addColorStop(0.3, `rgba(255, 200, 0, ${ease * 0.8})`); // Brighter yellow/orange
+        coreGrad.addColorStop(0.8, `rgba(220, 50, 0, ${ease * 0.4})`);
         coreGrad.addColorStop(1, 'rgba(100, 0, 0, 0)');
         ctx.fillStyle = coreGrad;
         ctx.beginPath();

@@ -37,7 +37,8 @@ export class MarchenTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         _judgment: Judgment,
-        t: number
+        t: number,
+        _seed: number
     ): void {
         const ease = 1 - Math.pow(t, 1.2);
         const petalCount = 8; // Half of 16

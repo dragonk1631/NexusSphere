@@ -13,7 +13,7 @@ const EFFECTS_CONFIG = {
     MAX_SHOCKWAVES: 8
 } as const;
 
-const HE_OFF = { X: 0, Y: 1, WIDTH: 2, JUDGMENT: 3, BIRTH: 4, ACTIVE: 5, STRIDE: 6 };
+const HE_OFF = { X: 0, Y: 1, WIDTH: 2, JUDGMENT: 3, BIRTH: 4, ACTIVE: 5, SEED: 6, STRIDE: 7 };
 const SW_OFF = { X: 0, Y: 1, BIRTH: 2, ACTIVE: 3, STRIDE: 4 };
 
 /**
@@ -60,6 +60,7 @@ export class EffectsRenderer {
         this.hitEventBuffer[idx + HE_OFF.JUDGMENT] = judgment;
         this.hitEventBuffer[idx + HE_OFF.BIRTH] = performance.now();
         this.hitEventBuffer[idx + HE_OFF.ACTIVE] = 1.0;
+        this.hitEventBuffer[idx + HE_OFF.SEED] = Math.random();
 
         this.hitEventIndex = (this.hitEventIndex + 1) % this.maxHitEvents;
     }
@@ -113,7 +114,8 @@ export class EffectsRenderer {
                 this.hitEventBuffer[idx + HE_OFF.Y],
                 this.hitEventBuffer[idx + HE_OFF.WIDTH],
                 this.hitEventBuffer[idx + HE_OFF.JUDGMENT] as Judgment,
-                t
+                t,
+                this.hitEventBuffer[idx + HE_OFF.SEED]
             );
             ctx.restore();
         }

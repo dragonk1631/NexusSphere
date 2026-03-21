@@ -36,7 +36,8 @@ export class DeepSpaceTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         _judgment: Judgment,
-        t: number
+        t: number,
+        _seed: number
     ): void {
         const ease = 1 - Math.pow(t, 1.5);
         const starCount = 6; // Reduced from 12

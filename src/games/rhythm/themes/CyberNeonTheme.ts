@@ -35,7 +35,8 @@ export class CyberNeonTheme implements IThemeStrategy {
         y: number,
         laneWidth: number,
         judgment: Judgment,
-        t: number
+        t: number,
+        _seed: number
     ): void {
         const ease = 1 - Math.pow(t, 2); // ease-out
         const alpha = ease;

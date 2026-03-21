@@ -35,6 +35,7 @@ export interface IThemeStrategy {
      * @param laneWidth Width of the lane at hit position
      * @param judgment PERFECT | GREAT | GOOD
      * @param t  Normalized time [0..1], 0=just hit, 1=fully expired
+     * @param seed Random seed [0..1] for per-hit variance
      */
     renderHitEffect?(
         ctx: CanvasRenderingContext2D,
@@ -42,6 +43,7 @@ export interface IThemeStrategy {
         y: number,
         laneWidth: number,
         judgment: Judgment,
-        t: number
+        t: number,
+        seed: number
     ): void;
 }
