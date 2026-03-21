@@ -1187,35 +1187,82 @@ function drawSunset(theme: ThemeConfig) {
 
 function drawHexagons(theme: ThemeConfig) {
     const size_ = 60, hStep = size_ * 1.5, vStep = size_ * Math.sqrt(3);
-    const pTime = (time * 0.125) % 3;
-    const isRadial = pTime < 1, isLinear = pTime >= 1 && pTime < 2;
-    ctx.strokeStyle = colorCache.gridAlpha20;
+    
+    // 1. Pre-render vertex dot sprite (Cache for mobile performance)
+    const dotSprite = getCachedTexture('tech_vertex_dot', 32, c => {
+        const grad = c.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, '#FFFFFF');
+        grad.addColorStop(0.3, '#FFFFFF');
+        grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.fillRect(0, 0, 32, 32);
+    });
+
+    const breathing = Math.sin(time * 0.4) * 0.5 + 0.5; 
+    const glowExpansion = 1.0 + breathing * 0.4;
+    const baseAlpha = 0.15 + breathing * 0.1;
+    
+    // 2. Base grid style (Batch stroke for performance)
+    ctx.strokeStyle = applyAlpha(theme.gridColor, alphaHexSlice[Math.floor(baseAlpha * 255)]);
     ctx.lineWidth = 1.0;
     ctx.beginPath();
+    
     const pulseList: {x: number, y: number, alpha: number}[] = [];
+    
     for (let x = -size_; x < width + size_; x += hStep) {
         const isOdd = Math.floor((x + size_) / hStep) % 2 === 1;
         for (let y = -size_; y < height + size_; y += vStep) {
             const py_ = isOdd ? y + vStep / 2 : y;
-            let pulse = isRadial ? Math.sin(time * 3 - Math.sqrt((x - width / 2) ** 2 + (py_ - height / 2) ** 2) * 0.008) * 0.5 + 0.5 
-                             : isLinear ? Math.sin(time * 4 - (x + py_) * 0.005) * 0.5 + 0.5 
-                                      : Math.sin(time * 2.5 + Math.sin(x * 0.05) * Math.cos(py_ * 0.05) * 2000) * 0.5 + 0.5;
-            if (pulse > 0.85) { pulseList.push({x, y: py_, alpha: pulse}); }
-            else {
+            const dist = Math.sqrt((x - width * 0.5) ** 2 + (py_ - height * 0.5) ** 2) * 0.005;
+            const noise = Math.sin(x * 0.01 + y * 0.01 + time * 0.2);
+            let pulse = Math.pow(Math.sin(time * 0.3 - dist * 4.0 + noise * 2.0) * 0.5 + 0.5, 4);
+
+            if (pulse > 0.6) { 
+                pulseList.push({x, y: py_, alpha: pulse}); 
+            } else {
                 ctx.moveTo(x + size_, py_); ctx.lineTo(x + size_ * 0.5, py_ + size_ * 0.866); ctx.lineTo(x - size_ * 0.5, py_ + size_ * 0.866); ctx.lineTo(x - size_, py_); ctx.lineTo(x - size_ * 0.5, py_ - size_ * 0.866); ctx.lineTo(x + size_ * 0.5, py_ - size_ * 0.866); ctx.lineTo(x + size_, py_);
             }
         }
     }
     ctx.stroke();
-    const pArr = themeAlphaCache.particle;
+
+    // 3. Draw active pulsing hexagons (Using multi-stroke for performance)
     for (let i = 0; i < pulseList.length; i++) {
-        const p = pulseList[i], alphaIdx = Math.floor(p.alpha * 255);
-        ctx.strokeStyle = pArr[alphaIdx]; ctx.lineWidth = 2.5; ctx.beginPath();
-        ctx.moveTo(p.x + size_, p.y); ctx.lineTo(p.x + size_ * 0.5, p.y + size_ * 0.866); ctx.lineTo(p.x - size_ * 0.5, p.y + size_ * 0.866); ctx.lineTo(p.x - size_, p.y); ctx.lineTo(p.x - size_ * 0.5, p.y - size_ * 0.866); ctx.lineTo(p.x + size_ * 0.5, p.y - size_ * 0.866); ctx.closePath(); ctx.stroke();
-        if (p.alpha > 0.92) {
-            ctx.fillStyle = theme.particleColor; ctx.globalAlpha = (p.alpha - 0.9) * 10; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
-        }
+        const p = pulseList[i], alpha = p.alpha;
+        const color = applyAlpha('#FFFFFF', alphaHexSlice[Math.floor(alpha * 255)]);
+        
+        // Multi-stroke glow simulation (Faster than shadowBlur)
+        ctx.strokeStyle = applyAlpha('#FFFFFF', alphaHexSlice[Math.floor(alpha * 60)]);
+        ctx.lineWidth = (4 + alpha * 6) * glowExpansion;
+        drawHexPath(p.x, p.y, size_);
+        ctx.stroke();
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.0 + alpha * 2.0;
+        drawHexPath(p.x, p.y, size_);
+        ctx.stroke();
+
+        // 4. Draw vertex dots using cached sprite
+        const dSize = (2.2 + alpha * 1.5) * glowExpansion * 4; 
+        const offset = dSize / 2;
+        ctx.globalAlpha = 0.8 + alpha * 0.2;
+        
+        const c1 = size_, c2 = size_ * 0.5, c3 = size_ * 0.866;
+        ctx.drawImage(dotSprite, p.x + c1 - offset, p.y - offset, dSize, dSize);
+        ctx.drawImage(dotSprite, p.x + c2 - offset, p.y + c3 - offset, dSize, dSize);
+        ctx.drawImage(dotSprite, p.x - c2 - offset, p.y + c3 - offset, dSize, dSize);
+        ctx.drawImage(dotSprite, p.x - c1 - offset, p.y - offset, dSize, dSize);
+        ctx.drawImage(dotSprite, p.x - c2 - offset, p.y - c3 - offset, dSize, dSize);
+        ctx.drawImage(dotSprite, p.x + c2 - offset, p.y - c3 - offset, dSize, dSize);
     }
+    ctx.globalAlpha = 1.0;
+}
+
+/** Helper for hexagon paths to avoid duplication */
+function drawHexPath(x: number, y: number, s: number) {
+    ctx.beginPath();
+    ctx.moveTo(x + s, y); ctx.lineTo(x + s * 0.5, y + s * 0.866); ctx.lineTo(x - s * 0.5, y + s * 0.866); ctx.lineTo(x - s, y); ctx.lineTo(x - s * 0.5, y - s * 0.866); ctx.lineTo(x + s * 0.5, y - s * 0.866); ctx.closePath();
 }
 
 // --- Main Render Loop ---
