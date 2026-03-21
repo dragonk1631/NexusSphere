@@ -40,72 +40,81 @@ export class MarchenTheme implements IThemeStrategy {
         t: number,
         _seed: number
     ): void {
-        const ease = 1 - Math.pow(t, 1.2);
-        const petalCount = 8; // Half of 16
-        const dustCount = 15;  // Half of 30
+        const ease = 1 - Math.pow(t, 1.3);
+        const outEase = 1 - Math.pow(t, 2.2);
 
         ctx.save();
-        ctx.globalCompositeOperation = 'screen';
+        ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Ethereal Petals (Soft Pink/Red) - Scaled Up
-        for (let i = 0; i < petalCount; i++) {
-            const seed = (i * 0.78) % 1;
-            const angle = (i / petalCount) * Math.PI * 2 + t * 2.5;
-            const dist = laneWidth * (0.35 + t * 2.2); // Wider spread
+        // 1. Rainbow Concentric Bloom (Expanding color-shifting rings)
+        const ringCount = 3;
+        for (let i = 0; i < ringCount; i++) {
+            const progress = Math.pow(Math.max(0, t - i * 0.12), 0.7);
+            if (progress >= 1.0) continue;
+
+            const ringR = laneWidth * (0.3 + progress * 2.2);
+            const alpha = (1 - progress) * 0.7;
+            const hue = (i * 60 + t * 360) % 360; // Shifting rainbow hue
+
+            ctx.strokeStyle = `hsla(${hue}, 85%, 75%, ${alpha})`;
+            ctx.lineWidth = (6 - i) * (1 - progress) * 2;
+            ctx.beginPath();
+            ctx.arc(x, y, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Inner pink core for extra shimmer (formerly white)
+            ctx.strokeStyle = `rgba(255, 235, 245, ${alpha * 0.5})`;
+            ctx.lineWidth = 1.5 * (1 - progress);
+            ctx.stroke();
+        }
+
+        // 2. Enhanced Heart Particles (1.5x Larger, Half speed rotation)
+        const heartCount = 10;
+        for (let i = 0; i < heartCount; i++) {
+            const seed = (i * 0.38) % 1;
+            const angle = (i / heartCount) * Math.PI * 2 + t * 1.2;
+            const dist = laneWidth * (0.3 + t * 2.2);
             const px = x + Math.cos(angle) * dist;
-            const py = y + Math.sin(angle) * dist * 0.75;
+            const py = y + Math.sin(angle) * dist * 0.85;
 
-            const currentSize = (4 + seed * 14) * ease; // Wider random range (formerly 6+seed*9)
-            const alpha = ease; // Fully opaque
+            const blink = Math.pow(Math.sin(t * 15 + i), 2);
+            const hAlpha = ease * (0.5 + blink * 0.5);
+            // 1.5x larger than old petals (old average ~11, new average ~18)
+            const hSize = (12 + seed * 16) * ease; 
+            const hue = (seed * 360 + t * 80) % 360;
 
             ctx.save();
             ctx.translate(px, py);
-            ctx.rotate(angle + t * 6);
-            ctx.fillStyle = `rgba(255, 120, 180, ${alpha})`;
-            
-            // Draw a soft petal shape (elliptical heart-ish)
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.bezierCurveTo(-currentSize, -currentSize, -currentSize * 1.5, currentSize / 2, 0, currentSize);
-            ctx.bezierCurveTo(currentSize * 1.5, currentSize / 2, currentSize, -currentSize, 0, 0);
-            ctx.fill();
+            // Half rotation speed (formerly t*6 in original petal logic)
+            ctx.rotate(angle + t * 3); 
+            ctx.fillStyle = `hsla(${hue}, 80%, 75%, ${hAlpha})`;
+            this.drawHeart(ctx, 0, 0, hSize);
             ctx.restore();
         }
 
-        // 2. Pixie Dust (Sparkling Gold/White) - Doubled & Opaque
-        for (let i = 0; i < dustCount; i++) {
-            const seed = (i * 0.33) % 1;
-            const angle = seed * Math.PI * 2;
-            const dist = laneWidth * seed * 1.8 * (0.5 + t * 1.4);
-            const dx = x + Math.cos(angle) * dist;
-            const dy = y + Math.sin(angle) * dist * 1.3;
-            
-            const alpha = Math.max(0, (1 - t * 1.3)) * (0.6 + Math.sin(t * 25 + i) * 0.4);
-            const dSize = (1 + seed * 4) * (1 - t); // Wider random range (formerly 1.5+seed*2.5)
-
-            ctx.fillStyle = i % 2 === 0 ? `rgba(255, 230, 150, ${alpha})` : `rgba(255, 255, 255, ${alpha})`;
-            ctx.beginPath();
-            ctx.arc(dx, dy, dSize, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // 3. Concentric Magic Ring (Single additive ripple)
-        const progress = t; 
-        const ringR = laneWidth * (0.3 + progress * 2.8);
-        ctx.strokeStyle = `rgba(255, 180, 220, ${(1 - progress) * 0.8})`; // More vivid (formerly 0.5)
-        ctx.lineWidth = 4 * (1 - progress); // Slightly thicker (formerly 3)
-        ctx.beginPath();
-        ctx.arc(x, y, ringR, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // 4. Strong Magic Glow (Feedback)
-        const bloomR = laneWidth * 0.75 * ease; // Larger bloom
+        // 3. Central Magical Bloom (Glow feedback)
+        const bloomR = laneWidth * 0.65 * outEase;
         const bloomGrad = ctx.createRadialGradient(x, y, 0, x, y, bloomR);
-        bloomGrad.addColorStop(0, `rgba(255, 220, 240, ${ease * 0.8})`); // Brighter
+        // Changed center from white to pink
+        bloomGrad.addColorStop(0, `rgba(255, 220, 240, ${outEase * 0.95})`);
+        bloomGrad.addColorStop(0.5, `hsla(340, 100%, 90%, ${outEase * 0.6})`);
         bloomGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = bloomGrad;
-        ctx.beginPath(); ctx.arc(x, y, bloomR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, bloomR, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
+    }
+
+    private drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+        const s = size * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(x, y + s / 4);
+        ctx.bezierCurveTo(x, y - s / 2, x - s, y - s / 2, x - s, y + s / 4);
+        ctx.bezierCurveTo(x - s, y + s * 0.7, x, y + s, x, y + s * 1.2);
+        ctx.bezierCurveTo(x, y + s, x + s, y + s * 0.7, x + s, y + s / 4);
+        ctx.bezierCurveTo(x + s, y - s / 2, x, y - s / 2, x, y + s / 4);
+        ctx.fill();
     }
 }
