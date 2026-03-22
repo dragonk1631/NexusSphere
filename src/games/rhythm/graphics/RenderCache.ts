@@ -797,6 +797,80 @@ export class RenderCache {
         return canvas;
     }
 
+    private themePreviews: Map<string, string> = new Map();
+    private readonly STORAGE_KEY = 'nexus_theme_thumbnails_v5';
+
+    public async getBackgroundPreview(themeId: string): Promise<string> {
+        // 1. Memory Cache
+        if (this.themePreviews.has(themeId)) return this.themePreviews.get(themeId)!;
+
+        // 2. LocalStorage Persistence
+        try {
+            const stored = localStorage.getItem(`${this.STORAGE_KEY}_${themeId}`);
+            if (stored) {
+                this.themePreviews.set(themeId, stored);
+                return stored;
+            }
+        } catch (e) { /* ignore */ }
+
+        // 3. Generation (Icon-First)
+        const baseNames = ['icon', 'bg', `bg_${themeId}`, 'bg_tech', 'bg_flare', 'bg_ocean', 'bg_vapor', 'bg_matrix', 'bg_space', 'bg_sunset', 'bg_marchen', 'bg_fireworks', 'bg_winter'];
+        const extensions = ['webp', 'png', 'jpg', 'jpeg'];
+        
+        const iconPaths: string[] = [];
+        for (const base of baseNames) {
+            for (const ext of extensions) {
+                iconPaths.push(`assets/images/background-themes/${themeId}/${base}.${ext}`);
+            }
+        }
+
+        let img: HTMLImageElement | null = null;
+        for (const path of iconPaths) {
+            try {
+                img = await this.loadImage(path);
+                if (img) break;
+            } catch (e) { /* continue */ }
+        }
+
+        if (!img) return "";
+
+        // Downscale to 160x90 (Standard high-q thumbnail)
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = 160;
+        thumbCanvas.height = 90;
+        const tCtx = thumbCanvas.getContext('2d')!;
+        
+        const scale = Math.max(thumbCanvas.width / img.width, thumbCanvas.height / img.height);
+        const nw = img.width * scale;
+        const nh = img.height * scale;
+        tCtx.drawImage(img, (thumbCanvas.width - nw) / 2, (thumbCanvas.height - nh) / 2, nw, nh);
+
+        // WebP quality 0.9 (Very high clarity for thumbnails)
+        const dataUrl = thumbCanvas.toDataURL('image/webp', 0.9);
+        
+        // Save to cache & storage
+        this.themePreviews.set(themeId, dataUrl);
+        try {
+            localStorage.setItem(`${this.STORAGE_KEY}_${themeId}`, dataUrl);
+        } catch (e) { 
+            // If quota exceeded, we just fail silently (memory cache still works)
+            console.warn("[RenderCache] LocalStorage quota exceeded for thumbnails");
+        }
+        
+        return dataUrl;
+    }
+
+    private loadImage(url: string): Promise<HTMLImageElement> {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject();
+            img.src = url;
+            // Cross-origin for static assets if needed
+            img.crossOrigin = "anonymous";
+        });
+    }
+
     public getPreviewDataURL(skinId: string): string {
         // Use Lane 3 (Cyber Cyan) colors for preview mapping
         const colorSet = this.COLORS[3];

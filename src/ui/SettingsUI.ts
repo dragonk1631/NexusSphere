@@ -3,6 +3,8 @@ import { ThemeManager } from '../core/ThemeManager';
 import { NoteSkinManager } from '../core/NoteSkinManager';
 import { RenderCache } from '../games/rhythm/graphics/RenderCache';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
+import { BackgroundRenderer } from '../core/graphics/BackgroundRenderer';
+import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 
 type Tab = 'theme' | 'note' | 'audio' | 'gameplay';
 
@@ -210,30 +212,7 @@ export class SettingsUI {
                 .tab-container-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
 
 
-                /* Deliberate Loading State (v34 Pure-Transparent) */
-                .settings-loading-overlay {
-                    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                    background: transparent; /* Box Removed v34 */
-                    display: flex; flex-direction: column; align-items: center; justify-content: center;
-                    z-index: 100; opacity: 0; pointer-events: none;
-                    transition: opacity 0.2s ease;
-                    backdrop-filter: none; /* Blur Removed v34 */
-                }
-                .settings-loading-overlay.active { opacity: 1; pointer-events: all; }
-
-                .loading-text {
-                    font-family: 'Outfit', sans-serif;
-                    font-size: 3rem; font-weight: 900; color: #fff;
-                    letter-spacing: 15px; text-transform: uppercase;
-                    /* Stronger glow for transparent background v34 */
-                    text-shadow: 0 0 30px rgba(0, 229, 255, 1), 0 0 10px rgba(0, 229, 255, 0.8), -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
-                    animation: readyPulse 0.8s ease-in-out infinite alternate;
-                }
-
-                @keyframes readyPulse {
-                    from { opacity: 0.5; transform: scale(0.95); }
-                    to { opacity: 1; transform: scale(1.05); }
-                }
+                /* Theme Grid (v36 Balanced) */
 
 
 
@@ -398,9 +377,7 @@ export class SettingsUI {
                     </div>
                     <div class="settings-panel" id="settings-panel">
                         <div id="settings-tab-content"></div>
-                        <div id="settings-loading" class="settings-loading-overlay">
-                            <div class="loading-text">LOADING...</div>
-                        </div>
+                    </div>
                     </div>
 
 
@@ -439,15 +416,17 @@ export class SettingsUI {
     /** Only swap visibility + update active states with a deliberate 'READY' loading phase. (v31) */
     private updateTabContent(): void {
         const contentEl = document.getElementById('settings-tab-content');
-        const loadingEl = document.getElementById('settings-loading');
-        if (!contentEl || !loadingEl) return;
+        if (!contentEl) return;
 
-        // 1. Show 'READY' Loading Screen
-        loadingEl.classList.add('active');
+        // 1. Show Global Unified Loading Screen
+        const loading = LoadingOverlay.getInstance();
+        loading.show("SYNCHRONIZING ASSETS...");
         contentEl.classList.add('transitioning');
 
-        // 2. Deliberate wait for smooth transition (150ms as requested)
-        setTimeout(() => {
+        // 2. Wait for actual assets to be ready (v45 Dynamic Sync)
+        (async () => {
+            await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+            
             requestAnimationFrame(() => {
                 // Update tab button active states
                 document.querySelectorAll('#settings-tabs .tab-btn[data-tab]').forEach(btn => {
@@ -483,10 +462,10 @@ export class SettingsUI {
                 // Clear Transition & Loading
                 setTimeout(() => {
                     contentEl.classList.remove('transitioning');
-                    loadingEl.classList.remove('active');
+                    loading.hide();
                 }, 50);
             });
-        }, 150);
+        })();
     }
 
 
@@ -517,34 +496,59 @@ export class SettingsUI {
 
         if (this.activeTab === 'theme') {
             const themes = themeManager.getAllThemes();
-            const themesHtml = themes.map(t => {
-                let innerHtml = `<span class="theme-name">${t.name}</span>`;
-                
-                // v44: Inject live sparkles for Marchen
-                if (t.id === 'marchen') {
-                    const sparkles = Array.from({ length: 8 }).map((_) => {
-                        const top = Math.random() * 80 + 10;
-                        const left = Math.random() * 80 + 10;
-                        const delay = Math.random() * 2;
-                        const duration = 1.5 + Math.random() * 1;
-                        return `<span class="icon-sparkle-marchen" style="top:${top}%; left:${left}%; animation-delay:${delay}s; animation-duration:${duration}s;"></span>`;
-                    }).join('');
-                    innerHtml = sparkles + innerHtml;
-                }
+            
+            // v48: Show loading overlay while batch-loading thumbnails
+            const loading = LoadingOverlay.getInstance();
+            loading.show("PREPARING THEMES...");
+            loading.updateProgress(0);
 
-                return `
-                <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''}" data-theme="${t.id}"
-                        style="background: linear-gradient(135deg, ${t.color1}, ${t.color2}); border-color: ${t.color3};">
-                    ${innerHtml}
-                </button>
+            // Sequential or parallel? Parallel with progress
+            let loadedCount = 0;
+            const previewPromises = themes.map(async (t) => {
+                const url = await RenderCache.getInstance().getBackgroundPreview(t.id);
+                loadedCount++;
+                loading.updateProgress(Math.floor((loadedCount / themes.length) * 100));
+                return { theme: t, url };
+            });
+
+            Promise.all(previewPromises).then(results => {
+                const themesHtml = results.map(res => {
+                    const t = res.theme;
+                    let innerHtml = `<span class="theme-name">${t.name}</span>`;
+                    
+                    // v44: Inject live sparkles for Marchen
+                    if (t.id === 'marchen') {
+                        const sparkles = Array.from({ length: 8 }).map((_) => {
+                            const top = Math.random() * 80 + 10;
+                            const left = Math.random() * 80 + 10;
+                            const delay = Math.random() * 2;
+                            const duration = 1.5 + Math.random() * 1;
+                            return `<span class="icon-sparkle-marchen" style="top:${top}%; left:${left}%; animation-delay:${delay}s; animation-duration:${duration}s;"></span>`;
+                        }).join('');
+                        innerHtml = sparkles + innerHtml;
+                    }
+
+                    const bgStyle = res.url ? `background-image: url(${res.url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
+
+                    return `
+                    <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''}" 
+                            data-theme="${t.id}"
+                            style="${bgStyle} border-color: ${t.color3}; background-size: cover; background-position: center; background-repeat: no-repeat;">
+                        ${innerHtml}
+                    </button>
+                    `;
+                }).join('');
+
+                contentEl.innerHTML = `
+                    <div class="theme-grid">
+                        ${themesHtml}
+                    </div>
                 `;
-            }).join('');
 
-            contentEl.innerHTML = `
-                <div class="theme-grid">
-                    ${themesHtml}
-                </div>
-            `;
+                // Re-bind listeners as we just replaced the HTML
+                this.attachThemeListeners(contentEl);
+                loading.hide();
+            });
 
         } else if (this.activeTab === 'note') {
             const renderCache = RenderCache.getInstance();
@@ -619,9 +623,14 @@ export class SettingsUI {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 const themeId = target.getAttribute('data-theme');
-                if (themeId) {
+                const currentThemeId = ThemeManager.getInstance().getCurrentTheme().id;
+                
+                // v46: Ignore click if already active
+                if (themeId && themeId !== currentThemeId) {
                     ThemeManager.getInstance().setTheme(themeId);
                     this.updateTabContent();
+                } else {
+                    console.log(`[SettingsUI] Theme ${themeId} is already active. Ignoring click.`);
                 }
             });
         });
