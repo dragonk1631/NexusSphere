@@ -1,7 +1,7 @@
-import type { IThemeStrategy } from './IThemeStrategy';
+import { BaseThemeStrategy } from './BaseThemeStrategy';
 import { Judgment } from '../types/GameTypes';
 
-export class MidnightOceanTheme implements IThemeStrategy {
+export class MidnightOceanTheme extends BaseThemeStrategy {
     public readonly id = 'midnight-ocean';
 
     public renderHitZonePulse(ctx: CanvasRenderingContext2D, _lane: number, x: number, y: number, width: number, beatPhase: number): void {
@@ -21,49 +21,43 @@ export class MidnightOceanTheme implements IThemeStrategy {
         }
     }
 
-    private static bubbleSprite: HTMLCanvasElement | null = null;
-
     private getBubbleSprite(): HTMLCanvasElement {
-        if (MidnightOceanTheme.bubbleSprite) return MidnightOceanTheme.bubbleSprite;
-        
-        const s = 64;
-        const canvas = document.createElement('canvas');
-        canvas.width = s;
-        canvas.height = s;
-        const c = canvas.getContext('2d')!;
-        
-        // High-Fidelity Professional Bubble Style
-        const bx = s / 2;
-        const by = s / 2;
-        const bSize = (s / 2) - 4;
+        return this.getCachedSprite('midnight_bubble_premium', 64, (c, s) => {
+            const bx = s / 2;
+            const by = s / 2;
+            const bSize = (s / 2) - 4;
 
-        c.beginPath();
-        c.arc(bx, by, bSize, 0, Math.PI * 2);
-        
-        // 1. Sharp white outline
-        c.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-        c.lineWidth = 2.0;
-        c.stroke();
-        
-        // 2. Very subtle cyan glow inside
-        c.fillStyle = 'rgba(180, 255, 255, 0.15)';
-        c.fill();
-        
-        // 3. Prominent highlight dot (top-left)
-        const hlSize = bSize * 0.4;
-        const hlGrad = c.createRadialGradient(
-            bx - bSize * 0.35, by - bSize * 0.35, 0,
-            bx - bSize * 0.35, by - bSize * 0.35, hlSize
-        );
-        hlGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-        hlGrad.addColorStop(1, 'transparent');
-        c.fillStyle = hlGrad;
-        c.beginPath();
-        c.arc(bx - bSize * 0.35, by - bSize * 0.35, hlSize, 0, Math.PI * 2);
-        c.fill();
+            // 1. Bubble Shell (Crisp edge)
+            c.beginPath();
+            c.arc(bx, by, bSize, 0, Math.PI * 2);
+            c.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+            c.lineWidth = 2.0;
+            c.stroke();
+            
+            // 2. Translucent Fill (Depth)
+            c.fillStyle = 'rgba(180, 255, 255, 0.18)';
+            c.fill();
+            
+            // 3. Specular Highlight (Bloom)
+            const hlSize = bSize * 0.45;
+            const hlGrad = c.createRadialGradient(
+                bx - bSize * 0.35, by - bSize * 0.35, 0,
+                bx - bSize * 0.35, by - bSize * 0.35, hlSize
+            );
+            hlGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+            hlGrad.addColorStop(1, 'transparent');
+            c.fillStyle = hlGrad;
+            c.beginPath();
+            c.arc(bx - bSize * 0.35, by - bSize * 0.35, hlSize, 0, Math.PI * 2);
+            c.fill();
 
-        MidnightOceanTheme.bubbleSprite = canvas;
-        return canvas;
+            // 4. Subtle Outer Rim Glow
+            const rimGrad = c.createRadialGradient(bx, by, bSize * 0.8, bx, by, bSize);
+            rimGrad.addColorStop(0, 'transparent');
+            rimGrad.addColorStop(1, 'rgba(255, 255, 255, 0.4)');
+            c.fillStyle = rimGrad;
+            c.fill();
+        });
     }
 
     public renderHitEffect(
@@ -99,40 +93,47 @@ export class MidnightOceanTheme implements IThemeStrategy {
 
         // 2. Sprite-Based Bubbles (High Performance)
         const bubbleSprite = this.getBubbleSprite();
-        const bubbleCount = isPerfect ? 16 : 9; // Reduced count for cleaner look
+        const bubbleCount = isPerfect ? 16 : 9;
         
         ctx.globalCompositeOperation = 'lighter';
         for (let i = 0; i < bubbleCount; i++) {
-            const seed = i * 123.456;
-            const startX = x + (Math.sin(seed) * laneWidth * 0.4);
-            const sway = Math.sin(t * 8 + seed) * 15;
+            const seedVal = i * 123.456;
+            const startX = x + (Math.sin(seedVal) * laneWidth * 0.4);
+            const sway = Math.sin(t * 8 + seedVal) * 15;
             const bx = startX + sway;
-            
-            // Reduced rise speed and height as requested
             const riseSpeed = laneWidth * (isPerfect ? 2.5 : 1.6);
-            const by = y - (t * riseSpeed) - (Math.cos(seed) * 20);
-            
-            const wobble = 1 + Math.sin(t * 12 + seed) * 0.1;
-            const bBaseSize = (4.5 + Math.abs(Math.sin(seed * 2)) * 8); // 4.5 ~ 12.5px
+            const by = y - (t * riseSpeed) - (Math.cos(seedVal) * 20);
+            const wobble = 1 + Math.sin(t * 12 + seedVal) * 0.1;
+            const bBaseSize = (4.5 + Math.abs(Math.sin(seedVal * 2)) * 8);
             const bSize = bBaseSize * wobble * ease;
             
-            ctx.globalAlpha = ease * (0.85 + Math.abs(Math.cos(seed)) * 0.1);
-            ctx.drawImage(bubbleSprite, bx - bSize, by - bSize, bSize * 2, bSize * 2);
+            ctx.save();
+            ctx.translate(bx, by);
+            ctx.globalAlpha = ease * (0.85 + Math.abs(Math.cos(seedVal)) * 0.1);
+            ctx.drawImage(bubbleSprite, -bSize, -bSize, bSize * 2, bSize * 2);
+            ctx.restore();
         }
 
-        // 3. Core Pulse
+        // 3. Core Pulse (Cached Gradient)
         const glowSize = laneWidth * 1.1 * ease;
-        const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, glowSize);
-        coreGrad.addColorStop(0, `rgba(255, 255, 255, 0.9)`);
-        coreGrad.addColorStop(0.3, `rgba(100, 255, 218, 0.6)`);
-        coreGrad.addColorStop(0.6, `rgba(0, 150, 200, 0.2)`);
-        coreGrad.addColorStop(1, 'transparent');
+        if (glowSize > 0) {
+            const coreGrad = this.getCachedRadialGradient(ctx, 'ocean_core', 0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(255, 255, 255, 0.9)' },
+                { offset: 0.3, color: 'rgba(100, 255, 218, 0.6)' },
+                { offset: 0.6, color: 'rgba(0, 150, 200, 0.2)' },
+                { offset: 1, color: 'transparent' }
+            ]);
 
-        ctx.globalAlpha = ease;
-        ctx.fillStyle = coreGrad;
-        ctx.beginPath();
-        ctx.arc(x, y, glowSize, 0, Math.PI * 2);
-        ctx.fill();
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(glowSize, glowSize);
+            ctx.fillStyle = coreGrad;
+            ctx.globalAlpha = ease;
+            ctx.beginPath();
+            ctx.arc(0, 0, 1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
 
         ctx.restore();
     }

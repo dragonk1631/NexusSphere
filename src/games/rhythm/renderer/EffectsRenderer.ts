@@ -107,6 +107,7 @@ export class EffectsRenderer {
                 continue;
             }
 
+            // [STABILIZER] Each theme effect must be perfectly isolated
             ctx.save();
             themeStrategy.renderHitEffect(
                 ctx,
@@ -138,7 +139,9 @@ export class EffectsRenderer {
             ctx.fillStyle = p.color;
             ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
         });
-        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform efficiently
+        ctx.setTransform(1, 0, 0, 1, 0, 0); 
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
         ctx.restore();
     }
 
@@ -168,6 +171,9 @@ export class EffectsRenderer {
         const now = performance.now();
         const duration = EFFECTS_CONFIG.SHOCKWAVE_DURATION;
 
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen'; // Professional glow
+        
         for (let i = 0; i < EFFECTS_CONFIG.MAX_SHOCKWAVES; i++) {
             const idx = i * SW_OFF.STRIDE;
             if (this.shockwaveBuffer[idx + SW_OFF.ACTIVE] === 0.0) continue;
@@ -185,9 +191,10 @@ export class EffectsRenderer {
             ctx.beginPath();
             ctx.arc(this.shockwaveBuffer[idx + SW_OFF.X], this.shockwaveBuffer[idx + SW_OFF.Y], radius, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * (this.isMobile ? 0.3 : 0.5)})`;
-            ctx.lineWidth = this.isMobile ? 1 : 2;
+            ctx.lineWidth = this.isMobile ? 1.5 : 3;
             ctx.stroke();
         }
+        ctx.restore();
     }
 
     private renderTransition(ctx: CanvasRenderingContext2D, width: number, height: number): void {

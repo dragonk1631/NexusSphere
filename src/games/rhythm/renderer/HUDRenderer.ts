@@ -282,8 +282,8 @@ export class HUDRenderer {
         ctx.translate(x, y);
         ctx.scale(scale, scale);
 
-        // [글로벌 정책] 가독성과 디자인의 균형을 맞춘 26px
-        ctx.font = '900 italic 26px "Orbitron", sans-serif';
+        // [글로벌 정책] 대형 화면에서도 압도적인 가독성을 제공하도록 44px로 상향 조정
+        ctx.font = '900 italic 44px "Orbitron", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 

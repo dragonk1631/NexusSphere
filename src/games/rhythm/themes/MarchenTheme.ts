@@ -1,16 +1,12 @@
-import type { IThemeStrategy } from './IThemeStrategy';
+import { BaseThemeStrategy } from './BaseThemeStrategy';
 import { Judgment } from '../types/GameTypes';
 
 /**
  * MarchenTheme provides a fairy-tale aesthetic.
- * Optimized: Removed shadowBlur from stardust effects.
+ * Optimized: Uses BaseThemeStrategy for gradient caching and reduced context overhead.
  */
-export class MarchenTheme implements IThemeStrategy {
+export class MarchenTheme extends BaseThemeStrategy {
     public readonly id = 'marchen';
-
-    public preWarm(_ctx: CanvasRenderingContext2D, _laneWidth: number): void {
-        console.log("[MarchenTheme] Pre-warmed.");
-    }
 
     public renderHitZonePulse(ctx: CanvasRenderingContext2D, _lane: number, x: number, y: number, width: number, beatPhase: number): void {
         const pulseAlpha = Math.max(0, 1 - beatPhase) * 0.5;
@@ -31,6 +27,14 @@ export class MarchenTheme implements IThemeStrategy {
         }
     }
 
+    private getHeartSprite(hue: number): HTMLCanvasElement {
+        const key = `heart_${Math.floor(hue / 10) * 10}`; // Cache every 10 degrees of hue to balance memory and quality
+        return this.getCachedSprite(key, 64, (ctx, s) => {
+            ctx.fillStyle = `hsla(${hue}, 80%, 75%, 1)`;
+            this.drawHeart(ctx, s / 2, s / 2, s * 0.4);
+        });
+    }
+
     public renderHitEffect(
         ctx: CanvasRenderingContext2D,
         x: number,
@@ -46,7 +50,7 @@ export class MarchenTheme implements IThemeStrategy {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // 1. Rainbow Concentric Bloom (Expanding color-shifting rings)
+        // 1. Rainbow Concentric Bloom
         const ringCount = 3;
         for (let i = 0; i < ringCount; i++) {
             const progress = Math.pow(Math.max(0, t - i * 0.12), 0.7);
@@ -54,7 +58,7 @@ export class MarchenTheme implements IThemeStrategy {
 
             const ringR = laneWidth * (0.3 + progress * 2.2);
             const alpha = (1 - progress) * 0.7;
-            const hue = (i * 60 + t * 360) % 360; // Shifting rainbow hue
+            const hue = (i * 60 + t * 360) % 360;
 
             ctx.strokeStyle = `hsla(${hue}, 85%, 75%, ${alpha})`;
             ctx.lineWidth = (6 - i) * (1 - progress) * 2;
@@ -62,16 +66,16 @@ export class MarchenTheme implements IThemeStrategy {
             ctx.arc(x, y, ringR, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Inner pink core for extra shimmer (formerly white)
+            // Inner pink core for extra shimmer
             ctx.strokeStyle = `rgba(255, 235, 245, ${alpha * 0.5})`;
             ctx.lineWidth = 1.5 * (1 - progress);
             ctx.stroke();
         }
 
-        // 2. Enhanced Heart Particles (1.5x Larger, Half speed rotation)
+        // 2. Enhanced Heart Particles
         const heartCount = 10;
         for (let i = 0; i < heartCount; i++) {
-            const seed = (i * 0.38) % 1;
+            const seedVal = (i * 0.38) % 1;
             const angle = (i / heartCount) * Math.PI * 2 + t * 1.2;
             const dist = laneWidth * (0.3 + t * 2.2);
             const px = x + Math.cos(angle) * dist;
@@ -79,30 +83,48 @@ export class MarchenTheme implements IThemeStrategy {
 
             const blink = Math.pow(Math.sin(t * 15 + i), 2);
             const hAlpha = ease * (0.5 + blink * 0.5);
-            // 1.5x larger than old petals (old average ~11, new average ~18)
-            const hSize = (12 + seed * 16) * ease; 
-            const hue = (seed * 360 + t * 80) % 360;
+            const hSize = (12 + seedVal * 16) * ease; 
+            const hue = (seedVal * 360 + t * 80) % 360;
 
+            const sprite = this.getHeartSprite(hue);
+            
             ctx.save();
             ctx.translate(px, py);
-            // Half rotation speed (formerly t*6 in original petal logic)
-            ctx.rotate(angle + t * 3); 
-            ctx.fillStyle = `hsla(${hue}, 80%, 75%, ${hAlpha})`;
-            this.drawHeart(ctx, 0, 0, hSize);
+            ctx.rotate(angle + t * 3);
+            ctx.globalAlpha = hAlpha;
+            ctx.drawImage(sprite, -hSize, -hSize, hSize * 2, hSize * 2);
+            
+            // [MAGICAL] Add a tiny secondary sparkle core for "twinkle"
+            if (blink > 0.9) {
+                ctx.globalAlpha = (blink - 0.9) * 10.0 * ease * 0.5;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
             ctx.restore();
         }
+        ctx.globalAlpha = 1.0;
 
-        // 3. Central Magical Bloom (Glow feedback)
+        // 3. Central Magical Bloom
         const bloomR = laneWidth * 0.65 * outEase;
-        const bloomGrad = ctx.createRadialGradient(x, y, 0, x, y, bloomR);
-        // Changed center from white to pink
-        bloomGrad.addColorStop(0, `rgba(255, 220, 240, ${outEase * 0.95})`);
-        bloomGrad.addColorStop(0.5, `hsla(340, 100%, 90%, ${outEase * 0.6})`);
-        bloomGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = bloomGrad;
-        ctx.beginPath();
-        ctx.arc(x, y, bloomR, 0, Math.PI * 2);
-        ctx.fill();
+        if (bloomR > 0) {
+            const bloomGrad = this.getCachedRadialGradient(ctx, 'marchen_bloom', 0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(255, 220, 240, 0.95)' },
+                { offset: 0.5, color: 'hsla(340, 100%, 90%, 0.6)' },
+                { offset: 1, color: 'transparent' }
+            ]);
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(bloomR, bloomR);
+            ctx.fillStyle = bloomGrad;
+            ctx.globalAlpha = outEase;
+            ctx.beginPath();
+            ctx.arc(0, 0, 1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
 
         ctx.restore();
     }
