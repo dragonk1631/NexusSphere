@@ -25,8 +25,6 @@ export interface PatternContext {
         custom2: Float32Array;
         pulseSpeed: Float32Array;
         pulseMag: Float32Array;
-        hx1: Float32Array; hx2: Float32Array; hx3: Float32Array; hx4: Float32Array;
-        hy1: Float32Array; hy2: Float32Array; hy3: Float32Array; hy4: Float32Array;
     };
     getCachedTexture: (id: string, s: number, drawFn: (c: OffscreenCanvasRenderingContext2D) => void) => OffscreenCanvas;
     applyAlpha: (color: string, alpha: string) => string;

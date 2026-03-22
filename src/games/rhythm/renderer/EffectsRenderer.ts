@@ -123,22 +123,43 @@ export class EffectsRenderer {
     }
 
     private renderParticles(ctx: CanvasRenderingContext2D): void {
-        // PROFESSIONAL OPTIMIZATION: Color Batching
-        // We group particles by color to minimize state changes.
-        // The ParticleSystem already exposes a color-indexed palette.
-        
         ctx.save();
+        let currentAlpha = -1;
+        let currentColor = '';
+        
         this.particleData.forEachActiveParticle(p => {
-            if (p.alpha <= 0.01) return;
+            const alpha = p.alpha;
+            if (alpha <= 0.01) return;
 
-            // Simple transformation
-            ctx.setTransform(1, 0, 0, 1, p.x, p.y);
-            if (p.rotation !== 0) ctx.rotate(p.rotation);
-            
-            ctx.globalAlpha = p.alpha;
-            ctx.fillStyle = p.color;
-            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+            const color = p.color;
+            const size = p.size;
+            const x = p.x;
+            const y = p.y;
+            const hs = size * 0.5;
+
+            // Batching: only update state if they actually changed
+            if (alpha !== currentAlpha) {
+                ctx.globalAlpha = alpha;
+                currentAlpha = alpha;
+            }
+            if (color !== currentColor) {
+                ctx.fillStyle = color;
+                currentColor = color;
+            }
+
+            if (p.rotation === 0) {
+                // EXTREME OPTIMIZATION: Direct fillRect without matrix transform
+                ctx.fillRect(x - hs, y - hs, size, size);
+            } else {
+                // Matrix transform ONLY for rotating particles
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(p.rotation);
+                ctx.fillRect(-hs, -hs, size, size);
+                ctx.restore();
+            }
         });
+        
         ctx.setTransform(1, 0, 0, 1, 0, 0); 
         ctx.globalAlpha = 1.0;
         ctx.globalCompositeOperation = 'source-over';

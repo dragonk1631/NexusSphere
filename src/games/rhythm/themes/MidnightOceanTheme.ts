@@ -107,11 +107,8 @@ export class MidnightOceanTheme extends BaseThemeStrategy {
             const bBaseSize = (4.5 + Math.abs(Math.sin(seedVal * 2)) * 8);
             const bSize = bBaseSize * wobble * ease;
             
-            ctx.save();
-            ctx.translate(bx, by);
             ctx.globalAlpha = ease * (0.85 + Math.abs(Math.cos(seedVal)) * 0.1);
-            ctx.drawImage(bubbleSprite, -bSize, -bSize, bSize * 2, bSize * 2);
-            ctx.restore();
+            ctx.drawImage(bubbleSprite, bx - bSize, by - bSize, bSize * 2, bSize * 2);
         }
 
         // 3. Core Pulse (Cached Gradient)

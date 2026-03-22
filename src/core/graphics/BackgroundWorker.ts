@@ -94,14 +94,6 @@ const custom1 = new Float32Array(MAX_PARTICLES);
 const custom2 = new Float32Array(MAX_PARTICLES);
 const pulseSpeed = new Float32Array(MAX_PARTICLES);
 const pulseMag = new Float32Array(MAX_PARTICLES);
-const hx1 = new Float32Array(MAX_PARTICLES);
-const hy1 = new Float32Array(MAX_PARTICLES);
-const hx2 = new Float32Array(MAX_PARTICLES);
-const hy2 = new Float32Array(MAX_PARTICLES);
-const hx3 = new Float32Array(MAX_PARTICLES);
-const hy3 = new Float32Array(MAX_PARTICLES);
-const hx4 = new Float32Array(MAX_PARTICLES);
-const hy4 = new Float32Array(MAX_PARTICLES);
 
 let aliveCount = 0;
 
@@ -110,20 +102,26 @@ let aliveCount = 0;
  * Scans for particles with life <= 0 or custom1 === -1 (inactive flag used by some patterns)
  */
 function spawn(): number {
-    // 1. Try to find an inactive particle in the already "allocated" pool
+    // 1. Try to find a dead particle in the already "allocated" pool
     for (let i = 0; i < aliveCount; i++) {
-        if (life[i] <= 0 && custom1[i] === -1) {
-            // Reset state for the new user
+        if (life[i] <= 0) {
+            // Reset ALL state for the new user to prevent state leaks from previous patterns
             life[i] = 1.0;
             custom1[i] = 0;
+            custom2[i] = 0;
+            vx[i] = 0;
+            vy[i] = 0;
+            phase[i] = 0;
+            pulseSpeed[i] = 0;
             return i;
         }
     }
-    // 2. If no inactive ones found, and we haven't hit the absolute limit, expand the pool
+    // 2. Expand pool if below limit
     if (aliveCount < dynamicMaxParticles) {
         const id = aliveCount++;
         life[id] = 1.0;
         custom1[id] = 0;
+        custom2[id] = 0;
         return id;
     }
     return -1;
@@ -166,7 +164,7 @@ function getPatternContext(): PatternContext {
     return {
         ctx, width, height, time, isMobile, theme: currentTheme!,
         aliveCount, spawn, kill: (id: number) => { life[id] = 0; custom1[id] = -1; },
-        buffers: { px, py, pz, vx, vy, size, life, phase, layer, custom1, custom2, pulseSpeed, pulseMag, hx1, hy1, hx2, hy2, hx3, hy3, hx4, hy4 },
+        buffers: { px, py, pz, vx, vy, size, life, phase, layer, custom1, custom2, pulseSpeed, pulseMag },
         getCachedTexture, applyAlpha, setCompositeOperation
     };
 }

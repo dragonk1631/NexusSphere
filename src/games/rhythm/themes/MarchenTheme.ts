@@ -58,33 +58,36 @@ export class MarchenTheme extends BaseThemeStrategy {
 
             const ringR = laneWidth * (0.3 + progress * 2.2);
             const alpha = (1 - progress) * 0.7;
-            const hue = (i * 60 + t * 360) % 360;
+            const hue = Math.round((i * 60 + t * 360) % 360);
 
-            ctx.strokeStyle = `hsla(${hue}, 85%, 75%, ${alpha})`;
+            // Optimization: Avoid heavy string manipulation if possible
+            ctx.strokeStyle = 'hsla(' + hue + ', 85%, 75%, ' + alpha.toFixed(2) + ')';
             ctx.lineWidth = (6 - i) * (1 - progress) * 2;
             ctx.beginPath();
             ctx.arc(x, y, ringR, 0, Math.PI * 2);
             ctx.stroke();
 
             // Inner pink core for extra shimmer
-            ctx.strokeStyle = `rgba(255, 235, 245, ${alpha * 0.5})`;
+            ctx.strokeStyle = 'rgba(255, 235, 245, ' + (alpha * 0.5).toFixed(2) + ')';
             ctx.lineWidth = 1.5 * (1 - progress);
             ctx.stroke();
         }
 
         // 2. Enhanced Heart Particles
         const heartCount = 10;
+        const heartBaseRot = t * 1.2;
+        const heartBaseDist = laneWidth * (0.3 + t * 2.2);
+        
         for (let i = 0; i < heartCount; i++) {
             const seedVal = (i * 0.38) % 1;
-            const angle = (i / heartCount) * Math.PI * 2 + t * 1.2;
-            const dist = laneWidth * (0.3 + t * 2.2);
-            const px = x + Math.cos(angle) * dist;
-            const py = y + Math.sin(angle) * dist * 0.85;
+            const angle = (i / heartCount) * Math.PI * 2 + heartBaseRot;
+            const px = x + Math.cos(angle) * heartBaseDist;
+            const py = y + Math.sin(angle) * heartBaseDist * 0.85;
 
             const blink = Math.pow(Math.sin(t * 15 + i), 2);
             const hAlpha = ease * (0.5 + blink * 0.5);
             const hSize = (12 + seedVal * 16) * ease; 
-            const hue = (seedVal * 360 + t * 80) % 360;
+            const hue = Math.round((seedVal * 360 + t * 80) % 360);
 
             const sprite = this.getHeartSprite(hue);
             
@@ -94,9 +97,8 @@ export class MarchenTheme extends BaseThemeStrategy {
             ctx.globalAlpha = hAlpha;
             ctx.drawImage(sprite, -hSize, -hSize, hSize * 2, hSize * 2);
             
-            // [MAGICAL] Add a tiny secondary sparkle core for "twinkle"
             if (blink > 0.9) {
-                ctx.globalAlpha = (blink - 0.9) * 10.0 * ease * 0.5;
+                ctx.globalAlpha = (blink - 0.9) * 5.0 * ease; // Optimized math
                 ctx.fillStyle = '#FFFFFF';
                 ctx.beginPath();
                 ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
