@@ -33,10 +33,15 @@ export class LoadingRenderer {
         // Text Information
         ctx.textAlign = 'center';
 
-        // Status Text
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.font = 'bold 16px "Orbitron"';
+        // Status Text (Enhanced with Pulse and Glow)
+        const textPulse = Math.sin(cachedNow / 300) * 0.2 + 0.8;
+        ctx.save();
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.6 * textPulse})`;
+        ctx.font = 'bold 20px "Orbitron"';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(0, 229, 255, 0.6)';
         ctx.fillText(statusText.toUpperCase(), width / 2, height / 2 + 180);
+        ctx.restore();
 
         // Song Info
         if (song) {

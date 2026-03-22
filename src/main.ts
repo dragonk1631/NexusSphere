@@ -11,6 +11,7 @@ import { BackgroundRenderer } from './core/graphics/BackgroundRenderer';
 import { ScreenUtils } from './core/utils/ScreenUtils';
 import { MenuMusicManager } from './core/audio/MenuMusicManager';
 import { CoreAudioEngine } from './core/audio/CoreAudioEngine';
+import { LoadingOverlay } from './games/rhythm/renderer/LoadingOverlay';
 import { PerformanceMonitor } from './core/utils/PerformanceMonitor';
 import { AudioEngineLogger } from './core/audio/AudioEngineLogger';
 
@@ -27,6 +28,7 @@ let lastTime = 0;
 let accumulator = 0;
 // let loopCounter = 0;
 let mainMenu: MainMenu;
+let titleScreen: TitleScreen | null = null;
 
 // FPS Counter Variables
 const fpsDiv = document.createElement('div');
@@ -190,24 +192,42 @@ function enableHistoryGuard() {
 }
 
 // Start with Title Screen or Mobile Start Screen
-let titleScreen: TitleScreen | null = null;
-if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
-  new MobileStartScreen(() => {
-    titleScreen = new TitleScreen(() => {
-      if (titleScreen) titleScreen.destroy();
-      titleScreen = null;
-      mainMenu = new MainMenu(handleGameStart);
-      mainMenu.show();
+const startApp = async () => {
+  const loading = LoadingOverlay.getInstance();
+  loading.show("INITIALIZING NEXUS SPHERE...");
+  
+  // Wait for initial theme background
+  await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+  
+  loading.hide();
+
+  if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
+    new MobileStartScreen(() => {
+      showTitle();
     });
-  });
-} else {
-  titleScreen = new TitleScreen(() => {
+  } else {
+    showTitle();
+  }
+};
+
+const showTitle = () => {
+  titleScreen = new TitleScreen(async () => {
     if (titleScreen) titleScreen.destroy();
     titleScreen = null;
+    
+    const loading = LoadingOverlay.getInstance();
+    loading.show("LOADING MAIN MENU...");
+    
+    // Ensure background is ready (in case theme changed)
+    await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+    
+    loading.hide();
     mainMenu = new MainMenu(handleGameStart);
     mainMenu.show();
   });
-}
+};
+
+startApp();
 
 // --- Mobile Initialization ---
 const initMobile = () => {
@@ -259,6 +279,12 @@ async function launchGame(GameClass: any) {
     // Clear ALL UI before switching
     UIManager.getInstance().clear();
 
+    const loading = LoadingOverlay.getInstance();
+    loading.show(`LAUNCHING ${GameClass.name.toUpperCase()}...`);
+
+    // Ensure background is ready
+    await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+
     // Reset Canvas State with Virtual Dimensions
     updateCanvasSize();
 
@@ -284,6 +310,8 @@ async function launchGame(GameClass: any) {
     await currentGame.create();
     console.timeEnd("launch_create");
 
+    loading.hide();
+
     // Reset Loop State
     lastTime = performance.now();
     accumulator = 0;
@@ -299,6 +327,9 @@ async function launchGame(GameClass: any) {
 }
 
 function returnToMenu(): void {
+  const loading = LoadingOverlay.getInstance();
+  loading.show("RETURNING TO MENU...");
+
   if (currentGame) {
     currentGame.destroy();
     currentGame = null;
@@ -311,8 +342,13 @@ function returnToMenu(): void {
   }
 
   UIManager.getInstance().clear();
-  mainMenu = new MainMenu(handleGameStart);
-  mainMenu.show();
+
+  // Wait for background readiness before showing menu
+  BackgroundRenderer.getInstance().waitForReady().then(() => {
+    loading.hide();
+    mainMenu = new MainMenu(handleGameStart);
+    mainMenu.show();
+  });
 }
 
 function handleGameStart(mode: string) {

@@ -67,9 +67,26 @@ export class BackgroundRenderer {
         });
     }
 
-    public async setTheme(theme: ThemeConfig) {
-        if (this.currentInstanceThemeId !== theme.id) {
-            this.currentInstanceThemeId = theme.id;
+    private pendingLoad: Promise<void> | null = null;
+    private lastProgress: number = 0;
+    private progressObservers: Set<(p: number) => void> = new Set();
+
+    private emitProgress(p: number) {
+        this.lastProgress = p;
+        this.progressObservers.forEach(cb => cb(p));
+    }
+
+    public async setTheme(theme: ThemeConfig, onProgress?: (p: number) => void) {
+        if (onProgress) this.progressObservers.add(onProgress);
+
+        if (this.currentInstanceThemeId === theme.id && this.pendingLoad) {
+            return this.pendingLoad;
+        }
+
+        this.currentInstanceThemeId = theme.id;
+        
+        this.pendingLoad = (async () => {
+            this.emitProgress(0);
             
             // 1. Send theme config to worker
             this.worker.postMessage({
@@ -79,33 +96,33 @@ export class BackgroundRenderer {
 
             // 2. Attempt to load background image
             try {
-                // Determine potential image paths
-                // Priority: bg_space.png (for deep-space), bg.png, bg.jpg, bg.webp
                 const extensions = ['png', 'jpg', 'webp'];
                 const baseNames = [`bg_${theme.id}`, 'bg', 'bg_tech', 'bg_flare', 'bg_ocean', 'bg_vapor', 'bg_matrix', 'bg_space', 'bg_sunset', 'bg_marchen', 'bg_fireworks', 'bg_winter'];
                 
                 let loadedBitmap: ImageBitmap | null = null;
+                const totalSteps = baseNames.length * extensions.length;
+                let currentStep = 0;
                 
                 for (const base of baseNames) {
                     for (const ext of extensions) {
-                        const pathVariants = [
-                            `/assets/images/background-themes/${theme.id}/${base}.${ext}`,
+                        currentStep++;
+                        const p = (currentStep / totalSteps) * 0.95; 
+                        this.emitProgress(p);
+
+                        const urls = [
                             `assets/images/background-themes/${theme.id}/${base}.${ext}`,
-                            `./assets/images/background-themes/${theme.id}/${base}.${ext}`
+                            `/assets/images/background-themes/${theme.id}/${base}.${ext}`
                         ];
                         
-                        for (const url of pathVariants) {
+                        for (const url of urls) {
                             try {
                                 const response = await fetch(url);
                                 if (response.ok) {
-                                    console.log(`[BackgroundRenderer] ✅ Found image! URL: ${url}`);
                                     const blob = await response.blob();
                                     loadedBitmap = await createImageBitmap(blob);
                                     break;
                                 }
-                            } catch (e) {
-                                // Silent retry
-                            }
+                            } catch (e) { /* Retry */ }
                         }
                         if (loadedBitmap) break;
                     }
@@ -126,6 +143,34 @@ export class BackgroundRenderer {
             } catch (error) {
                 console.error("[BackgroundRenderer] Failed to load background image:", error);
             }
+            this.emitProgress(1.0);
+        })();
+
+        try {
+            await this.pendingLoad;
+        } finally {
+            if (onProgress) this.progressObservers.delete(onProgress);
+        }
+        return this.pendingLoad;
+    }
+
+    /**
+     * Returns a promise that resolves when the current theme's background 
+     * assets (images) are fully loaded and sent to the worker.
+     */
+    public async waitForReady(onProgress?: (p: number) => void) {
+        if (onProgress) {
+            this.progressObservers.add(onProgress);
+            onProgress(this.lastProgress);
+        }
+
+        if (this.pendingLoad) {
+            await this.pendingLoad;
+        }
+
+        if (onProgress) {
+            onProgress(1.0);
+            this.progressObservers.delete(onProgress);
         }
     }
 

@@ -4,6 +4,8 @@ import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { ThemeManager } from '../../core/ThemeManager';
 import { ScoreManager } from '../../core/score/ScoreManager';
 import type { ParsedMidi } from '../../core/audio/MidiParser';
+import { BackgroundRenderer } from '../../core/graphics/BackgroundRenderer';
+import { LoadingOverlay } from './renderer/LoadingOverlay';
 import { NoteFactory, type VisualNote } from './NoteFactory';
 import { RenderCache } from './graphics/RenderCache';
 import { GameTransition, type TransitionData } from '../../core/GameTransition';
@@ -284,7 +286,10 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         try {
             // Step 1: Initialize Audio Engine & Theme Strategy
             this.themeStrategy = this.initThemeStrategy();
-
+            
+            this.loadingStatus = "Synchronizing Background...";
+            await BackgroundRenderer.getInstance().waitForReady();
+            this.loadingProgress = 0.1;
 
             await this.audioEngine.resume();
             this.loadingProgress = 0.2;
@@ -567,20 +572,30 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     };
 
     public backToSongSelection() {
-        this.transitionSystem.start(() => {
+        const loading = LoadingOverlay.getInstance();
+        this.transitionSystem.start(async () => {
             this.audioEngine.stop();
             this.isTestMode = false;
             GameTransition.clear();
+            
+            loading.show("RETURNING TO MENU...");
+            await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+            loading.hide();
+            
             this.setState(GameState.MENU);
         }, 'fade');
     }
 
     public handleRetry() {
+        const loading = LoadingOverlay.getInstance();
         this.transitionSystem.start(async () => {
             this.audioEngine.stop();
+            loading.show("RETRYING...");
+            await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
             await this.load();
             this.create();
             this.start();
+            loading.hide();
         }, 'fade');
     }
     public onGameOverPointer = (x: number, y: number) => {
