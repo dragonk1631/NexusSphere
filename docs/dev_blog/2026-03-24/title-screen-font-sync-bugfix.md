@@ -120,6 +120,13 @@ private render() {
 3. **게임 루프와 비동기 리소스는 반드시 플래그로 동기화**: 리소스가 로드되기 전에 게임 루프가 캐시를 오염시킬 수 있음.
 4. **opacity: 0은 렌더링을 막지 않음**: CSS로 화면이 숨겨져 있어도 JS 코드는 계속 실행됨.
 
+### 🚫 이 코드에서 하지 말아야 할 것들
+
+- `OffscreenCanvas` 사용 (폰트 컨텍스트 미공유)
+- `setTimeout`으로 폰트 로드를 기다리는 것 (환경마다 시간이 다름)
+- 폰트 로드 완료 후 `logoCache = null` 초기화 없이 `preRenderLogo()` 호출
+- 외부 CDN 폰트를 Canvas 텍스트에 사용하는 것
+
 ---
 
 ## 최종 커밋 내역
@@ -129,4 +136,3 @@ private render() {
 | `fix: serve fonts locally` | CDN → 로컬 파일로 전환 |
 | `fix: replace OffscreenCanvas with DOM canvas` | PC 폰트 컨텍스트 버그 수정 |
 | `fix: block logo cache until fontReady flag` | Race Condition 완전 차단 |
-| `docs: add devlog for font sync race condition bugfix` | 해결 과정 문서화 |
