@@ -96,8 +96,8 @@ export class BackgroundRenderer {
 
             // 2. Attempt to load background image
             try {
-                const extensions = ['png', 'jpg', 'webp'];
-                const baseNames = [`bg_${theme.id}`, 'bg', 'bg_tech', 'bg_flare', 'bg_ocean', 'bg_vapor', 'bg_matrix', 'bg_space', 'bg_sunset', 'bg_marchen', 'bg_fireworks', 'bg_winter'];
+                const extensions = ['webp', 'png', 'jpg', 'jpeg'];
+                const baseNames = [`bg_${theme.id}`, 'bg'];
                 
                 let loadedBitmap: ImageBitmap | null = null;
                 const totalSteps = baseNames.length * extensions.length;

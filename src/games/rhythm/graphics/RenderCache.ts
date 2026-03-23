@@ -798,13 +798,18 @@ export class RenderCache {
     }
 
     private themePreviews: Map<string, string> = new Map();
-    private readonly STORAGE_KEY = 'nexus_theme_thumbnails_v5';
+    private readonly STORAGE_KEY = 'nexus_theme_thumbnails_v7';
+
+    /** New: Synchronous retrieval from memory cache (assumes pre-loaded) */
+    public getBackgroundPreviewUrlLocal(themeId: string): string | undefined {
+        return this.themePreviews.get(themeId);
+    }
 
     public async getBackgroundPreview(themeId: string): Promise<string> {
         // 1. Memory Cache
         if (this.themePreviews.has(themeId)) return this.themePreviews.get(themeId)!;
 
-        // 2. LocalStorage Persistence
+        // 2. LocalStorage Persistence (v7 Optimized)
         try {
             const stored = localStorage.getItem(`${this.STORAGE_KEY}_${themeId}`);
             if (stored) {
@@ -813,8 +818,9 @@ export class RenderCache {
             }
         } catch (e) { /* ignore */ }
 
-        // 3. Generation (Icon-First)
-        const baseNames = ['icon', 'bg', `bg_${themeId}`, 'bg_tech', 'bg_flare', 'bg_ocean', 'bg_vapor', 'bg_matrix', 'bg_space', 'bg_sunset', 'bg_marchen', 'bg_fireworks', 'bg_winter'];
+        // 3. Generation (Balanced Quality/Performance)
+        // Standard search paths: Check small thumbnails FIRST, then full backgrounds
+        const baseNames = ['thumb', 'preview', `bg_${themeId}`, 'bg', 'icon'];
         const extensions = ['webp', 'png', 'jpg', 'jpeg'];
         
         const iconPaths: string[] = [];
@@ -825,36 +831,87 @@ export class RenderCache {
         }
 
         let img: HTMLImageElement | null = null;
+        let isPreRendered = false;
         for (const path of iconPaths) {
             try {
                 img = await this.loadImage(path);
-                if (img) break;
+                if (img) {
+                    // Pre-rendered 'thumb' or 'preview' files are used directly
+                    if (path.includes('/thumb.') || path.includes('/preview.')) {
+                        isPreRendered = true;
+                    }
+                    break;
+                }
             } catch (e) { /* continue */ }
         }
 
         if (!img) return "";
 
-        // Downscale to 160x90 (Standard high-q thumbnail)
-        const thumbCanvas = document.createElement('canvas');
-        thumbCanvas.width = 160;
-        thumbCanvas.height = 90;
-        const tCtx = thumbCanvas.getContext('2d')!;
+        // Balanced Resolution (400x225) - Native clarity for UI grid
+        const targetW = 400;
+        const targetH = 225;
         
-        const scale = Math.max(thumbCanvas.width / img.width, thumbCanvas.height / img.height);
-        const nw = img.width * scale;
-        const nh = img.height * scale;
-        tCtx.drawImage(img, (thumbCanvas.width - nw) / 2, (thumbCanvas.height - nh) / 2, nw, nh);
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = targetW;
+        thumbCanvas.height = targetH;
+        const tCtx = thumbCanvas.getContext('2d')!;
+        tCtx.imageSmoothingEnabled = true;
+        tCtx.imageSmoothingQuality = 'high';
 
-        // WebP quality 0.9 (Very high clarity for thumbnails)
-        const dataUrl = thumbCanvas.toDataURL('image/webp', 0.9);
+        if (isPreRendered) {
+            // High-Performance direct draw
+            const scale = Math.max(targetW / img.width, targetH / img.height);
+            const nw = img.width * scale;
+            const nh = img.height * scale;
+            tCtx.drawImage(img, (targetW - nw) / 2, (targetH - nh) / 2, nw, nh);
+        } else {
+            // HIGH QUALITY ITERATIVE DOWN-SAMPLING (Reduces jaggy/aliasing)
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d')!;
+            
+            let curW = img.width;
+            let curH = img.height;
+            
+            tempCanvas.width = curW;
+            tempCanvas.height = curH;
+            tempCtx.drawImage(img, 0, 0);
+
+            // Reducing by 50% steps provides the best visual filter
+            while (curW > targetW * 2) {
+                const nextW = Math.floor(curW * 0.5);
+                const nextH = Math.floor(curH * 0.5);
+                
+                const stepCanvas = document.createElement('canvas');
+                stepCanvas.width = nextW;
+                stepCanvas.height = nextH;
+                const stepCtx = stepCanvas.getContext('2d')!;
+                stepCtx.imageSmoothingEnabled = true;
+                stepCtx.imageSmoothingQuality = 'high';
+                stepCtx.drawImage(tempCanvas, 0, 0, curW, curH, 0, 0, nextW, nextH);
+                
+                curW = nextW;
+                curH = nextH;
+                tempCanvas.width = curW;
+                tempCanvas.height = curH;
+                tempCtx.drawImage(stepCanvas, 0, 0);
+            }
+
+            // Final scale to target
+            const scale = Math.max(targetW / curW, targetH / curH);
+            const nw = curW * scale;
+            const nh = curH * scale;
+            tCtx.drawImage(tempCanvas, (targetW - nw) / 2, (targetH - nh) / 2, nw, nh);
+        }
+
+        // WebP quality 0.8 (Optimal balance for small UI elements)
+        const dataUrl = thumbCanvas.toDataURL('image/webp', 0.8);
         
         // Save to cache & storage
         this.themePreviews.set(themeId, dataUrl);
         try {
             localStorage.setItem(`${this.STORAGE_KEY}_${themeId}`, dataUrl);
         } catch (e) { 
-            // If quota exceeded, we just fail silently (memory cache still works)
-            console.warn("[RenderCache] LocalStorage quota exceeded for thumbnails");
+            console.warn("[RenderCache] LocalStorage quota exceeded");
         }
         
         return dataUrl;

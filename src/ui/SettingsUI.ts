@@ -20,10 +20,37 @@ export class SettingsUI {
         this.onAction = onAction;
     }
 
-    public show(): void {
+    public async show(): Promise<void> {
+        // 1. Show global loading overlay immediately (covers the whole screen)
+        const loading = LoadingOverlay.getInstance();
+        loading.show("PREPARING SETTINGS..."); 
+        loading.updateProgress(0);
+
+        // 2. Pre-create shell but keep hidden/transparent
         this.createShell();
-        this.updateTabContent();
+        const root = document.getElementById('settings-ui-root');
+        if (root) root.style.opacity = '0'; // Keep hidden
+
+        // 3. Batch load ALL thumbnails & background state before displaying shell
+        try {
+            await this.preLoadAllAssets((progress) => {
+                loading.updateProgress(progress); // Assuming preLoadAllAssets now returns 0.0-1.0
+            });
+        } catch (e) {
+            console.error("[SettingsUI] Pre-load failed", e);
+        }
+
+        // 4. Everything is ready, show UI and hide loading
+        this.updateTabContentUI();
         MenuMusicManager.getInstance().playMusic('options');
+
+        requestAnimationFrame(() => {
+            if (root) {
+                root.style.transition = 'opacity 0.4s ease-out';
+                root.style.opacity = '1';
+            }
+            loading.hide();
+        });
     }
 
     /** Build the full overlay shell (once). Tabs & panel frame stay fixed. */
@@ -413,145 +440,126 @@ export class SettingsUI {
     }
 
 
-    /** Only swap visibility + update active states with a deliberate 'READY' loading phase. (v31) */
-    private updateTabContent(): void {
-        const contentEl = document.getElementById('settings-tab-content');
-        if (!contentEl) return;
+    /** New: Pre-load all thumbnails and wait for BackgroundRenderer */
+    private async preLoadAllAssets(onProgress: (p: number) => void): Promise<void> {
+        const themeManager = ThemeManager.getInstance();
+        const themes = themeManager.getAllThemes();
+        const renderCache = RenderCache.getInstance();
 
-        // 1. Show Global Unified Loading Screen
-        const loading = LoadingOverlay.getInstance();
-        loading.show("SYNCHRONIZING ASSETS...");
-        contentEl.classList.add('transitioning');
+        // Pass 1: Background Renderer (30% of progress) - waitForReady returns 0.0-1.0
+        await BackgroundRenderer.getInstance().waitForReady((p) => onProgress(p * 0.3));
 
-        // 2. Wait for actual assets to be ready (v45 Dynamic Sync)
-        (async () => {
-            await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
-            
-            requestAnimationFrame(() => {
-                // Update tab button active states
-                document.querySelectorAll('#settings-tabs .tab-btn[data-tab]').forEach(btn => {
-                    const tab = btn.getAttribute('data-tab');
-                    if (tab === this.activeTab) btn.classList.add('active');
-                    else btn.classList.remove('active');
-                });
-
-                // Update panel border color
-                const panel = document.getElementById('settings-panel');
-                if (panel) {
-                    let borderColor = '#FFD700';
-                    let boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)';
-                    if (this.activeTab === 'theme') { borderColor = '#A2FF00'; boxShadow = '0 0 40px rgba(162, 255, 0, 0.3)'; }
-                    else if (this.activeTab === 'note') { borderColor = '#FFD700'; boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)'; }
-                    else if (this.activeTab === 'audio') { borderColor = '#FF006E'; boxShadow = '0 0 40px rgba(255, 0, 110, 0.3)'; }
-                    else if (this.activeTab === 'gameplay') { borderColor = '#00E5FF'; boxShadow = '0 0 40px rgba(0, 229, 255, 0.3)'; }
-                    
-                    panel.style.borderColor = borderColor;
-                    panel.style.boxShadow = boxShadow;
-                }
-
-                // Toggle Container Visibility
-                this.tabContainers.forEach((container, tab) => {
-                    if (tab === this.activeTab) {
-                        container.style.display = 'block';
-                        this.refreshActiveStatesInContainer(container, tab);
-                    } else {
-                        container.style.display = 'none';
-                    }
-                });
-
-                // Clear Transition & Loading
-                setTimeout(() => {
-                    contentEl.classList.remove('transitioning');
-                    loading.hide();
-                }, 50);
-            });
-        })();
+        // Pass 2: Theme Thumbnails (70% of progress)
+        let loaded = 0;
+        await Promise.all(themes.map(async (t) => {
+            await renderCache.getBackgroundPreview(t.id);
+            loaded++;
+            onProgress(0.3 + (loaded / themes.length) * 0.7);
+        }));
     }
 
-
-    /** Refresh internal button states (e.g. checkmarks) when returning to a tab. */
-    private refreshActiveStatesInContainer(container: HTMLElement, tab: Tab): void {
-        if (tab === 'theme') {
-            const currentThemeId = ThemeManager.getInstance().getCurrentTheme().id;
-            container.querySelectorAll('.theme-btn:not(.skin-btn)').forEach(btn => {
-                if (btn.getAttribute('data-theme') === currentThemeId) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
-        } else if (tab === 'note') {
-            const currentSkinId = NoteSkinManager.getInstance().getCurrentSkin().id;
-            container.querySelectorAll('.skin-btn').forEach(btn => {
-                if (btn.getAttribute('data-skin') === currentSkinId) btn.classList.add('active');
-                else btn.classList.remove('active');
+    /** Restore: Shows loading while BackgroundRenderer is updating */
+    private async switchWithLoading(status: string, action: () => void): Promise<void> {
+        const loading = LoadingOverlay.getInstance();
+        loading.show(status);
+        
+        try {
+            action();
+            // Wait for BackgroundRenderer to settle on the new state
+            await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+        } finally {
+            requestAnimationFrame(() => {
+                this.updateTabContentUI();
+                loading.hide();
             });
         }
     }
 
+    /** Renamed from updateTabContent to focus purely on UI state application */
+    private updateTabContentUI(): void {
+        const contentEl = document.getElementById('settings-tab-content');
+        if (!contentEl) return;
 
-    private renderActiveTabContent(contentEl: HTMLElement): void {
+        requestAnimationFrame(() => {
+            // Update tab button active states
+            document.querySelectorAll('#settings-tabs .tab-btn[data-tab]').forEach(btn => {
+                const tab = btn.getAttribute('data-tab');
+                if (tab === this.activeTab) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
+            // Update panel border color
+            const panel = document.getElementById('settings-panel');
+            if (panel) {
+                let borderColor = '#FFD700';
+                let boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)';
+                if (this.activeTab === 'theme') { borderColor = '#A2FF00'; boxShadow = '0 0 40px rgba(162, 255, 0, 0.3)'; }
+                else if (this.activeTab === 'note') { borderColor = '#FFD700'; boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)'; }
+                else if (this.activeTab === 'audio') { borderColor = '#FF006E'; boxShadow = '0 0 40px rgba(255, 0, 110, 0.3)'; }
+                else if (this.activeTab === 'gameplay') { borderColor = '#00E5FF'; boxShadow = '0 0 40px rgba(0, 229, 255, 0.3)'; }
+                
+                panel.style.borderColor = borderColor;
+                panel.style.boxShadow = boxShadow;
+            }
+
+            // Sync all containers
+            this.tabContainers.forEach((container, tab) => {
+                if (tab === this.activeTab) {
+                    container.style.display = 'block';
+                    // Re-render certain tabs to ensure the correct theme/skin is highlighted
+                    this.renderActiveTabContent(container);
+                } else {
+                    container.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    /** Refresh or render the content for the currently active tab */
+    private renderActiveTabContent(container: HTMLElement): void {
         const themeManager = ThemeManager.getInstance();
         const currentThemeId = themeManager.getCurrentTheme().id;
         const skinManager = NoteSkinManager.getInstance();
         const currentSkinId = skinManager.getCurrentSkin().id;
-
+        const renderCache = RenderCache.getInstance();
 
         if (this.activeTab === 'theme') {
             const themes = themeManager.getAllThemes();
-            
-            // v48: Show loading overlay while batch-loading thumbnails
-            const loading = LoadingOverlay.getInstance();
-            loading.show("PREPARING THEMES...");
-            loading.updateProgress(0);
+            const themesHtml = themes.map(t => {
+                // Since we pre-loaded, this will be instant from memory
+                const url = renderCache.getBackgroundPreviewUrlLocal(t.id);
+                
+                let innerHtml = `<span class="theme-name">${t.name}</span>`;
+                if (t.id === 'marchen') {
+                    const sparkles = Array.from({ length: 8 }).map((_) => {
+                        const top = Math.random() * 80 + 10;
+                        const left = Math.random() * 80 + 10;
+                        const delay = Math.random() * 2;
+                        const duration = 1.5 + Math.random() * 1;
+                        return `<span class="icon-sparkle-marchen" style="top:${top}%; left:${left}%; animation-delay:${delay}s; animation-duration:${duration}s;"></span>`;
+                    }).join('');
+                    innerHtml = sparkles + innerHtml;
+                }
 
-            // Sequential or parallel? Parallel with progress
-            let loadedCount = 0;
-            const previewPromises = themes.map(async (t) => {
-                const url = await RenderCache.getInstance().getBackgroundPreview(t.id);
-                loadedCount++;
-                loading.updateProgress(Math.floor((loadedCount / themes.length) * 100));
-                return { theme: t, url };
-            });
+                const bgStyle = url ? `background-image: url(${url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
 
-            Promise.all(previewPromises).then(results => {
-                const themesHtml = results.map(res => {
-                    const t = res.theme;
-                    let innerHtml = `<span class="theme-name">${t.name}</span>`;
-                    
-                    // v44: Inject live sparkles for Marchen
-                    if (t.id === 'marchen') {
-                        const sparkles = Array.from({ length: 8 }).map((_) => {
-                            const top = Math.random() * 80 + 10;
-                            const left = Math.random() * 80 + 10;
-                            const delay = Math.random() * 2;
-                            const duration = 1.5 + Math.random() * 1;
-                            return `<span class="icon-sparkle-marchen" style="top:${top}%; left:${left}%; animation-delay:${delay}s; animation-duration:${duration}s;"></span>`;
-                        }).join('');
-                        innerHtml = sparkles + innerHtml;
-                    }
-
-                    const bgStyle = res.url ? `background-image: url(${res.url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
-
-                    return `
-                    <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''}" 
-                            data-theme="${t.id}"
-                            style="${bgStyle} border-color: ${t.color3}; background-size: cover; background-position: center; background-repeat: no-repeat;">
-                        ${innerHtml}
-                    </button>
-                    `;
-                }).join('');
-
-                contentEl.innerHTML = `
-                    <div class="theme-grid">
-                        ${themesHtml}
-                    </div>
+                return `
+                <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''}" 
+                        data-theme="${t.id}"
+                        style="${bgStyle} border-color: ${t.color3}; background-size: cover; background-position: center; background-repeat: no-repeat;">
+                    ${innerHtml}
+                </button>
                 `;
+            }).join('');
 
-                // Re-bind listeners as we just replaced the HTML
-                this.attachThemeListeners(contentEl);
-                loading.hide();
-            });
+            container.innerHTML = `
+                <div class="theme-grid">
+                    ${themesHtml}
+                </div>
+            `;
+            this.attachThemeListeners(container);
 
         } else if (this.activeTab === 'note') {
-            const renderCache = RenderCache.getInstance();
             const skins = skinManager.getAllSkins();
             const skinsHtml = skins.map(s => {
                 const previewUrl = renderCache.getPreviewDataURL(s.id);
@@ -563,15 +571,15 @@ export class SettingsUI {
                 </button>
             `}).join('');
 
-            contentEl.innerHTML = `
+            container.innerHTML = `
                 <div class="theme-grid">
                     ${skinsHtml}
                 </div>
             `;
-
+            this.attachSkinListeners(container);
 
         } else if (this.activeTab === 'audio') {
-            contentEl.innerHTML = `
+            container.innerHTML = `
                 <div class="setting-row" style="width:100%;box-sizing:border-box; padding-top: 10px;">
                     <label>MASTER VOLUME</label>
                     <input type="range" id="master-volume" min="0" max="100" value="80">
@@ -581,8 +589,9 @@ export class SettingsUI {
                     <input type="range" id="sfx-volume" min="0" max="100" value="100">
                 </div>
             `;
+            // Add listeners for audio sliders if needed (omitted for brevity as per existing pattern)
         } else if (this.activeTab === 'gameplay') {
-            contentEl.innerHTML = `
+            container.innerHTML = `
                 <div class="setting-row" style="width:100%;box-sizing:border-box; margin-bottom: 20px; padding-top: 10px;">
                     <label style="flex:1;">UI LAYOUT CONFIGURATION</label>
                     <button id="btn-layout-editor" class="glass-btn primary" style="flex:1;">🎨 OPEN LAYOUT EDITOR</button>
@@ -591,14 +600,14 @@ export class SettingsUI {
                     * 아케이드 터치 스크린 규격에 맞춰 각 UI 요소의 위치와 크기를 자유롭게 조절할 수 있습니다.
                 </p>
             `;
-            document.getElementById('btn-layout-editor')?.addEventListener('click', () => {
+            const btn = container.querySelector('#btn-layout-editor');
+            btn?.addEventListener('click', () => {
                 this.destroy();
                 this.onAction('layout_editor');
             });
         }
     }
 
-    /** Attach listeners that live on the shell (tabs, back button). Called once. */
     private attachShellListeners(): void {
         document.querySelectorAll('#settings-tabs .tab-btn[data-tab]').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -606,7 +615,7 @@ export class SettingsUI {
                 const tab = target.getAttribute('data-tab') as Tab;
                 if (tab && tab !== this.activeTab) {
                     this.activeTab = tab;
-                    this.updateTabContent();
+                    this.updateTabContentUI();
                 }
             });
         });
@@ -617,38 +626,36 @@ export class SettingsUI {
         });
     }
 
-    /** Attach listeners for theme buttons (Scoped v30). */
-    private attachThemeListeners(container: HTMLElement = document.body): void {
+    private attachThemeListeners(container: HTMLElement): void {
         container.querySelectorAll('.theme-btn:not(.skin-btn)').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 const themeId = target.getAttribute('data-theme');
-                const currentThemeId = ThemeManager.getInstance().getCurrentTheme().id;
+                const themeManager = ThemeManager.getInstance();
+                const currentThemeId = themeManager.getCurrentTheme().id;
                 
-                // v46: Ignore click if already active
                 if (themeId && themeId !== currentThemeId) {
-                    ThemeManager.getInstance().setTheme(themeId);
-                    this.updateTabContent();
-                } else {
-                    console.log(`[SettingsUI] Theme ${themeId} is already active. Ignoring click.`);
+                    void this.switchWithLoading("CHANGING THEME...", () => {
+                        themeManager.setTheme(themeId);
+                    });
                 }
             });
         });
     }
 
-    private attachSkinListeners(container: HTMLElement = document.body): void {
+    private attachSkinListeners(container: HTMLElement): void {
         container.querySelectorAll('.skin-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 const skinId = target.getAttribute('data-skin');
                 if (skinId) {
-                    NoteSkinManager.getInstance().setSkin(skinId);
-                    this.updateTabContent();
+                    void this.switchWithLoading("CHANGING SKIN...", () => {
+                        NoteSkinManager.getInstance().setSkin(skinId);
+                    });
                 }
             });
         });
     }
-
 
     public hide(): void {
         this.destroy();
