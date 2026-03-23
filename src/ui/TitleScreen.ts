@@ -226,7 +226,6 @@ export class TitleScreen {
         const sizeBot = CONFIG.BRANDING.BOT_SIZE * scale;
         const centerY = Math.floor(h * 0.4);
         const gap = Math.round(CONFIG.BRANDING.GAP * scale);
-        const totalTextH = sizeTop + sizeBot + gap;
 
         tctx.save();
         tctx.shadowColor = 'rgba(0,0,0,0.95)';
@@ -263,7 +262,7 @@ export class TitleScreen {
         this.preRenderLogo();
         if (!this.logoCache) return;
 
-        const { width: w, height: h, time, lastAlpha } = this;
+        const { width: w, height: h, time, lastAlpha, dpr } = this;
         
         // Pulse Logic
         const cycle = CONFIG.MOTION.TEMPO;
