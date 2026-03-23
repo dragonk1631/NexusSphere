@@ -42,20 +42,18 @@ export class TitleScreen {
         window.addEventListener('pointerdown', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
 
-        // SYNC FIX: Explicitly wait for the branding font
+        // Fonts are LOCAL now - load resolves almost instantly.
+        // Still wait to ensure canvas engine has the font before rendering.
         const brandingFont = '900 24px "Black Han Sans"';
         document.fonts.load(brandingFont).then(() => {
-            // Further safety check
-            if (document.fonts.check(brandingFont)) {
-                this.logoCache = null; // Force re-render
+            this.preRenderLogo();
+            requestAnimationFrame(() => {
                 this.container.style.opacity = '1';
-            } else {
-                // Retry once if check fails
-                setTimeout(() => {
-                    this.logoCache = null;
-                    this.container.style.opacity = '1';
-                }, 100);
-            }
+            });
+        }).catch(() => {
+            // Failsafe: show anyway
+            this.preRenderLogo();
+            this.container.style.opacity = '1';
         });
     }
 
@@ -83,11 +81,7 @@ export class TitleScreen {
             }
         `;
         document.head.appendChild(style);
-
-        const fontLink = document.createElement('link');
-        fontLink.href = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@900&family=Black+Han+Sans&family=Outfit:wght@800;900&family=Inter:wght@800;900&family=Nunito:wght@800;900&display=swap';
-        fontLink.rel = 'stylesheet';
-        document.head.appendChild(fontLink);
+        // Fonts are now served locally via index.html @font-face — no CDN needed.
     }
 
     private handleStart(e: Event) {
