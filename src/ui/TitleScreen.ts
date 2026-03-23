@@ -178,7 +178,7 @@ export class TitleScreen {
     }
 
     private render() {
-        const { ctx, width: w, height: h, dpr, time } = this;
+        const { ctx, width: w, height: h, dpr } = this;
         
         ctx.save();
         ctx.scale(dpr, dpr);
