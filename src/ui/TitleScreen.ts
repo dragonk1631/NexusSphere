@@ -42,10 +42,20 @@ export class TitleScreen {
         window.addEventListener('pointerdown', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
 
-        // SYNC FIX: Ensure fonts are loaded before showing UI
-        document.fonts.ready.then(() => {
-            this.logoCache = null;
-            this.container.style.opacity = '1';
+        // SYNC FIX: Explicitly wait for the branding font
+        const brandingFont = '900 24px "Black Han Sans"';
+        document.fonts.load(brandingFont).then(() => {
+            // Further safety check
+            if (document.fonts.check(brandingFont)) {
+                this.logoCache = null; // Force re-render
+                this.container.style.opacity = '1';
+            } else {
+                // Retry once if check fails
+                setTimeout(() => {
+                    this.logoCache = null;
+                    this.container.style.opacity = '1';
+                }, 100);
+            }
         });
     }
 
