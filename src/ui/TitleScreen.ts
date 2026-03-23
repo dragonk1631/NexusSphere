@@ -12,6 +12,7 @@ export class TitleScreen {
     private isTransitioning: boolean = false;
     private logoCache: HTMLCanvasElement | null = null;
     private lastAlpha: number = 0;
+    private fontReady: boolean = false;
 
     constructor(onStart: () => void) {
         this.onStart = onStart;
@@ -42,16 +43,16 @@ export class TitleScreen {
         window.addEventListener('pointerdown', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
 
-        // Fonts are LOCAL now - load resolves almost instantly.
-        // Still wait to ensure canvas engine has the font before rendering.
         const brandingFont = '900 24px "Black Han Sans"';
         document.fonts.load(brandingFont).then(() => {
-            this.preRenderLogo();
+            this.fontReady = true;      // Allow the game loop to render now
+            this.logoCache = null;      // Clear any stale cache made before font was ready
+            this.preRenderLogo();       // Pre-render with the correct font
             requestAnimationFrame(() => {
                 this.container.style.opacity = '1';
             });
         }).catch(() => {
-            // Failsafe: show anyway
+            this.fontReady = true;
             this.preRenderLogo();
             this.container.style.opacity = '1';
         });
@@ -198,7 +199,7 @@ export class TitleScreen {
         ctx.restore();
 
         // 2. Main Logo (Cinematic Saturating Glow Pulse)
-        this.preRenderLogo();
+        if (this.fontReady) this.preRenderLogo(); // Only render after font is guaranteed ready
         const cycleTempo = 2.0; 
         const rawSin = Math.sin(time * cycleTempo);
         const prevRawSin = Math.sin((time - 0.016) * cycleTempo);
