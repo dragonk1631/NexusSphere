@@ -10,7 +10,7 @@ export class TitleScreen {
     private width: number = 0;
     private height: number = 0;
     private isTransitioning: boolean = false;
-    private logoCache: OffscreenCanvas | null = null;
+    private logoCache: HTMLCanvasElement | null = null;
     private lastAlpha: number = 0;
 
     constructor(onStart: () => void) {
@@ -129,7 +129,10 @@ export class TitleScreen {
         const logoSizeTopBase = Math.min(w * 0.15, h * 0.15, 140);
         const logoSizeBotBase = Math.min(w * 0.2, h * 0.2, 180);
         
-        const tempCtx = new OffscreenCanvas(w, h).getContext('2d')!;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+        const tempCtx = tempCanvas.getContext('2d')!;
         tempCtx.textAlign = 'center';
         tempCtx.textBaseline = 'middle';
         
@@ -180,7 +183,7 @@ export class TitleScreen {
         tempCtx.fillText(title2, Math.round(w / 2), y2);
         
         tempCtx.restore();
-        this.logoCache = tempCtx.canvas as OffscreenCanvas;
+        this.logoCache = tempCanvas;
     }
 
     private render() {
