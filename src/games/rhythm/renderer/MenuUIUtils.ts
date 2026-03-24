@@ -10,6 +10,7 @@ import { MENU_LAYOUT } from './MenuLayoutConfig';
 const colorCache = new Map<string, string>();
 const lerpColorCache = new Map<string, string>();
 const textWidthCache = new Map<string, number>();
+const panelCache = new Map<string, HTMLCanvasElement>();
 
 function getCachedTextWidth(ctx: CanvasRenderingContext2D, text: string): number {
     const key = `${ctx.font}|${text}`;
@@ -88,119 +89,169 @@ export function getGradeColor(grade: string): string {
     return colors[grade] || '#fff';
 }
 
-export function drawTrackedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, tracking: number, color: string, align: 'left' | 'center' | 'right', strokeColor: string = 'transparent') {
+export function drawTrackedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, tracking: number, color: string, align: 'left' | 'center' | 'right', strokeColor: string = 'rgba(0,0,0,0.8)') {
     ctx.font = `900 ${Math.floor(size)}px "Orbitron"`;
     ctx.fillStyle = color;
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur = 4 * (size / 18);
     ctx.textAlign = 'left';
 
-    let totalW = 0;
-    for (let i = 0; i < text.length; i++) {
-        totalW += getCachedTextWidth(ctx, text[i]) + tracking;
-    }
-    totalW -= tracking;
+    const chars = text.split('');
+    const widths = chars.map(c => getCachedTextWidth(ctx, c));
+    const fullW = widths.reduce((a, b) => a + b, 0) + (chars.length - 1) * tracking;
 
     let startX = x;
-    if (align === 'center') startX = x - totalW / 2;
-    if (align === 'right') startX = x - totalW;
+    if (align === 'center') startX = x - fullW / 2;
+    else if (align === 'right') startX = x - fullW;
 
-    for (let i = 0; i < text.length; i++) {
-        if (strokeColor !== 'transparent') {
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 3 * (size / 15);
-            ctx.strokeText(text[i], startX, y);
-        }
-        ctx.fillText(text[i], startX, y);
-        startX += getCachedTextWidth(ctx, text[i]) + tracking;
-    }
+    ctx.save();
+    // 1. STROKE FIRST (No shadow)
+    ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = size * 0.12;
+    let curX = startX;
+    chars.forEach((char, i) => {
+        ctx.strokeText(char, curX, y);
+        curX += widths[i] + tracking;
+    });
+
+    // 2. FILL SECOND (With intentional downward shadow)
+    ctx.shadowBlur = 4 * (size / 18);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+    ctx.shadowOffsetX = 1.5 * (size / 18);
+    ctx.shadowOffsetY = 3.5 * (size / 18); // Definite Downward
+    
+    curX = startX;
+    chars.forEach((char, i) => {
+        ctx.fillText(char, curX, y);
+        curX += widths[i] + tracking;
+    });
+    ctx.restore();
 }
 
-export function drawPremiumTypography(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, align: CanvasTextAlign, size: number, color: string, isBold: boolean, glowColor: string, maxW: number, strokeColor: string = 'transparent') {
+/**
+ * Premium typography with optional glow and standard black outline.
+ * Refactored for 'Stroke First' pattern to ensure downward shadow clarity.
+ */
+export function drawPremiumTypography(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, align: CanvasTextAlign, size: number, color: string, isBold: boolean, glowColor: string, maxW: number, strokeColor: string = 'rgba(0,0,0,0.8)') {
     ctx.save();
     ctx.textAlign = align;
     ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
 
-    ctx.font = `${isBold ? 900 : 400} ${Math.floor(size)}px "Orbitron"`;
-    const textW = getCachedTextWidth(ctx, text);
-    const finalScale = textW > maxW ? maxW / textW : 1;
+    const baseFont = `"Orbitron", sans-serif`;
+    ctx.font = `${isBold ? 900 : 400} ${Math.floor(size)}px ${baseFont}`;
 
-    if (finalScale < 1) {
-        ctx.font = `${isBold ? 900 : 400} ${Math.floor(size * finalScale)}px "Orbitron"`;
+    // Fit check
+    const metrics = ctx.measureText(text);
+    if (metrics.width > maxW) {
+        const finalScale = maxW / metrics.width;
+        ctx.font = `${isBold ? 900 : 400} ${Math.floor(size * finalScale)}px ${baseFont}`;
     }
 
+    // 1. STROKE FIRST
+    if (strokeColor !== 'transparent') {
+        ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = size * 0.12;
+        ctx.strokeText(text, x, y, maxW);
+    }
+
+    // 2. FILL SECOND (With intentional downward shadow)
     if (glowColor !== 'transparent') {
         ctx.shadowBlur = 10 * (size / 30); ctx.shadowColor = glowColor;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
     } else {
-        ctx.shadowBlur = 0;
+        ctx.shadowBlur = 4 * (size / 24); ctx.shadowColor = 'rgba(0,0,0,1)';
+        ctx.shadowOffsetX = 2 * (size / 24); ctx.shadowOffsetY = 4 * (size / 24); // Downward
     }
-
-    if (strokeColor !== 'transparent') {
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2 * (size / 24);
-        ctx.strokeText(text, x, y);
-    }
-
-    ctx.fillStyle = color;
-    ctx.fillText(text, x, y);
-
-    if (isBold) {
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillText(text, x, y);
-    }
-
+    
+    ctx.fillText(text, x, y, maxW);
     ctx.restore();
 }
 
 export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, tabLabel: string, c1: string, c2: string, sf: number, glassBg: string = 'rgba(255, 255, 255, 0.07)') {
-    ctx.save();
-    ctx.shadowBlur = 50 * sf; ctx.shadowColor = 'rgba(0,0,0,0.9)';
-    ctx.fillStyle = glassBg;
-    ctx.beginPath(); ctx.roundRect(px, py, pw, ph, MENU_LAYOUT.PANEL_BORDER_RADIUS * sf); ctx.fill();
-    ctx.shadowBlur = 0;
+    const cacheKey = `v4|${pw}|${ph}|${tabLabel}|${c1}|${c2}|${sf}|${glassBg}`;
+    if (panelCache.has(cacheKey)) {
+        // Draw the cached off-screen canvas, adjusting for the shadow offset
+        const cachedCanvas = panelCache.get(cacheKey)!;
+        const ox = 50 * sf; // Same offset used when creating the off-screen canvas
+        const oy = 50 * sf;
+        ctx.drawImage(cachedCanvas, px - ox, py - oy);
+        return;
+    }
 
-    const borderGrad = ctx.createLinearGradient(px, py, px + pw, py + ph);
+    const offCanvas = document.createElement('canvas');
+    // Add extra space for shadow around the panel
+    offCanvas.width = pw + 100 * sf;
+    offCanvas.height = ph + 100 * sf;
+    const offCtx = offCanvas.getContext('2d')!;
+    // Offset for drawing on the off-screen canvas to accommodate shadow
+    const ox = 50 * sf;
+    const oy = 50 * sf;
+
+    offCtx.save();
+    // 1. Draw outer shadow first (without blur filter)
+    offCtx.shadowBlur = 35 * sf; offCtx.shadowColor = 'rgba(0,0,0,0.6)';
+    offCtx.fillStyle = 'rgba(0,0,0,0.1)';
+    offCtx.beginPath(); offCtx.roundRect(ox, oy, pw, ph, MENU_LAYOUT.PANEL_BORDER_RADIUS * sf); offCtx.fill();
+    offCtx.restore();
+
+    // 2. Draw Glass Background with Blur
+    offCtx.save();
+    // Standard blur filter (compat check)
+    if (typeof offCtx.filter === 'string') {
+        offCtx.filter = 'blur(4px)'; 
+    }
+    offCtx.fillStyle = glassBg; // rgba(255,255,255,0.07)
+    offCtx.beginPath(); offCtx.roundRect(ox, oy, pw, ph, MENU_LAYOUT.PANEL_BORDER_RADIUS * sf); offCtx.fill();
+    offCtx.restore();
+
+    // Reset for borders
+    offCtx.filter = 'none';
+    offCtx.shadowBlur = 0;
+
+    const borderGrad = offCtx.createLinearGradient(ox, oy, ox + pw, oy + ph);
     borderGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.8)`);
     borderGrad.addColorStop(1, `rgba(${hexToRgb(c2)}, 0.6)`);
-    ctx.strokeStyle = borderGrad;
-    ctx.lineWidth = 1.8 * sf; // Sharper border
-    ctx.stroke();
+    offCtx.strokeStyle = borderGrad;
+    offCtx.lineWidth = 1.8 * sf;
+    offCtx.stroke();
 
-    // Subtle Inner Dark Shadow for depth
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 0.5 * sf;
-    ctx.strokeRect(px + 1 * sf, py + 1 * sf, pw - 2 * sf, ph - 2 * sf);
+    offCtx.strokeStyle = 'rgba(0,0,0,0.3)';
+    offCtx.lineWidth = 0.5 * sf;
+    offCtx.strokeRect(ox + 1 * sf, oy + 1 * sf, pw - 2 * sf, ph - 2 * sf);
 
     const headerH = MENU_LAYOUT.HEADER_HEIGHT * sf;
-    const hGrad = ctx.createLinearGradient(px, py, px, py + headerH);
-    hGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.45)`); // More transparent top
+    const hGrad = offCtx.createLinearGradient(ox, oy, ox, oy + headerH);
+    hGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.45)`);
     hGrad.addColorStop(0.15, `rgba(${hexToRgb(c1)}, 0.6)`);
-    hGrad.addColorStop(1, `rgba(10, 10, 20, 0.9)`); // Darker bottom
+    hGrad.addColorStop(1, `rgba(10, 10, 20, 0.9)`);
 
-    ctx.fillStyle = hGrad;
-    ctx.beginPath();
-    ctx.roundRect(px, py, pw, headerH, [MENU_LAYOUT.PANEL_HEADER_RADIUS[0] * sf, MENU_LAYOUT.PANEL_HEADER_RADIUS[1] * sf, 0, 0]);
-    ctx.fill();
+    offCtx.fillStyle = hGrad;
+    offCtx.beginPath();
+    offCtx.roundRect(ox, oy, pw, headerH, [MENU_LAYOUT.PANEL_HEADER_RADIUS[0] * sf, MENU_LAYOUT.PANEL_HEADER_RADIUS[1] * sf, 0, 0]);
+    offCtx.fill();
 
-    // Header Separator Line
-    ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.3)`;
-    ctx.lineWidth = 1 * sf;
-    ctx.beginPath();
-    ctx.moveTo(px, py + headerH);
-    ctx.lineTo(px + pw, py + headerH);
-    ctx.stroke();
+    offCtx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.3)`;
+    offCtx.lineWidth = 1 * sf;
+    offCtx.beginPath(); offCtx.moveTo(ox, oy + headerH); offCtx.lineTo(ox + pw, oy + headerH); offCtx.stroke();
 
-    ctx.fillStyle = '#fff';
-    ctx.shadowBlur = 10 * sf; ctx.shadowColor = '#fff';
-    drawTrackedText(ctx, tabLabel, px + 20 * sf, py + headerH / 2 + 1 * sf, 15 * sf, 4 * sf, '#fff', 'left', 'rgba(0,0,0,0.6)');
+    offCtx.fillStyle = '#fff';
+    offCtx.shadowBlur = 10 * sf; offCtx.shadowColor = '#fff';
+    // Type assertion for drawTrackedText as it expects CanvasRenderingContext2D, but offCtx is compatible
+    drawTrackedText(offCtx as CanvasRenderingContext2D, tabLabel, ox + 20 * sf, oy + headerH / 2 + 1 * sf, 18 * sf, 4 * sf, '#fff', 'left', 'rgba(0,0,0,0.6)');
+    offCtx.restore();
 
-    ctx.restore();
+    // Cache the rendered off-screen canvas
+    panelCache.set(cacheKey, offCanvas);
+    // Draw the off-screen canvas to the main context, adjusting for the shadow offset
+    ctx.drawImage(offCanvas, px - ox, py - oy);
 }
 
 export function drawScanlines(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
     ctx.save();
     ctx.globalAlpha = 0.04;
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.fillStyle = '#fff'; // Use fillStyle for the pattern
     const gap = 6;
     const offset = (time * 20) % gap;
     for (let y = offset; y < h; y += gap) {

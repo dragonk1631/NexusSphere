@@ -21,6 +21,7 @@
 
 ---
 
+
 ## 🔵 UI/UX 및 기타 (Low)
 
 - [ ] **트랙 선택기 취소 예외**: `TrackSelector`에서 취소 버튼 클릭 시 적절한 후속 처리가 되지 않아 화면이 멈추거나 예외가 발생하는 현상 (`src/ui/TrackSelector.ts`)

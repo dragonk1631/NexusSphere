@@ -180,41 +180,39 @@ export class MidiEQRenderer {
             const activeSegs = Math.ceil(this.barHeights[ch] * numSeg);
             const peakSegIdx = Math.min(numSeg - 1, Math.floor(this.peakHeights[ch] * numSeg));
 
-            // Main Bars (Batched per channel)
+            // Main Bars (Batched per channel for performance)
             if (activeSegs > 0) {
                 ctx.fillStyle = this.channelColors[ch];
                 ctx.beginPath();
                 for (let i = 0; i < activeSegs; i++) {
                     const sy = plotY + mainH - (i + 1) * segH - i * segGap;
-                    ctx.roundRect(bx, sy, barW, segH, cornerR);
+                    ctx.rect(bx, sy, barW, segH); // Use rect for batching
                 }
                 ctx.fill();
 
-                // Top "Glow" block (Cheap replacement for shadowBlur)
+                // Top "Glow" block (Solid color, no shadow)
                 const topY = plotY + mainH - (activeSegs) * segH - (activeSegs - 1) * segGap;
                 ctx.fillStyle = this.topColors[ch];
-                ctx.beginPath(); ctx.roundRect(bx, topY, barW, segH, cornerR); ctx.fill();
+                ctx.fillRect(bx, topY, barW, segH);
             }
 
-            // Peak Indicator (Solid white for better performance)
+            // Peak Indicator
             if (this.peakHeights[ch] > 0.02 && peakSegIdx >= activeSegs) {
                 const py = plotY + mainH - (peakSegIdx + 1) * segH - peakSegIdx * segGap;
                 ctx.fillStyle = EQ_CONFIG.PEAK_COLOR;
-                ctx.beginPath(); ctx.roundRect(bx, py, barW, segH, cornerR); ctx.fill();
+                ctx.fillRect(bx, py, barW, segH);
             }
 
-            // Reflection Batch with GlobalAlpha
+            // Simplified Reflection (Single fill with gradient instead of individual segments)
             if (activeSegs > 0) {
                 ctx.save();
-                ctx.fillStyle = this.reflectionColors[ch];
-                for (let i = 0; i < activeSegs; i++) {
-                    const ry = reflectBasline + i * (segH + segGap);
-                    if (ry + segH > plotY + plotH) break;
-                    const fade = Math.max(0, 1 - (i / (numSeg * EQ_CONFIG.REFLECTION_RATIO)));
-                    if (fade <= 0) break;
-
-                    ctx.globalAlpha = fade;
-                    ctx.beginPath(); ctx.roundRect(bx, ry, barW, segH, cornerR); ctx.fill();
+                const reflectH = Math.min(plotH - (reflectBasline - plotY), activeSegs * (segH + segGap));
+                if (reflectH > 0) {
+                    const grad = ctx.createLinearGradient(0, reflectBasline, 0, reflectBasline + reflectH);
+                    grad.addColorStop(0, this.reflectionColors[ch]);
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(bx, reflectBasline, barW, reflectH);
                 }
                 ctx.restore();
             }
@@ -246,14 +244,23 @@ export class MidiEQRenderer {
     private drawSeparator(ctx: CanvasRenderingContext2D, px: number, pw: number, rb: number, sg: number, bpm: number, time: number, sf: number) {
         ctx.save();
         const beatPulse = Math.pow(Math.max(0, Math.sin(time * (bpm / 60) * Math.PI)), 4);
-        ctx.strokeStyle = `rgba(255, 255, 255, 0.5)`;
+        
+        // Cheap Glow: Multiple transparent lines instead of shadowBlur
+        const y = rb - sg / 1.5;
+        const alpha = 0.4 + beatPulse * 0.6;
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.2})`;
+        ctx.lineWidth = 10 * sf;
+        ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(px + pw, y); ctx.stroke();
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+        ctx.lineWidth = 4 * sf;
+        ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(px + pw, y); ctx.stroke();
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.lineWidth = 1 * sf;
-        ctx.shadowBlur = (8 + beatPulse * 15) * sf;
-        ctx.shadowColor = `rgba(255, 255, 255, ${0.4 + beatPulse * 0.6})`;
-        ctx.beginPath();
-        ctx.moveTo(px, rb - sg / 1.5);
-        ctx.lineTo(px + pw, rb - sg / 1.5);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(px + pw, y); ctx.stroke();
+        
         ctx.restore();
     }
 }

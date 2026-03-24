@@ -3,6 +3,7 @@ import { type MenuRenderState, type SongEntry } from '../../types/GameTypes';
 import { MENU_LAYOUT } from '../MenuLayoutConfig';
 import { MidiEQRenderer } from '../MidiEQRenderer';
 import {
+    hexToRgb,
     drawPremiumPanel,
     drawPremiumTypography
 } from '../MenuUIUtils';
@@ -49,10 +50,12 @@ export class SongInfoPanelRenderer {
         const scoreW = unitW * 2 + gap; // Combined width for score
         const otherW = unitW;
 
-        const currentHighScore = state.scoreManager?.getHighScore(currentSong.url)?.score || 0;
-        const scoreStr = currentHighScore.toString().padStart(7, '0');
-        const rank = state.scoreManager?.getHighScore(currentSong.url)?.grade || 'F';
-        const speedStr = `${state.scrollSpeed.toFixed(1)}x`;
+        const record = state.scoreManager?.getHighScore(currentSong.url);
+        const hasRecord = !!record;
+        
+        const scoreStr = hasRecord ? record.score.toString().padStart(7, '0') : "-------";
+        const rank = hasRecord ? record.grade : "---";
+        const bpmStr = Math.round(bpm).toString(); // Removed redundant 'BPM'
         const duration = currentSong.duration || 0;
         const lengthStr = `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`;
 
@@ -66,8 +69,8 @@ export class SongInfoPanelRenderer {
         this.renderSmallMetaBox(ctx, currentX, infoAreaY, otherW, infoAreaH, "RANK", rank, sf, c1, c2);
         currentX += otherW + gap;
 
-        // 3. SPEED
-        this.renderSmallMetaBox(ctx, currentX, infoAreaY, otherW, infoAreaH, "SPEED", speedStr, sf, c1, c2);
+        // 3. BPM
+        this.renderSmallMetaBox(ctx, currentX, infoAreaY, otherW, infoAreaH, "BPM", bpmStr, sf, c1, c2);
         currentX += otherW + gap;
 
         // 4. LENGTH
@@ -78,47 +81,87 @@ export class SongInfoPanelRenderer {
         ctx.save();
         ctx.translate(x, y);
 
-        // Glass Box with Unified Blur v2.5
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, 'rgba(255,255,255,0.07)');
-        grad.addColorStop(1, 'rgba(255,255,255,0.02)');
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.roundRect(0, 0, w, h, 6 * sf); ctx.fill();
+        const tabH = 22 * sf; // Increased from 18
+        const boxH = h - tabH;
 
-        // Border
-        const borderGrad = ctx.createLinearGradient(0, 0, w, 0);
-        borderGrad.addColorStop(0, c1); borderGrad.addColorStop(1, c2);
-        ctx.strokeStyle = borderGrad; ctx.lineWidth = 1.2 * sf; ctx.stroke();
-
-        // Label
-        const labelSize = Math.floor(9 * sf);
-        ctx.font = `700 ${labelSize}px "Orbitron"`;
-        ctx.fillStyle = c1;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillText(label, w / 2, 6 * sf);
-
-        // Value
-        const valueSize = isScore ? Math.floor(22 * sf) : Math.floor(18 * sf);
-        const valueY = h * (isScore ? 0.62 : 0.65);
+        // ── 1. HEADER TAB ──
+        const tabGrad = ctx.createLinearGradient(0, 0, 0, tabH);
+        tabGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.45)`);
+        tabGrad.addColorStop(1, `rgba(10, 10, 20, 0.9)`);
         
-        // Special color for Rank
-        let vColor = '#fff';
-        if (label === "RANK") {
-            const colors: Record<string, string> = { 'S': '#f9ca24', 'A': '#6ab04c', 'B': '#4834d4', 'C': '#eb4d4b', 'F': '#535c68' };
+        ctx.fillStyle = tabGrad;
+        ctx.beginPath();
+        ctx.roundRect(0, 0, w, tabH, [6 * sf, 6 * sf, 0, 0]);
+        ctx.fill();
+
+        // Tab Border
+        ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.5)`;
+        ctx.lineWidth = 1 * sf;
+        ctx.stroke();
+
+        // Label Typography
+        ctx.font = `700 ${Math.floor(14 * sf)}px "Orbitron"`;
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        
+        // 1. STROKE FIRST (no shadow — shadow on stroke causes upward artifact)
+        ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2.5 * sf;
+        ctx.strokeText(label, w / 2, tabH / 2 + 1 * sf);
+        
+        // 2. FILL SECOND (downward drop shadow)
+        ctx.shadowBlur = 4 * sf; ctx.shadowColor = 'rgba(0,0,0,0.9)';
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2.5 * sf;
+        ctx.fillText(label, w / 2, tabH / 2 + 1 * sf);
+
+        // ── 2. VALUE BOX ──
+        const boxY = tabH;
+        const boxGrad = ctx.createLinearGradient(0, boxY, 0, boxY + boxH);
+        boxGrad.addColorStop(0, 'rgba(255,255,255,0.07)');
+        boxGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
+        
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = boxGrad;
+        ctx.beginPath();
+        ctx.roundRect(0, boxY, w, boxH, [0, 0, 6 * sf, 6 * sf]);
+        ctx.fill();
+
+        // Main Border (Unified with Panel Style)
+        const borderGrad = ctx.createLinearGradient(0, boxY, w, boxY);
+        borderGrad.addColorStop(0, c1); borderGrad.addColorStop(1, c2);
+        ctx.strokeStyle = borderGrad; ctx.lineWidth = 1.2 * sf;
+        ctx.stroke();
+
+        // Divider line between tab and box
+        ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.3)`;
+        ctx.lineWidth = 0.5 * sf;
+        ctx.beginPath(); ctx.moveTo(0, boxY); ctx.lineTo(w, boxY); ctx.stroke();
+
+        // Value Typography (Significantly increased size)
+        const valueSize = isScore ? Math.floor(28 * sf) : Math.floor(24 * sf);
+        const isEmpty = value === "---" || value === "-------";
+        
+        let vColor = isEmpty ? 'rgba(255, 255, 255, 0.35)' : '#fff';
+        if (!isEmpty && label === "RANK") {
+            const colors: Record<string, string> = { 'S+': '#ffea00', 'S': '#f9ca24', 'A': '#6ab04c', 'B': '#4834d4', 'C': '#eb4d4b', 'F': '#535c68' };
             vColor = colors[value] || '#fff';
         }
 
-        ctx.font = `900 ${valueSize}px "Orbitron"`;
+        ctx.font = `700 ${valueSize}px "Orbitron"`;
         ctx.fillStyle = vColor;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+        // 1. STROKE FIRST (no shadow — shadow on stroke causes upward artifact)
+        ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2.5 * sf;
+        ctx.strokeText(value, w / 2, boxY + boxH / 2 + 2 * sf);
         
-        // Add subtle glow for importance
-        if (isScore || label === "RANK") {
-            ctx.shadowBlur = 10 * sf;
-            ctx.shadowColor = (label === "RANK") ? vColor : c1;
-        }
-        
-        ctx.fillText(value, w / 2, valueY);
+        // 2. FILL SECOND (clean downward drop shadow)
+        ctx.shadowBlur = 6 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3.5 * sf;
+        ctx.fillText(value, w / 2, boxY + boxH / 2 + 2 * sf);
         ctx.restore();
     }
 }

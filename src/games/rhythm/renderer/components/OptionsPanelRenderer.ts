@@ -79,8 +79,8 @@ export class OptionsPanelRenderer {
             ctx.lineWidth = 0.5 * sf;
             ctx.beginPath(); ctx.moveTo(cx - tabW / 2, tabY + tabH); ctx.lineTo(cx + tabW / 2, tabY + tabH); ctx.stroke();
 
-            // Centralized Header Text (Batch 5)
-            drawTrackedText(ctx, item.label, cx, tabY + tabH / 2 + 1 * sf, 11 * sf, 4 * sf, '#fff', 'center', 'rgba(0,0,0,0.5)');
+            // Centralized Header Text (Increased to 14)
+            drawTrackedText(ctx, item.label, cx, tabY + tabH / 2 + 1 * sf, 14 * sf, 4 * sf, '#fff', 'center', 'rgba(0,0,0,0.6)');
 
             // ── 2. INTERACTIVE MAIN TILE (Aligned with Theme Colors)
             const boxY = tabY + tabH;
@@ -119,17 +119,18 @@ export class OptionsPanelRenderer {
             ctx.beginPath(); ctx.moveTo(cx - tw / 2 + 8 * sf, boxY + 1 * sf); ctx.lineTo(cx + tw / 2 - 8 * sf, boxY + 1 * sf); ctx.stroke();
 
             // Standardized Typography Size
-            const valSize = 22 * sf;
+            const valSize = 24 * sf;
 
-            ctx.font = `800 ${Math.floor(valSize)}px "Orbitron"`;
+            ctx.font = `900 ${Math.floor(valSize)}px "Orbitron"`;
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
             // 4. Value Typography — upper portion of the box
-            ctx.shadowBlur = 0;
+            ctx.shadowBlur = 10 * sf;
+            ctx.shadowColor = item.color;
             const valueY = boxY + th * 0.38;   // upper area
-            drawPremiumTypography(ctx, item.value, cx, valueY, 'center', valSize, '#fff', true, item.color, tw * 0.6);
+            drawPremiumTypography(ctx, item.value, cx, valueY, 'center', valSize, '#fff', true, item.color, tw * 0.75);
 
             // 5. Tactical Arrows — lower portion of the box (well below value text)
             const arrowY = boxY + th * 0.78;
@@ -139,10 +140,22 @@ export class OptionsPanelRenderer {
             ctx.font = `900 ${Math.floor(20 * sf)}px "Orbitron"`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.shadowBlur = 14 * sf; ctx.shadowColor = item.color;
-
+            
+            ctx.save();
+            // 1. STROKE FIRST (No shadow)
+            ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2.5 * sf;
+            
+            ctx.strokeText("◀", cx - arrowSpacing + bounce, arrowY);
+            ctx.strokeText("▶", cx + arrowSpacing - bounce, arrowY);
+            
+            // 2. FILL SECOND (With intense downward shadow)
+            ctx.shadowBlur = 6 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
+            ctx.shadowOffsetX = 1.6 * sf; ctx.shadowOffsetY = 3.5 * sf; // Downward
             ctx.fillText("◀", cx - arrowSpacing + bounce, arrowY);
             ctx.fillText("▶", cx + arrowSpacing - bounce, arrowY);
+            ctx.restore();
 
             ctx.restore();
         });

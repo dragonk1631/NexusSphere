@@ -69,15 +69,16 @@ export class MainMenu {
         MenuMusicManager.getInstance().playMusic('main');
         const html = `
             <style>
+                @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Outfit:wght@900&display=swap');
+
                 /* ── DESIGN TOKENS ── */
                 :root {
-                    --mm-blur: 2.5px;
+                    --mm-blur: 12px;
                     --mm-glass-bg: rgba(255, 255, 255, 0.07);
                     --mm-glass-border: rgba(255, 255, 255, 0.18);
                     --mm-text-shadow: 0 2px 8px rgba(0,0,0,0.8);
                 }
 
-                @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Outfit:wght@900&display=swap');
 
                 /* ── ANIMATIONS ── */
                 @keyframes mm-fadeInDown {
@@ -187,17 +188,18 @@ export class MainMenu {
                     font-size: clamp(2rem, 6vh, 4.5rem);
                     font-weight: 900;
                     letter-spacing: clamp(4px, 1vw, 12px);
-                    /* Brighter White-Silver Look v23 */
-                    background: linear-gradient(to bottom, #ffffff 0%, #f0f4ff 100%);
+                    /* Brighter White-Silver Look */
+                    background: linear-gradient(to bottom, #ffffff 0%, #d0d8ff 100%);
                     -webkit-background-clip: text;
                     background-clip: text;
-                    color: white; /* Fallback */
-                    -webkit-text-stroke: 2px #000; /* Robust Black Outline */
-                    paint-order: stroke fill; /* Ensure stroke is behind/around fill */
-                    /* Deep Black Shadow v23 */
-                    filter: 
-                        drop-shadow(0 4px 15px rgba(0,0,0,1))
-                        drop-shadow(0 0 10px rgba(165,180,252,0.3));
+                    -webkit-text-fill-color: transparent; /* Required: show gradient, not solid fill */
+                    color: transparent; /* Fallback */
+                    -webkit-text-stroke: 1px rgba(0,0,0,0.6);
+                    paint-order: stroke fill;
+                    /* Deep Drop Shadow */
+                    filter:
+                        drop-shadow(0 3px 8px rgba(0,0,0,0.95))
+                        drop-shadow(0 0 12px rgba(165,180,252,0.35));
                     text-transform: uppercase;
                 }
                 .mm-main-title-sub {
