@@ -59,7 +59,26 @@ export class MenuManager {
     private async init() {
         await this.loadOfficialSongs();
         await this.loadUserSongs();
+        await this.loadSongStates();
         this.sortSongList();
+    }
+
+    public async loadSongStates() {
+        try {
+            const states = await this.storage.getSongStates();
+            const stateMap = new Map(states.map(s => [s.url, s]));
+            
+            // Apply states to current song list
+            this.songList.forEach(song => {
+                const state = stateMap.get(song.url);
+                if (state) {
+                    song.isFavorite = state.isFavorite;
+                }
+            });
+            this.applyFilter();
+        } catch (e) {
+            console.error("[MenuManager] Failed to load song states:", e);
+        }
     }
 
     public async loadOfficialSongs() {
@@ -153,13 +172,6 @@ export class MenuManager {
         }
         this.songList = baseList;
         this.sortSongList();
-
-        // ── Defensive: Re-validate index after filtering ──
-        if (this.songList.length === 0) {
-            this.selectedSongIndex = 0;
-        } else if (this.selectedSongIndex >= this.songList.length) {
-            this.selectedSongIndex = this.songList.length - 1;
-        }
     }
 
     public async addUserSong(file: File): Promise<void> {
@@ -566,16 +578,19 @@ export class MenuManager {
         }
     } // End of handlePointerDown
 
-    public toggleFavorite(index: number): void {
+    public async toggleFavorite(index: number): Promise<void> {
         const song = this.songList[index];
         if (song) {
             song.isFavorite = !song.isFavorite;
-            console.log(`[MenuManager] Toggled favorite for ${song.name}: ${song.isFavorite}`);
+            
+            // Persist to IndexedDB
+            await this.storage.toggleFavorite(song.url, !!song.isFavorite);
+            
+            console.log(`[MenuManager] Persistent toggle for ${song.name}: ${song.isFavorite}`);
             
             this.toastMessage = song.isFavorite ? "즐겨찾기에 등록되었습니다" : "즐겨찾기에서 해제되었습니다";
-            this.toastTimer = 2000; // 2 seconds
+            this.toastTimer = 2000;
 
-            // If we are in FAVORITE mode, immediately refresh list to remove if untoggled
             if (this.currentFilter === 'favorite') {
                 this.applyFilter();
             }

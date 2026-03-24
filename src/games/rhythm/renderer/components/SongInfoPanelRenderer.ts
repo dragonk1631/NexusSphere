@@ -11,146 +11,114 @@ export class SongInfoPanelRenderer {
     public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, currentSong: SongEntry | null, sf: number, c1: string, c2: string, bpm: number, eqRenderer: MidiEQRenderer) {
         const { visPanelY, leftPanelWidth, visPanelH, padding } = layout;
 
+        // Unified 2.5px Blur for Info Panel
         drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf);
 
         if (!currentSong) {
             const cx = Math.floor(padding + leftPanelWidth / 2);
             const cy = Math.floor(visPanelY + visPanelH / 2);
             drawPremiumTypography(ctx, "ELEVATING DATA", cx, cy - 10 * sf, 'center', 24 * sf, '#fff', true, c1, leftPanelWidth * 0.8);
-            drawPremiumTypography(ctx, "NO TRACK DETECTED IN CURRENT DIRECTORY", cx, cy + 20 * sf, 'center', 10 * sf, 'rgba(255,255,255,0.4)', false, 'transparent', leftPanelWidth * 0.8);
+            drawPremiumTypography(ctx, "NO TRACK DETECTED", cx, cy + 20 * sf, 'center', 10 * sf, 'rgba(255,255,255,0.4)', false, 'transparent', leftPanelWidth * 0.8);
             return;
         }
 
         const cx = Math.floor(padding + leftPanelWidth / 2);
-
-        // ── Top-Down & Proportional Layout (7:3 Split) ──
-        const headerH = MENU_LAYOUT.HEADER_HEIGHT * sf; // Space for the "[ SONG_DATA ]" header
+        const headerH = MENU_LAYOUT.HEADER_HEIGHT * sf;
         const innerY = visPanelY + headerH;
         const innerH = visPanelH - headerH;
 
-        // Equal Spacing Layout (Batch 5)
-        const eqH = Math.floor(innerH * MENU_LAYOUT.INFO_EQ_RATIO);
-        const infoH = innerH - eqH;
-        const itemGap = Math.floor(infoH * MENU_LAYOUT.INFO_ITEM_GAP_RATIO); // Gap based on config
-        const usableInfoH = infoH - itemGap * 2;
-
+        // Visualizer Area (Top 65%)
+        const eqH = Math.floor(innerH * 0.65);
         const eqAreaY = innerY;
-        const eqAreaH = eqH;
 
         ctx.save();
         ctx.translate(cx - (leftPanelWidth - 24 * sf) / 2, eqAreaY);
-
-        // Use the new encapsulated renderer
         eqRenderer.update(state.previewMidi ?? null, state.previewTime ?? 0);
-        eqRenderer.render(
-            ctx,
-            0, 0, leftPanelWidth - 24 * sf, eqAreaH,
-            sf, c1, bpm, state.previewTime ?? 0
-        );
+        eqRenderer.render(ctx, 0, 0, leftPanelWidth - 24 * sf, eqH, sf, c1, bpm, state.previewTime ?? 0);
         ctx.restore();
 
-        const infoAreaY = eqAreaY + eqAreaH + itemGap;
+        // ── 4-Column Table Row (Bottom 35%) ──
+        const gap = 8 * sf;
+        const infoAreaY = eqAreaY + eqH + gap;
+        const infoAreaH = innerH - eqH - gap * 2;
+        
+        const sidePad = 12 * sf;
+        const totalW = leftPanelWidth - sidePad * 2;
+        const unitW = (totalW - gap * 3) / 5; // 2 (Score) + 1 (Rank) + 1 (Speed) + 1 (Length) = 5 units
 
-        // Split info space: upper 40% for Score, lower 60% for Meta boxes
-        // ── Zone B: Score Box (evenly sized) ──
-        const scoreBoxH = Math.floor(usableInfoH * MENU_LAYOUT.SCORE_BOX_HEIGHT_RATIO);
-        const scoreBoxY = infoAreaY;
-        const scoreBoxPad = MENU_LAYOUT.SCORE_BOX_PADDING * sf;
+        const scoreW = unitW * 2 + gap; // Combined width for score
+        const otherW = unitW;
 
-        // Score Glass Box
-        ctx.save();
-        const scoreGrad = ctx.createLinearGradient(padding + scoreBoxPad, scoreBoxY, padding + leftPanelWidth - scoreBoxPad, scoreBoxY + scoreBoxH);
-        scoreGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
-        scoreGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
-        ctx.fillStyle = scoreGrad;
-        ctx.beginPath(); ctx.roundRect(padding + scoreBoxPad, scoreBoxY, leftPanelWidth - scoreBoxPad * 2, scoreBoxH, 8 * sf); ctx.fill();
-        // Colorful border
-        const borderGrad = ctx.createLinearGradient(padding + scoreBoxPad, scoreBoxY, padding + leftPanelWidth - scoreBoxPad, scoreBoxY);
-        borderGrad.addColorStop(0, c1); borderGrad.addColorStop(1, c2);
-        ctx.strokeStyle = borderGrad; ctx.lineWidth = 1.5 * sf; ctx.stroke();
-        ctx.restore();
-
-        // Much larger fonts for better mobile visibility
-        const scoreFontSize = Math.min(30 * sf, scoreBoxH * 0.65);
-        const rankFontSize = Math.min(26 * sf, scoreBoxH * 0.68);
-        const lblFontSize = Math.max(9 * sf, scoreFontSize * 0.32);
-
-        // Get score manager instance from state or pass it (TODO: we might need ScoreManager passed in)
-        // Let's pass the score & grade as parameters or compute it in MenuRenderer
-        const currentHighScoreStr = state.scoreManager?.getHighScore(currentSong.url)?.score.toString().padStart(7, '0') || '0000000';
-        const rank = state.scoreManager?.getHighScore(currentSong.url)?.grade || null;
-
-        ctx.save();
-        ctx.font = `600 ${Math.floor(lblFontSize)}px "Orbitron"`;
-        ctx.fillStyle = c1; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.shadowBlur = 6 * sf; ctx.shadowColor = c1;
-        ctx.fillText("BEST", Math.floor(padding + scoreBoxPad + 12 * sf), scoreBoxY + scoreBoxH * 0.35);
-        ctx.fillStyle = c2; ctx.shadowColor = c2;
-        ctx.fillText("RECORD", Math.floor(padding + scoreBoxPad + 12 * sf), scoreBoxY + scoreBoxH * 0.65);
-        ctx.restore();
-
-        drawPremiumTypography(ctx, currentHighScoreStr, cx, scoreBoxY + scoreBoxH / 2, 'center', scoreFontSize, '#fff', true, c1, leftPanelWidth * 0.5);
-
-        if (rank) {
-            // Need getGradeColor, let's import it or re-implement
-            const colors: Record<string, string> = { 'S': '#f9ca24', 'A': '#6ab04c', 'B': '#4834d4', 'C': '#eb4d4b', 'F': '#535c68' };
-            const gradeColor = colors[rank] || '#fff';
-
-            ctx.save();
-            const badgeR = Math.min(rankFontSize * 0.7, scoreBoxH * 0.55);
-            const badgeX = Math.floor(padding + leftPanelWidth - scoreBoxPad - badgeR);
-            const badgeY = Math.floor(scoreBoxY + scoreBoxH / 2);
-            ctx.fillStyle = `rgba(${(parseInt(gradeColor.slice(1, 3), 16))}, ${parseInt(gradeColor.slice(3, 5), 16)}, ${parseInt(gradeColor.slice(5, 7), 16)}, 0.15)`; // basic hexToRgb
-            ctx.strokeStyle = gradeColor; ctx.lineWidth = 2 * sf;
-            ctx.shadowBlur = 15 * sf; ctx.shadowColor = gradeColor;
-            ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-            ctx.shadowBlur = 0;
-            ctx.font = `900 ${Math.floor(rankFontSize * 0.76)}px "Orbitron"`;
-            ctx.fillStyle = gradeColor;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(rank, badgeX, badgeY);
-            ctx.restore();
-        }
-
-        // ── Zone C: Meta boxes (evenly spaced) ──
-        const metaGap = MENU_LAYOUT.META_BOX_GAP * sf;
-        const metaH = Math.floor(usableInfoH * MENU_LAYOUT.META_BOX_HEIGHT_RATIO);
-        const metaY = scoreBoxY + scoreBoxH + itemGap;
-        const boxW = Math.floor((leftPanelWidth - scoreBoxPad * 2 - metaGap) / 2);
-
-        this.renderMetaBox(ctx, Math.floor(padding + scoreBoxPad + boxW / 2), metaY + metaH / 2, boxW, metaH, "BPM", bpm.toString(), sf, c1, c2);
-
+        const currentHighScore = state.scoreManager?.getHighScore(currentSong.url)?.score || 0;
+        const scoreStr = currentHighScore.toString().padStart(7, '0');
+        const rank = state.scoreManager?.getHighScore(currentSong.url)?.grade || 'F';
+        const speedStr = `${state.scrollSpeed.toFixed(1)}x`;
         const duration = currentSong.duration || 0;
-        const timeStr = `${Math.floor(duration / 60)} : ${Math.floor(duration % 60).toString().padStart(2, '0')}`;
-        this.renderMetaBox(ctx, Math.floor(padding + scoreBoxPad + boxW + metaGap + boxW / 2), metaY + metaH / 2, boxW, metaH, "LENGTH", timeStr, sf, c1, c2);
+        const lengthStr = `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`;
+
+        let currentX = padding + sidePad;
+
+        // 1. BEST SCORE (Double Width)
+        this.renderSmallMetaBox(ctx, currentX, infoAreaY, scoreW, infoAreaH, "BEST SCORE", scoreStr, sf, c1, c2, true);
+        currentX += scoreW + gap;
+
+        // 2. RANK
+        this.renderSmallMetaBox(ctx, currentX, infoAreaY, otherW, infoAreaH, "RANK", rank, sf, c1, c2);
+        currentX += otherW + gap;
+
+        // 3. SPEED
+        this.renderSmallMetaBox(ctx, currentX, infoAreaY, otherW, infoAreaH, "SPEED", speedStr, sf, c1, c2);
+        currentX += otherW + gap;
+
+        // 4. LENGTH
+        this.renderSmallMetaBox(ctx, currentX, infoAreaY, otherW, infoAreaH, "TIME", lengthStr, sf, c1, c2);
     }
 
-    private renderMetaBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, value: string, sf: number, c1: string, c2: string) {
+    private renderSmallMetaBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, value: string, sf: number, c1: string, c2: string, isScore = false) {
         ctx.save();
-        ctx.translate(x - w / 2, y - h / 2);
+        ctx.translate(x, y);
 
-        // Glass box
+        // Glass Box with Unified Blur v2.5
         const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, 'rgba(255,255,255,0.08)');
+        grad.addColorStop(0, 'rgba(255,255,255,0.07)');
         grad.addColorStop(1, 'rgba(255,255,255,0.02)');
         ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.roundRect(0, 0, w, h, 8 * sf); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(0, 0, w, h, 6 * sf); ctx.fill();
 
-        // Colorful border (Matching Score Box)
+        // Border
         const borderGrad = ctx.createLinearGradient(0, 0, w, 0);
         borderGrad.addColorStop(0, c1); borderGrad.addColorStop(1, c2);
-        ctx.strokeStyle = borderGrad; ctx.lineWidth = 1.5 * sf; ctx.stroke();
+        ctx.strokeStyle = borderGrad; ctx.lineWidth = 1.2 * sf; ctx.stroke();
 
-        const labelSize = Math.floor(Math.min(13 * sf, h * 0.32));
+        // Label
+        const labelSize = Math.floor(9 * sf);
         ctx.font = `700 ${labelSize}px "Orbitron"`;
         ctx.fillStyle = c1;
-        ctx.shadowBlur = 5 * sf; ctx.shadowColor = c1;
-        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillText(label, 12 * sf, h / 2 + 1 * sf);
-        ctx.shadowBlur = 0;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(label, w / 2, 6 * sf);
 
-        const valueSize = Math.floor(Math.min(36 * sf, h * 0.78));
-        drawPremiumTypography(ctx, value, w - 12 * sf, h / 2, 'right', valueSize, '#fff', true, c1, w * 0.65);
+        // Value
+        const valueSize = isScore ? Math.floor(22 * sf) : Math.floor(18 * sf);
+        const valueY = h * (isScore ? 0.62 : 0.65);
+        
+        // Special color for Rank
+        let vColor = '#fff';
+        if (label === "RANK") {
+            const colors: Record<string, string> = { 'S': '#f9ca24', 'A': '#6ab04c', 'B': '#4834d4', 'C': '#eb4d4b', 'F': '#535c68' };
+            vColor = colors[value] || '#fff';
+        }
+
+        ctx.font = `900 ${valueSize}px "Orbitron"`;
+        ctx.fillStyle = vColor;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        
+        // Add subtle glow for importance
+        if (isScore || label === "RANK") {
+            ctx.shadowBlur = 10 * sf;
+            ctx.shadowColor = (label === "RANK") ? vColor : c1;
+        }
+        
+        ctx.fillText(value, w / 2, valueY);
         ctx.restore();
     }
 }

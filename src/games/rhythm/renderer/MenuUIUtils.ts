@@ -152,7 +152,7 @@ export function drawPremiumTypography(ctx: CanvasRenderingContext2D, text: strin
     ctx.restore();
 }
 
-export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, tabLabel: string, c1: string, c2: string, sf: number, glassBg: string = 'rgba(12, 12, 28, 0.45)') {
+export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, tabLabel: string, c1: string, c2: string, sf: number, glassBg: string = 'rgba(255, 255, 255, 0.07)') {
     ctx.save();
     ctx.shadowBlur = 50 * sf; ctx.shadowColor = 'rgba(0,0,0,0.9)';
     ctx.fillStyle = glassBg;
