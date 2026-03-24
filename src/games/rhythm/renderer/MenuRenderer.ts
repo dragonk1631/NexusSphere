@@ -41,6 +41,7 @@ export class MenuRenderer {
         this.cachedLayout = null;
     }
 
+
     public render(ctx: CanvasRenderingContext2D, state: MenuRenderState, _alpha: number = 0): void {
         const time = performance.now() * 0.001;
         
@@ -53,38 +54,45 @@ export class MenuRenderer {
         const layout = this.cachedLayout;
         const sf = layout.scaleFactor;
 
-        // 2. Theme Colors (Required for sub-renderers)
+        // 2. Theme Colors
         const theme = ThemeManager.getInstance().getCurrentTheme();
         const pal = HUD_PALETTES[theme.id] || HUD_PALETTES['deep-space']; 
         const c1 = (pal as any).scorePanel || '#00e5ff';
         const c2 = (pal as any).comboGlow || (pal as any).scoreGlow || '#ffffff';
 
-        ctx.save();
-        // Theme background is now handled by RhythmGame.render()
-
-        // Animated scanlines still on top or integrated
-        drawScanlines(ctx, this.width, this.height, time);
-
         if (state.isTestMode) {
+            ctx.save();
+            drawScanlines(ctx, this.width, this.height, time);
             this.renderTestMode(ctx, state, time, sf);
             ctx.restore();
             return;
         }
 
         const currentSong = state.songList[state.selectedSongIndex] || null;
-        if (!state.scoreManager) {
-            (state as any).scoreManager = this.scoreManager;
-        }
-        this.songInfoRenderer.render(ctx, layout, state, currentSong, sf, c1, c2, currentSong?.bpm || 120, this.midiEQRenderer);
+        if (!state.scoreManager) (state as any).scoreManager = this.scoreManager;
 
+        ctx.save();
+        
+        // 3. Render stationary & dynamic components directly
+        // Individual panel caching in MenuUIUtils handles performance.
         this.optionsRenderer.render(ctx, layout, state, sf, c1, c2);
+
+        // 5. Draw Dynamic Elements (Animations, EQ, Scanlines)
+        drawScanlines(ctx, this.width, this.height, time);
+        
+        // Dynamic Song Info
+        this.songInfoRenderer.render(ctx, layout, state, currentSong, sf, c1, c2, currentSong?.bpm || 120, this.midiEQRenderer);
+        
+        // Dynamic Song List
         this.songListRenderer.render(ctx, layout, state, sf, c1, c2, time);
         
+        // Dynamic Controls (Pulsing buttons)
         this.controlsRenderer.renderPlayButton(ctx, layout, time, sf, c1, c2);
         this.controlsRenderer.renderBackButton(ctx, layout, sf, time);
 
         ctx.restore();
     }
+
 
     private renderTestMode(ctx: CanvasRenderingContext2D, state: any, time: number, sf: number) {
         const pulse = 0.8 + Math.sin(time * 3) * 0.2;

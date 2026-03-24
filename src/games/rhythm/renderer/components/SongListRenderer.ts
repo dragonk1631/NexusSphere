@@ -2,7 +2,6 @@ import { type MenuLayoutResult } from '../MenuLayout';
 import { type MenuRenderState, type SongEntry } from '../../types/GameTypes';
 import {
     hexToRgb,
-    lerpColor,
     drawPremiumPanel
 } from '../MenuUIUtils';
 
@@ -43,6 +42,15 @@ export class SongListRenderer {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.4)';
+            
+            // 1. Stroke (No shadow — prevents upward shadow artifact)
+            ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+            ctx.lineWidth = 2 * sf;
+            ctx.strokeText(labels[i], tx + tabWidth / 2, tabAreaY + tabAreaH / 2);
+            // 2. Fill (Downward shadow)
+            ctx.shadowBlur = 4 * sf; ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 1.5 * sf;
             ctx.fillText(labels[i], tx + tabWidth / 2, tabAreaY + tabAreaH / 2);
             ctx.restore();
         });
@@ -54,6 +62,7 @@ export class SongListRenderer {
         upGrad.addColorStop(1, '#7a007a');
         ctx.fillStyle = upGrad;
         ctx.shadowBlur = 10 * sf; ctx.shadowColor = '#ff00ff';
+        ctx.shadowOffsetX = 2 * sf; ctx.shadowOffsetY = 2 * sf;
         ctx.beginPath(); ctx.roundRect(uploadBtnX, uploadBtnY, uploadBtnW, uploadBtnH, 4 * sf); ctx.fill();
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1 * sf;
@@ -63,6 +72,11 @@ export class SongListRenderer {
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2 * sf;
+        ctx.strokeText("+", uploadBtnX + uploadBtnW / 2, uploadBtnY + uploadBtnH / 2);
+        
         ctx.fillText("+", uploadBtnX + uploadBtnW / 2, uploadBtnY + uploadBtnH / 2);
         ctx.restore();
 
@@ -98,9 +112,9 @@ export class SongListRenderer {
         const scrollbarTrackH = layout.scrollbarTrackH;
 
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath(); ctx.roundRect(scrollbarX, scrollbarY, scrollbarW, scrollbarTrackH, 8 * sf); ctx.fill();
+        ctx.beginPath(); ctx.rect(scrollbarX, scrollbarY, scrollbarW, scrollbarTrackH); ctx.fill(); // Rect is faster than roundRect
         ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.35)`;
-        ctx.lineWidth = 1.8 * sf;
+        ctx.lineWidth = 1 * sf;
         ctx.stroke();
 
         const thumbH = Math_max(scrollbarTrackH * (visibleCount / Math_max(1, state.songList.length)), 40 * sf);
@@ -108,17 +122,12 @@ export class SongListRenderer {
         const scrollProgress = state.songList.length > 1 ? state.selectedSongIndex / (state.songList.length - 1) : 0;
         const thumbY = scrollbarY + (scrollProgress * scrollRange);
 
-        const thumbGrad = ctx.createLinearGradient(scrollbarX, thumbY, scrollbarX, thumbY + thumbH);
-        thumbGrad.addColorStop(0, c1);
-        thumbGrad.addColorStop(1, c2);
-
         ctx.save();
-        ctx.shadowBlur = 16 * sf; ctx.shadowColor = c1;
-        ctx.fillStyle = thumbGrad;
-        ctx.beginPath(); ctx.roundRect(scrollbarX, thumbY, scrollbarW, thumbH, 8 * sf);
-        ctx.fill();
-        ctx.strokeStyle = c2;
-        ctx.lineWidth = 1.5 * sf;
+        // Cheap Glow: Solid opaque color instead of shadowBlur
+        ctx.fillStyle = c1;
+        ctx.beginPath(); ctx.roundRect(scrollbarX, thumbY, scrollbarW, thumbH, 4 * sf); ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1 * sf;
         ctx.stroke();
         ctx.restore();
 
@@ -155,6 +164,7 @@ export class SongListRenderer {
 
         ctx.fillStyle = 'rgba(0,0,0,0.92)';
         ctx.shadowBlur = 30 * sf; ctx.shadowColor = color;
+        ctx.shadowOffsetX = 2 * sf; ctx.shadowOffsetY = 2 * sf;
         ctx.beginPath(); ctx.roundRect(toastX, toastY, toastW, toastH, 12 * sf); ctx.fill();
         ctx.strokeStyle = color; ctx.lineWidth = 3 * sf; ctx.stroke();
 
@@ -174,25 +184,21 @@ export class SongListRenderer {
 
         if (isSelected) {
             const pulse = 0.9 + Math.sin(time * 8) * 0.1;
-            ctx.shadowBlur = 25 * sf * pulse; ctx.shadowColor = `rgba(${hexToRgb(c1)}, 0.5)`;
+            // Removed expensive shadowBlur every frame
             const activeGrad = ctx.createLinearGradient(0, 0, contentW, 0);
-            activeGrad.addColorStop(0, c1);
-            activeGrad.addColorStop(0.5, lerpColor(c1, '#000', 0.8));
+            activeGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, ${pulse})`);
             activeGrad.addColorStop(1, 'rgba(0,0,0,0.4)');
             ctx.fillStyle = activeGrad;
-            ctx.beginPath(); ctx.roundRect(0, innerY, contentW, innerH, 8 * sf); ctx.fill();
-            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.rect(0, innerY, contentW, innerH); ctx.fill();
             ctx.strokeStyle = c2;
             ctx.lineWidth = 2 * sf;
             ctx.stroke();
         } else {
-            const idleGrad = ctx.createLinearGradient(0, 0, contentW, 0);
-            idleGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
-            idleGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
-            ctx.fillStyle = idleGrad;
-            ctx.beginPath(); ctx.roundRect(0, innerY, contentW, innerH, 6 * sf); ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.40)';
-            ctx.lineWidth = 1.2 * sf;
+            // Unselected items: Solid flat color is faster than gradients
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            ctx.beginPath(); ctx.rect(0, innerY, contentW, innerH); ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1 * sf;
             ctx.stroke();
         }
 
@@ -219,6 +225,7 @@ export class SongListRenderer {
         if (song.isFavorite) {
             ctx.fillStyle = '#ffcc00'; // Gold
             ctx.shadowBlur = 15 * sf; ctx.shadowColor = '#ffcc00';
+            ctx.shadowOffsetX = 2 * sf; ctx.shadowOffsetY = 2 * sf;
             this.drawStar(ctx, 0, 0, 5, starSize, starSize * 0.5);
             ctx.fill();
         } else {
@@ -238,20 +245,35 @@ export class SongListRenderer {
         const textY = itemHeight * 0.6; 
         
         if (isSelected) {
-            // Selected: White text with glow, but native scaling for size consistency
             ctx.save();
-            ctx.shadowBlur = 10 * sf; ctx.shadowColor = c1;
             ctx.font = `900 ${Math.floor(baseFontSize)}px "Orbitron"`;
-            ctx.fillStyle = '#fff';
             ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            // 1. Stroke (No shadow — prevents upward shadow artifact)
+            ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+            ctx.lineWidth = 3.5 * sf;
+            ctx.strokeText(name, textX, textY, maxW);
+            
+            // 2. Fill (With intense downward shadow)
+            ctx.shadowBlur = 8 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
+            ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 4 * sf; // Downward drop
+            ctx.fillStyle = '#fff';
             ctx.fillText(name, textX, textY, maxW);
             ctx.restore();
         } else {
-            // Unselected: Regular muted white, same size logic
             ctx.save();
             ctx.font = `700 ${Math.floor(baseFontSize)}px "Orbitron"`;
-            ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            // 1. Stroke (No shadow — prevents upward shadow artifact)
+            ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+            ctx.lineWidth = 2.2 * sf;
+            ctx.strokeText(name, textX, textY, maxW);
+            
+            // 2. Fill (Downward shadow)
+            ctx.shadowBlur = 5 * sf; ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2.5 * sf;
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.fillText(name, textX, textY, maxW);
             ctx.restore();
         }
@@ -271,6 +293,8 @@ export class SongListRenderer {
             ctx.fillStyle = '#ff00ff';
             ctx.font = `900 ${Math.floor(9 * sf)}px "Orbitron"`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2 * sf;
+            ctx.strokeText("CUSTOM", badgeX + bW/2, badgeY);
             ctx.fillText("CUSTOM", badgeX + bW/2, badgeY);
 
             const delW = 24 * sf;
@@ -294,6 +318,8 @@ export class SongListRenderer {
             ctx.fillStyle = c1;
             ctx.font = `900 ${Math.floor(9 * sf)}px "Orbitron"`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 2 * sf;
+            ctx.strokeText("OFFICIAL", badgeX + bW/2, badgeY);
             ctx.fillText("OFFICIAL", badgeX + bW/2, badgeY);
         }
 

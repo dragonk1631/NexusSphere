@@ -7,13 +7,22 @@ export interface LocalSongMetadata {
     isCustom: boolean;
     createdAt: number;
     blobKey: string;
+    isFavorite?: boolean; // Added for custom songs
+}
+
+export interface SongState {
+    url: string;
+    isFavorite: boolean;
+    lastDifficulty?: string;
+    lastSpeed?: number;
 }
 
 export class LocalSongStorage {
     private static DB_NAME = 'NexusSphere_Rhythm_DB';
     private static STORE_SONGS = 'songs';
     private static STORE_FILES = 'files';
-    private static VERSION = 1;
+    private static STORE_STATES = 'song_states';
+    private static VERSION = 2; // Bumped version for new store
 
     private db: IDBDatabase | null = null;
 
@@ -30,6 +39,9 @@ export class LocalSongStorage {
                 }
                 if (!db.objectStoreNames.contains(LocalSongStorage.STORE_FILES)) {
                     db.createObjectStore(LocalSongStorage.STORE_FILES);
+                }
+                if (!db.objectStoreNames.contains(LocalSongStorage.STORE_STATES)) {
+                    db.createObjectStore(LocalSongStorage.STORE_STATES, { keyPath: 'url' });
                 }
             };
 
@@ -85,7 +97,7 @@ export class LocalSongStorage {
     public async deleteSong(id: string, blobKey: string): Promise<void> {
         const db = await this.ensureDb();
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([LocalSongStorage.STORE_SONGS, LocalSongStorage.STORE_FILES], 'readwrite');
+            const transaction = db.transaction([LocalSongStorage.STORE_SONGS, LocalSongStorage.STORE_FILES, LocalSongStorage.STORE_STATES], 'readwrite');
             
             transaction.oncomplete = () => resolve();
             transaction.onerror = () => reject(transaction.error);
@@ -95,6 +107,7 @@ export class LocalSongStorage {
 
             songsStore.delete(id);
             filesStore.delete(blobKey);
+            // We could also delete state, but keeping it is fine.
         });
     }
 
@@ -117,6 +130,36 @@ export class LocalSongStorage {
                 putRequest.onerror = () => reject(putRequest.error);
             };
             getRequest.onerror = () => reject(getRequest.error);
+        });
+    }
+
+    // ── Persistent User State (Favorites, etc.) ──
+
+    public async toggleFavorite(url: string, isFavorite: boolean): Promise<void> {
+        const db = await this.ensureDb();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(LocalSongStorage.STORE_STATES, 'readwrite');
+            const store = transaction.objectStore(LocalSongStorage.STORE_STATES);
+            
+            const getRequest = store.get(url);
+            getRequest.onsuccess = () => {
+                const existing = getRequest.result || { url };
+                const updated = { ...existing, isFavorite };
+                store.put(updated);
+            };
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+        });
+    }
+
+    public async getSongStates(): Promise<SongState[]> {
+        const db = await this.ensureDb();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(LocalSongStorage.STORE_STATES, 'readonly');
+            const store = transaction.objectStore(LocalSongStorage.STORE_STATES);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
         });
     }
 }
