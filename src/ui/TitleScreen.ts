@@ -1,5 +1,6 @@
 import { ScreenUtils } from '../core/utils/ScreenUtils';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
+import { ThemeManager } from '../core/ThemeManager';
 
 export class TitleScreen {
     private container: HTMLDivElement;
@@ -159,12 +160,22 @@ export class TitleScreen {
         tempCtx.shadowOffsetY = 12;
         tempCtx.shadowBlur = 25;
 
+        const theme = ThemeManager.getInstance().getCurrentTheme();
+        
+        // Refined Soft-Adaptive Metallic Silver Gradient
+        // 0.0: Pure White Highlight
+        // 0.45: Bright Silver
+        // 0.6: Theme-Tinted Silver (Desaturated for natural look)
+        // 1.0: Deep Steel Grey
+        const adaptiveMid = this.lerpColor('#aeaeae', theme.color2, 0.45);
+
         // Title 1 Rendering
         tempCtx.font = `900 ${logoSizeTop}px "Black Han Sans"`;
         const topGrad = tempCtx.createLinearGradient(0, centerY - totalTextH/2, 0, centerY);
         topGrad.addColorStop(0, '#ffffff');
-        topGrad.addColorStop(0.5, '#f0f4ff');
-        topGrad.addColorStop(1, '#cadbff');
+        topGrad.addColorStop(0.45, '#d8d8d8');
+        topGrad.addColorStop(0.6, adaptiveMid);
+        topGrad.addColorStop(1, '#444444');
         const y1 = Math.round(centerY - logoSizeBot / 2 - gap / 2);
         tempCtx.strokeStyle = 'rgba(0,0,0,0.8)';
         tempCtx.lineWidth = 6;
@@ -176,8 +187,9 @@ export class TitleScreen {
         tempCtx.font = `900 ${logoSizeBot}px "Black Han Sans"`;
         const botGrad = tempCtx.createLinearGradient(0, centerY, 0, centerY + totalTextH/2);
         botGrad.addColorStop(0, '#ffffff');
-        botGrad.addColorStop(0.5, '#f0f4ff');
-        botGrad.addColorStop(1, '#cadbff');
+        botGrad.addColorStop(0.45, '#d8d8d8');
+        botGrad.addColorStop(0.6, adaptiveMid);
+        botGrad.addColorStop(1, '#444444');
         const y2 = Math.round(centerY + logoSizeTop / 2 + gap / 2);
         tempCtx.strokeText(title2, Math.round(w / 2), y2);
         tempCtx.fillStyle = botGrad;
@@ -189,6 +201,7 @@ export class TitleScreen {
 
     private render() {
         const { ctx, width: w, height: h, time, lastAlpha } = this;
+        const theme = ThemeManager.getInstance().getCurrentTheme();
         ctx.clearRect(0, 0, w, h);
 
         // 1. Version Badge
@@ -217,7 +230,7 @@ export class TitleScreen {
             
             // Layer 1: Pulsing Aura Glow (Lighter/Additive Bloom)
             ctx.globalCompositeOperation = 'lighter';
-            ctx.shadowColor = `rgba(160, 210, 255, ${0.4 * glowFactor})`; 
+            ctx.shadowColor = theme.color2 + Math.floor(0.4 * glowFactor * 255).toString(16).padStart(2, '0'); 
             ctx.shadowBlur = 20 + glowFactor * 80; 
             ctx.drawImage(this.logoCache, -w / 2, -h * 0.4);
 
@@ -249,12 +262,12 @@ export class TitleScreen {
         const btnH = 50;
         const promptY = h * 0.85;
 
-        ctx.shadowColor = `rgba(0, 188, 212, ${0.5 + interpolatedPulse * 0.4})`;
+        ctx.shadowColor = theme.color2 + Math.floor((0.5 + interpolatedPulse * 0.4) * 255).toString(16).padStart(2, '0');
         ctx.shadowBlur = 20 + interpolatedPulse * 15;
         const btnGrad = ctx.createLinearGradient(w/2 - btnW/2, 0, w/2 + btnW/2, 0);
-        btnGrad.addColorStop(0, `rgba(0, 229, 255, ${0.85 + interpolatedPulse * 0.15})`);
-        btnGrad.addColorStop(0.5, `rgba(0, 100, 255, ${0.9 + interpolatedPulse * 0.1})`);
-        btnGrad.addColorStop(1, `rgba(0, 229, 255, ${0.85 + interpolatedPulse * 0.15})`);
+        btnGrad.addColorStop(0, theme.color2);
+        btnGrad.addColorStop(0.5, theme.color3);
+        btnGrad.addColorStop(1, theme.color2);
         ctx.fillStyle = btnGrad;
         ctx.beginPath();
         ctx.roundRect(w/2 - btnW/2, promptY - btnH/2, btnW, btnH, btnH/2);
@@ -286,5 +299,17 @@ export class TitleScreen {
         if (style && style.parentNode) {
             style.parentNode.removeChild(style);
         }
+    }
+
+    private lerpColor(a: string, b: string, amount: number): string {
+        const ah = parseInt(a.replace(/#/g, ''), 16),
+            ar = ah >> 16, ag = (ah >> 8) & 0xff, ab = ah & 0xff,
+            bh = parseInt(b.replace(/#/g, ''), 16),
+            br = bh >> 16, bg = (bh >> 8) & 0xff, bb = bh & 0xff,
+            rr = ar + amount * (br - ar),
+            rg = ag + amount * (bg - ag),
+            rb = ab + amount * (bb - ab);
+
+        return '#' + ((1 << 24) + (Math.round(rr) << 16) + (Math.round(rg) << 8) + Math.round(rb)).toString(16).slice(1);
     }
 }
