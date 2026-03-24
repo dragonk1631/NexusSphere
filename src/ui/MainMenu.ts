@@ -69,62 +69,57 @@ export class MainMenu {
         MenuMusicManager.getInstance().playMusic('main');
         const html = `
             <style>
-                /* ── IMPORT FONTS (Technika Gothic v17) ── */
+                /* ── DESIGN TOKENS ── */
+                :root {
+                    --mm-blur: 2.5px;
+                    --mm-glass-bg: rgba(255, 255, 255, 0.07);
+                    --mm-glass-border: rgba(255, 255, 255, 0.18);
+                    --mm-text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+                }
+
                 @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Outfit:wght@900&display=swap');
 
-                /* =========================================
-                   NEXUS SPHERE — MAIN MENU  (Premium v2)
-                   Transparent bg: game canvas shows through
-                   ========================================= */
-
+                /* ── ANIMATIONS ── */
                 @keyframes mm-fadeInDown {
-                    from { opacity: 0; transform: translateY(-24px); }
+                    from { opacity: 0; transform: translateY(-20px); }
                     to   { opacity: 1; transform: translateY(0); }
                 }
                 @keyframes mm-fadeInUp {
-                    from { opacity: 0; transform: translateY(24px); }
+                    from { opacity: 0; transform: translateY(20px); }
                     to   { opacity: 1; transform: translateY(0); }
                 }
                 @keyframes mm-cardIn {
-                    from { opacity: 0; transform: translateY(30px) scale(0.92); }
+                    from { opacity: 0; transform: translateY(30px) scale(0.95); }
                     to   { opacity: 1; transform: translateY(0)    scale(1); }
-                }
-                @keyframes mm-titlePulse {
-                    0%, 100% { text-shadow: 0 0 20px rgba(240,147,251,0.8), 0 0 40px rgba(240,147,251,0.4), 0 4px 0 rgba(0,0,0,0.5); }
-                    50%      { text-shadow: 0 0 30px rgba(245,87,108,1),     0 0 60px rgba(245,87,108,0.6), 0 4px 0 rgba(0,0,0,0.5); }
                 }
                 @keyframes mm-shimmer {
                     0%   { left: -100%; }
                     100% { left: 200%; }
                 }
 
-                /* ── Container (Outfit v17 - Repaired) ── */
+                /* ── ROOT CONTAINER ── */
                 .mm-container {
                     position: fixed;
-                    top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: transparent; /* REDEEMED: Game canvas shows through */
+                    inset: 0;
+                    width: 100vw; height: 100vh;
+                    background: transparent;
                     display: grid;
                     grid-template-rows: auto 1fr auto;
                     font-family: 'Outfit', 'Black Han Sans', sans-serif;
-                    overflow: hidden;
                     color: white;
                     overflow: hidden;
-                    padding-bottom: 0;
                     z-index: 50;
                     user-select: none;
                     box-sizing: border-box;
-                    /* Subtle darkening vignette - preserves colour, adds depth */
                     box-shadow: inset 0 0 180px rgba(0,0,0,0.45);
                 }
-
-                /* ── Vignette overlay ── */
                 .mm-container::before {
                     content: '';
                     position: absolute;
                     inset: 0;
                     background:
-                        radial-gradient(ellipse 120% 60% at 50% 0%,   rgba(240,147,251,0.10) 0%, transparent 70%),
-                        radial-gradient(ellipse 120% 60% at 50% 100%, rgba(245, 87,108,0.12) 0%, transparent 70%);
+                        radial-gradient(ellipse 120% 60% at 50% 0%,   rgba(240,147,251,0.08) 0%, transparent 70%),
+                        radial-gradient(ellipse 120% 60% at 50% 100%, rgba(245, 87,108,0.1) 0%, transparent 70%);
                     pointer-events: none;
                     z-index: 0;
                 }
@@ -132,124 +127,34 @@ export class MainMenu {
                 /* ── TOP HUD ── */
                 .mm-top-hud {
                     position: relative;
-                    z-index: 2;
-                    width: 100%;
-                    box-sizing: border-box;
-                    padding: clamp(10px, 2vh, 18px) clamp(16px, 4vw, 48px);
+                    z-index: 5;
+                    padding: clamp(6px, 1.5vh, 12px) clamp(16px, 4vw, 48px);
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     animation: mm-fadeInDown 0.5s ease both;
-                    background: linear-gradient(to bottom, rgba(0,0,0,0.40), transparent);
-                }
-                /* Right-align the currency group */
-                .mm-hud-right {
-                    justify-self: end;
-                }
-                /* ── CENTERED MAIN TITLE ── */
-                .mm-main-title {
-                    text-align: center;
-                    margin-bottom: clamp(15px, 3vh, 35px);
-                    animation: mm-fadeInDown 0.6s 0.1s ease both;
-                    z-index: 2;
-                }
-                .mm-title-box {
-                    display: inline-block;
-                    padding: clamp(10px, 2.5vh, 20px) clamp(25px, 6vw, 60px);
-                    background: rgba(255,255,255,0.06);
-                    border: 1px solid rgba(255,255,255,0.20);
-                    border-radius: clamp(16px, 3vh, 32px);
-                    backdrop-filter: blur(20px);
-                    -webkit-backdrop-filter: blur(20px);
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-                }
-                .mm-main-title-text {
-                    font-family: 'Black Han Sans', sans-serif;
-                    font-size: clamp(2.5rem, 8vh, 5.2rem);
-                    font-weight: 900;
-                    letter-spacing: clamp(4px, 1vw, 15px);
-                    /* Brighter Technika Style (v21 Repaired) */
-                    background: linear-gradient(to bottom, #ffffff 0%, #f0f4ff 50%, #cadbff 100%);
-                    -webkit-background-clip: text;
-                    background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    color: transparent;
-                    /* Robust 1px Outline via Filter (v21) */
-                    filter: 
-                        drop-shadow(-1px -1px 0 rgba(0,0,0,0.8)) 
-                        drop-shadow(1px -1px 0 rgba(0,0,0,0.8)) 
-                        drop-shadow(-1px 1px 0 rgba(0,0,0,0.8)) 
-                        drop-shadow(1px 1px 0 rgba(0,0,0,0.8))
-                        drop-shadow(0 0 15px rgba(165,180,252,0.6));
-                    text-transform: uppercase;
-                    margin-left: clamp(10px, 2vw, 25px);
-                    display: inline-block; /* Ensure block model for clipping */
+                    background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
                 }
 
-                .mm-main-title-sub {
-                    font-family: 'Outfit', sans-serif;
-                    font-size: 0.95rem;
-                    color: #ff006e;
-                    letter-spacing: 10px;
-                    text-transform: uppercase;
-                    font-weight: 900;
-                    margin-top: 5px;
-                    text-shadow: 
-                        -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-                        0 0 12px rgba(255,0,110,0.6);
-                }
-
-                .mm-version-badge {
+                .mm-version-badge, .mm-currency-badge {
                     display: inline-flex;
                     align-items: center;
-                    gap: 6px;
-                    padding: clamp(5px, 1.2vh, 9px) clamp(10px, 2.2vw, 20px);
-                    background: rgba(255,255,255,0.10);
-                    border: 1px solid rgba(255,255,255,0.25);
+                    gap: 8px;
+                    padding: clamp(4px, 1vh, 8px) clamp(12px, 2.5vw, 24px);
+                    background: var(--mm-glass-bg);
+                    border: 1px solid var(--mm-glass-border);
                     border-radius: 999px;
-                    color: white;
+                    backdrop-filter: blur(var(--mm-blur));
+                    -webkit-backdrop-filter: blur(var(--mm-blur));
                     font-weight: 800;
-                    font-size: clamp(0.65rem, 1.5vh, 0.85rem);
-                    letter-spacing: 0.5px;
-                    backdrop-filter: blur(12px);
-                    -webkit-backdrop-filter: blur(12px);
-                    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+                    font-size: clamp(0.7rem, 1.5vh, 0.9rem);
+                    text-shadow: var(--mm-text-shadow);
                     white-space: nowrap;
                 }
+                .mm-currency-badge.gold { border-color: rgba(255,210,80,0.4); background: rgba(255,190,0,0.1); }
+                .mm-currency-badge.gem { border-color: rgba(130,180,255,0.4); background: rgba(80,130,255,0.1); }
 
-                .mm-hud-right {
-                    display: flex;
-                    gap: clamp(6px, 1.5vw, 14px);
-                }
-
-                .mm-currency-badge {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: clamp(4px, 0.8vw, 8px);
-                    padding: clamp(5px, 1.2vh, 9px) clamp(12px, 2.5vw, 22px);
-                    border-radius: 999px;
-                    color: white;
-                    font-weight: 900;
-                    font-size: clamp(0.7rem, 1.6vh, 0.9rem);
-                    backdrop-filter: blur(12px);
-                    -webkit-backdrop-filter: blur(12px);
-                    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
-                    white-space: nowrap;
-                    position: relative;
-                    overflow: hidden;
-                }
-                .mm-currency-badge.gold {
-                    background: linear-gradient(135deg, rgba(255,195,0,0.30), rgba(255,140,0,0.20));
-                    border: 1px solid rgba(255,210,80,0.50);
-                    box-shadow: 0 0 16px rgba(255,180,0,0.20), inset 0 1px 0 rgba(255,255,255,0.20);
-                }
-                .mm-currency-badge.gem {
-                    background: linear-gradient(135deg, rgba(130,180,255,0.30), rgba(80,130,255,0.20));
-                    border: 1px solid rgba(140,180,255,0.50);
-                    box-shadow: 0 0 16px rgba(100,160,255,0.20), inset 0 1px 0 rgba(255,255,255,0.20);
-                }
-
-                /* ── BODY (middle row) ── */
+                /* ── MAIN BODY (FLEX FLOW) ── */
                 .mm-body {
                     position: relative;
                     z-index: 2;
@@ -257,334 +162,193 @@ export class MainMenu {
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    /* Add explicit top/bottom gap to prevent touching screen edges */
-                    padding: clamp(20px, 4vh, 60px) 0;
+                    gap: clamp(10px, 2.5vh, 30px);
+                    padding: clamp(10px, 2vh, 40px) 20px;
+                    overflow: hidden; /* Contain children */
                 }
 
-                /* ── PANEL BOX wrapping the cards — Precise 5px Padding ── */
+                /* ── TITLE BOX (The "Box-shaped Button" UI) ── */
+                .mm-title-box {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    padding: clamp(8px, 2vh, 16px) clamp(20px, 5vw, 60px);
+                    background: var(--mm-glass-bg);
+                    border: 1px solid var(--mm-glass-border);
+                    border-radius: clamp(16px, 3vh, 32px);
+                    backdrop-filter: blur(var(--mm-blur));
+                    -webkit-backdrop-filter: blur(var(--mm-blur));
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+                    animation: mm-fadeInDown 0.6s 0.1s ease both;
+                    flex-shrink: 0; /* Title shouldn't shrink too much */
+                }
+                .mm-main-title-text {
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: clamp(2rem, 6vh, 4.5rem);
+                    font-weight: 900;
+                    letter-spacing: clamp(4px, 1vw, 12px);
+                    /* Brighter White-Silver Look v23 */
+                    background: linear-gradient(to bottom, #ffffff 0%, #f0f4ff 100%);
+                    -webkit-background-clip: text;
+                    background-clip: text;
+                    color: white; /* Fallback */
+                    -webkit-text-stroke: 2px #000; /* Robust Black Outline */
+                    paint-order: stroke fill; /* Ensure stroke is behind/around fill */
+                    /* Deep Black Shadow v23 */
+                    filter: 
+                        drop-shadow(0 4px 15px rgba(0,0,0,1))
+                        drop-shadow(0 0 10px rgba(165,180,252,0.3));
+                    text-transform: uppercase;
+                }
+                .mm-main-title-sub {
+                    font-size: clamp(0.6rem, 1.2vh, 0.85rem);
+                    color: #ff006e;
+                    letter-spacing: 6px;
+                    text-transform: uppercase;
+                    font-weight: 900;
+                    margin-top: 4px;
+                    text-shadow: 0 0 12px rgba(255,0,110,0.5);
+                }
+
+                /* ── MAIN PANEL ── */
                 .mm-panel {
                     position: relative;
-                    z-index: 2;
-                    background: rgba(255,255,255,0.05);
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: clamp(30px, 6vh, 60px);
-                    backdrop-filter: blur(28px);
-                    -webkit-backdrop-filter: blur(28px);
-                    box-shadow:
-                        0 12px 80px rgba(0,0,0,0.45),
-                        inset 0 1px 0 rgba(255,255,255,0.15);
-                    /* Breathable 20px vertical padding as requested v9 */
-                    padding: 20px clamp(20px, 4vw, 50px);
-                    animation: mm-cardIn 0.5s 0.05s ease both;
-                    /* Definitive Container Sizing v13 */
-                    width: clamp(320px, 94vw, 1300px);
-                    max-width: 95%;
-                    height: auto;
+                    background: var(--mm-glass-bg);
+                    border: 1px solid var(--mm-glass-border);
+                    border-radius: clamp(24px, 5vh, 48px);
+                    backdrop-filter: blur(var(--mm-blur));
+                    -webkit-backdrop-filter: blur(var(--mm-blur));
+                    padding: clamp(15px, 2.5vh, 30px);
+                    box-shadow: 0 15px 60px rgba(0,0,0,0.4);
+                    animation: mm-cardIn 0.5s 0.1s ease both;
+                    width: clamp(320px, 94vw, 1200px);
+                    max-height: 55vh; /* Safe vertical limit */
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    flex-shrink: 1; /* Allow shrinking for small heights */
                 }
 
-                /* ── CENTER BUTTON GRID (Dynamic Single Row v13) ── */
                 .mm-center {
                     display: flex;
-                    align-items: stretch; /* Match heights across cards */
-                    justify-content: center;
-                    gap: clamp(12px, 2vw, 40px);
-                    flex-wrap: nowrap; /* FORCED SINGLE ROW */
                     width: 100%;
-                    padding: 15px; /* Internal balance */
-                    box-sizing: border-box;
+                    gap: clamp(10px, 2vw, 30px);
+                    justify-content: center;
                 }
 
-                /* ── GAME CARD BUTTON (Technika Glossy v14) ── */
+                /* ── MENU CARDS ── */
                 .mm-card {
                     position: relative;
-                    flex: 1; /* Scale to fill container */
-                    min-width: 0;
-                    max-width: none; /* Let container width divide space */
+                    flex: 1;
                     aspect-ratio: 1.25 / 1;
-                    border-radius: clamp(16px, 3.5vh, 32px);
-                    border: 4px solid rgba(255,255,255,0.6);
+                    max-height: 100%;
+                    border-radius: clamp(14px, 2.5vh, 28px);
+                    border: 3px solid rgba(255,255,255,0.4);
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    gap: clamp(10px, 2vh, 25px);
+                    gap: 8px;
                     cursor: pointer;
                     overflow: hidden;
-                    transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
-                                box-shadow  0.4s cubic-bezier(0.23, 1, 0.32, 1),
-                                border-color 0.25s ease;
-                    /* Glass Glow effect */
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                    padding: 10px clamp(15px, 2.5vw, 40px);
-                    box-sizing: border-box;
-                    box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+                    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+                    backdrop-filter: blur(var(--mm-blur));
+                    -webkit-backdrop-filter: blur(var(--mm-blur));
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
                 }
-
-                /* Technika Liquid Gloss Reflection (v15 Refined) */
+                /* Combined Gloss/Reflection into one ::after for clean code */
                 .mm-card::after {
                     content: '';
                     position: absolute;
-                    top: -10%; left: -10%; right: -10%; height: 60%;
-                    background: linear-gradient(135deg, 
-                        rgba(255,255,255,0.55) 0%, 
-                        rgba(255,255,255,0.15) 45%, 
-                        transparent 100%);
-                    transform: skewY(-5deg);
-                    pointer-events: none;
-                    z-index: 2;
-                    border-radius: inherit;
-                }
-
-                .mm-card-content {
-                    display: contents; /* Revert to direct children in flex column */
-                }
-
-                /* Entrance staggering */
-                .mm-card:nth-child(1) { animation: mm-cardIn 0.55s 0.15s ease both; }
-                .mm-card:nth-child(2) { animation: mm-cardIn 0.55s 0.22s ease both; }
-                .mm-card:nth-child(3) { animation: mm-cardIn 0.55s 0.29s ease both; }
-                .mm-card:nth-child(4) { animation: mm-cardIn 0.55s 0.36s ease both; }
-
-                /* Shimmer sweep on hover */
-                .mm-card::before {
-                    content: '';
-                    position: absolute;
-                    top: 0; bottom: 0;
-                    left: -100%;
-                    width: 55%;
-                    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.18), transparent);
-                    transform: skewX(-18deg);
-                    transition: none;
+                    inset: 0;
+                    background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, transparent 60%);
                     pointer-events: none;
                 }
-                .mm-card:hover::before {
-                    animation: mm-shimmer 0.65s ease forwards;
-                }
-
-                /* Top gloss */
-                .mm-card::after {
-                    content: '';
-                    position: absolute;
-                    top: 0; left: 0; right: 0;
-                    height: 45%;
-                    background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent);
-                    border-radius: inherit;
-                    border-bottom-left-radius: 0;
-                    border-bottom-right-radius: 0;
-                    pointer-events: none;
-                }
-
-                /* Individual Technika Spectrum Gradients (v15) */
-                .mm-card-play {
-                    background: linear-gradient(135deg, #ff006e 0%, #ff8040 50%, #ffd000 100%);
-                    color: #ff006e;
-                }
-                .mm-card-editor {
-                    background: linear-gradient(135deg, #ffd000 0%, #d0ff00 50%, #a2ff00 100%);
-                    color: #ffd000;
-                }
-                .mm-card-pong {
-                    background: linear-gradient(135deg, #a2ff00 0%, #00ffca 50%, #00d2ff 100%);
-                    color: #a2ff00;
-                }
-                .mm-card-shop {
-                    background: linear-gradient(135deg, #00d2ff 0%, #7000ff 50%, #ff006e 100%);
-                    color: #00d2ff;
-                }
+                
+                .mm-card-play   { background: linear-gradient(135deg, rgba(255,0,110,0.85), rgba(255,128,64,0.85)); }
+                .mm-card-editor { background: linear-gradient(135deg, rgba(255,208,0,0.85), rgba(208,255,0,0.85)); }
+                .mm-card-pong   { background: linear-gradient(135deg, rgba(162,255,0,0.85), rgba(0,210,255,0.85)); }
+                .mm-card-shop   { background: linear-gradient(135deg, rgba(0,210,255,0.85), rgba(112,0,255,0.85)); }
 
                 .mm-card:hover {
-                    transform: scale(1.05) translateY(-5px);
-                    box-shadow: 0 20px 45px rgba(0,0,0,0.3), 0 0 30px currentColor;
+                    transform: scale(1.05) translateY(-6px);
                     border-color: white;
+                    box-shadow: 0 15px 35px rgba(0,0,0,0.3), 0 0 20px rgba(255,255,255,0.25);
                 }
-                .mm-card:active {
-                    transform: translateY(2px) scale(0.97);
-                    transition-duration: 0.1s;
-                }
+                .mm-card:active { transform: scale(0.98); }
 
-                /* Card icon (Technika v14) */
-                .mm-card-icon {
-                    font-size: clamp(3.2rem, 10vh, 6.5rem);
-                    line-height: 1;
-                    filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2));
-                    transition: transform 0.35s cubic-bezier(0.23, 1, 0.32, 1);
-                    position: relative; z-index: 3; /* Above gloss */
-                    color: white;
+                .mm-card-icon { font-size: clamp(2.5rem, 8vh, 5.5rem); color: white; }
+                .mm-card-label { 
+                    font-family: 'Black Han Sans', sans-serif; 
+                    font-size: clamp(1rem, 2vh, 1.8rem); 
+                    text-shadow: var(--mm-text-shadow); 
                 }
-                .mm-card:hover .mm-card-icon {
-                    transform: scale(1.1) translateY(-12px);
-                }
-
-                /* Card labels (Technika Gothic v18 - Thinner Outline) */
-                .mm-card-label {
-                    font-family: 'Black Han Sans', sans-serif;
-                    color: white;
-                    font-size: clamp(1.1rem, 2.5vh, 2rem);
-                    font-weight: 900;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    /* Refined 1px Stroke + Drop Shadow */
-                    text-shadow: 
-                        -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-                        0 5px 12px rgba(0,0,0,0.5);
-                    line-height: 1.1;
-                    position: relative; z-index: 3;
-                }
-
-                .mm-card-sub {
-                    font-family: 'Outfit', sans-serif;
-                    color: rgba(255,255,255,0.9);
-                    font-size: clamp(0.55rem, 1.3vh, 0.9rem);
-                    font-weight: 900;
-                    text-transform: uppercase;
-                    letter-spacing: 1.5px;
-                    text-shadow: 1px 1px 4px rgba(0,0,0,0.8);
-                    position: relative; z-index: 3;
-                }
+                .mm-card-sub { font-size: 0.75rem; opacity: 0.9; text-transform: uppercase; font-weight: 800; }
 
                 /* ── BOTTOM NAV ── */
                 .mm-bottom-nav {
-                    position: relative;
-                    z-index: 2;
-                    width: 100%;
-                    box-sizing: border-box;
-                    padding: clamp(10px, 2.5vh, 24px) clamp(16px, 4vw, 48px);
+                    z-index: 5;
+                    padding: clamp(8px, 1.8vh, 16px) clamp(16px, 4vw, 48px);
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    gap: clamp(20px, 5vw, 80px);
-                    background: linear-gradient(to top, rgba(0,0,0,0.50), transparent);
-                    animation: mm-fadeInUp 0.55s 0.1s ease both;
+                    gap: clamp(15px, 4vw, 60px);
+                    background: linear-gradient(to top, rgba(0,0,0,0.5), transparent);
+                    animation: mm-fadeInUp 0.5s 0.2s ease both;
                 }
-
                 .mm-nav-item {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 10px;
+                    gap: 6px;
                     cursor: pointer;
-                    opacity: 0.8;
-                    transition: opacity 0.2s, transform 0.25s cubic-bezier(0.23, 1, 0.32, 1);
-                    padding: 12px 24px;
-                    border-radius: 20px;
-                }
-                .mm-nav-item:hover {
-                    opacity: 1;
-                    transform: translateY(-8px);
-                    background: rgba(255,255,255,0.12);
-                }
-                .mm-nav-item:active {
-                    transform: translateY(0);
-                    transition-duration: 0.08s;
-                }
-
-                .mm-nav-icon {
-                    font-size: clamp(2.5rem, 6vh, 4rem);
-                    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
-                    line-height: 1;
-                }
-
-                .mm-nav-label {
-                    color: rgba(255,255,255,0.95);
-                    font-weight: 900;
-                    font-size: clamp(0.7rem, 1.8vh, 1.1rem);
-                    text-transform: uppercase;
-                    letter-spacing: clamp(1.5px, 0.4vw, 3px);
-                    text-shadow: 0 2px 6px rgba(0,0,0,0.7);
-                }
-
-                .mm-nav-item.active .mm-nav-icon,
-                .mm-nav-item.active .mm-nav-label { color: #f093fb; }
-                .mm-nav-item.active { opacity: 1; }
-
-                /* ── LANG SWITCHER (Optimized v10) ── */
-                .mm-lang-group {
-                    display: flex;
-                    gap: clamp(8px, 1.5vw, 20px);
-                    margin-left: clamp(15px, 3vw, 40px);
-                    padding-left: clamp(15px, 3vw, 40px);
-                    border-left: 1px solid rgba(255,255,255,0.15);
-                }
-                .mm-flag-btn {
-                    font-size: 2rem;
-                    cursor: pointer;
-                    filter: grayscale(0.8) opacity(0.5);
+                    opacity: 0.75;
                     transition: all 0.2s;
+                    padding: 8px 20px;
                 }
-                .mm-flag-btn:hover {
-                    filter: grayscale(0) opacity(1);
-                    transform: scale(1.2);
-                }
-                .mm-flag-btn.active {
-                    filter: grayscale(0) opacity(1);
-                    transform: scale(1.1);
-                    text-shadow: 0 0 15px rgba(255,255,255,0.8);
-                }
+                .mm-nav-item:hover { opacity: 1; transform: translateY(-4px); }
+                .mm-nav-icon { font-size: clamp(2rem, 5vh, 3.2rem); }
+                .mm-nav-label { font-size: clamp(0.7rem, 1.6vh, 0.95rem); font-weight: 900; text-transform: uppercase; }
 
-                /* Compact: Short landscape (mobile phones) */
-                @media (max-height: 480px) {
-                    .mm-main-title { margin-bottom: 5px; margin-top: -15px; }
-                    .mm-main-title-text { font-size: clamp(1rem, 4vh, 1.8rem); }
-                    .mm-main-title-sub { font-size: 0.4rem; }
-                    /* Strict 20px vertical padding v9 */
-                    .mm-panel { 
-                        padding: 20px clamp(20px, 4vw, 50px); 
-                        border-radius: 20px; 
-                        width: 95vw;
-                        height: auto; 
-                        max-height: 75vh;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    }
-                    .mm-center { gap: clamp(10px, 3vw, 25px); }
-                    .mm-card { max-width: 220px; aspect-ratio: 1.25 / 1; padding: 5px; border-width: 2px; }
-                    .mm-card-icon { font-size: clamp(2.5rem, 15vh, 4rem); }
-                    .mm-card-label { font-size: 1rem; }
+                /* ── LANG SWITCHER ── */
+                .mm-lang-group { display: flex; gap: 15px; margin-left: 30px; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 30px; }
+                .mm-flag-btn { font-size: 1.8rem; cursor: pointer; opacity: 0.4; transition: 0.2s; }
+                .mm-flag-btn.active, .mm-flag-btn:hover { opacity: 1; transform: scale(1.15); }
+
+                /* ── RESPONSIVE COMPACT ── */
+                @media (max-height: 520px) {
+                    .mm-body { gap: 10px; padding: 5px 20px; }
+                    .mm-title-box { padding: 4px 30px; border-radius: 12px; }
+                    .mm-main-title-text { font-size: clamp(1.2rem, 10vh, 2.22rem); }
+                    .mm-main-title-sub { display: none; }
+                    .mm-panel { max-height: 65vh; padding: 10px; border-radius: 20px; }
                     .mm-card-sub { display: none; }
-                    .mm-body { padding: 5px 0; }
-                    .mm-bottom-nav { padding: 5px 30px; gap: clamp(20px, 5vw, 60px); }
                     .mm-nav-label { display: none; }
-                    .mm-lang-group { margin-left: 15px; padding-left: 15px; gap: 10px; }
-                    .mm-flag-btn { font-size: 1.5rem; }
-                }
-
-                /* Very wide screens — limit card size */
-                @media (min-width: 1800px) {
-                    .mm-center { gap: 56px; }
-                    .mm-card { max-width: 230px; }
+                    .mm-bottom-nav { gap: 20px; }
                 }
             </style>
 
             <div class="mm-container">
 
-                <!-- TOP HUD: version | coins + gems -->
+                <!-- TOP HUD -->
                 <div class="mm-top-hud">
-                    <div class="mm-version-badge">🎮 <span>${t.version}</span></div>
+                    <div class="mm-version-badge">🎮 ${t.version}</div>
                     <div class="mm-hud-right">
-                        <div class="mm-currency-badge gold">🪙 <span>1,000</span></div>
-                        <div class="mm-currency-badge gem">💎 <span>50</span></div>
+                        <div class="mm-currency-badge gold">🪙 1,000</div>
+                        <div class="mm-currency-badge gem">💎 50</div>
                     </div>
                 </div>
 
-                <!-- BODY: card panel, shifted slightly above center -->
+                <!-- MAIN WORK AREA (Vertical Flow) -->
                 <div class="mm-body">
                     
-                    <!-- REPOSITIONED TITLE CLAM SHELL -->
-                    <div class="mm-main-title">
-                        <div class="mm-title-box">
-                            <div class="mm-main-title-text"><span>${t.title}</span></div>
-                            <div class="mm-main-title-sub">${t.subTitle}</div>
-                        </div>
+                    <div class="mm-title-box">
+                        <div class="mm-main-title-text">${t.title}</div>
+                        <div class="mm-main-title-sub">${t.subTitle}</div>
                     </div>
 
                     <div class="mm-panel">
                         <div class="mm-center">
-
                             <div class="mm-card mm-card-play" id="btn-rhythm">
                                 <div class="mm-card-icon">🎵</div>
                                 <div class="mm-card-label">${t.play}</div>
@@ -608,10 +372,9 @@ export class MainMenu {
                                 <div class="mm-card-label">${t.shop}</div>
                                 <div class="mm-card-sub">${t.shopDesc}</div>
                             </div>
-
-                        </div> <!-- /mm-center -->
-                    </div> <!-- /mm-panel -->
-                </div> <!-- /mm-body -->
+                        </div>
+                    </div>
+                </div>
 
                 <!-- BOTTOM NAV + LANG SWITCHER -->
                 <div class="mm-bottom-nav">
