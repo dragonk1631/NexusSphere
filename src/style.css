@@ -859,3 +859,7 @@ canvas {
     border-width: 1px;
   }
 }
+
+#game-container {
+  z-index: 10;
+}

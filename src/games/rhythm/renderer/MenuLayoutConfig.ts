@@ -38,4 +38,17 @@ export const MENU_LAYOUT = {
     OPACITY_GLASS_BG: 0.25,
     OPACITY_DULL_GLASS: 0.05,
     OPACITY_HEADER_BASE: 0.65,
-} as const;
+};
+
+/**
+ * Visual Tuning Config for AB Testing.
+ * These values can be tweaked to find the perfect balance between
+ * background aesthetics and text readability.
+ */
+export const VISUAL_TUNING_CONFIG = {
+    BACKDROP_BLUR: 8,        // px — blur applied to panel glass fill (frosted glass effect)
+    OVERLAY_OPACITY: 0,      // No full-screen canvas overlay
+    PANEL_INNER_ALPHA: 0.2, // Panel transparency (original value)
+    VIGNETTE_STRENGTH: 0,   // No vignette overlay
+    BLUR_DOWNSCALE: 2,
+};

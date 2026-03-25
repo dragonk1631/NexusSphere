@@ -30,7 +30,7 @@ export class MenuRenderer {
     private songListRenderer = new SongListRenderer();
     private controlsRenderer = new ControlsRenderer();
     private midiEQRenderer = new MidiEQRenderer();
-
+    
     private cachedLayout: any = null;
 
     constructor(scoreManager: ScoreManager) {
@@ -103,4 +103,5 @@ export class MenuRenderer {
         drawPremiumTypography(ctx, 'INITIALIZING GAMEPLAY', this.width / 2, this.height / 2, 'center', 54 * sf, `rgba(255,255,255,${pulse})`, true, '#fff', this.width * 0.8);
         ctx.restore();
     }
+
 }

@@ -1,4 +1,4 @@
-import { MENU_LAYOUT } from './MenuLayoutConfig';
+import { MENU_LAYOUT, VISUAL_TUNING_CONFIG } from './MenuLayoutConfig';
 
 /**
  * Common color and typography utilities for the premium menu.
@@ -169,47 +169,54 @@ export function drawPremiumTypography(ctx: CanvasRenderingContext2D, text: strin
     ctx.restore();
 }
 
-export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, tabLabel: string, c1: string, c2: string, sf: number, glassBg: string = 'rgba(255, 255, 255, 0.07)') {
-    const cacheKey = `v4|${pw}|${ph}|${tabLabel}|${c1}|${c2}|${sf}|${glassBg}`;
+export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, tabLabel: string, c1: string, c2: string, sf: number) {
+    // Use theme color for glass tint instead of plain white
+    const alpha = VISUAL_TUNING_CONFIG.PANEL_INNER_ALPHA;
+    const blurPx = VISUAL_TUNING_CONFIG.BACKDROP_BLUR;
+    const cacheKey = `v10|${pw}|${ph}|${tabLabel}|${c1}|${c2}|${sf}|${alpha}|${blurPx}`;
+    const ox = 50 * sf;
+    const oy = 50 * sf;
+
     if (panelCache.has(cacheKey)) {
-        // Draw the cached off-screen canvas, adjusting for the shadow offset
-        const cachedCanvas = panelCache.get(cacheKey)!;
-        const ox = 50 * sf; // Same offset used when creating the off-screen canvas
-        const oy = 50 * sf;
-        ctx.drawImage(cachedCanvas, px - ox, py - oy);
+        ctx.drawImage(panelCache.get(cacheKey)!, px - ox, py - oy);
         return;
     }
 
     const offCanvas = document.createElement('canvas');
-    // Add extra space for shadow around the panel
-    offCanvas.width = pw + 100 * sf;
-    offCanvas.height = ph + 100 * sf;
-    const offCtx = offCanvas.getContext('2d')!;
-    // Offset for drawing on the off-screen canvas to accommodate shadow
-    const ox = 50 * sf;
-    const oy = 50 * sf;
+    offCanvas.width = pw + ox * 2;
+    offCanvas.height = ph + oy * 2;
+    const offCtx = offCanvas.getContext('2d', { alpha: true })!;
 
+    // 1. Shadow Layer
     offCtx.save();
-    // 1. Draw outer shadow first (without blur filter)
-    offCtx.shadowBlur = 35 * sf; offCtx.shadowColor = 'rgba(0,0,0,0.6)';
-    offCtx.fillStyle = 'rgba(0,0,0,0.1)';
+    offCtx.shadowBlur = 35 * sf;
+    offCtx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    offCtx.shadowOffsetX = 2 * sf;
+    offCtx.shadowOffsetY = 4 * sf;
+    offCtx.fillStyle = '#000';
     offCtx.beginPath(); offCtx.roundRect(ox, oy, pw, ph, MENU_LAYOUT.PANEL_BORDER_RADIUS * sf); offCtx.fill();
     offCtx.restore();
 
-    // 2. Draw Glass Background with Blur
+    // 2. Theme-colored Glass Background (c1→c2 gradient tint)
     offCtx.save();
-    // Standard blur filter (compat check)
-    if (typeof offCtx.filter === 'string') {
-        offCtx.filter = 'blur(4px)'; 
+    // Clip to panel shape so blur doesn't bleed outside
+    offCtx.beginPath();
+    offCtx.roundRect(ox, oy, pw, ph, MENU_LAYOUT.PANEL_BORDER_RADIUS * sf);
+    offCtx.clip();
+    // Apply blur BEFORE filling – this blurs the fill itself for a frosted look
+    if (blurPx > 0 && typeof (offCtx as any).filter === 'string') {
+        (offCtx as any).filter = `blur(${blurPx}px)`;
     }
-    offCtx.fillStyle = glassBg; // rgba(255,255,255,0.07)
-    offCtx.beginPath(); offCtx.roundRect(ox, oy, pw, ph, MENU_LAYOUT.PANEL_BORDER_RADIUS * sf); offCtx.fill();
+    // Diagonal gradient from c1 to c2 for a richer colored panel
+    const glassGrad = offCtx.createLinearGradient(ox, oy, ox + pw, oy + ph);
+    glassGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, ${Math.min(alpha + 0.04, 0.3)})`);
+    glassGrad.addColorStop(1, `rgba(${hexToRgb(c2)}, ${Math.max(alpha - 0.02, 0.04)})`);
+    offCtx.fillStyle = glassGrad;
+    offCtx.fillRect(ox - blurPx * 2, oy - blurPx * 2, pw + blurPx * 4, ph + blurPx * 4);
+    (offCtx as any).filter = 'none';
     offCtx.restore();
 
-    // Reset for borders
-    offCtx.filter = 'none';
-    offCtx.shadowBlur = 0;
-
+    // 3. Borders & Details
     const borderGrad = offCtx.createLinearGradient(ox, oy, ox + pw, oy + ph);
     borderGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.8)`);
     borderGrad.addColorStop(1, `rgba(${hexToRgb(c2)}, 0.6)`);
@@ -238,15 +245,14 @@ export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: 
 
     offCtx.fillStyle = '#fff';
     offCtx.shadowBlur = 10 * sf; offCtx.shadowColor = '#fff';
-    // Type assertion for drawTrackedText as it expects CanvasRenderingContext2D, but offCtx is compatible
     drawTrackedText(offCtx as CanvasRenderingContext2D, tabLabel, ox + 20 * sf, oy + headerH / 2 + 1 * sf, 18 * sf, 4 * sf, '#fff', 'left', 'rgba(0,0,0,0.6)');
-    offCtx.restore();
 
     // Cache the rendered off-screen canvas
     panelCache.set(cacheKey, offCanvas);
-    // Draw the off-screen canvas to the main context, adjusting for the shadow offset
+
     ctx.drawImage(offCanvas, px - ox, py - oy);
 }
+
 
 export function drawScanlines(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
     ctx.save();
