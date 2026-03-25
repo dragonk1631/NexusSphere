@@ -29,17 +29,17 @@ export class ControlsRenderer {
         ctx.stroke();
 
         // -- Text & Icon Group (Group Centering) --
-        const fontSize = 28 * sf;
-        const tracking = 4 * sf;
-        ctx.font = `900 ${Math.floor(fontSize)}px "Orbitron"`;
+        const fontSize = 38 * sf; // Slightly larger for high impact
+        const tracking = 2 * sf; // Black Han Sans is already wide, reduce tracking
+        ctx.font = `900 ${Math.floor(fontSize)}px "Black Han Sans"`;
         const textStr = "PLAY";
         
         // Correct tracked width calculation
         const chars = textStr.split('');
         const textW = chars.reduce((acc, char) => acc + ctx.measureText(char).width + tracking, 0) - tracking;
         
-        const iconSize = btnH * 0.45;
-        const spacing = 35 * sf; 
+        const iconSize = btnH * 0.5; // Slightly larger icon
+        const spacing = 30 * sf; 
         const totalW = textW + spacing + iconSize;
         
         // Unified Pulse Animation (Faster & More Dynamic)
@@ -59,8 +59,8 @@ export class ControlsRenderer {
         const ty = centerY + fontSize * 0.35;
         const ix = startX + textW + spacing + iconSize / 2;
 
-        // 1. Draw Text
-        drawTrackedText(ctx, textStr, tx, ty, fontSize, tracking, '#fff', 'left', 'rgba(0,0,0,0.5)');
+        // 1. Draw Text (Title Screen Style: Black Han Sans + Thick Stroke + Deep Shadow)
+        drawTrackedText(ctx, textStr, tx, ty, fontSize, tracking, '#fff', 'left', 'rgba(0,0,0,0.9)', '"Black Han Sans"', 6 * sf, 8 * sf);
 
         // 2. Draw Solid Triangle Icon
         ctx.save();

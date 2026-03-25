@@ -89,8 +89,8 @@ export function getGradeColor(grade: string): string {
     return colors[grade] || '#fff';
 }
 
-export function drawTrackedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, tracking: number, color: string, align: 'left' | 'center' | 'right', strokeColor: string = 'rgba(0,0,0,0.8)') {
-    ctx.font = `900 ${Math.floor(size)}px "Orbitron"`;
+export function drawTrackedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, tracking: number, color: string, align: 'left' | 'center' | 'right', strokeColor: string = 'rgba(0,0,0,0.8)', fontFamily: string = '"Orbitron"', customLineWidth?: number, shadowY?: number) {
+    ctx.font = `900 ${Math.floor(size)}px ${fontFamily}`;
     ctx.fillStyle = color;
     ctx.shadowBlur = 4 * (size / 18);
     ctx.textAlign = 'left';
@@ -107,7 +107,7 @@ export function drawTrackedText(ctx: CanvasRenderingContext2D, text: string, x: 
     // 1. STROKE FIRST (No shadow)
     ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = size * 0.12;
+    ctx.lineWidth = customLineWidth ?? (size * 0.12);
     let curX = startX;
     chars.forEach((char, i) => {
         ctx.strokeText(char, curX, y);
@@ -115,10 +115,10 @@ export function drawTrackedText(ctx: CanvasRenderingContext2D, text: string, x: 
     });
 
     // 2. FILL SECOND (With intentional downward shadow)
-    ctx.shadowBlur = 4 * (size / 18);
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-    ctx.shadowOffsetX = 1.5 * (size / 18);
-    ctx.shadowOffsetY = 3.5 * (size / 18); // Definite Downward
+    ctx.shadowBlur = (shadowY ? 12 : 7) * (size / 18);
+    ctx.shadowColor = 'rgba(0, 0, 0, 1.0)';
+    ctx.shadowOffsetX = (shadowY ? 4 : 2.0) * (size / 18);
+    ctx.shadowOffsetY = (shadowY ?? 4.5) * (size / 18); // Definite Downward
     
     curX = startX;
     chars.forEach((char, i) => {

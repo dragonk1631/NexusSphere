@@ -27,6 +27,7 @@ export class MenuManager {
     public currentFilter: 'all' | 'official' | 'custom' | 'favorite' = 'all';
 
     private storage = new LocalSongStorage();
+    private readonly FAVORITES_STORAGE_KEY = 'NexusSphere_Favorites_v2';
     private officialSongs: SongEntry[] = [];
     private customSongs: SongEntry[] = [];
 
@@ -59,25 +60,30 @@ export class MenuManager {
     private async init() {
         await this.loadOfficialSongs();
         await this.loadUserSongs();
-        await this.loadSongStates();
+        this.loadFavoriteStates(); // Load favorites into the newly loaded lists
         this.sortSongList();
     }
 
-    public async loadSongStates() {
+    public loadFavoriteStates() {
         try {
-            const states = await this.storage.getSongStates();
-            const stateMap = new Map(states.map(s => [s.url, s]));
+            const favoritesJson = localStorage.getItem(this.FAVORITES_STORAGE_KEY);
+            const favorites = favoritesJson ? JSON.parse(favoritesJson) : [];
+            const favoriteSet = new Set(favorites);
             
-            // Apply states to current song list
-            this.songList.forEach(song => {
-                const state = stateMap.get(song.url);
-                if (state) {
-                    song.isFavorite = state.isFavorite;
-                }
-            });
+            // Primary goal: Apply state to source lists so it survives filter changes
+            const applyTo = (list: SongEntry[]) => {
+                list.forEach(song => {
+                    song.isFavorite = favoriteSet.has(song.url);
+                });
+            };
+
+            applyTo(this.officialSongs);
+            applyTo(this.customSongs);
+
+            console.log(`[MenuManager] Loaded ${favoriteSet.size} favorites from localStorage`);
             this.applyFilter();
         } catch (e) {
-            console.error("[MenuManager] Failed to load song states:", e);
+            console.error("[MenuManager] Failed to load favorites from localStorage:", e);
         }
     }
 
@@ -583,10 +589,32 @@ export class MenuManager {
         if (song) {
             song.isFavorite = !song.isFavorite;
             
-            // Persist to IndexedDB
-            await this.storage.toggleFavorite(song.url, !!song.isFavorite);
+            // 1. Persist to localStorage (Source of truth for UI refresh)
+            try {
+                const favoritesJson = localStorage.getItem(this.FAVORITES_STORAGE_KEY);
+                let favorites: string[] = favoritesJson ? JSON.parse(favoritesJson) : [];
+                
+                if (song.isFavorite) {
+                    if (!favorites.includes(song.url)) favorites.push(song.url);
+                } else {
+                    favorites = favorites.filter(url => url !== song.url);
+                }
+                
+                localStorage.setItem(this.FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+            } catch (e) {
+                console.error("[MenuManager] Failed to save favorite state:", e);
+            }
+
+            // 2. Synchronize across list sources (Ensures state survives filter changes without reload)
+            const syncAcrossList = (list: SongEntry[]) => {
+                const target = list.find(s => s.url === song.url);
+                if (target) target.isFavorite = song.isFavorite;
+            };
+            syncAcrossList(this.officialSongs);
+            syncAcrossList(this.customSongs);
             
-            console.log(`[MenuManager] Persistent toggle for ${song.name}: ${song.isFavorite}`);
+            // 3. Fallback: Still persist to IndexedDB for cross-device/robustness if needed
+            await this.storage.toggleFavorite(song.url, !!song.isFavorite);
             
             this.toastMessage = song.isFavorite ? "즐겨찾기에 등록되었습니다" : "즐겨찾기에서 해제되었습니다";
             this.toastTimer = 2000;
