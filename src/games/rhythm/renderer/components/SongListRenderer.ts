@@ -25,23 +25,41 @@ export class SongListRenderer {
             
             ctx.save();
             if (isSelected) {
+                // Selected: Theme Glow & Gradient
+                ctx.shadowBlur = 15 * sf;
+                ctx.shadowColor = c1;
+                
                 const grad = ctx.createLinearGradient(tx, tabAreaY, tx, tabAreaY + tabAreaH);
                 grad.addColorStop(0, c1);
-                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                grad.addColorStop(1, 'rgba(0,0,0,0.6)');
                 ctx.fillStyle = grad;
-                ctx.beginPath(); ctx.roundRect(tx, tabAreaY, tabWidth - 4 * sf, tabAreaH, 4 * sf); ctx.fill();
-                ctx.strokeStyle = c1;
-                ctx.lineWidth = 1 * sf;
+                
+                ctx.beginPath(); 
+                ctx.roundRect(tx, tabAreaY, tabWidth - 4 * sf, tabAreaH, 4 * sf); 
+                ctx.fill();
+                
+                // Bright white border for emphasis
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2 * sf;
                 ctx.stroke();
             } else {
-                ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                ctx.beginPath(); ctx.roundRect(tx, tabAreaY, tabWidth - 4 * sf, tabAreaH, 4 * sf); ctx.fill();
+                // Unselected: Clearly distinguish with a greyish base
+                ctx.fillStyle = 'rgba(50, 50, 50, 0.4)';
+                ctx.beginPath(); 
+                ctx.roundRect(tx, tabAreaY, tabWidth - 4 * sf, tabAreaH, 4 * sf); 
+                ctx.fill();
+                
+                // Dimmer border for inactive state
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1 * sf;
+                ctx.stroke();
             }
 
             ctx.font = `800 ${Math.floor(13 * sf)}px "Orbitron"`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.4)';
+            // Brighter text for better accessibility
+            ctx.fillStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.85)';
             
             // 1. Stroke (No shadow — prevents upward shadow artifact)
             ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';

@@ -14,6 +14,8 @@ import { CoreAudioEngine } from './core/audio/CoreAudioEngine';
 import { LoadingOverlay } from './games/rhythm/renderer/LoadingOverlay';
 import { PerformanceMonitor } from './core/utils/PerformanceMonitor';
 import { AudioEngineLogger } from './core/audio/AudioEngineLogger';
+import { MobileFullscreenExitScreen } from './ui/MobileFullscreenExitScreen';
+
 
 // Initialize Global Managers
 const globalAudioEngine = new CoreAudioEngine();
@@ -253,10 +255,25 @@ const initMobile = () => {
         enforceLandscape(false);
       }
     });
+
+    // Handle Fullscreen Exit on Mobile
+    document.addEventListener('fullscreenchange', () => {
+      // If mobile, not standalone (PWA), and fullscreen is exited
+      if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
+        const isStartScreenActive = !!document.getElementById('mobile-start-screen');
+        const isExitScreenActive = !!document.getElementById('mobile-fullscreen-exit-screen');
+        
+        if (!document.fullscreenElement && !isStartScreenActive && !isExitScreenActive) {
+          console.log("[Main] Fullscreen exited on mobile. Forcing refresh screen.");
+          new MobileFullscreenExitScreen();
+        }
+      }
+    });
   } else {
     window.addEventListener('resize', updateCanvasSize);
   }
 };
+
 
 initMobile();
 
