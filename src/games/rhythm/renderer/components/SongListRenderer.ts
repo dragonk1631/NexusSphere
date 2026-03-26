@@ -17,7 +17,7 @@ export class SongListRenderer {
         // ── Render Filter Tabs ──
         const { tabAreaX, tabAreaY, tabAreaH, tabWidth, uploadBtnX, uploadBtnY, uploadBtnW, uploadBtnH } = layout;
         const filters: Array<MenuRenderState['currentFilter']> = ['all', 'official', 'custom', 'favorite'];
-        const labels = ['ALL', 'OFFICIAL', 'MY SONGS', 'FAVORITES'];
+        const labels = ['ALL', 'OFFICIAL', 'USER', 'FAVORITES'];
 
         filters.forEach((f, i) => {
             const tx = tabAreaX + i * tabWidth;
@@ -98,7 +98,12 @@ export class SongListRenderer {
         ctx.fillText("+", uploadBtnX + uploadBtnW / 2, uploadBtnY + uploadBtnH / 2);
         ctx.restore();
 
-        if (state.songList.length === 0) return;
+        if (state.songList.length === 0) {
+            if (state.currentFilter === 'custom') {
+                this.renderEmptyUserPlaceholder(ctx, listX, listInnerY, listW, listH * 0.5, sf, c1);
+            }
+            return;
+        }
 
         const Math_max = Math.max;
         const Math_min = Math.min;
@@ -343,6 +348,26 @@ export class SongListRenderer {
 
         // Indicator removed as requested to keep font size consistent
 
+        ctx.restore();
+    }
+
+    private renderEmptyUserPlaceholder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, sf: number, color: string) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Icon/Illustration (Simplified)
+        ctx.font = `${Math.floor(40 * sf)}px "Orbitron"`;
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillText("🎹", x + w/2, y + h/2 - 30 * sf);
+
+        ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText("NO USER SONGS FOUND", x + w/2, y + h/2 + 20 * sf);
+        
+        ctx.font = `500 ${Math.floor(12 * sf)}px "Orbitron"`;
+        ctx.fillStyle = color;
+        ctx.fillText("CLICK THE + BUTTON OR DRAG MIDI FILES HERE", x + w/2, y + h/2 + 45 * sf);
         ctx.restore();
     }
 

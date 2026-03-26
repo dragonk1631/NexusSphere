@@ -213,6 +213,12 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.renderCache.init();
         this.detectEnvironment();
         await this.handleInitialState();
+        
+        // Wait for MenuManager to be ready (load default songs)
+        if (this.menuManager.initPromise) {
+            await this.menuManager.initPromise;
+        }
+
         this.resize(this.canvas.width, this.canvas.height);
         if (this.currentState === GameState.MENU && !this.isTestMode) this.menuManager.playPreview();
     }
@@ -222,8 +228,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.particleSystem.setMobile(this.isMobile);
         console.log(`[RhythmGame] Environment: ${this.isMobile ? 'Mobile' : 'Desktop'}`);
     }
-
-    private async handleInitialState() {
+    private async handleInitialState() {
         const transition = GameTransition.get();
         if (transition?.source === 'editor' && transition.midiBuffer) {
             this.isTestMode = true;
@@ -234,20 +239,9 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
                 this.menuManager.scrollSpeed = this.scrollSpeed;
                 this.inputManager.updateKeyMode(this.keyMode);
             }
-        } else {
-            await this.loadSongList();
         }
     }
 
-    private async loadSongList() {
-        try {
-            const res = await fetch('assets/data/midi_list.json');
-            if (res.ok) {
-                const list = await res.json();
-                if (Array.isArray(list)) { this.menuManager.songList = list; this.menuManager.sortSongList(); }
-            }
-        } catch (e) { console.warn("[RhythmGame] Failed to load song list:", e); }
-    }
 
     public resize(width: number, height: number): void {
         super.resize(width, height);
@@ -343,13 +337,25 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.audioEngine.resetTimeState();
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
         
+        // Wait for MenuManager to finish initialization before data access
+        if (this.menuManager.initPromise) {
+            await this.menuManager.initPromise;
+        }
+
         // Fix: In Test Mode, we don't have a menu selection. Use transition data instead.
         let songUrl = "";
         if (this.isTestMode && this.transitionData) {
             songUrl = this.transitionData.midiName;
         } else {
-            songUrl = this.menuManager.getCurrentSong().url;
+            const currentSong = this.menuManager.getCurrentSong();
+            if (!currentSong) {
+                console.warn("[RhythmGame] No song selected or list empty. Skipping asset load.");
+                return;
+            }
+            songUrl = currentSong.url;
         }
+
+        if (!songUrl) return;
 
         await this.audioLoader.load(songUrl, this.isTestMode, this.transitionData);
         this.midiData = this.audioLoader.getMidiData();
@@ -612,6 +618,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     };
     public onWheel = (delta: number) => {
         this.currentStateObj.onWheel(delta);
+    };
+    public onFileDrop = (files: FileList) => {
+        if (this.currentState === GameState.MENU) {
+            this.menuManager.handleFileDrop(files);
+        }
     };
 
 

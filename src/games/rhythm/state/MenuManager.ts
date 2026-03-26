@@ -48,13 +48,15 @@ export class MenuManager {
     public toastMessage: string | null = null;
     public toastTimer = 0;
 
+    public initPromise: Promise<void> | null = null;
+    
     constructor(
         audioEngine: CoreAudioEngine,
         callbacks: IMenuCallbacks
     ) {
         this.audioEngine = audioEngine;
         this.callbacks = callbacks;
-        this.init();
+        this.initPromise = this.init();
     }
 
     private async init() {
@@ -181,35 +183,70 @@ export class MenuManager {
     }
 
     public async addUserSong(file: File): Promise<void> {
-        // 1. Basic MIDI Validation (Header check)
-        const buffer = await file.arrayBuffer();
-        const header = new Uint8Array(buffer.slice(0, 4));
-        const isMidi = header[0] === 0x4D && header[1] === 0x54 && header[2] === 0x68 && header[3] === 0x64;
-        
-        if (!isMidi) {
-            throw new Error("Invalid MIDI file format.");
+        try {
+            // 1. Basic MIDI Validation (Header check)
+            const buffer = await file.arrayBuffer();
+            const header = new Uint8Array(buffer.slice(0, 4));
+            const isMidi = header[0] === 0x4D && header[1] === 0x54 && header[2] === 0x68 && header[3] === 0x64;
+            
+            if (!isMidi) {
+                throw new Error("Invalid MIDI file format.");
+            }
+
+            // 2. Extract Metadata (Duration & BPM)
+            const parser = new MidiParser();
+            const parsed = await parser.parse(buffer, file.name);
+
+            const id = `custom_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const blobKey = `file_${id}`;
+            const metadata: LocalSongMetadata = {
+                id,
+                title: parsed.name.replace(/\.[^/.]+$/, ""),
+                artist: 'Unknown',
+                duration: parsed.duration,
+                bpm: parsed.bpm,
+                isCustom: true,
+                createdAt: Date.now(),
+                blobKey
+            };
+
+            // 3. Save to Storage
+            await this.storage.saveSong(metadata, new Blob([buffer]));
+
+            // 4. Update State
+            await this.loadUserSongs();
+            this.currentFilter = 'custom';
+            this.applyFilter();
+            
+            this.toastMessage = "곡이 추가되었습니다!";
+            this.toastTimer = 2500;
+            
+            console.log(`[MenuManager] User song added: ${metadata.title}`);
+        } catch (err: any) {
+            this.toastMessage = err.message || "곡 추가 실패";
+            this.toastTimer = 3000;
+            throw err;
         }
+    }
 
-        // 2. Extract Metadata
-        const id = `custom_${Date.now()}`;
-        const blobKey = `file_${id}`;
-        const metadata: LocalSongMetadata = {
-            id,
-            title: file.name.replace(/\.[^/.]+$/, ""),
-            artist: 'Unknown',
-            duration: 0,
-            isCustom: true,
-            createdAt: Date.now(),
-            blobKey
-        };
-
-        // 3. Save to Storage
-        await this.storage.saveSong(metadata, new Blob([buffer]));
-
-        // 4. Update State
-        await this.loadUserSongs();
-        this.currentFilter = 'custom';
-        this.applyFilter();
+    public async handleFileDrop(files: FileList): Promise<void> {
+        let addedCount = 0;
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file.name.toLowerCase().endsWith('.mid') || file.name.toLowerCase().endsWith('.midi')) {
+                try {
+                    await this.addUserSong(file);
+                    addedCount++;
+                } catch (e) {
+                    console.warn(`[MenuManager] Failed to add dropped file ${file.name}:`, e);
+                }
+            }
+        }
+        
+        if (addedCount > 0) {
+            this.currentFilter = 'custom';
+            this.applyFilter();
+        }
     }
 
     public async deleteUserSong(id: string): Promise<void> {

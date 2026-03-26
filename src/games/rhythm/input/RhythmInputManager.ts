@@ -15,6 +15,7 @@ export interface IGameInputHandler {
     onGameOverKey(code: string): void;
     onResultKey(code: string): void;
     onWheel(deltaY: number): void;
+    onFileDrop(files: FileList): void;
 }
 
 /**
@@ -199,6 +200,22 @@ export class RhythmInputManager {
             e.preventDefault();
             this.handler.onWheel(e.deltaY);
         };
+        this.boundHandlers.dragover = (e: DragEvent) => {
+            const state = this.handler.getCurrentState();
+            if (state === GameState.MENU) {
+                e.preventDefault();
+                e.dataTransfer!.dropEffect = 'copy';
+            }
+        };
+        this.boundHandlers.drop = (e: DragEvent) => {
+            const state = this.handler.getCurrentState();
+            if (state === GameState.MENU) {
+                e.preventDefault();
+                if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                    this.handler.onFileDrop(e.dataTransfer.files);
+                }
+            }
+        };
     }
 
     private getLaneFromTouch(x: number, y: number): number {
@@ -232,6 +249,8 @@ export class RhythmInputManager {
         window.addEventListener('mousemove', this.boundHandlers.mousemove);
         window.addEventListener('mouseup', this.boundHandlers.mouseup);
         this.canvas.addEventListener('wheel', this.boundHandlers.wheel, { passive: false });
+        this.canvas.addEventListener('dragover', this.boundHandlers.dragover);
+        this.canvas.addEventListener('drop', this.boundHandlers.drop);
     }
 
     public unregister(): void {
@@ -244,5 +263,7 @@ export class RhythmInputManager {
         window.removeEventListener('mousemove', this.boundHandlers.mousemove);
         window.removeEventListener('mouseup', this.boundHandlers.mouseup);
         this.canvas.removeEventListener('wheel', this.boundHandlers.wheel);
+        this.canvas.removeEventListener('dragover', this.boundHandlers.dragover);
+        this.canvas.removeEventListener('drop', this.boundHandlers.drop);
     }
 }
