@@ -16,6 +16,7 @@
 ## 3. UI/UX Refinements
 
 사용자 경험을 극대화하기 위해 세 차례에 걸친 디자인 고도화를 진행했습니다.
+
 - **Compact Header**: 모바일 화면에서도 즐겨찾기 탭과 겹치지 않도록 업로드 버튼을 아이콘(`📂+`) 중심으로 슬림화하고, 탭 영역을 동적으로 계산하도록 레이아웃을 최적화했습니다.
 - **Visual Identity**: 공식 곡과 유저 곡을 시각적으로 구별하기 위해 유저 곡에 은은한 **Ice-Blue(#e0f0ff)** 컬러와 **Magenta Shadow** 글로우 효과를 적용했습니다.
 - **Management Flow**:
@@ -33,4 +34,4 @@
 
 ---
 
-*NexusSphere Development Team*
+NexusSphere Development Team
