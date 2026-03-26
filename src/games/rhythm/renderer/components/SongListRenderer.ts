@@ -15,7 +15,7 @@ export class SongListRenderer {
         drawPremiumPanel(ctx, listX, panelY, listW, panelH, "", c2, c1, sf);
 
         // ── Render Filter Tabs ──
-        const { tabAreaX, tabAreaY, tabAreaH, tabWidth, uploadBtnX, uploadBtnY, uploadBtnW, uploadBtnH } = layout;
+        const { tabAreaX, tabAreaY, tabAreaH, tabWidth } = layout;
         const filters: Array<MenuRenderState['currentFilter']> = ['all', 'official', 'custom', 'favorite'];
         const labels = ['ALL', 'OFFICIAL', 'USER', 'FAVORITES'];
 
@@ -58,8 +58,11 @@ export class SongListRenderer {
             ctx.font = `800 ${Math.floor(13 * sf)}px "Orbitron"`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            // Brighter text for better accessibility
-            ctx.fillStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.85)';
+            
+            // Subtle off-white for USER tab to avoid being "too much"
+            const isUserTab = labels[i] === 'USER';
+            const accentColor = isUserTab ? '#e0f0ff' : '#fff';
+            ctx.fillStyle = isSelected ? accentColor : 'rgba(255,255,255,0.85)';
             
             // 1. Stroke (No shadow — prevents upward shadow artifact)
             ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
@@ -73,30 +76,25 @@ export class SongListRenderer {
             ctx.restore();
         });
 
-        // ── Render Upload Button ──
-        ctx.save();
-        const upGrad = ctx.createLinearGradient(uploadBtnX, uploadBtnY, uploadBtnX, uploadBtnY + uploadBtnH);
-        upGrad.addColorStop(0, '#ff00ff');
-        upGrad.addColorStop(1, '#7a007a');
-        ctx.fillStyle = upGrad;
-        ctx.shadowBlur = 10 * sf; ctx.shadowColor = '#ff00ff';
-        ctx.shadowOffsetX = 2 * sf; ctx.shadowOffsetY = 2 * sf;
-        ctx.beginPath(); ctx.roundRect(uploadBtnX, uploadBtnY, uploadBtnW, uploadBtnH, 4 * sf); ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1 * sf;
-        ctx.stroke();
+          // ── Render Upload Button (FOLDER) ──
+        if (state.currentFilter === 'custom') {
+            const { folderBtnX, folderBtnY, folderBtnW, folderBtnH } = layout;
+            
+            // Compact Folder Button (Icon Only)
+            ctx.save();
+            const fldGrad = ctx.createLinearGradient(folderBtnX, folderBtnY, folderBtnX, folderBtnY + folderBtnH);
+            fldGrad.addColorStop(0, '#00d2ff');
+            fldGrad.addColorStop(1, '#0072ff');
+            ctx.fillStyle = fldGrad;
+            ctx.shadowBlur = 10 * sf; ctx.shadowColor = '#00d2ff';
+            ctx.beginPath(); ctx.roundRect(folderBtnX, folderBtnY, folderBtnW, folderBtnH, 6 * sf); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 * sf; ctx.stroke();
 
-        ctx.font = `900 ${Math.floor(18 * sf)}px "Orbitron"`;
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2 * sf;
-        ctx.strokeText("+", uploadBtnX + uploadBtnW / 2, uploadBtnY + uploadBtnH / 2);
-        
-        ctx.fillText("+", uploadBtnX + uploadBtnW / 2, uploadBtnY + uploadBtnH / 2);
-        ctx.restore();
+            ctx.font = `900 ${Math.floor(20 * sf)}px "Orbitron"`; // Larger icon
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText("📂+", folderBtnX + folderBtnW / 2, folderBtnY + folderBtnH / 2);
+            ctx.restore();
+        }
 
         if (state.songList.length === 0) {
             if (state.currentFilter === 'custom') {
@@ -277,10 +275,11 @@ export class SongListRenderer {
             ctx.lineWidth = 3.5 * sf;
             ctx.strokeText(name, textX, textY, maxW);
             
-            // 2. Fill (With intense downward shadow)
-            ctx.shadowBlur = 8 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
+            // 2. Fill (With intense downward shadow/glow)
+            ctx.shadowBlur = 8 * sf; 
+            ctx.shadowColor = song.isCustom ? 'rgba(255, 0, 255, 0.8)' : 'rgba(0,0,0,1)';
             ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 4 * sf; // Downward drop
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = song.isCustom ? '#e0f0ff' : '#fff';
             ctx.fillText(name, textX, textY, maxW);
             ctx.restore();
         } else {
@@ -293,10 +292,11 @@ export class SongListRenderer {
             ctx.lineWidth = 2.2 * sf;
             ctx.strokeText(name, textX, textY, maxW);
             
-            // 2. Fill (Downward shadow)
-            ctx.shadowBlur = 5 * sf; ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            // 2. Fill (Downward shadow/glow)
+            ctx.shadowBlur = 5 * sf; 
+            ctx.shadowColor = song.isCustom ? 'rgba(255, 0, 255, 0.6)' : 'rgba(0,0,0,0.9)';
             ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2.5 * sf;
-            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.fillStyle = song.isCustom ? '#e0f0ff' : 'rgba(255,255,255,0.75)';
             ctx.fillText(name, textX, textY, maxW);
             ctx.restore();
         }
@@ -306,7 +306,6 @@ export class SongListRenderer {
         const badgeY = innerY + 12 * sf;
 
         if (song.isCustom) {
-            // ... (keep logic same but use contentW relative positions)
             const bW = 60 * sf;
             const bH = 16 * sf;
             ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
@@ -320,17 +319,17 @@ export class SongListRenderer {
             ctx.strokeText("CUSTOM", badgeX + bW/2, badgeY);
             ctx.fillText("CUSTOM", badgeX + bW/2, badgeY);
 
-            const delW = 24 * sf;
-            const delX = contentW - delW - 5 * sf;
-            const delY = itemHeight * 0.5;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-            ctx.beginPath(); ctx.arc(delX, delY, 10 * sf, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#ff3333';
-            ctx.lineWidth = 2 * sf;
-            ctx.beginPath();
-            ctx.moveTo(delX - 4 * sf, delY - 4 * sf); ctx.lineTo(delX + 4 * sf, delY + 4 * sf);
-            ctx.moveTo(delX + 4 * sf, delY - 4 * sf); ctx.lineTo(delX - 4 * sf, delY + 4 * sf);
-            ctx.stroke();
+            // Trash can icon - only for selected item
+            if (isSelected) {
+                const delW = 34 * sf;
+                const delX = contentW - delW/2 - 10 * sf;
+                const delY = innerH * 0.5 + innerY;
+                
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+                ctx.beginPath(); ctx.arc(delX, delY, 14 * sf, 0, Math.PI * 2); ctx.fill();
+                
+                this.drawTrashIcon(ctx, delX, delY, sf);
+            }
         } else {
             ctx.fillStyle = `rgba(${hexToRgb(c1)}, 0.2)`;
             ctx.strokeStyle = c1;
@@ -361,13 +360,51 @@ export class SongListRenderer {
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
         ctx.fillText("🎹", x + w/2, y + h/2 - 30 * sf);
 
-        ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
+        ctx.font = `700 ${Math.floor(22 * sf)}px "Orbitron"`;
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.fillText("NO USER SONGS FOUND", x + w/2, y + h/2 + 20 * sf);
         
         ctx.font = `500 ${Math.floor(12 * sf)}px "Orbitron"`;
         ctx.fillStyle = color;
-        ctx.fillText("CLICK THE + BUTTON OR DRAG MIDI FILES HERE", x + w/2, y + h/2 + 45 * sf);
+        ctx.fillText("CLICK THE ADD FOLDER BUTTON OR DRAG MIDI FILES HERE", x + w/2, y + h/2 + 45 * sf);
+        ctx.restore();
+    }
+
+    private drawTrashIcon(ctx: CanvasRenderingContext2D, x: number, y: number, sf: number) {
+        ctx.save();
+        ctx.translate(x, y);
+        
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 1.5 * sf;
+        
+        // Trash Can Body
+        ctx.beginPath();
+        ctx.moveTo(-5 * sf, -3 * sf);
+        ctx.lineTo(-4 * sf, 6 * sf);
+        ctx.lineTo(4 * sf, 6 * sf);
+        ctx.lineTo(5 * sf, -3 * sf);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Trash Can Lid
+        ctx.beginPath();
+        ctx.moveTo(-7 * sf, -4 * sf);
+        ctx.lineTo(7 * sf, -4 * sf);
+        ctx.stroke();
+
+        // Lid Handle
+        ctx.beginPath();
+        ctx.moveTo(-2 * sf, -4 * sf);
+        ctx.lineTo(-2 * sf, -6 * sf);
+        ctx.lineTo(2 * sf, -6 * sf);
+        ctx.lineTo(2 * sf, -4 * sf);
+        ctx.stroke();
+
+        // Vertical lines in body
+        ctx.beginPath(); ctx.moveTo(-2 * sf, -1 * sf); ctx.lineTo(-1.5 * sf, 4 * sf); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0 * sf, -1 * sf); ctx.lineTo(0 * sf, 4 * sf); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(2 * sf, -1 * sf); ctx.lineTo(1.5 * sf, 4 * sf); ctx.stroke();
+
         ctx.restore();
     }
 

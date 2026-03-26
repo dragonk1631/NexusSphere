@@ -51,11 +51,11 @@ export interface MenuLayoutResult {
     tabAreaH: number;
     tabWidth: number;
 
-    // -- Upload Button --
-    uploadBtnX: number;
-    uploadBtnY: number;
-    uploadBtnW: number;
-    uploadBtnH: number;
+    // -- Folder Upload Button --
+    folderBtnX: number;
+    folderBtnY: number;
+    folderBtnW: number;
+    folderBtnH: number;
 
     // ── ACTION Buttons (PLAY & BACK) ──
     btnX: number;
@@ -159,22 +159,24 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     const listContentX = Math.floor(listX + scrollbarW + (14 * scaleFactor));
     const listHitMaxX = Math.floor(listX + listW);
 
-    // Scrollbar spanning exactly 5 items (visual box top of #1 to bottom of #5)
+    // Scrollbar spanning exactly all visible items
     // Vertical offset (6*sf) at top and bottom: total 12*sf subtracted.
-    const scrollbarTrackH = itemHeight * 5 - 12 * scaleFactor;
+    const scrollbarTrackH = itemHeight * visibleCount - 12 * scaleFactor;
 
-    // Filter Tabs
+    // Filter Tabs - Dynamic width to prevent overlap with upload button
     const tabAreaX = listX + (10 * scaleFactor);
     const tabAreaY = listY + (3 * scaleFactor);
-    const tabAreaW = listW * 0.9; // Increased area to fit 4 tabs
     const tabAreaH = tabH - (4 * scaleFactor); 
-    const tabWidth = Math.floor(tabAreaW / 4);
+    
+    // Upload Button (FOLDER only) - Compact for mobile compatibility
+    const folderBtnW = Math.floor(48 * scaleFactor); 
+    const folderBtnH = tabAreaH;
+    const folderBtnX = listX + listW - folderBtnW - (10 * scaleFactor);
+    const folderBtnY = tabAreaY;
 
-    // Upload Button
-    const uploadBtnW = Math.floor(36 * scaleFactor);
-    const uploadBtnH = tabAreaH;
-    const uploadBtnX = listX + listW - uploadBtnW - (10 * scaleFactor);
-    const uploadBtnY = tabAreaY;
+    // Calculate available width for tabs, leaving a gap before the folder button
+    const tabAreaW = (folderBtnX - tabAreaX) - (10 * scaleFactor);
+    const tabWidth = Math.floor(tabAreaW / 4);
 
     // Top Right Exit Button
     const mainMenuBtnW = Math.floor(120 * scaleFactor);
@@ -215,10 +217,10 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
         tabAreaW,
         tabAreaH,
         tabWidth,
-        uploadBtnX,
-        uploadBtnY,
-        uploadBtnW,
-        uploadBtnH,
+        folderBtnX,
+        folderBtnY,
+        folderBtnW,
+        folderBtnH,
         btnX: Math.floor(btnX),
         btnY: Math.floor(btnY),
         btnW: Math.floor(btnW),

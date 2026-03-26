@@ -98,7 +98,7 @@ export class MenuManager {
                 ...s,
                 isCustom: false
             } as SongEntry));
-            this.applyFilter();
+            this.loadFavoriteStates(); // Sync favorites and apply filter
         } catch (e) {
             console.error("[MenuManager] Failed to load official songs:", e);
         }
@@ -116,7 +116,7 @@ export class MenuManager {
                 difficulty: 5,
                 isCustom: true
             } as SongEntry));
-            this.applyFilter();
+            this.loadFavoriteStates(); // Sync favorites and apply filter
 
             // Background parsing to fill missing metadata (Fixes 0s duration bug for My Songs)
             // PROFESSIONAL: We use a serial queue to avoid main-thread stuttering
@@ -253,8 +253,19 @@ export class MenuManager {
         const song = this.customSongs.find(s => s.id === id);
         if (!song) return;
 
-        await this.storage.deleteSong(id, song.url);
+        // Stop preview if the song is currently playing
+        this.stopPreview();
+        
+        await this.storage.deleteSong(id, song.url); // Use song.url as blobKey
         await this.loadUserSongs();
+
+        // Adjust index if we deleted the last song in the filtered list
+        if (this.selectedSongIndex >= this.songList.length) {
+            this.selectedSongIndex = Math.max(0, this.songList.length - 1);
+        }
+
+        // Restart preview for the newly selected song
+        this.playPreview();
     }
 
     private touchStartY = 0;
@@ -497,10 +508,13 @@ export class MenuManager {
             }
         }
 
-        // ── Upload Button Interaction ──
-        if (x >= layout.uploadBtnX && x <= layout.uploadBtnX + layout.uploadBtnW &&
-            y >= layout.uploadBtnY && y <= layout.uploadBtnY + layout.uploadBtnH) {
-            this.triggerFileUpload();
+        // (triggerFileUpload call removed)
+
+        // ── Folder Upload Button Interaction ──
+        if (this.currentFilter === 'custom' &&
+            x >= layout.folderBtnX && x <= layout.folderBtnX + layout.folderBtnW &&
+            y >= layout.folderBtnY && y <= layout.folderBtnY + layout.folderBtnH) {
+            this.triggerFolderUpload();
             return;
         }
 
@@ -697,19 +711,13 @@ export class MenuManager {
         this.previewMidi = null; // IMPORTANT: Clear preview state so background tasks know we are not in Preview mode
     }
 
-    private triggerFileUpload(): void {
+    private triggerFolderUpload(): void {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.mid,.midi';
-        input.onchange = async (e: any) => {
-            const file = e.target.files[0];
-            if (file) {
-                try {
-                    await this.addUserSong(file);
-                } catch (err: any) {
-                    alert(err.message || "Failed to upload MIDI.");
-                }
-            }
+        (input as any).webkitdirectory = true;
+        input.onchange = (e: any) => {
+            const files = e.target.files;
+            if (files && files.length > 0) this.handleFileDrop(files);
         };
         input.click();
     }
