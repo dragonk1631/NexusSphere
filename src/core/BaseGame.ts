@@ -66,6 +66,22 @@ export abstract class BaseGame {
     public abstract render(alpha?: number): void;
 
     /**
+     * 게임 일시정지 (Visibility change 대응 등)
+     */
+    public pause(): void {
+        // Base implementation: can be overridden if needed
+        console.log(`[BaseGame] ${this.constructor.name} paused.`);
+    }
+
+    /**
+     * 게임 재개
+     */
+    public resume(): void {
+        // Base implementation: can be overridden if needed
+        console.log(`[BaseGame] ${this.constructor.name} resumed.`);
+    }
+
+    /**
      * 캔버스 크기 조절 대응
      */
     public resize(width: number, height: number): void {

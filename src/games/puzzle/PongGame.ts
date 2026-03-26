@@ -123,6 +123,16 @@ export class PongGame extends BaseGame {
         setTimeout(() => this.audioEngine.triggerNoteOff(0, note), 100);
     }
 
+    public pause(): void {
+        super.pause();
+        this.audioEngine.pause();
+    }
+
+    public resume(): void {
+        super.resume();
+        this.audioEngine.resume();
+    }
+
     public destroy(): void {
         console.log("[PongGame] Destroyed.");
         // 이벤트 리스너 해제 등 (실제 구현 시 필요)

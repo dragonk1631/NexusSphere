@@ -677,6 +677,27 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         }, 'fade');
     };
 
+    public pause(): void {
+        super.pause();
+        // Automatically switch to PAUSED state if currently playing
+        if (this.currentState === GameState.PLAYING) {
+            this.setState(GameState.PAUSED);
+        } else {
+            // Even if not playing (e.g. loading or in menu), ensure audio context doesn't stutter
+            this.audioEngine.pause();
+        }
+        // Force reset input states to prevent "stuck" notes from the moment of interruption
+        this.inputManager.resetStates();
+    }
+
+    public resume(): void {
+        super.resume();
+        // Note: For Rhythm games, we usually DON'T want to resume Playback automatically 
+        // if it was in the middle of a song, to let the user get ready in the Pause Menu.
+        // However, we should resume the AudioContext to ensure UI sounds work.
+        this.audioEngine.resume();
+    }
+
     public destroy(): void {
         this.inputManager.unregister();
         if (this.startTimeout) clearTimeout(this.startTimeout);

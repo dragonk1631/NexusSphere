@@ -86,18 +86,62 @@ export class MobileFullscreenExitScreen {
             <div class="exit-screen-desc">
                 전체 화면 모드가 해제되었습니다.<br><br>
                 최상의 게임 경험과 오동작 방지를 위해<br>
-                전체 화면 모드에서만 실행이 가능합니다.<br><br>
-                처음부터 다시 시작하려면 아래 버튼을 눌러주세요.
+                전체 화면 모드에서만 실행이 가능합니다.
             </div>
-            <button class="exit-screen-btn" id="btn-fullscreen-refresh">
-                🔄 새로고침 (Restart)
-            </button>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 320px;">
+                <button class="exit-screen-btn" id="btn-fullscreen-resume" style="background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);">
+                    ▶️ 게임 재개 (Resume)
+                </button>
+                <button class="exit-screen-btn" id="btn-fullscreen-refresh" style="background: rgba(255,255,255,0.1); font-size: 1rem; padding: 12px;">
+                    🔄 새로고침 (Restart)
+                </button>
+            </div>
         `;
 
-        const btn = document.getElementById('btn-fullscreen-refresh') as HTMLButtonElement;
-        btn.addEventListener('click', () => {
+        const resumeBtn = document.getElementById('btn-fullscreen-resume') as HTMLButtonElement;
+        resumeBtn.addEventListener('click', () => this.handleResume());
+
+        const refreshBtn = document.getElementById('btn-fullscreen-refresh') as HTMLButtonElement;
+        refreshBtn.addEventListener('click', () => {
             window.location.reload();
         });
+    }
+
+    private async handleResume() {
+        try {
+            // 1. Request Fullscreen
+            if (document.documentElement.requestFullscreen) {
+                await document.documentElement.requestFullscreen();
+            }
+
+            // 2. Attempt Orientation Lock (Landscape)
+            if (screen.orientation && (screen.orientation as any).lock) {
+                await (screen.orientation as any).lock('landscape').catch(() => {});
+            }
+
+            // 3. WAIT for browser layout to stabilize (Critical for mobile)
+            // Giving the browser 250ms to finish its CSS transitions and viewport updates
+            await new Promise(resolve => setTimeout(resolve, 250));
+
+            // 4. Force Viewport Calibration
+            // Many mobile browsers (Chrome/Safari) have persistent visual viewport offsets after fullscreen toggles.
+            window.scrollTo(0, 1);
+            window.scrollTo(0, 0);
+
+            // 5. Trigger System-wide Resize
+            // This forces Canvas and InputManager to recalculate their bounding rectangles.
+            window.dispatchEvent(new Event('resize'));
+
+            console.log("[MobileFullscreenExitScreen] Resume sync completed.");
+
+            // 6. Self-Destruct
+            this.destroy();
+
+        } catch (error) {
+            console.warn("[MobileFullscreenExitScreen] Resume failed:", error);
+            // Fallback: stay on this screen or alert
+        }
     }
 
     public destroy() {

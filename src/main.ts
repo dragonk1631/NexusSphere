@@ -251,8 +251,35 @@ const initMobile = () => {
     });
 
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && document.fullscreenElement && ScreenUtils.isStandalone()) {
-        enforceLandscape(false);
+      const isHidden = document.visibilityState === 'hidden';
+
+      if (isHidden) {
+        console.log("[Main] Page hidden. Pausing audio and game state...");
+        
+        // 1. Pause active game
+        if (currentGame) {
+          currentGame.pause();
+        }
+
+        // 2. Pause Menu BGM
+        MenuMusicManager.getInstance().pauseMusic(true);
+
+      } else {
+        console.log("[Main] Page visible. Resuming necessary services...");
+
+        // 1. Force Resume AudioContext (Critical for mobile after sleep)
+        globalAudioEngine.resume();
+
+        // 2. Resume Menu BGM only if it was auto-paused
+        const musicManager = MenuMusicManager.getInstance();
+        if (!currentGame && musicManager.shouldResume()) {
+          musicManager.resumeMusic();
+        }
+
+        // 3. For orientation lock (existing logic)
+        if (document.fullscreenElement && ScreenUtils.isStandalone()) {
+          enforceLandscape(false);
+        }
       }
     });
 

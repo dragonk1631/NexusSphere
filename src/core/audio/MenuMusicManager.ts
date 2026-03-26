@@ -8,6 +8,7 @@ export class MenuMusicManager {
     private currentContext: MenuContext | null = null;
     private midiList: any[] = [];
     private isPlaying: boolean = false;
+    private isAutoPaused: boolean = false;
     private audio: CoreAudioEngine | null = null;
 
     // Explicit URLs for contexts. If null, a random MIDI will be picked.
@@ -97,7 +98,38 @@ export class MenuMusicManager {
     public stopMusic(): void {
         this.currentContext = null;
         this.isPlaying = false;
+        this.isAutoPaused = false;
         if (this.audio) this.audio.stop();
         console.log('[MenuMusicManager] UI BGM stopped.');
+    }
+
+    /**
+     * Pauses the music if it's currently playing.
+     * @param isAuto If true, marks it as auto-paused for automatic resumption.
+     */
+    public pauseMusic(isAuto: boolean = false): void {
+        if (!this.isPlaying || !this.audio) return;
+        
+        this.audio.pause();
+        this.isAutoPaused = isAuto;
+        console.log(`[MenuMusicManager] UI BGM ${isAuto ? 'auto-' : ''}paused.`);
+    }
+
+    /**
+     * Resumes the music if it was paused.
+     */
+    public resumeMusic(): void {
+        if (!this.isPlaying || !this.audio) return;
+
+        this.audio.play();
+        this.isAutoPaused = false;
+        console.log('[MenuMusicManager] UI BGM resumed.');
+    }
+
+    /**
+     * Checks if the music was auto-paused and should be resumed.
+     */
+    public shouldResume(): boolean {
+        return this.isPlaying && this.isAutoPaused;
     }
 }
