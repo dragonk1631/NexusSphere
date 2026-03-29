@@ -131,6 +131,12 @@ export interface HUDRenderState {
     lastJudgment: { text: string, color: string, time: number, value: Judgment } | null;
     cachedNow: number;
     isMobile: boolean;
+    songTitle?: string;
+    currentTime?: number;
+    duration?: number;
+    keyMode?: number;
+    difficulty?: string;
+    speed?: number;
 }
 
 /**

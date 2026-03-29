@@ -15,6 +15,12 @@ export interface HUDRenderState {
     lastJudgment: { text: string, color: string, time: number, value: Judgment } | null;
     cachedNow: number;
     isMobile: boolean;
+    songTitle?: string;
+    currentTime?: number;
+    duration?: number;
+    keyMode?: number;
+    difficulty?: string;
+    speed?: number;
 }
 
 export class HUDRenderer {
@@ -22,6 +28,13 @@ export class HUDRenderer {
     private cachedHudPalette: typeof HUD_PALETTES[string] | null = null;
     private hpGradient: CanvasGradient | null = null;
     private comboGradient: CanvasGradient | null = null;
+    
+    // Lazy UI Gradients
+    private panelGrad: CanvasGradient | null = null;
+    private edgeGrad: CanvasGradient | null = null;
+    private gamePanelGrad: CanvasGradient | null = null;
+    private gameEdgeGrad: CanvasGradient | null = null;
+    private lastIsMobile: boolean | null = null;
 
     public onResize(ctx: CanvasRenderingContext2D, _width: number, _height: number): void {
         const theme = ThemeManager.getInstance().getCurrentTheme();
@@ -49,7 +62,9 @@ export class HUDRenderer {
 
         this.renderPanels(ctx, state, pal, getPerspectiveX);
         this.renderHPBar(ctx, state, pal, scoreManager, getPerspectiveX);
+        this.renderSongInfo(ctx, state, pal, getPerspectiveX);
         this.renderScore(ctx, state, pal, score);
+        this.renderGameInfo(ctx, state);
         this.renderCombo(ctx, state, pal, combo);
         this.renderJudgment(ctx, state, theme, alpha);
     }
@@ -107,24 +122,235 @@ export class HUDRenderer {
         ctx.fill();
         ctx.stroke();
 
-        // Pause Button Area (Square below score panel)
-        const pauseBtnSize = 50;
-        const pauseBtnX = state.width - 65;
-        const pauseBtnY = 100;
+        // Pause Button Area
+        const pauseBtnSize = 40;
+        const pauseBtnX = state.width - 55;
+        const pauseBtnY = 85;
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.strokeStyle = pal.scorePanel;
         ctx.beginPath();
-        ctx.roundRect(pauseBtnX, pauseBtnY, pauseBtnSize, pauseBtnSize, 5);
+        ctx.roundRect(pauseBtnX, pauseBtnY, pauseBtnSize, pauseBtnSize, 4);
         ctx.fill();
         ctx.stroke();
 
-        // Pause Icon (Two vertical bars)
+        // Pause Icon
         ctx.fillStyle = '#ffffff';
-        const barW = 6;
-        const barH = 20;
-        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 - 8, pauseBtnY + pauseBtnSize / 2 - 10, barW, barH);
-        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 + 2, pauseBtnY + pauseBtnSize / 2 - 10, barW, barH);
+        const barW = 5;
+        const barH = 16;
+        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 - 6, pauseBtnY + pauseBtnSize / 2 - 8, barW, barH);
+        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 + 1, pauseBtnY + pauseBtnSize / 2 - 8, barW, barH);
+
+        ctx.restore();
+    }
+
+    private formatTime(seconds: number): string {
+        if (!seconds || isNaN(seconds)) return "0:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    private renderSongInfo(ctx: CanvasRenderingContext2D, state: HUDRenderState, pal: any, getPerspectiveX: (lane: number, y: number) => number): void {
+        const title = state.songTitle || "Unknown Track";
+        const currentTime = Math.max(0, state.currentTime || 0);
+        const duration = state.duration || 0;
+        
+        // Mobile scaling
+        const isMobile = state.isMobile;
+        const panelTopY = 85; // Aligned with Pause Button
+        const panelBotY = isMobile ? 120 : 135; 
+        const hMargin = isMobile ? 10 : 20;
+        
+        // Invalidate cache if mobile state flips
+        if (this.lastIsMobile !== isMobile) {
+            this.panelGrad = null;
+            this.edgeGrad = null;
+            this.lastIsMobile = isMobile;
+        }
+
+        let leftInnerTopX = getPerspectiveX(0, panelTopY) - hMargin;
+        let leftInnerBotX = getPerspectiveX(0, panelBotY) - hMargin;
+
+        if (leftInnerBotX > state.width * 0.45) {
+            const diff = leftInnerBotX - state.width * 0.45;
+            leftInnerBotX -= diff; leftInnerTopX -= diff;
+        }
+
+        ctx.save();
+        
+        // Lazy Evaluation of Gradients for Performance
+        if (!this.panelGrad) {
+            this.panelGrad = ctx.createLinearGradient(0, panelTopY, 0, panelBotY);
+            this.panelGrad.addColorStop(0, 'rgba(20, 25, 35, 0.9)');
+            this.panelGrad.addColorStop(0.5, 'rgba(10, 15, 25, 0.85)');
+            this.panelGrad.addColorStop(1, 'rgba(5, 10, 15, 0.95)');
+        }
+        if (!this.edgeGrad) {
+            this.edgeGrad = ctx.createLinearGradient(0, panelTopY, 0, panelBotY);
+            this.edgeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+            this.edgeGrad.addColorStop(1, 'rgba(200, 200, 200, 0.1)');
+        }
+
+        ctx.fillStyle = this.panelGrad;
+        ctx.strokeStyle = this.edgeGrad;
+        ctx.lineWidth = 1.5;
+        
+        ctx.beginPath();
+        ctx.moveTo(0, panelTopY);
+        ctx.lineTo(leftInnerTopX, panelTopY);
+        ctx.lineTo(leftInnerBotX - (isMobile ? 5 : 10), panelBotY - (isMobile ? 5 : 10));
+        ctx.lineTo(leftInnerBotX - (isMobile ? 15 : 25), panelBotY);
+        ctx.lineTo(0, panelBotY);
+        ctx.fill();
+        ctx.stroke();
+
+        const titleFont = isMobile ? 'bold 12px' : 'bold 15px';
+        const titleY = panelTopY + (isMobile ? 14 : 18);
+
+        // High-Tech Title Text
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = pal.glowColor || 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 4;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.font = `${titleFont} "Exo 2", "Rajdhani", "Orbitron"`;
+        ctx.fillText(title, isMobile ? 10 : 20, titleY);
+
+        // Time Data
+        const timeStr = `${this.formatTime(currentTime)} / ${this.formatTime(duration)}`;
+        ctx.font = isMobile ? '600 10px "Rajdhani"' : '600 12px "Rajdhani", "Orbitron"';
+        ctx.fillStyle = '#a0aab5';
+        const slope = (leftInnerBotX - leftInnerTopX) / (panelBotY - panelTopY);
+        ctx.textAlign = 'right';
+        ctx.fillText(timeStr, leftInnerTopX + slope * (isMobile ? 15 : 25) - (isMobile ? 10 : 20), titleY + (isMobile ? 14 : 18));
+
+        // Segmented Tech Progress Bar
+        const barLeft = isMobile ? 10 : 20;
+        const barBottom = panelBotY - (isMobile ? 8 : 15);
+        const barRightX = leftInnerBotX - (isMobile ? 20 : 30);
+        const barW = barRightX - barLeft;
+        
+        if (barW > 0) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            const h = isMobile ? 4 : 6;
+            ctx.beginPath();
+            ctx.moveTo(barLeft, barBottom - h);
+            ctx.lineTo(barRightX, barBottom - h);
+            ctx.lineTo(barRightX - (isMobile ? 2 : 4), barBottom);
+            ctx.lineTo(barLeft - (isMobile ? 2 : 4), barBottom);
+            ctx.fill();
+
+            const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+            if (progress > 0) {
+                const fillW = barW * progress;
+                ctx.fillStyle = pal.hpBarMid || '#00f0ff';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = pal.hpBarMid || '#00f0ff';
+                ctx.beginPath();
+                ctx.moveTo(barLeft, barBottom - h + 1);
+                ctx.lineTo(barLeft + fillW, barBottom - h + 1);
+                ctx.lineTo(barLeft + fillW - (isMobile ? 2 : 4), barBottom - 1);
+                ctx.lineTo(barLeft - (isMobile ? 2 : 4), barBottom - 1);
+                ctx.fill();
+            }
+
+            ctx.strokeStyle = 'rgba(10, 15, 25, 0.8)';
+            ctx.lineWidth = 1.5;
+            ctx.shadowBlur = 0;
+            const segments = isMobile ? 5 : 10;
+            for(let i=1; i<segments; i++) {
+                const sx = barLeft + (barW / segments) * i;
+                ctx.beginPath();
+                ctx.moveTo(sx, barBottom - h);
+                ctx.lineTo(sx - (isMobile ? 2 : 4), barBottom);
+                ctx.stroke();
+            }
+        }
+        
+        ctx.restore();
+    }
+
+    private renderGameInfo(ctx: CanvasRenderingContext2D, state: HUDRenderState): void {
+        const lineStr = state.keyMode ? state.keyMode.toString() : '6';
+        const modeStr = state.difficulty ? state.difficulty.substring(0, 2).toUpperCase() : 'NM';
+        const speedStr = state.speed ? `x${state.speed.toFixed(1)}` : 'x1.0';
+        
+        const isMobile = state.isMobile;
+        const boxW = isMobile ? 110 : 160;
+        const boxH = isMobile ? 40 : 46;
+        const topY = 85; // Aligned with Pause Button
+        const rightEdge = state.width - (isMobile ? 55 : 100); 
+
+        // Invalidate cache if mobile state flipped (checked in renderSongInfo already, but safe to sync)
+        if (this.lastIsMobile !== isMobile) {
+            this.gamePanelGrad = null;
+            this.gameEdgeGrad = null;
+        }
+
+        ctx.save();
+        
+        if (!this.gamePanelGrad) {
+            this.gamePanelGrad = ctx.createLinearGradient(0, topY, 0, topY + boxH);
+            this.gamePanelGrad.addColorStop(0, 'rgba(25, 30, 40, 0.95)');
+            this.gamePanelGrad.addColorStop(1, 'rgba(10, 15, 20, 0.9)');
+        }
+        ctx.fillStyle = this.gamePanelGrad;
+        
+        if (!this.gameEdgeGrad) {
+            this.gameEdgeGrad = ctx.createLinearGradient(0, topY, 0, topY + boxH);
+            this.gameEdgeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
+            this.gameEdgeGrad.addColorStop(0.2, 'rgba(100, 200, 255, 0.3)');
+            this.gameEdgeGrad.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
+        }
+        ctx.strokeStyle = this.gameEdgeGrad;
+        ctx.lineWidth = 1.5;
+        
+        const slant = isMobile ? 6 : 8;
+        const deepSlant = isMobile ? 8 : 12;
+
+        ctx.beginPath();
+        ctx.moveTo(rightEdge - boxW, topY);
+        ctx.lineTo(rightEdge, topY);
+        ctx.lineTo(rightEdge - slant, topY + boxH/2);
+        ctx.lineTo(rightEdge, topY + boxH);
+        ctx.lineTo(rightEdge - boxW - deepSlant, topY + boxH);
+        ctx.lineTo(rightEdge - boxW, topY + boxH/2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(150, 200, 255, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const third = boxW / 3;
+        ctx.moveTo(rightEdge - boxW + third - 4, topY + (isMobile ? 5 : 8));
+        ctx.lineTo(rightEdge - boxW + third - 6, topY + boxH - (isMobile ? 5 : 8));
+        ctx.moveTo(rightEdge - boxW + third * 2 - 4, topY + (isMobile ? 5 : 8));
+        ctx.lineTo(rightEdge - boxW + third * 2 - 6, topY + boxH - (isMobile ? 5 : 8));
+        ctx.stroke();
+
+        ctx.fillStyle = '#6ab8ff';
+        ctx.font = isMobile ? 'bold 8px "Rajdhani"' : 'bold 10px "Exo 2", "Rajdhani", "Orbitron"';
+        ctx.letterSpacing = '1px';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        const center1 = rightEdge - boxW + (third / 2) - 1;
+        const center2 = rightEdge - boxW + third + (third / 2) - 3;
+        const center3 = rightEdge - boxW + third * 2 + (third / 2) - 5;
+
+        ctx.fillText("LINE", center1, topY + (isMobile ? 4 : 7));
+        ctx.fillText("MODE", center2, topY + (isMobile ? 4 : 7));
+        ctx.fillText("SPEED", center3, topY + (isMobile ? 4 : 7));
+
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = isMobile ? 4 : 6;
+        ctx.shadowColor = '#00f0ff';
+        ctx.font = isMobile ? '800 13px "Rajdhani"' : '800 17px "Rajdhani", "Orbitron"';
+        ctx.fillText(lineStr, center1, topY + (isMobile ? 15 : 20));
+        ctx.fillText(modeStr, center2, topY + (isMobile ? 15 : 20));
+        ctx.fillText(speedStr, center3, topY + (isMobile ? 15 : 20));
 
         ctx.restore();
     }

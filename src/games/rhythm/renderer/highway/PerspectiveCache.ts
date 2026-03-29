@@ -58,13 +58,24 @@ export class PerspectiveCache {
     }
 
     /**
-     * Gets the perspective X coordinate for a specific lane boundary at height y.
+     * Gets the perspective X coordinate for a specific lane position (supports fractional) at height y.
+     * Interpolates linearly between lane boundaries for high-precision mid-lane calculations.
      */
     public getX(lane: number, y: number, state: HighwayRenderState): number {
         const idx = this.getIndex(y, state);
-        // Clamp lane index to safety
-        const safeLane = Math.max(0, Math.min(lane, this.xCache.length - 1));
-        return this.xCache[safeLane][idx];
+        
+        // Linear interpolation for fractional lane positions (e.g., lane + 0.5)
+        const l1 = Math.floor(lane);
+        const l2 = Math.ceil(lane);
+        const t = lane - l1;
+
+        const s1 = Math.max(0, Math.min(l1, state.laneCount));
+        const s2 = Math.max(0, Math.min(l2, state.laneCount));
+
+        const x1 = this.xCache[s1][idx];
+        const x2 = this.xCache[s2][idx];
+
+        return x1 + (x2 - x1) * t;
     }
 
     /**

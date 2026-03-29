@@ -163,8 +163,8 @@ export const LAYOUT = {
 } as const;
 
 export const ASSETS = {
-    FONT_ID: 'orbitron-font-link',
-    FONT_URL: 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap'
+    FONT_ID: 'orbitron-rajdhani-font-link',
+    FONT_URL: 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap'
 } as const;
 
 export const HIGHWAY_CONFIG = {

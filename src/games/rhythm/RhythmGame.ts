@@ -109,6 +109,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     public pauseAnimationTimer: number = 0;
     public lastRenderTime = 0;
     public unifiedCurrentTime = 0;
+    public currentDifficulty: string = 'NORMAL';
 
     public loadingProgress: number = 0;
     public loadingStatus: string = "Initializing...";
@@ -367,9 +368,9 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         // Ensure Audio Engine is fully ready before creating objects
         await this.audioEngine.ensureReady();
 
-        const difficulty = this.transitionData?.settings?.difficulty || this.menuManager.getCurrentDifficulty() || 'NORMAL';
+        this.currentDifficulty = this.transitionData?.settings?.difficulty || this.menuManager.getCurrentDifficulty() || 'NORMAL';
         const config = this.audioLoader.getBeatmapData()?.measureConfig || null;
-        this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, null, difficulty, config);
+        this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, null, this.currentDifficulty, config);
         const totalJudgments = this.visualNotes.reduce((acc, note) => acc + (note.isHold ? 2 : 1), 0);
         this.scoreManager.setTotalNotes(totalJudgments);
 
@@ -533,7 +534,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         ctx.clearRect(0, 0, width, height);
         this.updateHighwayRenderState();
         this.highwayRenderer.renderBackground(ctx, this.highwayRenderState);
-        this.highwayRenderer.renderDynamic(ctx, this.highwayRenderState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.gameplayManager.holdingLanes, this.inputManager, alpha);
+        this.highwayRenderer.renderDynamic(ctx, this.highwayRenderState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.inputManager, alpha);
 
         const hud = this.hudRenderState;
         hud.width = width;
@@ -542,6 +543,12 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         hud.lastJudgment = this.judgmentSystem.getLastJudgment();
         hud.cachedNow = performance.now();
         hud.isMobile = this.isMobile;
+        hud.songTitle = this.menuManager.getCurrentSong()?.name || this.midiData?.name || 'Unknown Track';
+        hud.currentTime = this.audioEngine.getPreciseTime();
+        hud.duration = this.audioEngine.duration || 0;
+        hud.keyMode = this.keyMode;
+        hud.difficulty = this.currentDifficulty;
+        hud.speed = this.scrollSpeed;
 
         this.hudRenderer.render(ctx, hud, this.scoreManager, this.themeStrategy, (l, y) => this.getPerspectiveX(l, y));
     }
