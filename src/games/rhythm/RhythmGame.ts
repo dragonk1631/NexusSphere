@@ -248,7 +248,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         super.resize(width, height);
         this.horizonY = height * HORIZON_Y_RATIO;
         this.bottomY = height * BOTTOM_Y_RATIO;
-        this.hitLineY = height * HIT_LINE_Y_RATIO;
+        // RESPONSIVE PRECISION ALIGNMENT (ZERO GAP)
+        // Set the footer border at the 95% ratio (Footer Baseline)
+        const borderY = height * HIT_LINE_Y_RATIO;
+        // Align hitLineY exactly 29px above the footer (Receptor Bottom +24 meets Rail Top -5)
+        this.hitLineY = borderY - 29;
 
         // --- Synchronize Lane Width with Receptors using Utils ---
         const layout = PerspectiveUtils.calculateLayout(

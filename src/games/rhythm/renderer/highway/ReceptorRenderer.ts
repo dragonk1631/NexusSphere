@@ -29,54 +29,15 @@ export class ReceptorRenderer {
     public render(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache, inputStates: boolean[]): void {
         const hitH = 48; 
         const pressDepth = 6;
-        const extendedBotY = state.hitLineY + 60; // Bulky frame unified with LaneRenderer
-        const neonBotY = state.hitLineY + 24;     // Neon underline unified with LaneRenderer
 
-        // 0. Solid Chassis Backing Plate (REFINED - BELOW NOTES ONLY)
-        // This anchors the hardware to the bottom of the receptors without cluttering the hit zone.
-        const bgTopY = state.hitLineY + 24; // Starts exactly at the bottom of receptors
-        const leftBgX = cache.getX(0, bgTopY, state) - 15;
-        const rightBgX = cache.getX(state.laneCount, bgTopY, state) + 15;
-        const blBgX = cache.getX(0, extendedBotY, state) - 15;
-        const brBgX = cache.getX(state.laneCount, extendedBotY, state) + 15;
-
-        ctx.save();
-        ctx.fillStyle = '#0a0d14'; // Dense Dark Matte
-        ctx.beginPath();
-        ctx.moveTo(leftBgX, bgTopY);
-        ctx.lineTo(rightBgX, bgTopY);
-        ctx.lineTo(brBgX, extendedBotY);
-        ctx.lineTo(blBgX, extendedBotY);
-        ctx.closePath();
-        ctx.fill();
+        // 0. Solid Chassis Backing Plate & Housing (REMOVED per user request)
+        // Achieving 'Zero Shadow' - receptors now float purely above the neon-white frame.
         
-        // Final Neon Border Seam (The 'Underline')
-        ctx.strokeStyle = '#2d3748';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cache.getX(0, neonBotY, state), neonBotY);
-        ctx.lineTo(cache.getX(state.laneCount, neonBotY, state), neonBotY);
-        ctx.stroke();
-        ctx.restore();
-
-        // 1. Sleek Console Slot (Minimalist Housing)
-        // This anchors the buttons into a thin, recessed strip at the deck horizon.
-        const leftEdgeX = cache.getX(0, extendedBotY, state) - 12;
-        const rightEdgeX = cache.getX(state.laneCount, extendedBotY, state) + 12;
-        const faceplateH = 14; // Matches the LaneRenderer accent height
-        const faceplateY = extendedBotY;
-
         ctx.save();
-        // Recessed Slot
-        ctx.fillStyle = '#050a14';
-        ctx.beginPath();
-        ctx.roundRect(leftEdgeX, faceplateY, rightEdgeX - leftEdgeX, faceplateH, 4);
-        ctx.fill();
         
-        // Inner Bevel
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        // Final Neon Border Seam (The 'Underline' - Handled by LaneRenderer for unity)
+        // No additional drawing here to avoid double-processing.
+        
         ctx.restore();
 
         // 2. Individual Receptors
