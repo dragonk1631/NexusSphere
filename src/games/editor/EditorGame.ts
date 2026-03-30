@@ -675,21 +675,14 @@ export class EditorGame extends BaseGame {
                     this.audioEngine.stop();
 
                     if (this.rawMidiBuffer) {
-                        // Check for forced channel from UI
-                        const forcedChannel = this.ui?.getTestChannel() ?? -1;
                         let targetChannels: number[] | undefined;
 
-                        if (forcedChannel >= 0) {
-                            targetChannels = [forcedChannel];
-                            console.log(`[EditorGame] Test Play: Forcing Channel ${forcedChannel + 1}`);
-                        } else if (this.soloTrackIndices.size > 0) {
+                        if (this.soloTrackIndices.size > 0) {
                             // If user has SOLOED channels, use them as forced channels for the game
                             targetChannels = Array.from(this.soloTrackIndices);
                             console.log(`[EditorGame] Test Play: Using Solo Channels: ${targetChannels.map(c => c + 1).join(', ')}`);
                         } else {
-                            // Find the PRIMARY channel to force NoteFactory to use it
-                            // --- CHANGED: Do NOT force primary channel anymore ---
-                            // Instead, treat test-mode exactly like normal mode, allowing
+                            // Treat test-mode exactly like normal mode, allowing
                             // NoteFactory to use secondary channels for gap-filling.
                             targetChannels = undefined;
                         }

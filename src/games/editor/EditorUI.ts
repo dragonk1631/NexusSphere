@@ -91,50 +91,27 @@ export class EditorUI {
                     </div>
 
                     <div class="extra-tools" style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
-                        <button id="btn-main-menu" title="Return to Main Menu" style="background:#673AB7; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
-                            🏠 MENU
-                        </button>
-                        <button id="btn-save-config" title="Save to LocalStorage" style="background:#FF9800; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
-                            💾 SAVE
-                        </button>
-                        <button id="btn-reset-config" title="Clear all manual configs" style="background:#f44336; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
-                            ↺ RESET
-                        </button>
-
-                        <button id="btn-test-play" title="Test Play" style="background:#4CAF50; color:white; border:none; padding:4px 12px; border-radius:4px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:11px;">
-                            <span style="font-size:14px;">🎮</span> TEST
-                        </button>
-
                         <select id="test-difficulty" style="background:#222; color:#fff; border:1px solid #444; padding:2px 4px; border-radius:4px; font-size:11px; outline:none; cursor:pointer;" title="Test Play Difficulty">
                             <option value="EASY">EASY</option>
                             <option value="NORMAL" selected>NORMAL</option>
                             <option value="HARD">HARD</option>
                         </select>
 
-                        <select id="test-channel" style="background:#222; color:#fff; border:1px solid #444; padding:2px 4px; border-radius:4px; font-size:11px; outline:none; cursor:pointer;" title="Test Channel">
-                            <option value="-1" selected>AUTO (Melody)</option>
-                            <option value="0">CH 1</option>
-                            <option value="1">CH 2</option>
-                            <option value="2">CH 3</option>
-                            <option value="3">CH 4</option>
-                            <option value="4">CH 5</option>
-                            <option value="5">CH 6</option>
-                            <option value="6">CH 7</option>
-                            <option value="7">CH 8</option>
-                            <option value="8">CH 9</option>
-                            <option value="9">CH 10 (Drums)</option>
-                            <option value="10">CH 11</option>
-                            <option value="11">CH 12</option>
-                            <option value="12">CH 13</option>
-                            <option value="13">CH 14</option>
-                            <option value="14">CH 15</option>
-                            <option value="15">CH 16</option>
-                        </select>
-                        
-                        <div class="zoom-tool" style="display:flex; align-items:center; gap:5px; margin-right: 5px;">
-                            <span style="color:#666; font-weight:bold; font-size:9px; text-transform:uppercase;">Zoom</span>
-                            <input type="range" id="zoom-slider" min="10" max="190" value="100" style="width: 55px;">
-                        </div>
+                        <button id="btn-test-play" title="Test Play" style="background:#4CAF50; color:white; border:none; padding:4px 12px; border-radius:4px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:11px;">
+                            <span style="font-size:14px;">🎮</span> TEST
+                        </button>
+
+                        <button id="btn-save-config" title="Save to LocalStorage" style="background:#FF9800; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            💾 SAVE
+                        </button>
+
+                        <button id="btn-reset-config" title="Clear all manual configs" style="background:#f44336; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            ↺ RESET
+                        </button>
+
+                        <button id="btn-main-menu" title="Return to Main Menu" style="background:#673AB7; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            🏠 MENU
+                        </button>
                     </div>
                 </div>
 
@@ -208,9 +185,9 @@ export class EditorUI {
                         <div class="time-display" id="time-display" style="position: absolute; left: 50%; bottom: -18px; transform: translateX(-50%); font-size: 10px; color: #888; font-family: monospace; white-space: nowrap;">00:00.00 / 00:00.00</div>
                     </div>
 
-                    <div class="volume-tool" style="display:flex; align-items:center; gap:10px; margin-left:auto; margin-top: 20px;">
-                        <span style="font-size:9px; color:#666; font-weight:bold;">VOL</span>
-                        <input type="range" id="master-volume" min="0" max="100" value="80" style="width: 70px;">
+                    <div class="zoom-tool" style="display:flex; align-items:center; gap:10px; margin-left:auto; margin-top: 20px;">
+                        <span style="color:#666; font-weight:bold; font-size:10px; text-transform:uppercase;">Zoom</span>
+                        <input type="range" id="zoom-slider" min="10" max="190" value="100" style="width: 70px;">
                     </div>
                 </div>
 
@@ -381,18 +358,13 @@ export class EditorUI {
     }
 
     public resetControls(): void {
-        const setVal = (id: string, val: number) => {
-            const el = document.getElementById(id) as HTMLInputElement;
-            if (el) el.value = val.toString();
-        };
-
         const setText = (id: string, text: string) => {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
         };
 
         // Master Volume (Default 80)
-        setVal('master-volume', 80);
+
 
         // EQ (Default 0)
         this.container?.querySelectorAll('.eq-shared').forEach(el => (el as HTMLInputElement).value = '0');
@@ -681,11 +653,6 @@ export class EditorUI {
     public getTestDifficulty(): string {
         const selector = document.getElementById('test-difficulty') as HTMLSelectElement;
         return selector ? selector.value : 'NORMAL';
-    }
-
-    public getTestChannel(): number {
-        const selector = document.getElementById('test-channel') as HTMLSelectElement;
-        return selector ? parseInt(selector.value) : -1;
     }
 
     public destroy(): void {

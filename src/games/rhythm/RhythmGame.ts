@@ -385,7 +385,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
         this.currentDifficulty = this.transitionData?.settings?.difficulty || this.menuManager.getCurrentDifficulty() || 'NORMAL';
         const config = this.audioLoader.getBeatmapData()?.measureConfig || null;
-        this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, null, this.currentDifficulty, config);
+        this.visualNotes = NoteFactory.createNotes(this.midiData, this.keyMode, this.transitionData?.forcedChannels || null, this.currentDifficulty, config);
         const totalJudgments = this.visualNotes.reduce((acc, note) => acc + (note.isHold ? 2 : 1), 0);
         this.scoreManager.setTotalNotes(totalJudgments);
 
