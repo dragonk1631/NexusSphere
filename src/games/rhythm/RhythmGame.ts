@@ -457,6 +457,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.cachedNow = currentTime;
         s.bpm = this.midiData?.bpm || 120;
         s.isMobile = this.isMobile;
+        s.keyLabels = this.inputManager.getKeyLabels();
     }
 
     public updateGameOverRenderState(): void {

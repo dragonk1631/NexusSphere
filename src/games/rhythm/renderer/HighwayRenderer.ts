@@ -29,6 +29,7 @@ export interface HighwayRenderState {
     cachedNow: number;
     bpm: number;
     isMobile: boolean;
+    keyLabels: string[];
 }
 
 /**

@@ -39,6 +39,10 @@ export class RhythmInputManager {
     private laneCount: number = 6;
     private laneBottomWidth: number = 100;
     private keyMode: 4 | 6 = 4;
+    
+    // -- Dynamic Key Bindings (Configurable) --
+    private keyMap4: Record<string, number> = { 'KeyD': 1, 'KeyF': 2, 'KeyJ': 3, 'KeyK': 4 };
+    private keyMap6: Record<string, number> = { 'KeyS': 0, 'KeyD': 1, 'KeyF': 2, 'KeyJ': 3, 'KeyK': 4, 'KeyL': 5 };
 
     constructor(canvas: HTMLCanvasElement, handler: IGameInputHandler) {
         this.canvas = canvas;
@@ -218,6 +222,20 @@ export class RhythmInputManager {
         };
     }
 
+    public getKeyLabels(): string[] {
+        const labels = new Array(this.laneCount).fill("");
+        const map = this.keyMode === 4 ? this.keyMap4 : this.keyMap6;
+        for (const [code, lane] of Object.entries(map)) {
+            if (lane >= 0 && lane < this.laneCount) {
+                // Heuristic mapping: "KeyS" -> "S", "Space" -> "SPC", etc.
+                let label = code.replace('Key', '');
+                if (label === 'Space') label = 'SPC';
+                labels[lane] = label;
+            }
+        }
+        return labels;
+    }
+
     private getLaneFromTouch(x: number, y: number): number {
         if (y < this.canvas.height * 0.4) return -1;
 
@@ -231,12 +249,8 @@ export class RhythmInputManager {
     }
 
     private getLaneFromKey(code: string): number {
-        if (this.keyMode === 4) {
-            const keyMap4: Record<string, number> = { 'KeyD': 1, 'KeyF': 2, 'KeyJ': 3, 'KeyK': 4 };
-            return keyMap4[code] ?? -1;
-        }
-        const keyMap6: Record<string, number> = { 'KeyS': 0, 'KeyD': 1, 'KeyF': 2, 'KeyJ': 3, 'KeyK': 4, 'KeyL': 5 };
-        return keyMap6[code] ?? -1;
+        const map = this.keyMode === 4 ? this.keyMap4 : this.keyMap6;
+        return map[code] ?? -1;
     }
 
     public register(): void {
