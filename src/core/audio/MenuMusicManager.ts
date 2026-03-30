@@ -1,135 +1,96 @@
-import { CoreAudioEngine } from './CoreAudioEngine';
 import { ASSET_PATHS } from '../asset/AssetRegistry';
 
 export type MenuContext = 'title' | 'main' | 'options';
 
+/**
+ * MenuMusicManager - UI BGM Controller
+ * 
+ * UPDATED: Replaced random MIDI playback with persistent MP3 main theme.
+ * The theme loops continuously across title, main menu, and options screens.
+ * MIDI engine is left untouched; only HTMLAudio is used for this BGM.
+ */
 export class MenuMusicManager {
     private static instance: MenuMusicManager;
     private currentContext: MenuContext | null = null;
-    private midiList: any[] = [];
     private isPlaying: boolean = false;
-    private isAutoPaused: boolean = false;
-    private audio: CoreAudioEngine | null = null;
+    private audio: HTMLAudioElement | null = null;
 
-    // Explicit URLs for contexts. If null, a random MIDI will be picked.
-    private BGM_CONFIG: Record<MenuContext, string | null> = {
-        'title': null,
-        'main': null,
-        'options': null
-    };
+    private constructor() {}
 
-    private constructor() {
-        // Private constructor for Singleton
-    }
-
-    public static getInstance(audio?: CoreAudioEngine): MenuMusicManager {
+    public static getInstance(_audio?: any): MenuMusicManager {
         if (!MenuMusicManager.instance) {
             MenuMusicManager.instance = new MenuMusicManager();
-        }
-        if (audio) {
-            MenuMusicManager.instance.audio = audio;
         }
         return MenuMusicManager.instance;
     }
 
+    private ensureAudio(): HTMLAudioElement {
+        if (!this.audio) {
+            this.audio = new Audio(ASSET_PATHS.AUDIO.UI.MAIN_THEME);
+            this.audio.loop = true;
+            this.audio.volume = 0.75;
+        }
+        return this.audio;
+    }
+
     public async playMusic(context: MenuContext): Promise<void> {
-        // Don't restart if already playing the correct context
-        if (this.currentContext === context && this.isPlaying) return;
+        // Seamlessly continue across context changes (title -> main -> options)
+        if (this.isPlaying) {
+            this.currentContext = context;
+            return;
+        }
 
         this.currentContext = context;
         this.isPlaying = true;
 
-        if (!this.audio) {
-            console.error('[MenuMusicManager] Audio Engine not initialized!');
-            return;
-        }
-        const engine = this.audio;
-
+        const player = this.ensureAudio();
+        
         try {
-            // Fire and wait for initialization. If already initialized, it resolves immediately.
-            await engine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
-            await engine.ensureReady();
-
-            let midiUrl = this.BGM_CONFIG[context];
-
-            // Fallback to random MIDI if no explicit URL is configured
-            if (!midiUrl) {
-                if (this.midiList.length === 0) {
-                    const res = await fetch('assets/data/midi_list.json');
-                    if (res.ok) {
-                        this.midiList = await res.json();
-                    }
-                }
-
-                if (this.midiList.length > 0) {
-                    const randomFile = this.midiList[Math.floor(Math.random() * this.midiList.length)];
-                    midiUrl = randomFile.url;
-                }
-            }
-
-            if (!midiUrl) {
-                console.warn('[MenuMusicManager] No MIDI URL resolved for context:', context);
-                return;
-            }
-
-            // Await ensureReady (again just in case) and check if the context hasn't changed while fetching
-            if (this.currentContext !== context || !this.isPlaying) return;
-
-            const midiRes = await fetch(midiUrl);
-            if (!midiRes.ok) throw new Error(`HTTP error! status: ${midiRes.status}`);
-
-            const buffer = await midiRes.arrayBuffer();
-
-            // Check context again before loading and playing
-            if (this.currentContext !== context || !this.isPlaying) return;
-
-            await engine.loadMidi(buffer);
-
-            // Play with a subtle volume level suitable for menus (if engine supports volume control directly, otherwise let user mix master volume)
-            // Currently, engine uses Synth volume. We will just play it.
-            await engine.play();
-            console.log(`[MenuMusicManager] Playing ${context} BGM: ${midiUrl}`);
-
-        } catch (error) {
-            console.error(`[MenuMusicManager] Failed to play BGM for context '${context}':`, error);
+            await player.play();
+            console.log(`[MenuMusicManager] Main theme playing for context: ${context}`);
+        } catch (e) {
+            // Browser auto-play was blocked. Will retry on next user gesture.
+            console.warn('[MenuMusicManager] Auto-play blocked. Will start on user gesture.');
+            this.isPlaying = false;
         }
+    }
+
+    /**
+     * Called after a confirmed user gesture (e.g. first click/tap).
+     * Starts playback if it was previously blocked.
+     */
+    public tryUnblock(): void {
+        if (!this.currentContext || this.isPlaying) return;
+        const player = this.ensureAudio();
+        player.play().then(() => {
+            this.isPlaying = true;
+            console.log('[MenuMusicManager] Unblocked and playing.');
+        }).catch(() => {});
     }
 
     public stopMusic(): void {
         this.currentContext = null;
         this.isPlaying = false;
-        this.isAutoPaused = false;
-        if (this.audio) this.audio.stop();
-        console.log('[MenuMusicManager] UI BGM stopped.');
+        if (this.audio) {
+            this.audio.pause();
+            this.audio.currentTime = 0;
+        }
+        console.log('[MenuMusicManager] BGM stopped.');
     }
 
-    /**
-     * Pauses the music if it's currently playing.
-     * @param isAuto If true, marks it as auto-paused for automatic resumption.
-     */
     public pauseMusic(isAuto: boolean = false): void {
-        if (!this.isPlaying || !this.audio) return;
-        
+        if (!this.audio) return;
         this.audio.pause();
-        this.isAutoPaused = isAuto;
-        console.log(`[MenuMusicManager] UI BGM ${isAuto ? 'auto-' : ''}paused.`);
+        console.log(`[MenuMusicManager] BGM ${isAuto ? 'auto-' : ''}paused.`);
     }
 
-    /**
-     * Resumes the music if it was paused.
-     */
     public resumeMusic(): void {
-        if (!this.isPlaying || !this.audio) return;
-
-        this.audio.play();
-        this.isAutoPaused = false;
-        console.log('[MenuMusicManager] UI BGM resumed.');
+        if (!this.audio || !this.isPlaying) return;
+        this.audio.play().catch(() => {});
+        console.log('[MenuMusicManager] BGM resumed.');
     }
 
-    /**
-     * Checks if the music was auto-paused and should be resumed.
-     */
     public shouldResume(): boolean {
-        return this.isPlaying && this.isAutoPaused;
+        return this.isPlaying && !!this.audio && this.audio.paused;
     }
 }

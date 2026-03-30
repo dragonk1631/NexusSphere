@@ -22,6 +22,8 @@ export class CoreAudioEngine {
     // Library Components
     private synth: ISynth | null = null;
     private sequencer: ISequencer | null = null;
+    private bgmPlayer: HTMLAudioElement | null = null;
+    private bgmSource: MediaElementAudioSourceNode | null = null;
 
     // Internal State
     private isReady: boolean = false;
@@ -167,7 +169,75 @@ export class CoreAudioEngine {
 
         const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
         this.timer.resume(seqTime);
+        this.stopBGM(true); // PROFESSIONAL: Fade out menu music when MIDI starts
         this.sequencer?.play();
+    }
+
+    /* -------------------------------------------
+       Background Music (BGM)
+       ------------------------------------------- */
+
+    /**
+     * Plays a looping background MP3/Audio file.
+     * Routes through the mixer to respect master volume.
+     */
+    public playBGM(url: string, loop: boolean = true): void {
+        if (this.bgmPlayer && this.bgmPlayer.src.includes(url)) {
+            if (this.bgmPlayer.paused) this.bgmPlayer.play().catch(() => {});
+            return;
+        }
+
+        this.stopBGM(false);
+        this.stop(false); // PROFESSIONAL: Stop any MIDI before starting BGM
+
+        this.bgmPlayer = new Audio(url);
+        this.bgmPlayer.loop = loop;
+        this.bgmPlayer.crossOrigin = "anonymous";
+        
+        // Route through WebAudio Mixer
+        this.bgmSource = this.ctx.createMediaElementSource(this.bgmPlayer);
+        this.mixer.connectSource(this.bgmSource as any);
+
+        this.bgmPlayer.play().catch(e => {
+            AudioEngineLogger.warn(`BGM Playback failed: ${e}. (Need user gesture?)`);
+        });
+        
+        AudioEngineLogger.info(`BGM Started: ${url}`);
+    }
+
+    /**
+     * Stops the background music, optionally with a fade-out.
+     */
+    public stopBGM(fadeOut: boolean = true): void {
+        if (!this.bgmPlayer) return;
+
+        if (fadeOut) {
+            const player = this.bgmPlayer;
+            const startVol = player.volume;
+            let currentVol = startVol;
+            const step = 0.05;
+            const interval = setInterval(() => {
+                currentVol -= step;
+                if (currentVol <= 0) {
+                    clearInterval(interval);
+                    player.pause();
+                    player.src = "";
+                } else {
+                    player.volume = currentVol;
+                }
+            }, 30);
+        } else {
+            this.bgmPlayer.pause();
+            this.bgmPlayer.src = "";
+        }
+        
+        this.bgmPlayer = null;
+        this.bgmSource = null;
+        AudioEngineLogger.info("BGM Stopped.");
+    }
+
+    public isBGMPlaying(): boolean {
+        return !!this.bgmPlayer && !this.bgmPlayer.paused;
     }
 
     public pause(): void {

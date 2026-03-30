@@ -2,6 +2,7 @@ import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
 import { LocalSongStorage, type LocalSongMetadata } from '../services/LocalSongStorage';
 import { type SongEntry } from '../types/GameTypes';
 import { type CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
+import { MenuMusicManager } from '../../../core/audio/MenuMusicManager';
 import { SPEED_OPTIONS, DIFFICULTY_OPTIONS } from '../constants/GameConstants';
 import { computeMenuLayout } from '../renderer/MenuLayout';
 
@@ -314,6 +315,8 @@ export class MenuManager {
         if (this.currentSongUrl === currentSong.url && this.audioEngine.isPlaying()) return;
 
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
+        // Pause the main theme before MIDI preview starts
+        MenuMusicManager.getInstance().pauseMusic(true);
         this.audioEngine.stop();
 
         const previewId = ++this.currentPreviewId;
@@ -709,6 +712,9 @@ export class MenuManager {
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
         this.audioEngine.stop();
         this.previewMidi = null; // IMPORTANT: Clear preview state so background tasks know we are not in Preview mode
+        
+        // Resume the main theme when preview stops
+        MenuMusicManager.getInstance().resumeMusic();
     }
 
     private triggerFolderUpload(): void {

@@ -16,6 +16,9 @@ export const ASSET_PATHS = {
         }
     },
     AUDIO: {
+        UI: {
+            MAIN_THEME: 'assets/audio/ui/main_theme.mp3',
+        },
         MIDI: {
             TEST: 'assets/audio/midi/test.mid',
         },

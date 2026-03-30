@@ -1,6 +1,7 @@
 import { ScreenUtils } from '../../core/utils/ScreenUtils';
 import { BaseGame } from '../../core/BaseGame';
 import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
+import { MenuMusicManager } from '../../core/audio/MenuMusicManager';
 import { ThemeManager } from '../../core/ThemeManager';
 import { ScoreManager } from '../../core/score/ScoreManager';
 import type { ParsedMidi } from '../../core/audio/MidiParser';
@@ -175,6 +176,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.currentStateObj.enter();
 
         console.log(`[RhythmGame] State Changed: ${state}`);
+        // BGM is managed by MenuMusicManager singleton — do not touch it here.
     }
 
     public getCurrentState = () => this.currentState;
@@ -221,7 +223,13 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         }
 
         this.resize(this.canvas.width, this.canvas.height);
-        if (this.currentState === GameState.MENU && !this.isTestMode) this.menuManager.playPreview();
+
+        // CRITICAL FIX: The constructor sets the initial state directly (no setState call),
+        // so enter() is NEVER called on startup. We must call it explicitly here,
+        // AFTER songs are loaded so playPreview() has a non-empty song list to work with.
+        if (this.currentState === GameState.MENU && !this.isTestMode) {
+            this.currentStateObj.enter();
+        }
     }
 
     private detectEnvironment() {
@@ -278,6 +286,9 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     }
 
     public async handlePlayRequest() {
+        // Fully stop the theme — no music during gameplay.
+        // This must happen BEFORE setState(LOADING) which calls MenuState.exit() → stopPreview() → resumeMusic().
+        MenuMusicManager.getInstance().stopMusic();
         this.setState(GameState.LOADING);
         this.loadingProgress = 0;
         this.loadingStatus = "Connecting to Audio Engine...";
@@ -618,6 +629,10 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             loading.hide();
             
             this.setState(GameState.MENU);
+            // NOTE: Do NOT call resumeMusic() here.
+            // setState(MENU) → MenuState.enter() already handles: pauseMusic() + playPreview().
+            // Calling resumeMusic() here would immediately cancel the pauseMusic() and
+            // play the theme over the MIDI preview — causing both to play at once.
         }, 'fade');
     }
 

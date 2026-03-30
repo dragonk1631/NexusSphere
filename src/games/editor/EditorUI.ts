@@ -83,21 +83,11 @@ export class EditorUI {
             <div class="daw-container" style="opacity: 0; transition: opacity 0.3s;">
                 <!-- Top Control Bar (File & Progress) -->
                 <div class="transport-bar">
-                    <div class="file-tools" style="display:flex; align-items:center; gap:8px; margin-right: auto;">
-                        <label class="folder-btn" title="Open MIDI Folder">
-                            📂
-                            <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none;">
-                        </label>
-                        <select id="editor-sort" style="background:#000; color:#fff; border:1px solid #333; padding:4px 8px; border-radius:3px; outline:none; font-size:11px; margin-left: 5px; max-width:110px;">
-                            <option value="name">Sort: Name</option>
-                            <option value="bpm">Sort: BPM</option>
-                            <option value="duration">Sort: Length</option>
-                            <option value="noteCount">Sort: Notes</option>
+                    <div class="file-tools" style="display:flex; align-items:center; gap:8px; margin-right: auto; min-width: 0; flex: 1;">
+                        <select id="midi-selector" style="background:#000; color:var(--daw-accent); border:1px solid #333; padding:4px 8px; border-radius:3px; outline:none; font-size:12px; font-weight:bold; width: 100%; max-width:450px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; cursor:pointer;" title="Current Song">
+                            <option value="">-- No Song Selected --</option>
                         </select>
-                        <button class="refresh-btn" id="btn-refresh" title="Refresh List" style="background:#333; border:1px solid #444; color:#fff; width:28px; height:28px; border-radius:4px; cursor:pointer;">🔄</button>
-                        <select id="midi-selector" style="background:#000; color:#fff; border:1px solid #333; padding:4px 8px; border-radius:3px; outline:none; font-size:11px; max-width:150px;">
-                            <option value="">-- No Folder --</option>
-                        </select>
+                        <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none;">
                     </div>
 
                     <div class="extra-tools" style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
@@ -141,13 +131,9 @@ export class EditorUI {
                             <option value="15">CH 16</option>
                         </select>
                         
-                        <div class="bpm-tool" style="display:flex; align-items:center; gap:5px; background:#000; padding:2px 8px; border-radius:4px; border:1px solid #333;">
-                            <span style="font-size:9px; color:#666; font-weight:bold;">BPM</span>
-                            <input type="number" id="bpm-input" value="120" step="0.1" style="width:45px; background:transparent; color:var(--daw-accent); border:none; outline:none; font-family:monospace; font-size:12px; text-align:right;">
-                        </div>
-                        <div style="display:flex; align-items:center; gap:5px;">
+                        <div class="zoom-tool" style="display:flex; align-items:center; gap:5px; margin-right: 5px;">
                             <span style="color:#666; font-weight:bold; font-size:9px; text-transform:uppercase;">Zoom</span>
-                            <input type="range" id="zoom-slider" min="10" max="190" value="100" style="width: 50px;">
+                            <input type="range" id="zoom-slider" min="10" max="190" value="100" style="width: 55px;">
                         </div>
                     </div>
                 </div>

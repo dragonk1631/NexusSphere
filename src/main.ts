@@ -175,11 +175,12 @@ async function enforceLandscape(isUserGesture: boolean = false) {
 function setupGlobalInteraction() {
   const handleInteraction = () => {
     enforceLandscape(true);
-    // Remove after first success or attempt
-    window.removeEventListener('click', handleInteraction);
+    // AUDIO UNLOCK: The first user gesture unlocks the AudioContext for all audio.
+    MenuMusicManager.getInstance().tryUnblock();
   };
 
   window.addEventListener('click', handleInteraction, { once: true });
+  window.addEventListener('touchstart', handleInteraction, { once: true });
 }
 
 // History Guard: Prevent Back Button from exiting the app
@@ -203,8 +204,13 @@ const startApp = async () => {
   
   loading.hide();
 
+  // Register the global interaction handler for ALL platforms (audio unlock + fullscreen)
+  setupGlobalInteraction();
+
   if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
     new MobileStartScreen(() => {
+      // MobileStartScreen tap IS the first user gesture — unlock audio immediately
+      MenuMusicManager.getInstance().tryUnblock();
       showTitle();
     });
   } else {

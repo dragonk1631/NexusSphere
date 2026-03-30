@@ -1,5 +1,6 @@
 import { GameState } from '../types/GameTypes';
 import { BaseGameState } from './BaseGameState';
+import { MenuMusicManager } from '../../../core/audio/MenuMusicManager';
 
 /**
  * State handled when the player is in the song selection menu.
@@ -8,9 +9,20 @@ export class MenuState extends BaseGameState {
     public readonly id = GameState.MENU;
 
     public enter(): void {
-        if (!this.game.isTestMode) {
-            this.game.menuManager.playPreview();
-        }
+        if (this.game.isTestMode) return;
+
+        // Pause the main theme — song selection uses MIDI previews instead.
+        // stopPreview() will call MenuMusicManager.resumeMusic() when leaving this state.
+        MenuMusicManager.getInstance().pauseMusic(true);
+
+        // Start preview for the currently highlighted song.
+        this.game.menuManager.playPreview();
+    }
+
+    public exit(): void {
+        // When leaving song selection, stop any active preview.
+        // stopPreview() internally calls MenuMusicManager.resumeMusic() to restore the theme.
+        this.game.menuManager.stopPreview();
     }
 
     public update(delta: number): void {
