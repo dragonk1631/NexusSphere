@@ -12,8 +12,8 @@ export class HighwayBackgroundRenderer {
      */
     public onResize(ctx: CanvasRenderingContext2D, state: HighwayRenderState): void {
         const roadGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
-        roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.2)'); // More translucent (was 0.4)
-        roadGrad.addColorStop(1, 'rgba(5, 5, 20, 0.7)');  // More translucent (was 0.9)
+        roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.3)'); 
+        roadGrad.addColorStop(1, 'rgba(5, 5, 20, 0.85)'); 
         this.roadGradient = roadGrad;
     }
 

@@ -14,18 +14,19 @@ export class LaneRenderer {
         this.activeLaneGradients = [];
         for (let i = 0; i < state.laneCount; i++) {
             const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
-            const laneGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
+            const laneGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.hitLineY + 30);
             laneGrad.addColorStop(0, 'transparent');
-            laneGrad.addColorStop(0.85, laneCol + '22');
-            laneGrad.addColorStop(1, laneCol + '55');
+            laneGrad.addColorStop(0.5, 'transparent'); // Keep the top half clean
+            laneGrad.addColorStop(0.9, laneCol + '44'); 
+            laneGrad.addColorStop(1, laneCol + 'cc'); 
             this.activeLaneGradients.push(laneGrad);
         }
     }
 
     public renderDividers(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache): void {
         ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
         for (let i = 1; i < state.laneCount; i++) {
             const borderY = state.height * HIT_LINE_Y_RATIO;
@@ -87,7 +88,7 @@ export class LaneRenderer {
     }
 
     public renderActiveLanes(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache, inputStates: boolean[]): void {
-        const glowH = 80;
+        const glowH = 250; // Increased significantly for a smoother fade
         for (let i = 0; i < state.laneCount; i++) {
             if (!inputStates[i]) continue;
             const borderY = state.height * HIT_LINE_Y_RATIO;
@@ -100,7 +101,7 @@ export class LaneRenderer {
             const grad = this.activeLaneGradients[i];
             if (grad) {
                 ctx.fillStyle = grad;
-                ctx.globalAlpha = 0.4;
+                ctx.globalAlpha = 0.65;
                 ctx.beginPath();
                 ctx.moveTo(tlX, state.hitLineY - glowH);
                 ctx.lineTo(trX, state.hitLineY - glowH);

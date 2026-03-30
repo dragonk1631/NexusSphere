@@ -68,19 +68,44 @@ export class ReceptorRenderer {
                 ctx.fill();
             }
 
-            // Draw receptor image
+            // 1. Draw receptor image
             ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
             
-            // Pressed Glow Effect (Simpler, no shadowBlur)
+            // 1b. PREMIUM AMBIENT PULSE (Multi-layered 'Living' Bloom)
+            const pulse = (Math.sin(state.cachedNow * 0.01) + 1) * 0.5;
+            const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
+            
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            
+            // Layer 1: Base High-Intensity Glow (More vivid)
+            ctx.globalAlpha = 0.2 + pulse * 0.4; 
+            if (!state.isMobile) {
+                ctx.shadowColor = laneCol;
+                ctx.shadowBlur = 10 + pulse * 15;
+            }
+            ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
+            
+            // Layer 2: Secondary Wide-Area Aura (Spectacular Shimmer)
+            if (pulse > 0.4) {
+                ctx.globalAlpha = (pulse - 0.4) * 0.3; // Ramps up during peak pulse
+                if (!state.isMobile) {
+                    ctx.shadowBlur = 25; // Wide atmospheric bloom
+                }
+                ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
+            }
+            ctx.restore();
+            
+            // Pressed Glow Effect (More Noticeable Hit Feedback)
             if (isActive) {
                 ctx.globalCompositeOperation = 'lighter';
-                ctx.globalAlpha = 0.6;
+                ctx.globalAlpha = 0.8; // Increased from 0.6
                 ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
                 
                 ctx.fillStyle = '#ffffff';
-                ctx.globalAlpha = 0.2;
+                ctx.globalAlpha = 0.35; // Increased from 0.2
                 ctx.beginPath();
-                ctx.ellipse(centerLaneX, physicsY + drawH/2, drawW * 0.3, drawH * 0.15, 0, 0, Math.PI * 2);
+                ctx.ellipse(centerLaneX, physicsY + drawH/2, drawW * 0.35, drawH * 0.18, 0, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -91,7 +116,7 @@ export class ReceptorRenderer {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                const laneColor = LANE_COLORS[i % LANE_COLORS.length][0];
+                // laneCol is defined in section 1b
                 
                 // 1. Black Drop Shadow for maximum contrast
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
@@ -100,7 +125,7 @@ export class ReceptorRenderer {
                 ctx.shadowOffsetY = 1.5;
                 
                 // 2. Stroke (Lane-Synced Neon Color)
-                ctx.strokeStyle = laneColor;
+                ctx.strokeStyle = laneCol;
                 ctx.lineWidth = 3;
                 ctx.lineJoin = 'round';
                 ctx.strokeText(state.keyLabels[i], centerLaneX, physicsY + drawH / 2);
@@ -109,7 +134,7 @@ export class ReceptorRenderer {
                 ctx.fillStyle = '#ffffff';
                 if (isActive) {
                     // Accent glow when active
-                    ctx.shadowColor = laneColor;
+                    ctx.shadowColor = laneCol;
                     ctx.shadowBlur = 10;
                     ctx.shadowOffsetX = 0;
                     ctx.shadowOffsetY = 0;
