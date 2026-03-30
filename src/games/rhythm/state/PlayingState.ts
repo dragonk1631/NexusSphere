@@ -7,9 +7,37 @@ import { LAYOUT } from '../constants/GameConstants';
  */
 export class PlayingState extends BaseGameState {
     public readonly id = GameState.PLAYING;
+    
+    public enter(): void {
+        this.game.gameplayManager.forceNextSync();
+        // Do NOT play audio here. It will start after countdown in update().
+    }
 
     public update(delta: number): void {
         const game = this.game;
+        const manager = game.gameplayManager;
+
+        // 1. Resume Countdown Logic
+        if (manager.resumeCountdown > 0) {
+            const prev = manager.resumeCountdown;
+            manager.resumeCountdown -= delta / 1000;
+            
+            // Sync current time but DO NOT advance (freeze visual highway)
+            game.unifiedCurrentTime = game.lastRenderTime;
+            
+            if (manager.resumeCountdown <= 0 && prev > 0) {
+                // Countdown complete! Kickstart everything.
+                game.audioEngine.play();
+                manager.forceNextSync();
+                // Re-anchor for absolute precision at the exact start moment
+                game.audioEngine.reAnchorTime(game.audioEngine.currentTime);
+            }
+            
+            // Still in countdown: Skip normal hardware sync and playback logic
+            // VERY IMPORTANT: Pass delta=0 to manager.update so notes are perfectly still (no shaking/physics)
+            manager.update(0, game.lastRenderTime, game.horizonY, game.hitLineY, game.laneBottomWidth, (l, y) => game.getPerspectiveX(l, y), (y) => game.getPerspectiveWidth(y));
+            return; 
+        }
 
         if (game.isTestMode) {
             game.gameplayManager.muteEnforceCounter++;
@@ -55,7 +83,10 @@ export class PlayingState extends BaseGameState {
         const width = game.canvas.width;
         const height = game.canvas.height;
 
-        game.renderGameplay(ctx, width, height, alpha);
+        // HIGH-PRECISION STILLNESS: During countdown, we force alpha to 0 locally 
+        // to prevent ANY interpolation-based shaking/jittering.
+        const renderAlpha = game.gameplayManager.resumeCountdown > 0 ? 0 : alpha;
+        game.renderGameplay(ctx, width, height, renderAlpha);
     }
 
     public onKeyDown(code: string): void {

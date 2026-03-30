@@ -391,6 +391,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
     private start() {
         this.audioEngine.stop();
+        this.audioEngine.resetTimeState(); // CRITICAL: Reset the hardware clock signal
         this.audioEngine.seek(0);
         this.inputManager.resetStates();
         this.inputManager.updateKeyMode(this.keyMode);
@@ -399,6 +400,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.gameplayManager.start(this.visualNotes, this.scrollSpeed);
         this.judgmentSystem.setLatency(this.audioEngine.getOutputLatency() * 1000);
         this.lastRenderTime = 0;
+        this.unifiedCurrentTime = 0; // Explicitly reset unified time
+        this.gameplayManager.forceNextSync(); // Ensure first frame is pinned to 0
         this.setState(GameState.PLAYING);
     }
 
@@ -538,8 +541,13 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     public renderGameplay(ctx: CanvasRenderingContext2D, width: number, height: number, alpha: number = 0) {
         ctx.clearRect(0, 0, width, height);
         this.updateHighwayRenderState();
+        
+        // STABILITY RESCUE: If input is blocked, we must also freeze interpolation (alpha) 
+        // to prevent node "shaking/stuttering" during the countdown.
+        const renderAlpha = this.isInputBlocked() ? 0 : alpha;
+
         this.highwayRenderer.renderBackground(ctx, this.highwayRenderState);
-        this.highwayRenderer.renderDynamic(ctx, this.highwayRenderState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.inputManager, alpha);
+        this.highwayRenderer.renderDynamic(ctx, this.highwayRenderState, this.visualNotes, this.gameplayManager.lastNoteIndex, this.inputManager, renderAlpha);
 
         const hud = this.hudRenderState;
         hud.width = width;
@@ -554,20 +562,29 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         hud.keyMode = this.keyMode;
         hud.difficulty = this.currentDifficulty;
         hud.speed = this.scrollSpeed;
+        hud.resumeCountdown = this.gameplayManager.resumeCountdown;
 
         this.hudRenderer.render(ctx, hud, this.scoreManager, this.themeStrategy, (l, y) => this.getPerspectiveX(l, y));
     }
 
     // -- IGameInputHandler Implementation --
     public onLanePress = (l: number, _t: number) => {
-        if (this.currentState === GameState.PLAYING && this.gameplayManager.preGameTimer <= 0) {
+        const canPress = this.currentState === GameState.PLAYING && 
+                          this.gameplayManager.preGameTimer <= 0 && 
+                          this.gameplayManager.resumeCountdown <= 0;
+
+        if (canPress) {
             const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - this.judgmentSystem.getLatency();
             this.judgmentSystem.checkHit(l, currentTimeMs, this.visualNotes);
         }
     };
     public onLaneRelease = (l: number, _t: number) => {
         this.currentStateObj.onPointerUp(l, 0); // Reuse logic if needed, or stick to systems
-        if (this.currentState === GameState.PLAYING) {
+        
+        const canRelease = this.currentState === GameState.PLAYING && 
+                             this.gameplayManager.resumeCountdown <= 0;
+
+        if (canRelease) {
             const currentTimeMs = this.audioEngine.getPreciseTime() * 1000 - this.judgmentSystem.getLatency();
             this.judgmentSystem.processRelease(l, currentTimeMs);
         }
@@ -607,11 +624,13 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     public handleRetry() {
         const loading = LoadingOverlay.getInstance();
         this.transitionSystem.start(async () => {
-            this.audioEngine.stop();
+            // CRITICAL: Perform a FULL sequencer destruction/recreation to clear SpessaSynth residue
+            this.audioEngine.stop(true); 
+            this.audioEngine.resetTimeState();
             loading.show("RETRYING...");
             await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
             await this.load();
-            this.create();
+            await this.create(); // Ensure creation is awaited if it becomes async
             this.start();
             loading.hide();
         }, 'fade');
@@ -715,10 +734,13 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
     public resume(): void {
         super.resume();
-        // Note: For Rhythm games, we usually DON'T want to resume Playback automatically 
-        // if it was in the middle of a song, to let the user get ready in the Pause Menu.
-        // However, we should resume the AudioContext to ensure UI sounds work.
+        // PROFESSIONAL: We only resume the AudioContext to ensure UI sounds work.
+        // The actual music and note unpausing is now deferred to PlayingState's countdown logic.
         this.audioEngine.resume();
+    }
+
+    public isInputBlocked(): boolean {
+        return this.gameplayManager.resumeCountdown > 0;
     }
 
     public destroy(): void {

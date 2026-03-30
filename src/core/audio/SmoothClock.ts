@@ -52,18 +52,23 @@ export class SmoothClock {
 
         // 1. PINPOINT DETECTION: Capture the exact moment the hardware/sequencer starts moving
         if (!this.firstMoveDetected) {
-            if (rawAudioTime > this.audioAnchor) {
+            // Check if the signal has moved AT ALL from the anchor, 
+            // or if we have a valid non-zero report while anchored at 0.
+            const hasMoved = rawAudioTime !== this.audioAnchor || (this.audioAnchor === 0 && rawAudioTime > 0.0001);
+
+            if (hasMoved) {
                 // Audio signal started! Lock our precision stopwatch to this moment.
                 this.audioAnchor = rawAudioTime;
                 this.perfAnchor = now;
                 this.firstMoveDetected = true;
             } else {
-                // Still waiting for signal. To avoid permanent freeze, use a 0.5s safety timeout for PREVIEW, 
-                // but a longer 5s timeout for REAL gameplay to allow for mobile sample loading.
+                // Still waiting for signal. To avoid permanent freeze, use a much tighter 0.1s safety timeout
+                // for modern browsers, as 5.0s was causing user-perceived 'Stall' bugs.
                 this.startWaitTime += delta;
-                if (this.startWaitTime > 5.0) {
+                if (this.startWaitTime > 0.1) {
                     this.firstMoveDetected = true;
                     this.perfAnchor = now;
+                    AudioEngineLogger.warn(`SmoothClock: Audio signal stall detected. Breaking wait.`);
                 }
                 return this.initialStartTime;
             }

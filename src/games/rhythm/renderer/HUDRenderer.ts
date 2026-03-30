@@ -21,6 +21,7 @@ export interface HUDRenderState {
     keyMode?: number;
     difficulty?: string;
     speed?: number;
+    resumeCountdown?: number;
 }
 
 export class HUDRenderer {
@@ -65,6 +66,7 @@ export class HUDRenderer {
         this.renderGameInfo(ctx, state);
         this.renderCombo(ctx, state, pal, combo);
         this.renderJudgment(ctx, state, theme, alpha);
+        this.renderResumeCountdown(ctx, state, pal);
     }
 
     private getHudPalette(): typeof HUD_PALETTES[string] {
@@ -287,12 +289,15 @@ export class HUDRenderer {
         const pal = this.getHudPalette();
 
         // 1. Geometry Config
-        const totalBoxW = isMobile ? 160 : 240;
-        const boxH = isMobile ? 38 : 46;
+        const totalBoxW = isMobile ? 180 : 280; 
+        const baseBoxH = isMobile ? 40 : 50;
         const topY = 85; 
         const rightEdge = state.width - (isMobile ? 15 : 30); 
-        const cardGap = isMobile ? 4 : 8;
-        const cardW = (totalBoxW - (cardGap * 3)) / 4;
+        const cardGap = isMobile ? 5 : 10;
+        
+        // 1.5x Width for Pause: 3 normal slots (1 unit) + 1 pause slot (1.5 units) = 4.5 units
+        const unitW = (totalBoxW - (cardGap * 3)) / 4.5;
+        const pulse = (Math.sin(state.cachedNow * 0.01) + 1) * 0.5;
 
         ctx.save();
         
@@ -303,66 +308,82 @@ export class HUDRenderer {
             { label: "PAUSE", value: null, type: 'pause' }
         ];
 
-        options.forEach((opt, i) => {
-            const x = rightEdge - totalBoxW + (cardW + cardGap) * i;
-            const isPause = opt.type === 'pause';
+        let currentX = rightEdge - totalBoxW;
 
-            // DRAW CARD BACKGROUND (Glassmorphism: Lower opacity)
-            // Pause gets a slightly different tint
-            ctx.fillStyle = isPause ? 'rgba(35, 20, 25, 0.7)' : 'rgba(15, 20, 30, 0.7)';
+        options.forEach((opt, _i) => {
+            const isPause = opt.type === 'pause';
+            const cardW = isPause ? unitW * 1.5 : unitW;
+            const boxH = isPause ? baseBoxH * 1.15 : baseBoxH; 
+            const x = currentX;
+            currentX += cardW + cardGap;
+            
+            // ADJUST Y for tall pause button if needed to keep it aligned at the bottom
+            const y = isPause ? topY - (boxH - baseBoxH) : topY;
+
+            // DRAW CARD BACKGROUND
+            ctx.fillStyle = isPause ? 'rgba(40, 20, 25, 0.75)' : 'rgba(15, 20, 30, 0.7)';
             ctx.strokeStyle = isPause ? (pal.hpPanel || '#ff0055') : (pal.scorePanel || '#00f0ff');
-            ctx.lineWidth = isPause ? 1.5 : 1;
+            ctx.lineWidth = isPause ? 4 : 1;
+
+            // Pulsing shadow for Pause only
+            if (isPause) {
+                ctx.shadowColor = pal.hpPanel || '#ff0055';
+                ctx.shadowBlur = 8 + pulse * 14;
+            } else {
+                ctx.shadowBlur = 0;
+            }
 
             ctx.beginPath();
             if ((ctx as any).roundRect) {
-                (ctx as any).roundRect(x, topY, cardW, boxH, 4);
+                (ctx as any).roundRect(x, y, cardW, boxH, 6);
             } else {
-                ctx.rect(x, topY, cardW, boxH);
+                ctx.rect(x, y, cardW, boxH);
             }
             ctx.fill();
             ctx.stroke();
 
             // ACCENT BOTTOM BORDER
+            ctx.shadowBlur = 0;
             ctx.fillStyle = isPause ? (pal.hpPanel || '#ff0055') : (pal.scorePanel || '#00f0ff');
-            ctx.globalAlpha = isPause ? 0.8 : 0.6;
-            ctx.fillRect(x + 5, topY + boxH - 3, cardW - 10, 2);
+            ctx.globalAlpha = isPause ? 0.9 : 0.6;
+            ctx.fillRect(x + 5, y + boxH - 4, cardW - 10, 2.5);
             ctx.globalAlpha = 1.0;
 
             if (opt.type === 'text') {
                 // LABEL
                 ctx.fillStyle = '#6ab8ff';
-                ctx.font = isMobile ? 'bold 8px "Rajdhani"' : 'bold 10px "Exo 2", "Rajdhani"';
+                ctx.font = isMobile ? 'bold 9px "Rajdhani"' : 'bold 11px "Exo 2", "Rajdhani"';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'top';
-                ctx.fillText(opt.label, x + cardW / 2, topY + (isMobile ? 5 : 8));
+                ctx.fillText(opt.label, x + cardW / 2, y + (isMobile ? 6 : 10));
 
                 // VALUE
                 ctx.fillStyle = '#ffffff';
-                ctx.font = isMobile ? '800 12px "Rajdhani"' : '800 16px "Rajdhani", "Orbitron"';
+                ctx.font = isMobile ? '800 13px "Rajdhani"' : '800 18px "Rajdhani", "Orbitron"';
                 ctx.shadowBlur = 4;
                 ctx.shadowColor = pal.scorePanel || '#00f0ff';
-                ctx.fillText(opt.value!, x + cardW / 2, topY + (isMobile ? 16 : 22));
+                ctx.fillText(opt.value!, x + cardW / 2, y + (isMobile ? 18 : 24));
                 ctx.shadowBlur = 0;
             } else if (opt.type === 'pause') {
                 // PAUSE ICON
                 ctx.fillStyle = '#ffffff';
-                ctx.shadowBlur = 8;
+                ctx.shadowBlur = 10 + pulse * 10;
                 ctx.shadowColor = pal.hpPanel || '#ff0055';
                 
                 const pW = isMobile ? 4 : 5;
                 const pH = isMobile ? 12 : 16;
                 const centerX = x + cardW / 2;
-                const centerY = topY + boxH / 2;
+                const centerY = y + boxH / 2 + 2;
                 ctx.fillRect(centerX - (pW + 2), centerY - pH/2, pW, pH);
                 ctx.fillRect(centerX + 2, centerY - pH/2, pW, pH);
                 ctx.shadowBlur = 0;
                 
                 // Distinct PAUSE Label
                 ctx.fillStyle = pal.hpPanel || '#ff0055';
-                ctx.font = isMobile ? 'bold 7px "Rajdhani"' : 'bold 8px "Rajdhani", "Orbitron"';
+                ctx.font = isMobile ? 'bold 8px "Rajdhani"' : 'bold 10px "Rajdhani", "Orbitron"';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'top';
-                ctx.fillText("PAUSE", centerX, topY + (isMobile ? 4 : 5));
+                ctx.fillText("PAUSE", centerX, y + (isMobile ? 4 : 6));
             }
         });
 
@@ -550,6 +571,45 @@ export class HUDRenderer {
         ctx.fillStyle = grad;
         ctx.fillText(text, 0, 0);
 
+        ctx.restore();
+    }
+    
+    private renderResumeCountdown(ctx: CanvasRenderingContext2D, state: HUDRenderState, pal: any): void {
+        const countdown = state.resumeCountdown || 0;
+        if (countdown <= 0) return;
+
+        const val = Math.ceil(countdown);
+        const text = val.toString();
+        
+        // Progress within the current second [0, 1]
+        const progress = countdown % 1.0 || 1.0; 
+        const pulse = Math.pow(progress, 2); // Accelerating pulse for intensity
+        
+        ctx.save();
+        ctx.translate(state.width / 2, state.height / 2);
+        
+        // Dynamic scaling: Numbers 'shrink' or 'grow' into position
+        const scale = 0.5 + (1 - pulse) * 1.5;
+        ctx.scale(scale, scale);
+        
+        // Global styling: Massive Orbitron 900
+        ctx.font = '900 italic 120px "Orbitron"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // 1. Shadow/Glow (Neon style)
+        ctx.globalAlpha = pulse; 
+        ctx.shadowBlur = 40 * pulse;
+        ctx.shadowColor = pal.glowColor || pal.hpPanel;
+        ctx.strokeStyle = pal.hpPanel;
+        ctx.lineWidth = 4;
+        ctx.strokeText(text, 0, 0);
+        
+        // 2. White Core
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, 0, 0);
+        
         ctx.restore();
     }
 }

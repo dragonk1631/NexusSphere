@@ -16,6 +16,7 @@ export interface IGameInputHandler {
     onResultKey(code: string): void;
     onWheel(deltaY: number): void;
     onFileDrop(files: FileList): void;
+    isInputBlocked(): boolean;
 }
 
 /**
@@ -86,6 +87,7 @@ export class RhythmInputManager {
             const code = e.code;
 
             if (state === GameState.PLAYING) {
+                if (this.handler.isInputBlocked()) return; // Professional Lock
                 const lane = this.getLaneFromKey(code);
                 if (lane !== -1 && !this.keyState[lane]) {
                     this.keyState[lane] = true;
@@ -103,6 +105,10 @@ export class RhythmInputManager {
         this.boundHandlers.keyup = (e: KeyboardEvent) => {
             const state = this.handler.getCurrentState();
             if (state === GameState.PLAYING) {
+                if (this.handler.isInputBlocked()) {
+                    this.keyState.fill(false);
+                    return;
+                }
                 const lane = this.getLaneFromKey(e.code);
                 if (lane !== -1) {
                     this.keyState[lane] = false;
@@ -120,6 +126,10 @@ export class RhythmInputManager {
             const y = (clientY - rect.top) * scaleY;
 
             if (state === GameState.PLAYING) {
+                if (this.handler.isInputBlocked()) {
+                    if (type === 'up') this.pointerLanes.delete(id);
+                    return;
+                }
                 const lane = this.getLaneFromTouch(x, y);
                 if (type === 'down') {
                     if (lane !== -1) {

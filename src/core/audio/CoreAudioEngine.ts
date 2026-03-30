@@ -175,13 +175,27 @@ export class CoreAudioEngine {
         this.sequencer?.pause();
     }
 
-    public stop(): void {
+    public stop(fullReset: boolean = false): void {
         if (this.sequencer) {
             this.timer.pause();
             this.sequencer.pause();
             this.sequencer.currentTime = 0;
             this.stopAllNotes();
             this.timer.seek(0);
+            
+            if (fullReset) {
+                // HARD RESET: Fully destroy and recreate the sequencer to clear internal SpessaSynth state
+                try { this.sequencer.eventHandler.removeEvent("songEnded", "engine-song-end"); } catch (e) {}
+                const currentMidi = (this.sequencer as any).midiData?.binary;
+                this.sequencer = new Sequencer(this.synth as any) as ISequencer;
+                if (currentMidi) {
+                     this.sequencer.loadNewSongList([{ binary: currentMidi }]);
+                     this.sequencer.pause();
+                     this.sequencer.currentTime = 0;
+                }
+                AudioEngineLogger.info("Hard Sequencer Reset triggered.");
+            }
+            
             AudioEngineLogger.info("Playback stopped and reset.");
         }
     }

@@ -35,6 +35,8 @@ export class GameplayManager {
     private _fpsCounter = 0;
     private _fpsTimer = 0;
     private _lastFps = 0;
+    private _needsForceSync = false;
+    private _resumeCountdown = 0;
 
     // -- Dependencies --
     private audioEngine: CoreAudioEngine;
@@ -64,6 +66,8 @@ export class GameplayManager {
     public get muteEnforceCounter(): number { return this._muteEnforceCounter; }
     public set muteEnforceCounter(val: number) { this._muteEnforceCounter = val; }
     public get lastNoteIndex(): number { return this._lastNoteIndex; }
+    public get resumeCountdown(): number { return this._resumeCountdown; }
+    public set resumeCountdown(val: number) { this._resumeCountdown = val; }
 
     public setHoldingLane(lane: number, note: VisualNote | null): void {
         this._holdingLanes[lane] = note;
@@ -85,6 +89,8 @@ export class GameplayManager {
         this._endGameTimer = 0;
         this._lastCombo = 0;
         this._muteEnforceCounter = 0;
+        this._needsForceSync = true; // CRITICAL: Reset sync state
+        this._resumeCountdown = 0; // CRITICAL: Do not count down on start
         this.judgmentSystem.reset();
     }
 
@@ -108,6 +114,12 @@ export class GameplayManager {
         this._endGameTimer = 0;
         this._lastCombo = 0;
         this._comboAnim = 0;
+        this._needsForceSync = true;
+        this._resumeCountdown = 0;
+    }
+    
+    public forceNextSync(): void {
+        this._needsForceSync = true;
     }
 
     public update(delta: number, currentTime: number, _horizonY: number, hitLineY: number, laneBottomWidth: number, getPerspectiveX: (lane: number, y: number) => number, getPerspectiveWidth: (y: number) => number): void {
@@ -204,6 +216,11 @@ export class GameplayManager {
 
         const rawTime = this.audioEngine.getPreciseTime() * 1000;
         const currentTime = rawTime - judgmentLatency;
+
+        if (this._needsForceSync) {
+            this._needsForceSync = false;
+            return currentTime; // BYPASS LAG GATING: Hard jump to audio clock
+        }
 
         return this.applyLagGating(currentTime, lastRenderTime);
     }

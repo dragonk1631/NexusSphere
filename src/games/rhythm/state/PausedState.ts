@@ -28,7 +28,10 @@ export class PausedState extends BaseGameState {
 
     public onKeyDown(code: string): void {
         const game = this.game;
-        if (code === 'Escape') game.setState(GameState.PLAYING);
+        if (code === 'Escape') {
+            game.gameplayManager.resumeCountdown = 3.0; // Professional Resume Only
+            game.setState(GameState.PLAYING);
+        }
         else if (code === 'ArrowUp') game.pauseSelectedButtonIndex = (game.pauseSelectedButtonIndex + 2) % 3;
         else if (code === 'ArrowDown') game.pauseSelectedButtonIndex = (game.pauseSelectedButtonIndex + 1) % 3;
         else if (code === 'Enter') this.handlePauseAction(game.pauseSelectedButtonIndex);
@@ -45,14 +48,16 @@ export class PausedState extends BaseGameState {
 
     private handlePauseAction(index: number) {
         const game = this.game;
-        if (index === 0) game.setState(GameState.PLAYING); // RESUME
+        if (index === 0) {
+            game.gameplayManager.resumeCountdown = 3.0; // Professional Resume Only
+            game.setState(GameState.PLAYING); // RESUME
+        }
         else if (index === 1) game.handleRetry();         // RESTART
         else if (index === 2) game.backToSongSelection(); // SONG SELECTION
     }
 
     public exit(): void {
-        if (this.game.getCurrentState() === GameState.PLAYING) {
-            this.game.audioEngine.play();
-        }
+        // Audio unpausing is now handled by PlayingState's countdown logic
+        // This exit hook is kept for future side-effects if needed.
     }
 }
