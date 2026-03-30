@@ -32,8 +32,6 @@ export class HUDRenderer {
     // Lazy UI Gradients
     private panelGrad: CanvasGradient | null = null;
     private edgeGrad: CanvasGradient | null = null;
-    private gamePanelGrad: CanvasGradient | null = null;
-    private gameEdgeGrad: CanvasGradient | null = null;
     private lastIsMobile: boolean | null = null;
 
     public onResize(ctx: CanvasRenderingContext2D, _width: number, _height: number): void {
@@ -122,25 +120,6 @@ export class HUDRenderer {
         ctx.fill();
         ctx.stroke();
 
-        // Pause Button Area
-        const pauseBtnSize = 40;
-        const pauseBtnX = state.width - 55;
-        const pauseBtnY = 85;
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.strokeStyle = pal.scorePanel;
-        ctx.beginPath();
-        ctx.roundRect(pauseBtnX, pauseBtnY, pauseBtnSize, pauseBtnSize, 4);
-        ctx.fill();
-        ctx.stroke();
-
-        // Pause Icon
-        ctx.fillStyle = '#ffffff';
-        const barW = 5;
-        const barH = 16;
-        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 - 6, pauseBtnY + pauseBtnSize / 2 - 8, barW, barH);
-        ctx.fillRect(pauseBtnX + pauseBtnSize / 2 + 1, pauseBtnY + pauseBtnSize / 2 - 8, barW, barH);
-
         ctx.restore();
     }
 
@@ -156,40 +135,43 @@ export class HUDRenderer {
         const currentTime = Math.max(0, state.currentTime || 0);
         const duration = state.duration || 0;
         
-        // Mobile scaling
+        // Mobile scaling & Layout Config
         const isMobile = state.isMobile;
-        const panelTopY = 85; // Aligned with Pause Button
-        const panelBotY = isMobile ? 120 : 135; 
-        const hMargin = isMobile ? 10 : 20;
+        const panelTopY = 85; 
+        const panelBotY = isMobile ? 125 : 145; 
         
-        // Invalidate cache if mobile state flips
+        // GAP REFINEMENT: Clear separation from the highway
+        const hMargin = isMobile ? 18 : 35;
+        
         if (this.lastIsMobile !== isMobile) {
             this.panelGrad = null;
             this.edgeGrad = null;
             this.lastIsMobile = isMobile;
         }
 
-        let leftInnerTopX = getPerspectiveX(0, panelTopY) - hMargin;
-        let leftInnerBotX = getPerspectiveX(0, panelBotY) - hMargin;
+        // PERSPECTIVE SYNC: Match the leftmost lane's slope exactly.
+        const minWidth = isMobile ? 160 : 200;
+        let leftInnerTopX = Math.max(minWidth, getPerspectiveX(0, panelTopY) - hMargin);
+        let leftInnerBotX = Math.max(minWidth - (isMobile ? 15 : 30), getPerspectiveX(0, panelBotY) - hMargin);
 
-        if (leftInnerBotX > state.width * 0.45) {
-            const diff = leftInnerBotX - state.width * 0.45;
+        if (leftInnerBotX > state.width * 0.42) {
+            const diff = leftInnerBotX - state.width * 0.42;
             leftInnerBotX -= diff; leftInnerTopX -= diff;
         }
 
         ctx.save();
         
-        // Lazy Evaluation of Gradients for Performance
+        // 1. Panel Background & Edge (Glassmorphism: Lower opacity)
         if (!this.panelGrad) {
             this.panelGrad = ctx.createLinearGradient(0, panelTopY, 0, panelBotY);
-            this.panelGrad.addColorStop(0, 'rgba(20, 25, 35, 0.9)');
-            this.panelGrad.addColorStop(0.5, 'rgba(10, 15, 25, 0.85)');
-            this.panelGrad.addColorStop(1, 'rgba(5, 10, 15, 0.95)');
+            this.panelGrad.addColorStop(0, 'rgba(20, 25, 35, 0.7)');
+            this.panelGrad.addColorStop(1, 'rgba(5, 10, 15, 0.75)');
         }
         if (!this.edgeGrad) {
             this.edgeGrad = ctx.createLinearGradient(0, panelTopY, 0, panelBotY);
-            this.edgeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
-            this.edgeGrad.addColorStop(1, 'rgba(200, 200, 200, 0.1)');
+            this.edgeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
+            this.edgeGrad.addColorStop(0.5, 'rgba(100, 200, 255, 0.2)');
+            this.edgeGrad.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
         }
 
         ctx.fillStyle = this.panelGrad;
@@ -199,71 +181,96 @@ export class HUDRenderer {
         ctx.beginPath();
         ctx.moveTo(0, panelTopY);
         ctx.lineTo(leftInnerTopX, panelTopY);
-        ctx.lineTo(leftInnerBotX - (isMobile ? 5 : 10), panelBotY - (isMobile ? 5 : 10));
-        ctx.lineTo(leftInnerBotX - (isMobile ? 15 : 25), panelBotY);
+        ctx.lineTo(leftInnerBotX, panelBotY);
         ctx.lineTo(0, panelBotY);
         ctx.fill();
         ctx.stroke();
 
-        const titleFont = isMobile ? 'bold 12px' : 'bold 15px';
-        const titleY = panelTopY + (isMobile ? 14 : 18);
-
-        // High-Tech Title Text
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = pal.glowColor || 'rgba(0,0,0,0.8)';
-        ctx.shadowBlur = 4;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.font = `${titleFont} "Exo 2", "Rajdhani", "Orbitron"`;
-        ctx.fillText(title, isMobile ? 10 : 20, titleY);
-
-        // Time Data
+        // 2. Responsive Text Layout
+        const paddingX = isMobile ? 12 : 24;
+        const textY = panelTopY + (isMobile ? 16 : 22);
+        
+        // Time Data (Top Right - Anchored safely with consistent padding)
         const timeStr = `${this.formatTime(currentTime)} / ${this.formatTime(duration)}`;
-        ctx.font = isMobile ? '600 10px "Rajdhani"' : '600 12px "Rajdhani", "Orbitron"';
-        ctx.fillStyle = '#a0aab5';
-        const slope = (leftInnerBotX - leftInnerTopX) / (panelBotY - panelTopY);
+        ctx.font = isMobile ? '600 11px "Rajdhani"' : '600 15px "Rajdhani", "Orbitron"';
+        ctx.fillStyle = '#e0e8f0'; // Slightly brighter for contrast
         ctx.textAlign = 'right';
-        ctx.fillText(timeStr, leftInnerTopX + slope * (isMobile ? 15 : 25) - (isMobile ? 10 : 20), titleY + (isMobile ? 14 : 18));
+        ctx.textBaseline = 'middle';
+        // Increase padding for PC/Mobile consistency (User requested more gap)
+        const timeX = leftInnerTopX - paddingX - (isMobile ? 8 : 20);
+        ctx.fillText(timeStr, timeX, textY);
 
-        // Segmented Tech Progress Bar
-        const barLeft = isMobile ? 10 : 20;
-        const barBottom = panelBotY - (isMobile ? 8 : 15);
-        const barRightX = leftInnerBotX - (isMobile ? 20 : 30);
+        // Title Text (Top Left - Truncated if necessary)
+        const timeWidth = ctx.measureText(timeStr).width;
+        const titleFont = isMobile ? 'bold 12px' : 'bold 16px';
+        ctx.font = `${titleFont} "Exo 2", "Rajdhani"`;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = pal.glowColor || 'rgba(0, 240, 255, 0.4)';
+        ctx.shadowBlur = 6;
+        
+        const availableTitleWidth = timeX - paddingX - timeWidth - 10;
+        let finalTitle = title;
+        if (ctx.measureText(title).width > availableTitleWidth) {
+            // Simple truncation
+            for (let i = title.length; i > 0; i--) {
+                const truncated = title.substring(0, i) + "...";
+                if (ctx.measureText(truncated).width <= availableTitleWidth) {
+                    finalTitle = truncated;
+                    break;
+                }
+            }
+        }
+        ctx.fillText(finalTitle, paddingX, textY);
+
+        // 3. Premium Progress Bar (Bottom)
+        const barLeft = paddingX;
+        const barH = isMobile ? 8 : 12;
+        const barBottom = panelBotY - (isMobile ? 10 : 18);
+        const barRightX = leftInnerBotX - (isMobile ? 20 : 40);
         const barW = barRightX - barLeft;
         
         if (barW > 0) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            const h = isMobile ? 4 : 6;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.beginPath();
-            ctx.moveTo(barLeft, barBottom - h);
-            ctx.lineTo(barRightX, barBottom - h);
-            ctx.lineTo(barRightX - (isMobile ? 2 : 4), barBottom);
-            ctx.lineTo(barLeft - (isMobile ? 2 : 4), barBottom);
+            ctx.moveTo(barLeft, barBottom - barH);
+            ctx.lineTo(barRightX, barBottom - barH);
+            ctx.lineTo(barRightX - (isMobile ? 2 : 5), barBottom);
+            ctx.lineTo(barLeft - (isMobile ? 2 : 5), barBottom);
             ctx.fill();
+            
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
 
             const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
             if (progress > 0) {
                 const fillW = barW * progress;
-                ctx.fillStyle = pal.hpBarMid || '#00f0ff';
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = pal.hpBarMid || '#00f0ff';
+                const fillColor = pal.hpBarMid || '#00f0ff';
+                ctx.fillStyle = fillColor;
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = fillColor;
                 ctx.beginPath();
-                ctx.moveTo(barLeft, barBottom - h + 1);
-                ctx.lineTo(barLeft + fillW, barBottom - h + 1);
-                ctx.lineTo(barLeft + fillW - (isMobile ? 2 : 4), barBottom - 1);
-                ctx.lineTo(barLeft - (isMobile ? 2 : 4), barBottom - 1);
+                ctx.moveTo(barLeft, barBottom - barH + 1);
+                ctx.lineTo(barLeft + fillW, barBottom - barH + 1);
+                ctx.lineTo(barLeft + fillW - (isMobile ? 2 : 5), barBottom - 1);
+                ctx.lineTo(barLeft - (isMobile ? 2 : 5), barBottom - 1);
                 ctx.fill();
+
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                ctx.fillRect(barLeft, barBottom - barH + 1, fillW, (isMobile ? 1.5 : 2.5));
             }
 
-            ctx.strokeStyle = 'rgba(10, 15, 25, 0.8)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.lineWidth = 1.5;
-            ctx.shadowBlur = 0;
-            const segments = isMobile ? 5 : 10;
+            const segments = isMobile ? 6 : 12;
             for(let i=1; i<segments; i++) {
                 const sx = barLeft + (barW / segments) * i;
                 ctx.beginPath();
-                ctx.moveTo(sx, barBottom - h);
-                ctx.lineTo(sx - (isMobile ? 2 : 4), barBottom);
+                ctx.moveTo(sx, barBottom - barH);
+                ctx.lineTo(sx - (isMobile ? 2 : 5), barBottom);
                 ctx.stroke();
             }
         }
@@ -277,80 +284,87 @@ export class HUDRenderer {
         const speedStr = state.speed ? `x${state.speed.toFixed(1)}` : 'x1.0';
         
         const isMobile = state.isMobile;
-        const boxW = isMobile ? 110 : 160;
-        const boxH = isMobile ? 40 : 46;
-        const topY = 85; // Aligned with Pause Button
-        const rightEdge = state.width - (isMobile ? 55 : 100); 
+        const pal = this.getHudPalette();
 
-        // Invalidate cache if mobile state flipped (checked in renderSongInfo already, but safe to sync)
-        if (this.lastIsMobile !== isMobile) {
-            this.gamePanelGrad = null;
-            this.gameEdgeGrad = null;
-        }
+        // 1. Geometry Config
+        const totalBoxW = isMobile ? 160 : 240;
+        const boxH = isMobile ? 38 : 46;
+        const topY = 85; 
+        const rightEdge = state.width - (isMobile ? 15 : 30); 
+        const cardGap = isMobile ? 4 : 8;
+        const cardW = (totalBoxW - (cardGap * 3)) / 4;
 
         ctx.save();
         
-        if (!this.gamePanelGrad) {
-            this.gamePanelGrad = ctx.createLinearGradient(0, topY, 0, topY + boxH);
-            this.gamePanelGrad.addColorStop(0, 'rgba(25, 30, 40, 0.95)');
-            this.gamePanelGrad.addColorStop(1, 'rgba(10, 15, 20, 0.9)');
-        }
-        ctx.fillStyle = this.gamePanelGrad;
-        
-        if (!this.gameEdgeGrad) {
-            this.gameEdgeGrad = ctx.createLinearGradient(0, topY, 0, topY + boxH);
-            this.gameEdgeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
-            this.gameEdgeGrad.addColorStop(0.2, 'rgba(100, 200, 255, 0.3)');
-            this.gameEdgeGrad.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
-        }
-        ctx.strokeStyle = this.gameEdgeGrad;
-        ctx.lineWidth = 1.5;
-        
-        const slant = isMobile ? 6 : 8;
-        const deepSlant = isMobile ? 8 : 12;
+        const options = [
+            { label: "LINE", value: lineStr, type: 'text' },
+            { label: "MODE", value: modeStr, type: 'text' },
+            { label: "SPEED", value: speedStr, type: 'text' },
+            { label: "PAUSE", value: null, type: 'pause' }
+        ];
 
-        ctx.beginPath();
-        ctx.moveTo(rightEdge - boxW, topY);
-        ctx.lineTo(rightEdge, topY);
-        ctx.lineTo(rightEdge - slant, topY + boxH/2);
-        ctx.lineTo(rightEdge, topY + boxH);
-        ctx.lineTo(rightEdge - boxW - deepSlant, topY + boxH);
-        ctx.lineTo(rightEdge - boxW, topY + boxH/2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        options.forEach((opt, i) => {
+            const x = rightEdge - totalBoxW + (cardW + cardGap) * i;
+            const isPause = opt.type === 'pause';
 
-        ctx.strokeStyle = 'rgba(150, 200, 255, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        const third = boxW / 3;
-        ctx.moveTo(rightEdge - boxW + third - 4, topY + (isMobile ? 5 : 8));
-        ctx.lineTo(rightEdge - boxW + third - 6, topY + boxH - (isMobile ? 5 : 8));
-        ctx.moveTo(rightEdge - boxW + third * 2 - 4, topY + (isMobile ? 5 : 8));
-        ctx.lineTo(rightEdge - boxW + third * 2 - 6, topY + boxH - (isMobile ? 5 : 8));
-        ctx.stroke();
+            // DRAW CARD BACKGROUND (Glassmorphism: Lower opacity)
+            // Pause gets a slightly different tint
+            ctx.fillStyle = isPause ? 'rgba(35, 20, 25, 0.7)' : 'rgba(15, 20, 30, 0.7)';
+            ctx.strokeStyle = isPause ? (pal.hpPanel || '#ff0055') : (pal.scorePanel || '#00f0ff');
+            ctx.lineWidth = isPause ? 1.5 : 1;
 
-        ctx.fillStyle = '#6ab8ff';
-        ctx.font = isMobile ? 'bold 8px "Rajdhani"' : 'bold 10px "Exo 2", "Rajdhani", "Orbitron"';
-        ctx.letterSpacing = '1px';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
+            ctx.beginPath();
+            if ((ctx as any).roundRect) {
+                (ctx as any).roundRect(x, topY, cardW, boxH, 4);
+            } else {
+                ctx.rect(x, topY, cardW, boxH);
+            }
+            ctx.fill();
+            ctx.stroke();
 
-        const center1 = rightEdge - boxW + (third / 2) - 1;
-        const center2 = rightEdge - boxW + third + (third / 2) - 3;
-        const center3 = rightEdge - boxW + third * 2 + (third / 2) - 5;
+            // ACCENT BOTTOM BORDER
+            ctx.fillStyle = isPause ? (pal.hpPanel || '#ff0055') : (pal.scorePanel || '#00f0ff');
+            ctx.globalAlpha = isPause ? 0.8 : 0.6;
+            ctx.fillRect(x + 5, topY + boxH - 3, cardW - 10, 2);
+            ctx.globalAlpha = 1.0;
 
-        ctx.fillText("LINE", center1, topY + (isMobile ? 4 : 7));
-        ctx.fillText("MODE", center2, topY + (isMobile ? 4 : 7));
-        ctx.fillText("SPEED", center3, topY + (isMobile ? 4 : 7));
+            if (opt.type === 'text') {
+                // LABEL
+                ctx.fillStyle = '#6ab8ff';
+                ctx.font = isMobile ? 'bold 8px "Rajdhani"' : 'bold 10px "Exo 2", "Rajdhani"';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText(opt.label, x + cardW / 2, topY + (isMobile ? 5 : 8));
 
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowBlur = isMobile ? 4 : 6;
-        ctx.shadowColor = '#00f0ff';
-        ctx.font = isMobile ? '800 13px "Rajdhani"' : '800 17px "Rajdhani", "Orbitron"';
-        ctx.fillText(lineStr, center1, topY + (isMobile ? 15 : 20));
-        ctx.fillText(modeStr, center2, topY + (isMobile ? 15 : 20));
-        ctx.fillText(speedStr, center3, topY + (isMobile ? 15 : 20));
+                // VALUE
+                ctx.fillStyle = '#ffffff';
+                ctx.font = isMobile ? '800 12px "Rajdhani"' : '800 16px "Rajdhani", "Orbitron"';
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = pal.scorePanel || '#00f0ff';
+                ctx.fillText(opt.value!, x + cardW / 2, topY + (isMobile ? 16 : 22));
+                ctx.shadowBlur = 0;
+            } else if (opt.type === 'pause') {
+                // PAUSE ICON
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = pal.hpPanel || '#ff0055';
+                
+                const pW = isMobile ? 4 : 5;
+                const pH = isMobile ? 12 : 16;
+                const centerX = x + cardW / 2;
+                const centerY = topY + boxH / 2;
+                ctx.fillRect(centerX - (pW + 2), centerY - pH/2, pW, pH);
+                ctx.fillRect(centerX + 2, centerY - pH/2, pW, pH);
+                ctx.shadowBlur = 0;
+                
+                // Distinct PAUSE Label
+                ctx.fillStyle = pal.hpPanel || '#ff0055';
+                ctx.font = isMobile ? 'bold 7px "Rajdhani"' : 'bold 8px "Rajdhani", "Orbitron"';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText("PAUSE", centerX, topY + (isMobile ? 4 : 5));
+            }
+        });
 
         ctx.restore();
     }

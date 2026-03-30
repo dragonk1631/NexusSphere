@@ -158,8 +158,8 @@ export const LAYOUT = {
     LANE_TOP_RATIO: 0.20,
     DEFAULT_NOTE_WIDTH: 100,
     PAUSE_BTN_SIZE: 50,
-    PAUSE_BTN_X_OFFSET: 65,
-    PAUSE_BTN_Y_OFFSET: 100
+    PAUSE_BTN_X_OFFSET: 80,
+    PAUSE_BTN_Y_OFFSET: 85
 } as const;
 
 export const ASSETS = {
