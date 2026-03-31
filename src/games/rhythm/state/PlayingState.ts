@@ -63,11 +63,18 @@ export class PlayingState extends BaseGameState {
         if (game.transitionSystem.isActive()) return;
 
         if (!game.isTestMode && game.gameplayManager.isGameOver()) {
-            game.audioEngine.stop(); // PROFESSIONAL: Stop immediately to freeze clock
+            game.audioEngine.stop();
+            game.audioEngine.stopBGM(false); // Stop menu music if any
+            game.audioEngine.playSFX('/assets/audio/ui/boo.mp3'); // [NEW] Immediate Booing SFX
+            
             game.transitionSystem.start(() => {
                 game.setState(GameState.GAMEOVER);
             }, 'glitch');
         } else if (game.gameplayManager.isSongCompleted(game.lastRenderTime, game.midiData?.duration ? game.midiData.duration * 1000 : 0, delta)) {
+            // [NEW] Navigation Guard for Mobile Stability
+            if (this.game.isNavigating) return;
+            this.game.isNavigating = true;
+
             console.log("[PlayingState:Nav] Song completed detected.");
             game.audioEngine.stop();
             game.transitionSystem.start(() => {

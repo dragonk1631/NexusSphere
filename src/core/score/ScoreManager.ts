@@ -158,6 +158,10 @@ export class ScoreManager {
         return this.score;
     }
 
+    public isFullCombo(): boolean {
+        return this.missCount === 0 && this.totalChartNotes > 0;
+    }
+
     // --- Persistence Methods ---
 
     public saveHighScore(songId: string): boolean {

@@ -191,7 +191,11 @@ export class NoteFactory {
         });
 
         const patterns = PatternAnalyzer.analyze(preparedNotes as any[]);
-        const finalResult = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
+        let finalResult = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
+        
+        // 4. [NEW] Trim Hand Conflicts
+        // Ensure no long note overlaps with a subsequent note on the same hand.
+        finalResult = this.trimHandConflicts(finalResult, laneCount);
 
         console.log(`[NoteFactory] Charted ${finalResult.length} notes (Holds: ${finalResult.filter(n => n.isHold).length}).`);
         if (finalResult.length > 0) {
@@ -203,5 +207,69 @@ export class NoteFactory {
             return finalResult.slice(0, 20000);
         }
         return finalResult;
+    }
+
+    /**
+     * Post-processing pass: Trims long note durations if they conflict with 
+     * a same-hand, different-lane note starting later.
+     */
+    private static trimHandConflicts(notes: VisualNote[], laneCount: number): VisualNote[] {
+        // Ensure notes are sorted by time for linear scan
+        const sorted = [...notes].sort((a, b) => a.time - b.time);
+        
+        const activeHoldInHand: { 'left': VisualNote | null, 'right': VisualNote | null } = {
+            'left': null,
+            'right': null
+        };
+
+        const getHand = (lane: number): 'left' | 'right' => {
+            if (laneCount === 4) return lane < 2 ? 'left' : 'right';
+            return lane < 3 ? 'left' : 'right';
+        };
+
+        const bufferMs = 30; // 30ms gap to ensure release before next hit
+
+        for (const note of sorted) {
+            const hand = getHand(note.lane);
+            const activeHold = activeHoldInHand[hand];
+
+            // 1. If there's an active hold in the SAME HAND area...
+            if (activeHold && activeHold !== note) {
+                const holdEndTime = activeHold.time + (activeHold.durationMs / 1000);
+                
+                // 2. And it overlaps with the current note's start...
+                // (Only if it's in a DIFFERENT lane, as same-lane overlap is already handled by hardware/allocator)
+                if (activeHold.lane !== note.lane && holdEndTime > note.time - (bufferMs / 1000)) {
+                    // 3. Trim it!
+                    const newDurationMs = Math.max(0, (note.time - activeHold.time) * 1000 - bufferMs);
+                    activeHold.durationMs = newDurationMs;
+                    activeHold.duration = newDurationMs / 1000;
+                    
+                    // If it was trimmed to basically zero, it's effectively a tap
+                    if (newDurationMs < 100) {
+                        activeHold.isHold = false;
+                        activeHold.type = 'TAP';
+                    }
+                    
+                    // Clear it as it's now "ended" before this note
+                    activeHoldInHand[hand] = null;
+                }
+            }
+
+            // If current note is a hold, track it as the active one for this hand
+            if (note.isHold) {
+                activeHoldInHand[hand] = note;
+            }
+
+            // Cleanup: If a hold ended naturally before this note, clear the tracker
+            ['left', 'right'].forEach((h: any) => {
+                const hold = activeHoldInHand[h as 'left' | 'right'];
+                if (hold && hold.time + (hold.durationMs / 1000) <= note.time) {
+                    activeHoldInHand[h as 'left' | 'right'] = null;
+                }
+            });
+        }
+
+        return sorted;
     }
 }

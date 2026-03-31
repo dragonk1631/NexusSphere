@@ -45,6 +45,11 @@ export class ResultRenderer {
         ctx.fillText("STAGE CLEAR", width / 2, Math.max(60, height * 0.08));
         ctx.restore();
 
+        // [NEW] ALL COMBO Celebration Layer
+        if (scoreManager.isFullCombo()) {
+            this.renderCelebration(ctx, width, height);
+        }
+
         // 3. Main Panel Geometry (Strict Safe Zones)
         const panelW = isPortrait ? width * 0.94 : Math.min(width * 0.88, 1080);
         const panelH = isPortrait ? height * 0.78 : Math.min(height * 0.72, 600);
@@ -224,5 +229,65 @@ export class ResultRenderer {
         ctx.lineTo(x, y + r);
         ctx.quadraticCurveTo(x, y, x + r, y);
         ctx.closePath();
+    }
+
+    /**
+     * Renders a splendid golden celebration for All Combo achievement.
+     */
+    private renderCelebration(ctx: CanvasRenderingContext2D, width: number, height: number) {
+        ctx.save();
+        
+        // 1. Rotating Sunburst Background
+        const centerX = width / 2;
+        const centerY = height * 0.35; // Positioned behind the Grade section
+        const time = performance.now() * 0.001;
+        const rays = 12;
+        
+        ctx.translate(centerX, centerY);
+        ctx.rotate(time * 0.2); // Slow rotation
+        
+        for (let i = 0; i < rays; i++) {
+            ctx.rotate((Math.PI * 2) / rays);
+            const gradient = ctx.createLinearGradient(0, 0, 0, width * 0.8);
+            gradient.addColorStop(0, 'rgba(255, 215, 0, 0.2)'); // Gold
+            gradient.addColorStop(0.5, 'rgba(255, 165, 0, 0.05)'); // Orange-ish
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-40, width);
+            ctx.lineTo(40, width);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+
+        // 2. ALL COMBO Floating Text
+        ctx.save();
+        const pulse = Math.sin(time * 5) * 5;
+        const fontSize = Math.floor(48 + pulse);
+        ctx.font = `900 ${fontSize}px "Orbitron"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Golden Gradient Text
+        const grad = ctx.createLinearGradient(0, height * 0.45, 0, height * 0.55);
+        grad.addColorStop(0, '#fff');
+        grad.addColorStop(0.5, '#ffd700'); // Gold
+        grad.addColorStop(1, '#ff8c00'); // Dark Orange
+        
+        ctx.fillStyle = grad;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#ffd700';
+        
+        // Position below the Grade but above Accuracy
+        const textY = height * 0.48;
+        ctx.fillText("ALL COMBO", width / 2, textY);
+        
+        // Reflection/Glow
+        ctx.globalAlpha = 0.3;
+        ctx.fillText("ALL COMBO", width / 2, textY + 4);
+        ctx.restore();
     }
 }

@@ -7,6 +7,15 @@ import { BaseGameState } from './BaseGameState';
 export class GameOverState extends BaseGameState {
     public readonly id = GameState.GAMEOVER;
 
+    public enter(): void {
+        this.game.audioEngine.stopBGM(false); // Stop any menu music immediately
+        this.game.audioEngine.playBGM('/assets/audio/ui/game_over.mp3', true);
+    }
+
+    public exit(): void {
+        this.game.audioEngine.stopBGM(false);
+    }
+
     public update(_delta: number): void { }
 
     public render(ctx: CanvasRenderingContext2D, alpha: number): void {
@@ -15,8 +24,11 @@ export class GameOverState extends BaseGameState {
     }
 
     public onKeyDown(code: string): void {
-        if (code === 'Enter') this.game.handleRetry();
-        else if (code === 'Escape') this.game.backToSongSelection();
+        if (code === 'Enter') {
+            this.game.handleRetry();
+        } else if (code === 'Escape') {
+            this.game.backToSongSelection();
+        }
     }
 
     public onPointerDown(x: number, y: number): void {

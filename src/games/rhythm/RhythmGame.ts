@@ -94,10 +94,10 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     public midiData: ParsedMidi | null = null;
     public visualNotes: VisualNote[] = [];
     public transitionData: TransitionData | null = null;
-    private currentFrameTime: number = 0; // Performance Optimization: Cache per frame
     public isMobile: boolean = false;
     public isTestMode: boolean = false;
-    private isNavigating: boolean = false; // Navigation Guard for Mobile Stability
+    public isNavigating: boolean = false; // Navigation Guard for Mobile Stability
+    private currentFrameTime: number = 0; // Performance Optimization: Cache per frame
     public horizonY = 0;
     public bottomY = 0;
     public hitLineY = 0;

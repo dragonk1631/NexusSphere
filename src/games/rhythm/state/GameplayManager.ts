@@ -155,8 +155,6 @@ export class GameplayManager {
                 }
 
                 // Tick 2: Visual Effects (Particles & Theme-specific hit effects)
-                // We use a separate timer or logic to trigger the main hit effect
-                // Existing particle logic:
                 if (performance.now() % 60 < 16) {
                     const laneX = getPerspectiveX(lane, hitLineY) + getPerspectiveWidth(hitLineY) / 2;
                     const centerY = hitLineY + (laneBottomWidth * 0.2);
@@ -164,11 +162,6 @@ export class GameplayManager {
                     this.particleSystem.triggerShatter(laneX, centerY, color, true);
                 }
 
-                // New: Trigger the theme's core hit effect (e.g. magic circles, rays) periodically
-                // We use note.accumulatedHoldTime or a dedicated field. 
-                // Since accumulatedHoldTime is already used for combo, let's use a modulus or a dedicated field.
-                // Every 150ms is a good pace for visual satisfaction.
-                // note.accumulatedHoldTime is reset every 166ms.
                 const effectInterval = 150;
                 if ((note.accumulatedHoldTime % effectInterval) < delta) {
                     this.judgmentSystem['handler'].onHoldEffect(lane);
@@ -279,9 +272,21 @@ export class GameplayManager {
     }
 
     public isSongCompleted(currentTime: number, songDurationMs: number, delta: number): boolean {
-        if (currentTime >= songDurationMs - 100 && songDurationMs > 2000) {
+        // Robustness: If songDuration is not provided, we can't determine completion
+        if (songDurationMs <= 0) return false;
+
+        // Condition 1: Direct time threshold (Reliable on PC)
+        const timeCleared = currentTime >= songDurationMs - 100;
+        
+        // Condition 2: Fallback for Mobile (Buffer drift or low precision)
+        // If we are within the final 300ms and the sequencer is no longer active, triggger completion.
+        const audioStalledAtEnd = currentTime >= songDurationMs - 300 && !this.audioEngine.isBGMPlaying();
+
+        if (timeCleared || audioStalledAtEnd) {
             this._endGameTimer += delta;
         }
+        
+        // 2000ms delay to allow final notes to finish their animation
         return this._endGameTimer > 2000;
     }
 }

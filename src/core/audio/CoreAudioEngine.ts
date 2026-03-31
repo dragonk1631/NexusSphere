@@ -236,6 +236,27 @@ export class CoreAudioEngine {
         AudioEngineLogger.info("BGM Stopped.");
     }
 
+    /**
+     * Plays a one-shot sound effect (SFX) routed through the mixer.
+     * Use for non-looping UI sounds or feedback.
+     */
+    public playSFX(url: string): void {
+        const sfx = new Audio(url);
+        sfx.crossOrigin = "anonymous";
+        
+        const source = this.ctx.createMediaElementSource(sfx);
+        this.mixer.connectSource(source as any);
+        
+        sfx.play().catch(e => {
+            AudioEngineLogger.warn(`SFX Playback failed: ${e}`);
+        });
+
+        // Clean up source when audio ends
+        sfx.onended = () => {
+            source.disconnect();
+        };
+    }
+
     public isBGMPlaying(): boolean {
         return !!this.bgmPlayer && !this.bgmPlayer.paused;
     }

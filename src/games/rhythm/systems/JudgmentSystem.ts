@@ -131,18 +131,24 @@ export class JudgmentSystem {
                 continue;
             }
 
-            // [핵심 수정] 롱노트 자동 성공 제거 및 Late Release 감지
-            // 사용자가 계속 누르고 있더라도 꼬리를 일정 시간(lateReleaseWindow) 이상 지나치면 실패 처리합니다.
-            const lateReleaseWindow = 200;
-
-            if (note.isHold && note.isHolding && currentTimeMs > noteEndMs + lateReleaseWindow) {
-                // 너무 오래 누르고 있음 (Late Release 실패)
-                this.processRelease(note.lane, currentTimeMs); // second arg success defaults to false
+            // 1. [NEW] Immediate Head Miss Protection for Long Notes
+            // If the start (head) of a long note is missed, we fail it immediately.
+            if (note.isHold && !note.isHolding && currentTimeMs > noteTimeMs + missWindow) {
+                note.isProcessed = true;
+                this.handler.onJudgment(note.lane, Judgment.MISS, 0);
                 if (i === this.lastMissCheckIndex) this.lastMissCheckIndex++;
                 continue;
             }
 
-            // 미스 처리: 판정 창(missWindow)을 벗어난 경우 (일반 노트 or 안 누른 롱노트)
+            // 2. Late Release for Active Long Notes (Already held)
+            const lateReleaseWindow = 200;
+            if (note.isHold && note.isHolding && currentTimeMs > noteEndMs + lateReleaseWindow) {
+                this.processRelease(note.lane, currentTimeMs);
+                if (i === this.lastMissCheckIndex) this.lastMissCheckIndex++;
+                continue;
+            }
+
+            // 3. Normal Miss for Taps or Other Processed Logic
             if (currentTimeMs > noteEndMs + missWindow && !note.isHolding) {
                 note.isProcessed = true;
                 this.handler.onJudgment(note.lane, Judgment.MISS, 0);
