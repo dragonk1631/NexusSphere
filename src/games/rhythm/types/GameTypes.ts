@@ -137,6 +137,8 @@ export interface HUDRenderState {
     keyMode?: number;
     difficulty?: string;
     speed?: number;
+    resumeCountdown?: number;
+    isTestMode?: boolean;
 }
 
 /**

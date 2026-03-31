@@ -12,6 +12,7 @@ export class ScoreManager {
     private currentCombo: number = 0;
     private maxCombo: number = 0;
     private score: number = 0;
+    private isTestMode: boolean = false;
 
     // Health System
     private health: number = 100;
@@ -46,7 +47,7 @@ export class ScoreManager {
         if (judgment === Judgment.MISS) {
             this.missCount++;
             this.resetCombo();
-            this.damage(5);
+            if (!this.isTestMode) this.damage(5);
             return;
         }
 
@@ -61,11 +62,14 @@ export class ScoreManager {
         else if (judgment === Judgment.GOOD) this.goodCount++;
 
         // Combo Multiplier for Score only
-        this.score += baseScore * (1 + Math.min(this.currentCombo, 50) * 0.1);
-        this.heal(2); // Heal slightly on hit
+        if (!this.isTestMode) {
+            this.score += baseScore * (1 + Math.min(this.currentCombo, 50) * 0.1);
+            this.heal(2); // Heal slightly on hit
+        }
     }
 
     public addScore(points: number): void {
+        if (this.isTestMode) return;
         this.score += points;
     }
 
@@ -136,6 +140,10 @@ export class ScoreManager {
         this.greatCount = 0;
         this.goodCount = 0;
         this.missCount = 0;
+    }
+
+    public setTestMode(enabled: boolean): void {
+        this.isTestMode = enabled;
     }
 
     public getCombo(): number {

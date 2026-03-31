@@ -62,17 +62,22 @@ export class PlayingState extends BaseGameState {
 
         if (game.transitionSystem.isActive()) return;
 
-        if (game.gameplayManager.isGameOver()) {
+        if (!game.isTestMode && game.gameplayManager.isGameOver()) {
             game.audioEngine.stop(); // PROFESSIONAL: Stop immediately to freeze clock
             game.transitionSystem.start(() => {
                 game.setState(GameState.GAMEOVER);
             }, 'glitch');
         } else if (game.gameplayManager.isSongCompleted(game.lastRenderTime, game.midiData?.duration ? game.midiData.duration * 1000 : 0, delta)) {
-            game.audioEngine.stop(); // PROFESSIONAL: Stop immediately to freeze clock
+            console.log("[PlayingState:Nav] Song completed detected.");
+            game.audioEngine.stop();
             game.transitionSystem.start(() => {
-                game.setState(GameState.RESULT);
-                if (!game.isTestMode && game.scoreManager) {
-                    game.scoreManager.saveHighScore(game.menuManager.getCurrentSong().url);
+                if (game.isTestMode) {
+                    game.returnToEditor();
+                } else {
+                    game.setState(GameState.RESULT);
+                    if (game.scoreManager) {
+                        game.scoreManager.saveHighScore(game.menuManager.getCurrentSong().url);
+                    }
                 }
             }, 'fade');
         }

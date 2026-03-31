@@ -53,7 +53,11 @@ export class PausedState extends BaseGameState {
             game.setState(GameState.PLAYING); // RESUME
         }
         else if (index === 1) game.handleRetry();         // RESTART
-        else if (index === 2) game.backToSongSelection(); // SONG SELECTION
+        else if (index === 2) {
+            console.log("[PausedState:Nav] Return button clicked.");
+            if (game.isTestMode) game.returnToEditor();
+            else game.backToSongSelection(); // SONG SELECTION
+        }
     }
 
     public exit(): void {

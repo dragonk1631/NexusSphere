@@ -2,6 +2,7 @@ export interface TransitionData {
     source: 'editor' | 'menu' | 'rhythm';
     midiBuffer: ArrayBuffer;
     midiName: string;
+    midiUrl?: string; // Optional URL for restoration
     forcedChannels?: number[];
     settings: {
         mutedChannels: Set<number>;
@@ -10,6 +11,7 @@ export interface TransitionData {
         volume: number;
         difficulty?: string;
         measureConfig?: [number, number][]; // Array of [MeasureIndex, PrimaryChannel]
+        songList?: any[]; // Optional list of songs for restoration (e.g. folder contents)
     };
 }
 

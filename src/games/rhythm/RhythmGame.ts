@@ -97,6 +97,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     private currentFrameTime: number = 0; // Performance Optimization: Cache per frame
     public isMobile: boolean = false;
     public isTestMode: boolean = false;
+    private isNavigating: boolean = false; // Navigation Guard for Mobile Stability
     public horizonY = 0;
     public bottomY = 0;
     public hitLineY = 0;
@@ -407,6 +408,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.inputManager.resetStates();
         this.inputManager.updateKeyMode(this.keyMode);
         this.scoreManager?.reset();
+        this.scoreManager?.setTestMode(this.isTestMode);
         this.gameplayManager.reset();
         this.gameplayManager.start(this.visualNotes, this.scrollSpeed);
         this.judgmentSystem.setLatency(this.audioEngine.getOutputLatency() * 1000);
@@ -565,15 +567,28 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         hud.height = height;
         hud.comboAnim = this.gameplayManager.comboAnim;
         hud.lastJudgment = this.judgmentSystem.getLastJudgment();
-        hud.cachedNow = performance.now();
         hud.isMobile = this.isMobile;
-        hud.songTitle = this.menuManager.getCurrentSong()?.name || this.midiData?.name || 'Unknown Track';
+        
+        if (this.isTestMode) {
+            hud.songTitle = this.midiData?.name || this.transitionData?.midiName || 'Test Song';
+            hud.duration = this.midiData?.duration || this.audioEngine.duration || 0;
+        } else {
+            const currentSong = this.menuManager.getCurrentSong();
+            hud.songTitle = currentSong?.name || 'Unknown Track';
+            hud.duration = this.audioEngine.duration || 0;
+        }
+
         hud.currentTime = this.audioEngine.getPreciseTime();
-        hud.duration = this.audioEngine.duration || 0;
         hud.keyMode = this.keyMode;
         hud.difficulty = this.currentDifficulty;
         hud.speed = this.scrollSpeed;
         hud.resumeCountdown = this.gameplayManager.resumeCountdown;
+        hud.isTestMode = this.isTestMode;
+
+        // Calculate Beat Phase for syncing UI animations
+        const bpm = this.midiData?.bpm || 120;
+        const beatDuration = 60000 / bpm;
+        hud.beatPhase = (this.unifiedCurrentTime % beatDuration) / beatDuration;
 
         this.hudRenderer.render(ctx, hud, this.scoreManager, this.themeStrategy, (l, y) => this.getPerspectiveX(l, y));
     }
@@ -618,6 +633,10 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     };
 
     public backToSongSelection() {
+        if (this.isNavigating) return;
+        this.isNavigating = true;
+        console.log("[RhythmGame:Nav] backToSongSelection triggered.");
+
         const loading = LoadingOverlay.getInstance();
         this.transitionSystem.start(async () => {
             this.audioEngine.stop();
@@ -629,10 +648,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
             loading.hide();
             
             this.setState(GameState.MENU);
-            // NOTE: Do NOT call resumeMusic() here.
-            // setState(MENU) → MenuState.enter() already handles: pauseMusic() + playPreview().
-            // Calling resumeMusic() here would immediately cancel the pauseMusic() and
-            // play the theme over the MIDI preview — causing both to play at once.
+            this.isNavigating = false; // Internal reset
         }, 'fade');
     }
 
@@ -723,8 +739,31 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         }
     }
 
-    public returnToEditor = () => { this.audioEngine.stop(); window.dispatchEvent(new CustomEvent('switch-game', { detail: { targetMode: 'editor' } })); };
+    public returnToEditor = () => { 
+        if (this.isNavigating) return;
+        this.isNavigating = true;
+        console.log("[RhythmGame:Nav] returnToEditor triggered.");
+
+        this.audioEngine.stop();
+        if (this.isTestMode && this.transitionData) {
+            // Restore context for the editor, keeping the buffer and name intact
+            GameTransition.set({
+                ...this.transitionData,
+                source: 'rhythm' // Mark as returning from rhythm
+            });
+        }
+        
+        // Safety: Use minor delay to allow current frame to finish cleanly on mobile
+        setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('switch-game', { detail: { targetMode: 'editor' } }));
+        }, 100); // 100ms for extra safety on low-end devices
+    };
+
     public returnToMainMenu = () => {
+        if (this.isNavigating) return;
+        this.isNavigating = true;
+        console.log("[RhythmGame:Nav] returnToMainMenu triggered.");
+
         this.transitionSystem.start(() => {
             this.audioEngine.stop();
             this.isTestMode = false;

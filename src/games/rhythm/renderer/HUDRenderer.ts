@@ -22,6 +22,8 @@ export interface HUDRenderState {
     difficulty?: string;
     speed?: number;
     resumeCountdown?: number;
+    isTestMode?: boolean;
+    beatPhase?: number;
 }
 
 export class HUDRenderer {
@@ -59,10 +61,15 @@ export class HUDRenderer {
         const score = Math.floor(scoreManager.getScore());
         const combo = scoreManager.getCombo();
 
-        this.renderPanels(ctx, state, pal, getPerspectiveX);
-        this.renderHPBar(ctx, state, pal, scoreManager, getPerspectiveX);
+        if (state.isTestMode) {
+            this.renderTestModeLabel(ctx, state, pal);
+        } else {
+            this.renderPanels(ctx, state, pal, getPerspectiveX);
+            this.renderHPBar(ctx, state, pal, scoreManager, getPerspectiveX);
+            this.renderScore(ctx, state, pal, score);
+        }
+
         this.renderSongInfo(ctx, state, pal, getPerspectiveX);
-        this.renderScore(ctx, state, pal, score);
         this.renderGameInfo(ctx, state);
         this.renderCombo(ctx, state, pal, combo);
         this.renderJudgment(ctx, state, theme, alpha);
@@ -610,6 +617,55 @@ export class HUDRenderer {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(text, 0, 0);
         
+        ctx.restore();
+    }
+
+    private renderTestModeLabel(ctx: CanvasRenderingContext2D, state: HUDRenderState, _pal: any): void {
+        const x = state.width / 2;
+        const y = 40;
+        
+        // Sync with the beat (sharp pulse like judgment line)
+        const beatPhase = state.beatPhase || 0;
+        const beatPulse = Math.max(0, 1 - beatPhase); // Peaks at 1 on beat, decays
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        // 1. Original Simple Badge Design
+        ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
+        ctx.strokeStyle = `rgba(255, 0, 85, ${0.4 + beatPulse * 0.4})`; // Brightens on beat
+        ctx.lineWidth = 2;
+        
+        const labelText = "● TEST MODE ACTIVE";
+        ctx.font = '900 18px "Orbitron"';
+        const metrics = ctx.measureText(labelText);
+        const paddingH = 20;
+        const w = metrics.width + paddingH * 2;
+        const h = 30;
+
+        ctx.beginPath();
+        if ((ctx as any).roundRect) {
+            (ctx as any).roundRect(-w / 2, -h / 2, w, h, 4);
+        } else {
+            ctx.rect(-w / 2, -h / 2, w, h);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        // 2. Original Simple Text with Beat-Synced Glow
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Color is mainly white, but glows with the beat
+        ctx.shadowBlur = 5 + beatPulse * 15;
+        ctx.shadowColor = '#ff0055';
+        ctx.fillStyle = '#ffffff';
+        
+        // Subtle flicker: combine beat pulse and global pulse
+        ctx.globalAlpha = 0.7 + beatPulse * 0.3;
+        
+        ctx.fillText(labelText, 0, 0);
+
         ctx.restore();
     }
 }

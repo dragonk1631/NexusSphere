@@ -236,15 +236,21 @@ export class EditorGame extends BaseGame {
             trackPanel.style.pointerEvents = 'auto';
         }
 
-        // 4. Restore from Transition Data OR Load Default
-        if (transitionData && transitionData.source === 'rhythm') {
-            console.log(`[EditorGame] Returning from Test Play: ${transitionData.midiName}`);
+        // 4. Restore from Transition Data (Returning from Test Play)
+        if (transitionData && (transitionData.source === 'rhythm' || transitionData.source === 'editor')) {
+            const restoreUrl = transitionData.midiUrl || transitionData.midiName;
+            console.log(`[EditorGame] Restoring previous state: ${restoreUrl}`);
 
-            // Sync UI Selector
-            const selector = document.getElementById('midi-selector') as HTMLSelectElement;
-            if (selector) selector.value = transitionData.midiName;
+            // Restore Song List first if available (especially for folders)
+            if (transitionData.settings?.songList) {
+                this.songList = transitionData.settings.songList;
+                this.ui?.populateMidiSelector(this.songList);
+            }
 
-            await this.loadMidiFile(transitionData.midiName, undefined, transitionData.midiBuffer);
+            this.currentMidiFileUrl = restoreUrl;
+            this.ui?.setSelectedMidi(restoreUrl);
+
+            await this.loadMidiFile(restoreUrl, undefined, transitionData.midiBuffer);
             this.ui?.show();
             GameTransition.clear();
             return;
@@ -693,7 +699,8 @@ export class EditorGame extends BaseGame {
                         GameTransition.set({
                             source: 'editor',
                             midiBuffer: this.rawMidiBuffer!,
-                            midiName: this.currentMidiFileName || this.midiData?.name || 'Test Song',
+                            midiName: (this.midiData?.name) || this.currentMidiFileName || 'Test Song',
+                            midiUrl: this.currentMidiFileUrl || '',
                             forcedChannels: targetChannels,
                             settings: {
                                 mutedChannels: new Set(this.mutedTrackIndices),
@@ -701,7 +708,8 @@ export class EditorGame extends BaseGame {
                                 speed: 1.0,
                                 volume: 1.0,
                                 difficulty: this.ui?.getTestDifficulty() || 'NORMAL',
-                                measureConfig: measureObj
+                                measureConfig: measureObj,
+                                songList: this.songList
                             }
                         });
                         console.log("[EditorGame] GameTransition set. Dispatching switch-game...");
