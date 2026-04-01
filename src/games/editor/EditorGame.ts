@@ -6,13 +6,16 @@ import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
 import { GameTransition } from '../../core/GameTransition';
 import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
+import { LocalSongStorage } from '../rhythm/services/LocalSongStorage';
 
 export interface SongEntry {
+    id?: string;
     name: string;
     url: string;
     bpm?: number;
     duration?: number;
     noteCount?: number;
+    isCustom?: boolean;
 }
 
 interface ChannelData {
@@ -57,6 +60,7 @@ export class EditorGame extends BaseGame {
     // Song List State
     private songList: SongEntry[] = [];
     private currentSortMode: string = 'name';
+    private storage = new LocalSongStorage();
 
     // Viewport State
     private scrollX = 0;
@@ -211,16 +215,29 @@ export class EditorGame extends BaseGame {
         // 2. Init Audio
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
 
-        // Fetch Song List
+        // Fetch Song List (Official + Custom)
         try {
+            // 1. Fetch Official List
             const res = await fetch('assets/data/midi_list.json');
+            let official: SongEntry[] = [];
             if (res.ok) {
-                const list = await res.json();
-                if (Array.isArray(list) && list.length > 0) {
-                    this.songList = list;
-                    console.log(`[EditorGame] Loaded ${list.length} songs.`);
-                }
+                official = await res.json();
             }
+
+            // 2. Fetch Custom List from IndexedDB
+            const customMetas = await this.storage.getAllMetadata();
+            const custom: SongEntry[] = customMetas.map(m => ({
+                id: m.id,
+                name: `[USER] ${m.title}`,
+                url: `user://${m.blobKey}`,
+                bpm: m.bpm,
+                duration: m.duration,
+                isCustom: true
+            }));
+
+            this.songList = [...official, ...custom];
+            console.log(`[EditorGame] Loaded ${official.length} official and ${custom.length} custom songs.`);
+
         } catch (e) {
             console.warn('[EditorGame] Failed to load song list.', e);
         }
@@ -313,6 +330,13 @@ export class EditorGame extends BaseGame {
                 buffer = existingBuffer;
             } else if (file) {
                 buffer = await file.arrayBuffer();
+            } else if (name.startsWith('user://')) {
+                // Fetch from IndexedDB
+                const blobKey = name.replace('user://', '');
+                const blob = await this.storage.getSongBlob(blobKey);
+                if (!blob) throw new Error(`Custom MIDI blob not found: ${blobKey}`);
+                buffer = await blob.arrayBuffer();
+                console.log(`[EditorGame] Loaded user-uploaded MIDI from storage: ${name}`);
             } else {
                 const res = await fetch(name);
                 buffer = await res.arrayBuffer();
