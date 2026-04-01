@@ -1,5 +1,6 @@
 import { GameState } from '../types/GameTypes';
 import { BaseGameState } from './BaseGameState';
+import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
 
 /**
  * State handled when the player has failed the song.
@@ -9,7 +10,7 @@ export class GameOverState extends BaseGameState {
 
     public enter(): void {
         this.game.audioEngine.stopBGM(false); // Stop any menu music immediately
-        this.game.audioEngine.playBGM('/assets/audio/ui/game_over.mp3', true);
+        this.game.audioEngine.playBGM(ASSET_PATHS.AUDIO.UI.GAME_OVER, true);
     }
 
     public exit(): void {

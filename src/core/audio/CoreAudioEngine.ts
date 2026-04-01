@@ -6,6 +6,7 @@ import { ScreenUtils } from '../utils/ScreenUtils';
 import { AudioEngineLogger, LogLevel } from './AudioEngineLogger';
 import { AudioMixer } from './AudioMixer';
 import { TimeSyncController } from './TimeSyncController';
+import { resolveAssetPath } from '../utils/PathUtils';
 import type { ISynth, ISequencer } from './AudioTypes';
 
 /**
@@ -190,7 +191,8 @@ export class CoreAudioEngine {
         this.stopBGM(false);
         this.stop(false); // PROFESSIONAL: Stop any MIDI before starting BGM
 
-        this.bgmPlayer = new Audio(url);
+        const resolvedUrl = resolveAssetPath(url);
+        this.bgmPlayer = new Audio(resolvedUrl);
         this.bgmPlayer.loop = loop;
         this.bgmPlayer.crossOrigin = "anonymous";
         
@@ -241,7 +243,8 @@ export class CoreAudioEngine {
      * Use for non-looping UI sounds or feedback.
      */
     public playSFX(url: string): void {
-        const sfx = new Audio(url);
+        const resolvedUrl = resolveAssetPath(url);
+        const sfx = new Audio(resolvedUrl);
         sfx.crossOrigin = "anonymous";
         
         const source = this.ctx.createMediaElementSource(sfx);
@@ -475,8 +478,9 @@ export class CoreAudioEngine {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeoutMs);
 
+        const resolvedUrl = resolveAssetPath(url);
         try {
-            const response = await fetch(url, { signal: controller.signal });
+            const response = await fetch(resolvedUrl, { signal: controller.signal });
             clearTimeout(id);
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response;

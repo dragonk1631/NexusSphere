@@ -1,6 +1,7 @@
 import { GameState } from '../types/GameTypes';
 import { BaseGameState } from './BaseGameState';
 import { LAYOUT } from '../constants/GameConstants';
+import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
 
 /**
  * State handled when the game is actively being played.
@@ -65,7 +66,7 @@ export class PlayingState extends BaseGameState {
         if (!game.isTestMode && game.gameplayManager.isGameOver()) {
             game.audioEngine.stop();
             game.audioEngine.stopBGM(false); // Stop menu music if any
-            game.audioEngine.playSFX('/assets/audio/ui/boo.mp3'); // [NEW] Immediate Booing SFX
+            game.audioEngine.playSFX(ASSET_PATHS.AUDIO.UI.BOO); // [NEW] Immediate Booing SFX
             
             game.transitionSystem.start(() => {
                 game.setState(GameState.GAMEOVER);

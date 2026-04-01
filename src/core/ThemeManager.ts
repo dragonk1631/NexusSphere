@@ -24,11 +24,16 @@ export interface ThemeConfig {
     gridColor: string;
     bubblePulseGrad: string[]; // For UI bubbles like MainMenu
     semantic: SemanticPalette;
+    bgm?: string;
+    songTitle?: string;
 }
 
 export class ThemeManager {
     private static instance: ThemeManager | null = null;
     private currentThemeId: string = 'deep-space';
+    private themeSongs: Map<string, { url: string, title: string }> = new Map();
+    private initPromise: Promise<void>;
+    private isReady: boolean = false;
     private listeners: Array<(theme: ThemeConfig) => void> = [];
 
     // The 10 Curated Themes — each with a distinct identity
@@ -235,7 +240,36 @@ export class ThemeManager {
         } catch (e) {
             console.warn("Could not load themes", e);
         }
+        
+        // Initial load of theme songs metadata
+        this.initPromise = this.loadThemeSongs();
+
         this.applyToCSS();
+    }
+
+    private async loadThemeSongs() {
+        try {
+            const res = await fetch('assets/data/theme_songs.json');
+            if (res.ok) {
+                const data = await res.json();
+                data.forEach((item: any) => {
+                    this.themeSongs.set(item.themeId, { url: item.url, title: item.songTitle });
+                });
+                console.log(`[ThemeManager] Loaded ${this.themeSongs.size} theme songs.`);
+                this.isReady = true;
+                this.notifyListeners();
+            }
+        } catch (e) {
+            console.warn("[ThemeManager] Failed to load theme songs metadata", e);
+        }
+    }
+
+    public waitForReady(): Promise<void> {
+        return this.initPromise;
+    }
+
+    public getIsReady(): boolean {
+        return this.isReady;
     }
 
     public static getInstance(): ThemeManager {
@@ -246,7 +280,13 @@ export class ThemeManager {
     }
 
     public getCurrentTheme(): ThemeConfig {
-        return ThemeManager.THEMES.find(t => t.id === this.currentThemeId) || ThemeManager.THEMES[0];
+        const theme = ThemeManager.THEMES.find(t => t.id === this.currentThemeId) || ThemeManager.THEMES[0];
+        const bgmInfo = this.themeSongs.get(this.currentThemeId);
+        return {
+            ...theme,
+            bgm: bgmInfo?.url,
+            songTitle: bgmInfo?.title
+        };
     }
 
     public setTheme(themeId: string): void {

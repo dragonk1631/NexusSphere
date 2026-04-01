@@ -1,3 +1,5 @@
+import { resolveAssetPath } from '../utils/PathUtils';
+
 /**
  * NexusSphere Asset Loader
  * 에셋의 중복 로딩을 방지하고 캐싱을 관리하는 중앙 로더입니다.
@@ -35,7 +37,7 @@ export class AssetLoader {
                 resolve(img);
             };
             img.onerror = () => reject(`Failed to load image: ${path}`);
-            img.src = path;
+            img.src = resolveAssetPath(path);
         });
     }
 
@@ -47,7 +49,8 @@ export class AssetLoader {
             return this.audioBufferCache.get(path)!;
         }
 
-        const response = await fetch(path);
+        const resolvedPath = resolveAssetPath(path);
+        const response = await fetch(resolvedPath);
         const arrayBuffer = await response.arrayBuffer();
         const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 

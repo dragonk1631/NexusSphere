@@ -1,12 +1,14 @@
 import { UIManager } from '../core/ui/UIManager';
 import { SettingsUI } from './SettingsUI';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
+import { ThemeManager } from '../core/ThemeManager';
 
 export class MainMenu {
     private ui: UIManager;
     private onStartGame: (mode: string) => void;
     private settingsUI: SettingsUI | null = null;
     private currentLang: string = 'en';
+    private themeUnsubscribe: (() => void) | null = null;
 
     private readonly l10n: any = {
         en: {
@@ -316,6 +318,36 @@ export class MainMenu {
                 .mm-lang-group { display: flex; gap: 15px; margin-left: 30px; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 30px; }
                 .mm-flag-btn { font-size: 1.8rem; cursor: pointer; opacity: 0.4; transition: 0.2s; }
                 .mm-flag-btn.active, .mm-flag-btn:hover { opacity: 1; transform: scale(1.15); }
+                
+                /* ── BGM BADGE ── */
+                .mm-bgm-badge {
+                    position: absolute;
+                    bottom: clamp(10px, 2vh, 20px);
+                    left: clamp(10px, 3vw, 40px);
+                    padding: 8px 16px;
+                    background: rgba(0,0,0,0.4);
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 12px;
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                    color: rgba(255,255,255,0.9);
+                    z-index: 10;
+                    animation: mm-fadeInUp 0.6s 0.4s ease both;
+                    pointer-events: none;
+                }
+                .mm-bgm-icon {
+                    color: #ff006e;
+                    animation: mm-pulse 2s infinite ease-in-out;
+                }
+                @keyframes mm-pulse {
+                    0%, 100% { transform: scale(1); opacity: 0.8; }
+                    50% { transform: scale(1.2); opacity: 1; }
+                }
 
                 /* ── RESPONSIVE COMPACT ── */
                 @media (max-height: 520px) {
@@ -400,6 +432,12 @@ export class MainMenu {
                     </div>
                 </div>
 
+                <!-- BGM BADGE -->
+                <div class="mm-bgm-badge" id="mm-bgm-container">
+                    <span class="mm-bgm-icon">♫</span>
+                    <span id="mm-bgm-text">Loading...</span>
+                </div>
+
             </div>
         `;
 
@@ -441,6 +479,21 @@ export class MainMenu {
             this.currentLang = 'ja';
             this.show();
         });
+
+        // Initialize BGM Text and subscribe to updates
+        this.updateBGMText();
+        if (this.themeUnsubscribe) this.themeUnsubscribe();
+        this.themeUnsubscribe = ThemeManager.getInstance().subscribe(() => {
+            this.updateBGMText();
+        });
+    }
+
+    private updateBGMText(): void {
+        const theme = ThemeManager.getInstance().getCurrentTheme();
+        const textEl = document.getElementById('mm-bgm-text');
+        if (textEl) {
+            textEl.innerText = theme.songTitle || 'Nexus Sphere BGM';
+        }
     }
 
     private showSettings(): void {
@@ -457,6 +510,10 @@ export class MainMenu {
     }
 
     public hide(): void {
+        if (this.themeUnsubscribe) {
+            this.themeUnsubscribe();
+            this.themeUnsubscribe = null;
+        }
         this.ui.hide('main-menu');
     }
 }

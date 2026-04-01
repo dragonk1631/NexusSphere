@@ -1,5 +1,6 @@
 import { GameState } from '../types/GameTypes';
 import { BaseGameState } from './BaseGameState';
+import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
 
 /**
  * State handled when the player has finished a song and is viewing the result screen.
@@ -12,10 +13,10 @@ export class ResultState extends BaseGameState {
         
         try {
             this.game.audioEngine.stopBGM(false); 
-            this.game.audioEngine.playBGM('/assets/audio/ui/result.mp3', true);
+            this.game.audioEngine.playBGM(ASSET_PATHS.AUDIO.UI.RESULT, true);
 
             if (this.game.scoreManager.isFullCombo()) {
-                this.game.audioEngine.playSFX('/assets/audio/ui/cheer.mp3');
+                this.game.audioEngine.playSFX(ASSET_PATHS.AUDIO.UI.CHEER);
             }
         } catch (e) {
             console.warn("[ResultState] Audio playback blocked or failed:", e);

@@ -18,6 +18,10 @@ export const ASSET_PATHS = {
     AUDIO: {
         UI: {
             MAIN_THEME: 'assets/audio/ui/main_theme.mp3',
+            GAME_OVER: 'assets/audio/ui/game_over.mp3',
+            RESULT: 'assets/audio/ui/result.mp3',
+            BOO: 'assets/audio/ui/boo.mp3',
+            CHEER: 'assets/audio/ui/cheer.mp3',
         },
         MIDI: {
             TEST: 'assets/audio/midi/test.mid',
@@ -28,6 +32,7 @@ export const ASSET_PATHS = {
     },
     DATA: {
         BEATMAPS: 'assets/data/beatmaps/',
+        THEME_SONGS: 'assets/data/theme_songs.json',
     }
 } as const;
 
