@@ -58,7 +58,7 @@ We completed a two-part refinement of the long-note (hold note) mechanics to ens
 
 - **Head Miss Penalty**: Modified `JudgmentSystem.ts` to trigger an **immediate MISS** if the start (head) of a long note is ignored. This eliminates the "ghost hold" exploit and brings the engine in line with modern arcade standards.
 - **Same-Hand Conflict Prevention (`trimHandConflicts`)**: Implemented a linear-scan post-processing pass in `NoteFactory.ts`.
-  - *Mechanism*: If a generated chart contains a long note that ends *after* a new note begins on any lane assigned to the same hand (Left/Right), the system **automatically trims** the hold note's duration. 
+  - *Mechanism*: If a generated chart contains a long note that ends *after* a new note begins on any lane assigned to the same hand (Left/Right), the system **automatically trims** the hold note's duration.
   - *Result*: This ensures every generated pattern is physically playable with two hands, preventing impossible overlaps during random generation.
 
 ---
