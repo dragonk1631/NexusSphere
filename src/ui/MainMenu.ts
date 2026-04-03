@@ -18,8 +18,10 @@ export class MainMenu {
             playDesc: 'Rhythm Game',
             editor: 'EDITOR',
             editorDesc: 'Create Maps',
-            pong: 'PONG',
-            pongDesc: 'Mini Game',
+            ranking: 'RANKING',
+            rankingDesc: 'World Tiers',
+            collection: 'COLLECTION',
+            collectionDesc: 'Your Records',
             shop: 'SHOP',
             shopDesc: 'Items & Skins',
             friends: 'FRIENDS',
@@ -34,8 +36,10 @@ export class MainMenu {
             playDesc: '리듬 게임',
             editor: '에디터',
             editorDesc: '맵 제작',
-            pong: '퐁',
-            pongDesc: '미니 게임',
+            ranking: '랭킹',
+            rankingDesc: '월드 티어',
+            collection: '컬렉션',
+            collectionDesc: '자신의 기록',
             shop: '상점',
             shopDesc: '아이템 및 스킨',
             friends: '친구',
@@ -45,13 +49,15 @@ export class MainMenu {
         },
         ja: {
             title: 'メインメニュー',
-            subTitle: 'アク티비티を選択',
+            subTitle: 'アクティビティを選択',
             play: 'プレイ',
             playDesc: 'リズムゲーム',
             editor: 'エディター',
             editorDesc: 'マップ作成',
-            pong: 'ポン',
-            pongDesc: 'ミニゲーム',
+            ranking: 'ランキング',
+            rankingDesc: 'ワールドティア',
+            collection: 'コレクション',
+            collectionDesc: '自分の記録',
             shop: 'ショップ',
             shopDesc: 'アイテム＆スキン',
             friends: 'フレンド',
@@ -134,7 +140,7 @@ export class MainMenu {
                     -webkit-backdrop-filter: blur(var(--mm-blur));
                     font-weight: 800;
                     font-size: clamp(0.7rem, 1.5vh, 0.9rem);
-                    text-shadow: var(--mm-text-shadow);
+                    text-shadow: 0 2px 10px rgba(0,0,0,0.85); /* HUD Halo v56 */
                     white-space: nowrap;
                     color: white;
                 }
@@ -156,7 +162,7 @@ export class MainMenu {
                     font-size: clamp(0.7rem, 1.5vh, 0.85rem);
                     font-weight: 800;
                     color: rgba(255,255,255,0.85);
-                    text-shadow: var(--mm-text-shadow);
+                    text-shadow: 0 0 12px rgba(0,0,0,1); /* BGM Halo v56 */
                     white-space: nowrap;
                     min-width: clamp(200px, 25vw, 350px);
                     overflow: hidden;
@@ -219,14 +225,17 @@ export class MainMenu {
                 .mm-main-title-text {
                     font-family: 'Black Han Sans', sans-serif; font-size: clamp(2.5rem, 7vh, 4.2rem); font-weight: 900;
                     margin: 0; padding: 0; line-height: 1.1;
-                    background: linear-gradient(to bottom, #ffffff 0%, #e0e7ff 100%);
+                    background: linear-gradient(to bottom, #ffffff 10%, #e0e7ff 100%);
                     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-                    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.85));
+                    -webkit-text-stroke: 1.5px rgba(0,0,0,0.85); /* Strong stroke v55 */
+                    paint-order: stroke fill;
+                    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.85));
                     text-transform: uppercase;
                 }
                 .mm-main-title-sub { 
-                    font-size: clamp(0.7rem, 1.4vh, 0.9rem); color: rgba(255,255,255,0.9); 
-                    letter-spacing: 8px; font-weight: 900; margin-top: 8px; text-transform: uppercase;
+                    font-size: clamp(0.7rem, 1.4vh, 0.9rem); color: rgba(255,255,255,0.95); 
+                    letter-spacing: 12px; font-weight: 900; margin-top: 8px; text-transform: uppercase;
+                    text-shadow: 0 4px 15px rgba(0,0,0,1); /* Subtitle Halo v56 */
                 }
 
                 .mm-panel {
@@ -248,21 +257,30 @@ export class MainMenu {
                     .mm-card-icon { font-size: 1.8rem; }
                     .mm-bottom-nav { height: 90px; padding-bottom: 20px; gap: 40px; }
                 }
-                .mm-center { display: flex; width: 100%; gap: 25px; justify-content: center; }
+                .mm-center { display: flex; width: 100%; gap: 18px; justify-content: center; }
                 .mm-card {
-                    position: relative; flex: 1; aspect-ratio: 1.4 / 1; border-radius: 30px;
+                    position: relative; flex: 1; aspect-ratio: 1.2 / 1; border-radius: 30px;
                     border: 3px solid rgba(255,255,255,0.35); display: flex; flex-direction: column;
-                    align-items: center; justify-content: center; gap: 12px; cursor: pointer; overflow: hidden;
+                    align-items: center; justify-content: center; gap: 8px; cursor: pointer; overflow: hidden;
                     transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
                 }
                 .mm-card-play { background: linear-gradient(135deg, rgba(255,0,110,1), rgba(255,100,50,1)); }
                 .mm-card-editor { background: linear-gradient(135deg, rgba(255,200,0,1), rgba(180,255,0,1)); }
-                .mm-card-pong { background: linear-gradient(135deg, rgba(140,255,0,1), rgba(0,210,255,1)); }
+                .mm-card-ranking { background: linear-gradient(135deg, rgba(255,100,10,1), rgba(255,180,0,1)); }
+                .mm-card-collection { background: linear-gradient(135deg, rgba(140,255,0,1), rgba(0,210,255,1)); }
                 .mm-card-shop { background: linear-gradient(135deg, rgba(0,210,255,1), rgba(120,0,255,1)); }
                 .mm-card:hover { transform: scale(1.06) translateY(-8px); border-color: white; box-shadow: 0 10px 30px rgba(255,255,255,0.2); }
-                .mm-card-icon { font-size: clamp(2rem, 5vh, 2.8rem); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.3)); } /* Restrengthened v51 */
-                .mm-card-label { font-family: 'Black Han Sans', sans-serif; font-size: clamp(0.9rem, 1.8vh, 1.25rem); }
-                .mm-card-sub { font-size: clamp(0.6rem, 1vh, 0.75rem); opacity: 0.8; text-transform: uppercase; font-weight: 800; }
+                .mm-card-icon { font-size: clamp(1.8rem, 4.5vh, 2.6rem); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.4)); }
+                .mm-card-label { 
+                    font-family: 'Black Han Sans', sans-serif; font-size: clamp(0.85rem, 1.7vh, 1.15rem); margin-top: 4px;
+                    -webkit-text-stroke: 0.5px rgba(0,0,0,0.4); /* Thinned v56 */
+                    paint-order: stroke fill;
+                    text-shadow: 0 4px 8px rgba(0,0,0,1);
+                }
+                .mm-card-sub { 
+                    font-size: clamp(0.55rem, 0.9vh, 0.7rem); opacity: 0.9; text-transform: uppercase; font-weight: 800; 
+                    text-shadow: 0 2px 10px rgba(0,0,0,1); /* Sub Halo v56 */
+                }
 
                 .mm-bottom-nav {
                     flex: 0 0 auto; height: clamp(90px, 12vh, 120px); /* Fluid height with strict floor v52 */
@@ -272,8 +290,11 @@ export class MainMenu {
                 }
                 .mm-nav-item { display: flex; flex-direction: column; align-items: center; gap: 12px; cursor: pointer; opacity: 0.75; transition: 0.3s; }
                 .mm-nav-item:hover { opacity: 1; transform: translateY(-8px); }
-                .mm-nav-icon { font-size: clamp(2rem, 5vh, 2.8rem); }
-                .mm-nav-label { font-size: 1rem; font-weight: 900; text-transform: uppercase; }
+                .mm-nav-icon { font-size: clamp(2rem, 5vh, 2.8rem); filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
+                .mm-nav-label { 
+                    font-size: 1rem; font-weight: 900; text-transform: uppercase; 
+                    text-shadow: 0 6px 15px rgba(0,0,0,1); /* Footer Halo v56 */
+                }
 
                 .mm-lang-group { display: flex; gap: 25px; margin-left: 60px; border-left: 2px solid rgba(255,255,255,0.2); padding-left: 60px; }
                 .mm-flag-btn { font-size: 2.5rem; cursor: pointer; opacity: 0.4; transition: 0.3s; }
@@ -337,10 +358,15 @@ export class MainMenu {
                                 <div class="mm-card-label">${t.editor}</div>
                                 <div class="mm-card-sub">${t.editorDesc}</div>
                             </div>
-                            <div class="mm-card mm-card-pong" id="btn-pong">
-                                <div class="mm-card-icon">🎾</div>
-                                <div class="mm-card-label">${t.pong}</div>
-                                <div class="mm-card-sub">${t.pongDesc}</div>
+                            <div class="mm-card mm-card-ranking" id="btn-ranking">
+                                <div class="mm-card-icon">🏆</div>
+                                <div class="mm-card-label">${t.ranking}</div>
+                                <div class="mm-card-sub">${t.rankingDesc}</div>
+                            </div>
+                            <div class="mm-card mm-card-collection" id="btn-collection">
+                                <div class="mm-card-icon">📂</div>
+                                <div class="mm-card-label">${t.collection}</div>
+                                <div class="mm-card-sub">${t.collectionDesc}</div>
                             </div>
                             <div class="mm-card mm-card-shop" id="btn-shop">
                                 <div class="mm-card-icon">🛒</div>
@@ -394,9 +420,11 @@ export class MainMenu {
             this.hideAll();
             this.onStartGame('editor');
         });
-        document.getElementById('btn-pong')?.addEventListener('click', () => {
-            this.hideAll();
-            this.onStartGame('pong');
+        document.getElementById('btn-ranking')?.addEventListener('click', () => {
+            console.log('Ranking clicked');
+        });
+        document.getElementById('btn-collection')?.addEventListener('click', () => {
+            console.log('Collection clicked');
         });
         document.getElementById('btn-settings')?.addEventListener('click', () => {
             this.hideMenuOnly();

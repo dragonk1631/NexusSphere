@@ -3,38 +3,33 @@
 **Category:** UI/UX, Responsive Design, Audio Integration
 
 ## Overview
-Today's deep-dive session transformed the Main Menu from a rigid grid-based interface into a dynamic, **True Centered** premium experience. We focused on achieving perfect visual balance between the persistent HUD and the footer across all aspect ratios, including mobile.
+Today's deep-dive session transformed the Main Menu from a rigid 4-item grid into a dynamic, **5-item Radiant Symmetry** premium experience. We focused on achieving perfect visual balance, expanding activity options, and mastering high-fidelity typography.
 
 ---
 
 ## Key Improvements
 
-### 1. True Vertical Centering (v51)
-We replaced the previous grid-based layout with a sophisticated **Flexbox Content Stack**.
-- **The "Central Content" Wrapper**: The Title Box and Main Panel are now grouped together and anchored to the absolute center of the available space between the Header and Footer.
-- **Cinematic Proportions**: Cards were redesigned with a **1.4 : 1** aspect ratio, and central icon density was restored to **2.8rem** for a more "industrial-grade" high-end density.
-- **Golden Spacing**: Implemented a fixed **50px** gap between the menu title and the panel for a spacious, professional feel.
+### 1. 5-Item Radiant Symmetry Expansion (v54)
+The "Pong" placeholder has been removed, replaced by two core rhythm-gaming pillars: **RANKING** and **COLLECTION**.
+- **Expansion Stack**: The menu now features **PLAY - EDITOR - RANKING - COLLECTION - SHOP**.
+- **Perfect Balance**: The "Ranking" card sits at the absolute center of the viewport, creating a natural focal point.
+- **Aspect Ratio Optimization**: Card proportions were adjusted to **1.2 : 1** and gaps reduced to **18px** to comfortably fit 5 items while maintaining individual presence.
 
-### 2. Critical Mobile Responsiveness (v52)
-To ensure the menu is fully playable and beautiful on mobile, we implemented a series of **Media Query-driven protection rules**.
-- **Automatic Scaling**: On smaller viewports (height < 700px), the panel height, vertical gaps, and title padding automatically scale down.
-- **Footer Stability**: Guaranteed the visibility of settings and language flags on small screens by forcing `flex-shrink: 0` on the navigation bar, preventing it from being pushed off-screen by content.
-- **Vibrancy Restoration**: Restored 100% opacity to card gradients, ensuring the colors remain punchy and "neon" regardless of the background.
+### 2. High-Contrast & Clean Typography (v55 & v56)
+We implemented a sophisticated visibility logic that balances punchy titles with crystal-clear micro-information.
+- **Selective Weighting**: The bold `MAIN MENU` title maintains a **1.5px high-contrast stroke** behind the gradient for maximum impact.
+- **"Halo" Shadow Logic**: Removed clumping outlines from small text (Footer, HUD, Sub-labels). Instead, we added deep, soft **"Halo" shadows (rgba(0,0,0,1))** for a clean, non-destructive contrast that looks premium on any screen resolution.
+- **Airy Information**: Subtitle letter-spacing was increased to **12px** to improve readability and aesthetics.
 
-### 3. Transparency & Vibrancy Swap (v53)
-We "swapped" the transparency relationship between the panels and the background to enhance depth.
-- **Premium Glass Base**: Shifted the Title and Panel backgrounds from "transparent white glass" to **"Solid Dark Glass" (0.45 ~ 0.55 opacity)**. This makes the vibrant cards and white text pop significantly more.
-- **Scene Clarity**: Reduced full-screen vignette and gradient dimming by **50%**. This lets the background scene (and the game's atmosphere) feel more open and transparent, contrasted against the solid, trustworthy UI panels.
-- **High-Definition Edges**: Increased `backdrop-filter` blur to **16px** and sharpened border highlights for that "edge-light" premium finish.
-
-### 4. Seamless BGM Marquee & HUD Integration
-- **Marquee**: Implemented a **Dual-Span** marquee for perfectly seamless BGM filename loops.
-- **Visualizer**: Added a CSS-animated **3-bar visualizer** next to the BGM text to provide rhythmic feedback.
+### 3. True Vertical Centering & Mobile Protection (v51-v53)
+- **Flexbox Stack**: Moved from fixed grid to a flex-centered content wrapper.
+- **Mobile First**: Guarded footer visibility and scaled panel heights for device height < 700px.
+- **Transparency Swap**: Swapped panel/background transparency to create "Solid Dark Glass" bases that make cards pop.
 
 ## Technical Details
 - **File Heavily Refined**: `src/ui/MainMenu.ts`
-- **New Architecture**: Flexbox-centered stack instead of fixed grid.
-- **Responsive Logic**: CSS `clamp()` and Media Queries for height-sensitive scaling.
+- **New Activity Keys**: Added `ranking`, `rankingDesc`, `collection`, and `collectionDesc` across all localizations.
+- **Responsive Logic**: Enhanced CSS `clamp()` and Media Queries for 5-card density.
 
 ---
 *Nexus Sphere Development Team*
