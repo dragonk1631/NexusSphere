@@ -321,32 +321,78 @@ export class MainMenu {
                 
                 /* ── BGM BADGE ── */
                 .mm-bgm-badge {
-                    position: absolute;
-                    bottom: clamp(10px, 2vh, 20px);
-                    left: clamp(10px, 3vw, 40px);
-                    padding: 8px 16px;
-                    background: rgba(0,0,0,0.4);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 12px;
-                    backdrop-filter: blur(8px);
-                    -webkit-backdrop-filter: blur(8px);
-                    display: flex;
+                    display: inline-flex;
                     align-items: center;
+                    justify-content: center;
                     gap: 10px;
-                    font-size: 0.85rem;
-                    font-weight: 700;
-                    color: rgba(255,255,255,0.9);
-                    z-index: 10;
-                    animation: mm-fadeInUp 0.6s 0.4s ease both;
+                    padding: clamp(4px, 1vh, 8px) clamp(12px, 2.5vw, 24px);
+                    background: rgba(255, 255, 255, 0.05); /* Very subtle transparency */
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 999px;
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    font-size: clamp(0.7rem, 1.5vh, 0.85rem);
+                    font-weight: 800;
+                    color: rgba(255,255,255,0.85);
+                    text-shadow: var(--mm-text-shadow);
                     pointer-events: none;
+                    animation: mm-fadeInDown 0.6s 0.2s ease both;
+                    white-space: nowrap;
+                    min-width: clamp(200px, 25vw, 350px); /* Ensure base width for centering */
+                    overflow: hidden;
                 }
                 .mm-bgm-icon {
-                    color: #ff006e;
-                    animation: mm-pulse 2s infinite ease-in-out;
+                    display: none; /* Hide old static icon */
                 }
+                .mm-visualizer {
+                    display: flex;
+                    align-items: flex-end;
+                    gap: 3px;
+                    height: clamp(10px, 1.8vh, 18px);
+                    padding-bottom: 2px;
+                }
+                .mm-vis-bar {
+                    width: 3px;
+                    background: #ff006e;
+                    border-radius: 2px;
+                    animation: mm-vis-jump 0.6s infinite ease-in-out;
+                    box-shadow: 0 0 8px rgba(255, 0, 110, 0.4);
+                }
+                .mm-vis-bar:nth-child(1) { animation-duration: 0.4s; height: 40%; }
+                .mm-vis-bar:nth-child(2) { animation-duration: 0.7s; height: 70%; }
+                .mm-vis-bar:nth-child(3) { animation-duration: 0.5s; height: 55%; }
+                
+                @keyframes mm-vis-jump {
+                    0%, 100% { height: 30%; }
+                    50% { height: 90%; }
+                }
+
                 @keyframes mm-pulse {
                     0%, 100% { transform: scale(1); opacity: 0.8; }
                     50% { transform: scale(1.2); opacity: 1; }
+                }
+
+                /* ── MARQUEE FLOW ── */
+                .mm-bgm-text-wrapper {
+                    flex: 1;
+                    width: clamp(150px, 20vw, 300px);
+                    overflow: hidden;
+                    mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+                    -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+                    display: flex;
+                }
+                .mm-bgm-text-content {
+                    display: flex;
+                    width: max-content;
+                    animation: mm-marquee 18s linear infinite; /* Slower for more natural feel */
+                }
+                .mm-bgm-text-item {
+                    white-space: nowrap;
+                    padding-right: clamp(100px, 15vw, 200px); /* Massive gap so only one is visible */
+                }
+                @keyframes mm-marquee {
+                    0%      { transform: translateX(0); } /* Start immediately */
+                    100%    { transform: translateX(-50%); } 
                 }
 
                 /* ── RESPONSIVE COMPACT ── */
@@ -367,6 +413,22 @@ export class MainMenu {
                 <!-- TOP HUD -->
                 <div class="mm-top-hud">
                     <div class="mm-version-badge">🎮 ${t.version}</div>
+                    
+                    <!-- CENTER BGM BADGE -->
+                    <div class="mm-bgm-badge" id="mm-bgm-container">
+                        <div class="mm-visualizer">
+                            <div class="mm-vis-bar"></div>
+                            <div class="mm-vis-bar"></div>
+                            <div class="mm-vis-bar"></div>
+                        </div>
+                        <div class="mm-bgm-text-wrapper">
+                            <div class="mm-bgm-text-content">
+                                <span class="mm-bgm-text-item mm-bgm-text-target">Loading...</span>
+                                <span class="mm-bgm-text-item mm-bgm-text-target">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mm-hud-right">
                         <div class="mm-currency-badge gold">🪙 1,000</div>
                         <div class="mm-currency-badge gem">💎 50</div>
@@ -432,11 +494,6 @@ export class MainMenu {
                     </div>
                 </div>
 
-                <!-- BGM BADGE -->
-                <div class="mm-bgm-badge" id="mm-bgm-container">
-                    <span class="mm-bgm-icon">♫</span>
-                    <span id="mm-bgm-text">Loading...</span>
-                </div>
 
             </div>
         `;
@@ -490,9 +547,21 @@ export class MainMenu {
 
     private updateBGMText(): void {
         const theme = ThemeManager.getInstance().getCurrentTheme();
-        const textEl = document.getElementById('mm-bgm-text');
-        if (textEl) {
-            textEl.innerText = theme.songTitle || 'Nexus Sphere BGM';
+        const textElements = document.querySelectorAll('.mm-bgm-text-target');
+        if (textElements.length > 0 && theme.bgm) {
+            // Extract filename from the URL path
+            const parts = theme.bgm.split('/');
+            const filename = parts[parts.length - 1];
+            
+            // Populate all items for seamless scrolling
+            textElements.forEach(el => {
+                (el as HTMLElement).innerText = filename;
+            });
+            
+            const container = document.getElementById('mm-bgm-container');
+            if (container) container.title = theme.songTitle || filename;
+        } else if (textElements.length > 0) {
+            textElements.forEach(el => (el as HTMLElement).innerText = 'Nexus Sphere BGM');
         }
     }
 
