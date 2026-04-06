@@ -26,6 +26,14 @@ export class CoreAudioEngine {
     private bgmPlayer: HTMLAudioElement | null = null;
     private bgmSource: MediaElementAudioSourceNode | null = null;
 
+    // Hybrid Mode (MP3 + MIDI)
+    private isHybridMode: boolean = false;
+    private mp3Buffer: AudioBuffer | null = null;
+    private mp3SourceNode: AudioBufferSourceNode | null = null;
+    private mp3GainNode: GainNode;
+    private autoNormalizationGain: number = 1.0;
+    private userMetadataVolume: number = 1.0;
+
     // Internal State
     private isReady: boolean = false;
     private isSoundFontLoaded: boolean = false;
@@ -37,6 +45,10 @@ export class CoreAudioEngine {
         });
         this.mixer = new AudioMixer(this.ctx);
         this.timer = new TimeSyncController(this.ctx);
+
+        // Initialize Hybrid Gain
+        this.mp3GainNode = this.ctx.createGain();
+        this.mixer.connectSource(this.mp3GainNode as any);
 
         AudioEngineLogger.setLevel(LogLevel.INFO);
         AudioEngineLogger.info("Engine Core initialized with 'balanced' latency.");
@@ -117,8 +129,21 @@ export class CoreAudioEngine {
     public async loadMidi(buffer: ArrayBuffer): Promise<void> {
         await this.ensureReady();
 
+        // [CRITICAL FIX] Reset Hybrid State and restore channel volumes
+        this.isHybridMode = false;
+        this.mp3Buffer = null;
+        this.autoNormalizationGain = 1.0;
+        this.userMetadataVolume = 1.0;
+        this.stopMp3();
+        
+        // Restore all midi synth channels (in case they were muted by a previous hybrid song)
+        if (this.synth) {
+            for (let i = 0; i < 16; i++) {
+                this.setChannelVolume(i, 100);
+            }
+        }
+
         // Safe cleanup of legacy sequencer
-        // Safe cleanup of legacy sequencer to prevent resource leakage
         if (this.sequencer) {
             try {
                 this.sequencer.pause();
@@ -160,6 +185,37 @@ export class CoreAudioEngine {
         }
     }
 
+    public async loadHybrid(midiBuffer: ArrayBuffer, mp3Buffer: AudioBuffer): Promise<void> {
+        await this.loadMidi(midiBuffer);
+        this.mp3Buffer = mp3Buffer;
+        this.isHybridMode = true;
+        
+        // AUTOMATED NORMALIZATION (Phase 4)
+        const peakValue = this.scanPeakAmplitude(mp3Buffer);
+        const targetPeak = 0.707; // -3dB
+        this.autoNormalizationGain = peakValue > 0 ? targetPeak / peakValue : 1.0;
+        
+        // Cap the gain to prevent extreme clipping for very quiet tracks
+        if (this.autoNormalizationGain > 3.0) this.autoNormalizationGain = 3.0;
+
+        AudioEngineLogger.info(`Hybrid Engine: Normalized Peak ${peakValue.toFixed(2)} -> Gain x${this.autoNormalizationGain.toFixed(2)}`);
+        this.updateHybridGain();
+    }
+
+    private scanPeakAmplitude(buffer: AudioBuffer): number {
+        let maxPeak = 0;
+        // Scan first 2 channels for absolute peak
+        for (let c = 0; c < Math.min(2, buffer.numberOfChannels); c++) {
+            const data = buffer.getChannelData(c);
+            // Optimization: Skip samples to speed up scan (1 in 50)
+            for (let i = 0; i < data.length; i += 50) {
+                const abs = Math.abs(data[i]);
+                if (abs > maxPeak) maxPeak = abs;
+            }
+        }
+        return maxPeak || 0.1; // Prevent division by zero
+    }
+
     public async play(): Promise<void> {
         if (!this.isSoundFontLoaded) return;
 
@@ -171,7 +227,39 @@ export class CoreAudioEngine {
         const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
         this.timer.resume(seqTime);
         this.stopBGM(true); // PROFESSIONAL: Fade out menu music when MIDI starts
+        
+        if (this.isHybridMode && this.mp3Buffer) {
+            this.startMp3At(seqTime);
+            // Mute all midi synth channels to favor MP3 audio
+            for (let i = 0; i < 16; i++) {
+                this.setChannelVolume(i, 0);
+            }
+        }
+
         this.sequencer?.play();
+    }
+
+    private startMp3At(time: number): void {
+        this.stopMp3();
+        if (!this.mp3Buffer) return;
+
+        this.mp3SourceNode = this.ctx.createBufferSource();
+        this.mp3SourceNode.buffer = this.mp3Buffer;
+        this.mp3SourceNode.playbackRate.value = this.sequencer?.playbackRate || 1;
+        this.mp3SourceNode.connect(this.mp3GainNode);
+        
+        // Start with a small offset to account for sequencer ramp up
+        this.mp3SourceNode.start(0, Math.max(0, time));
+    }
+
+    private stopMp3(): void {
+        if (this.mp3SourceNode) {
+            try {
+                this.mp3SourceNode.stop();
+                this.mp3SourceNode.disconnect();
+            } catch (e) {}
+            this.mp3SourceNode = null;
+        }
     }
 
     /* -------------------------------------------
@@ -267,6 +355,7 @@ export class CoreAudioEngine {
     public pause(): void {
         this.timer.pause(this.sequencer?.playbackRate || 1);
         this.sequencer?.pause();
+        this.stopMp3();
     }
 
     public stop(fullReset: boolean = false): void {
@@ -292,6 +381,12 @@ export class CoreAudioEngine {
             
             AudioEngineLogger.info("Playback stopped and reset.");
         }
+        this.stopMp3();
+        if (fullReset) {
+            this.isHybridMode = false;
+            this.mp3Buffer = null;
+            AudioEngineLogger.info("Hybrid Mode cleared.");
+        }
     }
 
     public stopAllNotes(): void {
@@ -314,11 +409,18 @@ export class CoreAudioEngine {
         }
         const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
         this.timer.seek(time, seqTime);
+
+        if (this.isHybridMode && this.isPlaying()) {
+            this.startMp3At(time);
+        }
     }
 
     public setPlaybackRate(rate: number): void {
         if (this.sequencer) {
             this.sequencer.playbackRate = rate;
+        }
+        if (this.mp3SourceNode) {
+            this.mp3SourceNode.playbackRate.value = rate;
         }
     }
 
@@ -344,6 +446,18 @@ export class CoreAudioEngine {
         if (this.synth) {
             this.synth.controllerChange(channel, 7, volume);
             if (volume === 0) this.stopChannelNotes(channel);
+        }
+    }
+
+    public setHybridVolume(volume: number): void {
+        this.userMetadataVolume = volume;
+        this.updateHybridGain();
+    }
+
+    private updateHybridGain(): void {
+        if (this.mp3GainNode) {
+            const finalGain = this.autoNormalizationGain * this.userMetadataVolume;
+            this.mp3GainNode.gain.setTargetAtTime(finalGain, this.ctx.currentTime, 0.05);
         }
     }
 

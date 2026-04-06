@@ -5,6 +5,7 @@ import { type CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
 import { MenuMusicManager } from '../../../core/audio/MenuMusicManager';
 import { SPEED_OPTIONS, DIFFICULTY_OPTIONS } from '../constants/GameConstants';
 import { computeMenuLayout } from '../renderer/MenuLayout';
+import { AssetLoader } from '../../../core/asset/AssetLoader';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -368,7 +369,21 @@ export class MenuManager {
                 }
 
                 // 4. Prepare Engine
-                await this.audioEngine.loadMidi(buffer);
+                const midiName = currentSong.url.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+                const mp3Path = `assets/audio/mp3/${midiName}.mp3`;
+                const al = AssetLoader.getInstance();
+                
+                if (await al.checkAssetExists(mp3Path)) {
+                    console.log(`[MenuManager] Hybrid Preview detected: ${mp3Path}`);
+                    const mp3Buffer = await al.loadAudio(mp3Path);
+                    await this.audioEngine.loadHybrid(buffer, mp3Buffer);
+                    
+                    // Apply Normalization Volume
+                    const vol = (currentSong as any).volume ?? 1.0;
+                    this.audioEngine.setHybridVolume(vol);
+                } else {
+                    await this.audioEngine.loadMidi(buffer);
+                }
 
                 // 4. ATOMIC UPDATE: Synchronize state switch
                 // We reset time and set MIDI data only when audio is actually ready to emit sound.

@@ -4,6 +4,7 @@ import { type BeatmapData } from '../types/BeatmapTypes';
 import { type TransitionData } from '../types/GameTypes';
 import { type CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
 import { LocalSongStorage } from '../services/LocalSongStorage';
+import { AssetLoader } from '../../../core/asset/AssetLoader';
 
 /**
  * AudioLoader handles MIDI and beatmap asset loading and caching.
@@ -89,14 +90,45 @@ export class AudioLoader {
                 }
             }
 
-            // 2. Beatmap Configuration Check
+            // 2. Hybrid Audio Check (MP3 + MIDI Sync)
             const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+            const mp3Path = `assets/audio/mp3/${midiName}.mp3`;
+            const al = AssetLoader.getInstance();
+            let isHybrid = false;
+            
+            if (await al.checkAssetExists(mp3Path)) {
+                console.log(`[AudioLoader] Hybrid MP3 detected: ${mp3Path}`);
+                isHybrid = true;
+                try {
+                    const mp3Buffer = await al.loadAudio(mp3Path);
+                    const currentMidiBuffer = isTestMode && transitionData ? transitionData.midiBuffer : this.cachedMidi?.buffer;
+                    if (currentMidiBuffer) {
+                        await this.audioEngine.loadHybrid(currentMidiBuffer, mp3Buffer);
+                        
+                        // Apply Normalization Volume
+                        let vol = 1.0;
+                        if (transitionData && (transitionData as any).volume !== undefined) {
+                            vol = (transitionData as any).volume;
+                        } else if (this.beatmapData && (this.beatmapData as any).volume !== undefined) {
+                            vol = (this.beatmapData as any).volume;
+                        }
+                        this.audioEngine.setHybridVolume(vol);
+                        console.log(`[AudioLoader] Hybrid Volume set to: ${vol}`);
+                    }
+                } catch (e) {
+                    console.warn(`[AudioLoader] Failed to load hybrid MP3: ${mp3Path}`, e);
+                }
+            }
 
             // Check LocalStorage First (User Settings Override)
             const safeName = midiName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const localConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
 
-            if (localConfigStr) {
+            // [Logic Fix] For Hybrid songs, we MUST prioritize the server-side generated beatmap
+            // unless the user specifically wants their local edit. 
+            // However, to fix the "0 notes" issue, we only use local if it results in valid notes (later check)
+            // or we just skip local check for Hybrid songs for now.
+            if (localConfigStr && !isHybrid) {
                 try {
                     this.beatmapData = JSON.parse(localConfigStr);
                     console.log(`[AudioLoader] Loaded beatmap config from LocalStorage for ${midiName}`);
@@ -106,7 +138,7 @@ export class AudioLoader {
                 }
             }
 
-            // If no local override, check server
+            // If no local override (or if Hybrid), check server
             if (!this.beatmapData) {
                 const beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
                 try {

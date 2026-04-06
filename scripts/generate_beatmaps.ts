@@ -52,7 +52,8 @@ class NodeMidiParser {
         const bpm = midi.header.tempos[0]?.bpm || 120;
 
         const tracks: GameTrack[] = midi.tracks.map((track: any, trackIndex: number) => {
-            const isDrum = track.channel === 9 ||
+            const channel = track.channel !== undefined ? track.channel : (track.name.toLowerCase().includes('drum') ? 9 : 0);
+            const isDrum = channel === 9 ||
                 track.name.toLowerCase().includes('drum') ||
                 track.name.toLowerCase().includes('percussion');
 
@@ -66,9 +67,10 @@ class NodeMidiParser {
             }
 
             const notes: GameNote[] = track.notes.map((note: any, noteIndex: number) => {
+                const velocity127 = Math.round(note.velocity * 127);
                 const beats = note.time * (bpm / 60);
                 const beatOffset = Math.abs(beats - Math.round(beats));
-                let importance = note.velocity;
+                let importance = velocity127;
 
                 if (beatOffset < 0.1) importance *= 1.3;
                 if (isDrum) importance *= 1.5;
@@ -78,18 +80,18 @@ class NodeMidiParser {
                     time: note.time,
                     midi: note.midi,
                     name: note.name,
-                    velocity: note.velocity,
+                    velocity: velocity127,
                     duration: note.duration,
                     ticks: note.ticks,
                     durationTicks: note.durationTicks,
                     importance,
-                    channel: track.channel
+                    channel: channel
                 };
             });
 
             return {
                 name: track.name || (isDrum ? 'Drums' : `Track ${trackIndex}`),
-                channel: track.channel,
+                channel: channel,
                 originalIndex: trackIndex,
                 isDrum,
                 instrumentFamily,
@@ -113,6 +115,7 @@ class NodeMidiParser {
 // Constants
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const MIDI_DIR = path.join(PROJECT_ROOT, 'public/assets/audio/midi');
+const GENERATED_MIDI_DIR = path.join(PROJECT_ROOT, 'public/assets/audio/generated_midi');
 const OUTPUT_DIR = path.join(PROJECT_ROOT, 'public/assets/data/beatmaps');
 
 async function main() {
@@ -126,21 +129,31 @@ async function main() {
         console.log('Created output directory.');
     }
 
-    // Get all MIDI files
-    const files = fs.readdirSync(MIDI_DIR).filter((file: string) => file.toLowerCase().endsWith('.mid'));
-    console.log(`Found ${files.length} MIDI files.`);
+    // Get all MIDI files from both folders
+    const officialFiles = fs.readdirSync(MIDI_DIR)
+        .filter((file: string) => file.toLowerCase().endsWith('.mid'))
+        .map(f => ({ name: f, path: path.join(MIDI_DIR, f) }));
+    
+    const generatedFiles = fs.existsSync(GENERATED_MIDI_DIR) 
+        ? fs.readdirSync(GENERATED_MIDI_DIR)
+            .filter((file: string) => file.toLowerCase().endsWith('.mid'))
+            .map(f => ({ name: f, path: path.join(GENERATED_MIDI_DIR, f) }))
+        : [];
+
+    const allFiles = [...officialFiles, ...generatedFiles];
+    console.log(`Found ${allFiles.length} MIDI files total (${officialFiles.length} official, ${generatedFiles.length} generated).`);
 
     const parser = new NodeMidiParser();
     let successCount = 0;
     let failCount = 0;
 
-    for (const file of files) {
-        const filePath = path.join(MIDI_DIR, file);
-        const fileName = path.basename(file, path.extname(file)); // No extension
+    for (const fileObj of allFiles) {
+        const filePath = fileObj.path;
+        const fileName = path.basename(fileObj.name, path.extname(fileObj.name)); // No extension
         const outputJsonPath = path.join(OUTPUT_DIR, `${fileName}.json`);
 
         try {
-            console.log(`Processing: ${file}`);
+            console.log(`Processing: ${fileObj.name}`);
 
             // Read file
             const buffer = fs.readFileSync(filePath);
@@ -153,7 +166,7 @@ async function main() {
             const originalIndex = MelodyAnalyzer.findMelodyTrack(parsedMidi as any);
 
             if (originalIndex === -1) {
-                console.warn(`[WARNING] No melody track found for ${file}. Skipping.`);
+                console.warn(`[WARNING] No melody track found for ${fileObj.name}. Skipping.`);
                 failCount++;
                 continue;
             }
@@ -161,7 +174,7 @@ async function main() {
             // Find the track to get its channel
             const track = parsedMidi.tracks.find(t => t.originalIndex === originalIndex);
             if (!track) {
-                console.warn(`[WARNING] Track index ${originalIndex} not found in parsed data for ${file}.`);
+                console.warn(`[WARNING] Track index ${originalIndex} not found in parsed data for ${fileObj.name}.`);
                 failCount++;
                 continue;
             }
@@ -183,7 +196,7 @@ async function main() {
             successCount++;
 
         } catch (e) {
-            console.error(`[ERROR] Failed to process ${file}:`, e);
+            console.error(`[ERROR] Failed to process ${fileObj.name}:`, e);
             failCount++;
         }
     }

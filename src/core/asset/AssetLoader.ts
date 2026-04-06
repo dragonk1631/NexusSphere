@@ -59,6 +59,23 @@ export class AssetLoader {
     }
 
     /**
+     * Checks if a specific asset (e.g. mp3) exists at the given path.
+     */
+    public async checkAssetExists(path: string): Promise<boolean> {
+        const resolvedPath = resolveAssetPath(path);
+        try {
+            const response = await fetch(resolvedPath, { method: 'HEAD' });
+            if (!response.ok) return false;
+
+            // [CRITICAL FIX] Ensure it is actually an audio file, not an HTML fallback
+            const contentType = response.headers.get('content-type');
+            return !!contentType && contentType.startsWith('audio/');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
      * 여러 에셋을 한꺼번에 로드합니다.
      */
     public async loadBatch(imagePaths: string[], audioPaths: string[] = []): Promise<void> {

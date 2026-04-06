@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nexussphere Audio Decoder</title>
+</head>
+<body>
+    <h1>Audio Decoder Host</h1>
+    <div id="status">Waiting for command...</div>
+    <script>
+        async function decodeAndAnalyze(url) {
+            document.getElementById('status').innerText = "Loading: " + url;
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            
+            document.getElementById('status').innerText = "Analyzing: " + url;
+            
+            // Basic Onset Detection (Energy Peaks)
+            const channelData = audioBuffer.getChannelData(0);
+            const sampleRate = audioBuffer.sampleRate;
+            const fftSize = 1024;
+            const hopSize = 512;
+            const onsets = [];
+            
+            // Simple energy-based detection across frequency bands
+            // (In a real implementation, we'd use a more sophisticated FFT approach)
+            for (let i = 0; i < channelData.length - fftSize; i += hopSize) {
+                let energy = 0;
+                for (let j = 0; j < fftSize; j++) {
+                    energy += Math.abs(channelData[i + j]);
+                }
+                energy /= fftSize;
+                
+                if (energy > 0.15) { // Threshold
+                    onsets.push({
+                        time: i / sampleRate,
+                        amplitude: energy
+                    });
+                }
+            }
+            
+            document.getElementById('status').innerText = "Done.";
+            return {
+                duration: audioBuffer.duration,
+                sampleRate: audioBuffer.sampleRate,
+                onsets: onsets
+            };
+        }
+
+        // Expose to window for subagent access
+        window.decodeAndAnalyze = decodeAndAnalyze;
+    </script>
+</body>
+</html>

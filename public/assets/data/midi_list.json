@@ -1,590 +1,554 @@
 [
   {
+    "name": "너의 의미 (MP3)",
+    "url": "assets/audio/generated_midi/너의 의미.mid",
+    "bpm": 120,
+    "duration": 174
+  },
+  {
+    "name": "너의 의미2 (MP3)",
+    "url": "assets/audio/generated_midi/너의 의미2.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
     "name": "백조의호수",
     "url": "assets/audio/midi/백조의호수.mid",
     "bpm": 84,
-    "duration": 181,
-    "noteCount": 2551
+    "duration": 181
+  },
+  {
+    "name": "想いは廻る (MP3)",
+    "url": "assets/audio/generated_midi/想いは廻る.mid",
+    "bpm": 120,
+    "duration": 0
   },
   {
     "name": "에어울프",
     "url": "assets/audio/midi/에어울프.mid",
     "bpm": 135,
-    "duration": 70,
-    "noteCount": 1668
+    "duration": 70
   },
   {
     "name": "터키행진곡",
     "url": "assets/audio/midi/터키행진곡.mid",
     "bpm": 255,
-    "duration": 46,
-    "noteCount": 1198
+    "duration": 46
   },
   {
     "name": "Ballade Pour Adeline",
     "url": "assets/audio/midi/ballade-pour-adeline.mid",
     "bpm": 68,
-    "duration": 162,
-    "noteCount": 3065
+    "duration": 162
   },
   {
     "name": "Begining",
     "url": "assets/audio/midi/begining.mid",
     "bpm": 230,
-    "duration": 127,
-    "noteCount": 3907
+    "duration": 127
   },
   {
     "name": "BL Popntwin Level7",
     "url": "assets/audio/midi/BL_popntwin_level7.mid",
     "bpm": 195,
-    "duration": 108,
-    "noteCount": 3066
+    "duration": 108
   },
   {
     "name": "Bloody Tears",
     "url": "assets/audio/midi/Bloody_Tears.mid",
     "bpm": 113,
-    "duration": 119,
-    "noteCount": 1752
+    "duration": 119
   },
   {
     "name": "BublBobl RK",
     "url": "assets/audio/midi/BublBobl_RK.mid",
     "bpm": 130,
-    "duration": 96,
-    "noteCount": 1078
+    "duration": 96
   },
   {
     "name": "Cammy S",
     "url": "assets/audio/midi/Cammy_s.mid",
     "bpm": 108,
-    "duration": 54,
-    "noteCount": 1516
+    "duration": 54
   },
   {
     "name": "Ccoverworld2",
     "url": "assets/audio/midi/ccoverworld2.mid",
     "bpm": 90,
-    "duration": 59,
-    "noteCount": 692
+    "duration": 59
   },
   {
     "name": "Corazonazul Ff6boss",
     "url": "assets/audio/midi/corazonazul_ff6boss.mid",
     "bpm": 110,
-    "duration": 50,
-    "noteCount": 2496
+    "duration": 50
   },
   {
     "name": "CV1 Vampire Killer",
     "url": "assets/audio/midi/CV1-_Vampire_Killer.mid",
     "bpm": 127,
-    "duration": 91,
-    "noteCount": 2316
+    "duration": 91
   },
   {
     "name": "Cv5stg7c",
     "url": "assets/audio/midi/cv5stg7c.mid",
     "bpm": 91,
-    "duration": 90,
-    "noteCount": 2087
+    "duration": 90
   },
   {
     "name": "DanceofGold",
     "url": "assets/audio/midi/DanceofGold.mid",
     "bpm": 133,
-    "duration": 105,
-    "noteCount": 656
+    "duration": 105
   },
   {
     "name": "DarkWoods",
     "url": "assets/audio/midi/DarkWoods.mid",
     "bpm": 120,
-    "duration": 55,
-    "noteCount": 1052
+    "duration": 55
   },
   {
     "name": "DOOM Robert C. Prince E1M1 At Doom's Gate",
     "url": "assets/audio/midi/DOOM - Robert C. Prince - E1M1 - At Doom's Gate.mid",
     "bpm": 95,
-    "duration": 95,
-    "noteCount": 2332
+    "duration": 95
   },
   {
     "name": "Dw3 Bt1",
     "url": "assets/audio/midi/dw3_bt1.mid",
     "bpm": 120,
-    "duration": 71,
-    "noteCount": 2549
+    "duration": 71
   },
   {
     "name": "Dw5 Town",
     "url": "assets/audio/midi/dw5_town.mid",
     "bpm": 120,
-    "duration": 66,
-    "noteCount": 562
+    "duration": 66
   },
   {
     "name": "ENIX Dragon Warrior 3 ( Overworld BGM )",
     "url": "assets/audio/midi/ENIX_-_Dragon_Warrior_3_(_Overworld_BGM_).mid",
     "bpm": 120,
-    "duration": 144,
-    "noteCount": 3574
+    "duration": 144
   },
   {
     "name": "Exryu",
     "url": "assets/audio/midi/exryu.mid",
     "bpm": 146,
-    "duration": 186,
-    "noteCount": 7267
+    "duration": 186
   },
   {
     "name": "Fe3 Main",
     "url": "assets/audio/midi/fe3_main.mid",
     "bpm": 120,
-    "duration": 208,
-    "noteCount": 4338
+    "duration": 208
   },
   {
     "name": "Ff2bsbtl",
     "url": "assets/audio/midi/ff2bsbtl.mid",
     "bpm": 170,
-    "duration": 127,
-    "noteCount": 2328
+    "duration": 127
   },
   {
     "name": "FF6 The Fierce Battle Xg",
     "url": "assets/audio/midi/FF6_The_Fierce_Battle_Xg.mid",
     "bpm": 166,
-    "duration": 136,
-    "noteCount": 4204
+    "duration": 136
   },
   {
     "name": "Ff6 Zozo V2",
     "url": "assets/audio/midi/ff6_zozo_v2.mid",
     "bpm": 115,
-    "duration": 121,
-    "noteCount": 1609
+    "duration": 121
   },
   {
     "name": "Fft 211",
     "url": "assets/audio/midi/fft_211.mid",
     "bpm": 161,
-    "duration": 203,
-    "noteCount": 5195
+    "duration": 203
   },
   {
     "name": "Fft Apoplexy",
     "url": "assets/audio/midi/fft_apoplexy.mid",
     "bpm": 160,
-    "duration": 237,
-    "noteCount": 8438
+    "duration": 237
   },
   {
     "name": "Fftactics Midi Chapel",
     "url": "assets/audio/midi/fftactics-midi_Chapel.mid",
     "bpm": 220,
-    "duration": 69,
-    "noteCount": 3546
+    "duration": 69
   },
   {
     "name": "Fighting",
     "url": "assets/audio/midi/Fighting.mid",
     "bpm": 185,
-    "duration": 65,
-    "noteCount": 2911
+    "duration": 65
   },
   {
     "name": "GokujyoParodius Stage1",
     "url": "assets/audio/midi/GokujyoParodius_Stage1.mid",
     "bpm": 206,
-    "duration": 103,
-    "noteCount": 2549
+    "duration": 103
   },
   {
     "name": "GokujyoParodius Stage2",
     "url": "assets/audio/midi/GokujyoParodius_Stage2.mid",
     "bpm": 144,
-    "duration": 90,
-    "noteCount": 2674
+    "duration": 90
   },
   {
     "name": "GokujyoParodius Stage4",
     "url": "assets/audio/midi/GokujyoParodius_Stage4.mid",
     "bpm": 168,
-    "duration": 73,
-    "noteCount": 2723
+    "duration": 73
   },
   {
     "name": "GokujyoParodius StageSpecial",
     "url": "assets/audio/midi/GokujyoParodius_StageSpecial.mid",
     "bpm": 60,
-    "duration": 162,
-    "noteCount": 4014
+    "duration": 162
   },
   {
     "name": "Gtgm",
     "url": "assets/audio/midi/gtgm.mid",
     "bpm": 207,
-    "duration": 268,
-    "noteCount": 7637
+    "duration": 268
   },
   {
     "name": "Human1gm",
     "url": "assets/audio/midi/Human1gm.mid",
     "bpm": 100,
-    "duration": 148,
-    "noteCount": 4588
+    "duration": 148
   },
   {
     "name": "Human2gm",
     "url": "assets/audio/midi/Human2gm.mid",
     "bpm": 120,
-    "duration": 124,
-    "noteCount": 3090
+    "duration": 124
   },
   {
     "name": "HyruleCastlePunkRockRemix",
     "url": "assets/audio/midi/HyruleCastlePunkRockRemix.mid",
     "bpm": 170,
-    "duration": 138,
-    "noteCount": 4519
+    "duration": 138
   },
   {
     "name": "IoGtown",
     "url": "assets/audio/midi/IoGtown.mid",
     "bpm": 110,
-    "duration": 196,
-    "noteCount": 2414
+    "duration": 196
   },
   {
     "name": "Kefka",
     "url": "assets/audio/midi/kefka.mid",
     "bpm": 155,
-    "duration": 146,
-    "noteCount": 2876
+    "duration": 146
   },
   {
     "name": "Ken2",
     "url": "assets/audio/midi/Ken2.mid",
     "bpm": 120,
-    "duration": 65,
-    "noteCount": 1735
+    "duration": 65
+  },
+  {
+    "name": "KiminoEgao1 (MP3)",
+    "url": "assets/audio/generated_midi/KiminoEgao1.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "KiminoEgao2 (MP3)",
+    "url": "assets/audio/generated_midi/KiminoEgao2.mid",
+    "bpm": 120,
+    "duration": 0
   },
   {
     "name": "Livealive Killingfield",
     "url": "assets/audio/midi/livealive-killingfield.mid",
     "bpm": 140,
-    "duration": 106,
-    "noteCount": 7855
+    "duration": 106
   },
   {
     "name": "Melodies Of Life",
     "url": "assets/audio/midi/melodies_of_life.mid",
     "bpm": 68,
-    "duration": 345,
-    "noteCount": 4318
+    "duration": 345
   },
   {
     "name": "Olrox",
     "url": "assets/audio/midi/olrox.mid",
     "bpm": 82,
-    "duration": 142,
-    "noteCount": 2104
+    "duration": 142
   },
   {
     "name": "One Winged Angel",
     "url": "assets/audio/midi/One-Winged_Angel.mid",
     "bpm": 122,
-    "duration": 247,
-    "noteCount": 6606
+    "duration": 247
   },
   {
     "name": "Overworld",
     "url": "assets/audio/midi/overworld.mid",
     "bpm": 110,
-    "duration": 61,
-    "noteCount": 1336
+    "duration": 61
   },
   {
     "name": "Parodius Twinbees Theme",
     "url": "assets/audio/midi/Parodius_-_Twinbees_Theme.mid",
     "bpm": 160,
-    "duration": 42,
-    "noteCount": 1200
+    "duration": 42
   },
   {
     "name": "Pirates Of The Caribbean He's A Pirate (1)",
     "url": "assets/audio/midi/Pirates of the Caribbean - He's a Pirate (1).mid",
     "bpm": 200,
-    "duration": 78,
-    "noteCount": 1453
+    "duration": 78
   },
   {
     "name": "PNTB L41",
     "url": "assets/audio/midi/PNTB_l41.mid",
     "bpm": 120,
-    "duration": 90,
-    "noteCount": 3183
+    "duration": 90
   },
   {
     "name": "Popntwinbee Staffroll",
     "url": "assets/audio/midi/popntwinbee-staffroll.mid",
     "bpm": 190,
-    "duration": 100,
-    "noteCount": 2233
+    "duration": 100
   },
   {
     "name": "Popntwinbee Stage3",
     "url": "assets/audio/midi/popntwinbee-stage3.mid",
     "bpm": 170,
-    "duration": 136,
-    "noteCount": 4326
+    "duration": 136
   },
   {
     "name": "Popntwinbee Stage6",
     "url": "assets/audio/midi/popntwinbee-stage6.mid",
     "bpm": 130,
-    "duration": 126,
-    "noteCount": 2908
+    "duration": 126
   },
   {
     "name": "Rage Against The Machine Killing In The Name Of",
     "url": "assets/audio/midi/Rage Against the Machine - Killing in the Name Of.mid",
     "bpm": 118,
-    "duration": 310,
-    "noteCount": 6245
+    "duration": 310
   },
   {
     "name": "Requiem 02 [unknown]",
     "url": "assets/audio/midi/requiem_02_[unknown].mid",
     "bpm": 150,
-    "duration": 108,
-    "noteCount": 5309
+    "duration": 108
   },
   {
     "name": "Ryusfa2mix",
     "url": "assets/audio/midi/ryusfa2mix.MID",
     "bpm": 120,
-    "duration": 227,
-    "noteCount": 8101
+    "duration": 227
   },
   {
     "name": "Save Them",
     "url": "assets/audio/midi/Save_Them.mid",
     "bpm": 168,
-    "duration": 114,
-    "noteCount": 4377
+    "duration": 114
   },
   {
     "name": "Sfa2ken",
     "url": "assets/audio/midi/sfa2ken.mid",
     "bpm": 156,
-    "duration": 175,
-    "noteCount": 4388
+    "duration": 175
   },
   {
     "name": "Sfa2saku",
     "url": "assets/audio/midi/sfa2saku.mid",
     "bpm": 138,
-    "duration": 103,
-    "noteCount": 2798
+    "duration": 103
   },
   {
     "name": "Sfa2zang",
     "url": "assets/audio/midi/sfa2zang.mid",
     "bpm": 128,
-    "duration": 278,
-    "noteCount": 7000
+    "duration": 278
   },
   {
     "name": "SMWTHEME",
     "url": "assets/audio/midi/SMWTHEME.mid",
     "bpm": 67,
-    "duration": 144,
-    "noteCount": 2080
+    "duration": 144
   },
   {
     "name": "Som Maintheme",
     "url": "assets/audio/midi/som_maintheme.mid",
     "bpm": 250,
-    "duration": 92,
-    "noteCount": 2011
+    "duration": 92
   },
   {
     "name": "Starcraft Terran Theme 03 MIDI",
     "url": "assets/audio/midi/Starcraft - Terran Theme 03 MIDI.mid",
     "bpm": 130,
-    "duration": 265,
-    "noteCount": 3485
+    "duration": 265
   },
   {
     "name": "Sti1",
     "url": "assets/audio/midi/sti1.mid",
     "bpm": 105,
-    "duration": 162,
-    "noteCount": 4895
+    "duration": 162
   },
   {
     "name": "Still More Fighting",
     "url": "assets/audio/midi/Still_More_Fighting.mid",
     "bpm": 169,
-    "duration": 196,
-    "noteCount": 6621
+    "duration": 196
   },
   {
     "name": "Super Mario World Pops Remix",
     "url": "assets/audio/midi/super_mario_world_pops_remix.mid",
     "bpm": 120,
-    "duration": 113,
-    "noteCount": 4161
+    "duration": 113
   },
   {
     "name": "Supertwinbeestage1",
     "url": "assets/audio/midi/supertwinbeestage1.mid",
     "bpm": 162,
-    "duration": 114,
-    "noteCount": 3587
+    "duration": 114
   },
   {
     "name": "T Ogre15",
     "url": "assets/audio/midi/t_ogre15.mid",
     "bpm": 77,
-    "duration": 85,
-    "noteCount": 1280
+    "duration": 85
   },
   {
     "name": "Terranigma Terranigma Underworld",
     "url": "assets/audio/midi/Terranigma_-_Terranigma_-_Underworld.mid",
     "bpm": 239,
-    "duration": 106,
-    "noteCount": 1025
+    "duration": 106
   },
   {
     "name": "Teso 01",
     "url": "assets/audio/midi/teso_01.mid",
     "bpm": 126,
-    "duration": 278,
-    "noteCount": 4279
+    "duration": 278
   },
   {
     "name": "Teso 02",
     "url": "assets/audio/midi/teso_02.mid",
     "bpm": 116,
-    "duration": 205,
-    "noteCount": 2684
+    "duration": 205
   },
   {
     "name": "test",
     "url": "assets/audio/midi/test.mid",
     "bpm": 68,
-    "duration": 162,
-    "noteCount": 3065
+    "duration": 162
   },
   {
     "name": "Theme Of Simon",
     "url": "assets/audio/midi/Theme_of_Simon.mid",
     "bpm": 120,
-    "duration": 89,
-    "noteCount": 1445
+    "duration": 89
   },
   {
     "name": "Trisection 1",
     "url": "assets/audio/midi/Trisection-1.mid",
     "bpm": 260,
-    "duration": 165,
-    "noteCount": 6077
+    "duration": 165
   },
   {
     "name": "Videogame Tune Ghouls And Ghosts Level 1",
     "url": "assets/audio/midi/Videogame_Tune_-_Ghouls_and_Ghosts_-_Level_1.mid",
     "bpm": 170,
-    "duration": 86,
-    "noteCount": 958
+    "duration": 86
   },
   {
     "name": "VP BTL1",
     "url": "assets/audio/midi/VP_BTL1.mid",
     "bpm": 120,
-    "duration": 104,
-    "noteCount": 3131
+    "duration": 104
   },
   {
     "name": "Waopen",
     "url": "assets/audio/midi/waopen.mid",
     "bpm": 210,
-    "duration": 128,
-    "noteCount": 1765
+    "duration": 128
   },
   {
     "name": "Wicked Child 1",
     "url": "assets/audio/midi/Wicked_Child_1.mid",
     "bpm": 180,
-    "duration": 113,
-    "noteCount": 2742
+    "duration": 113
   },
   {
     "name": "Wicked Child DMC",
     "url": "assets/audio/midi/Wicked_Child_DMC.mid",
     "bpm": 160,
-    "duration": 206,
-    "noteCount": 5214
+    "duration": 206
   },
   {
     "name": "Wins1",
     "url": "assets/audio/midi/wins1.mid",
     "bpm": 72,
-    "duration": 312,
-    "noteCount": 2198
+    "duration": 312
   },
   {
     "name": "World1 1 Allstars",
     "url": "assets/audio/midi/World1-1_Allstars.mid",
     "bpm": 145,
-    "duration": 56,
-    "noteCount": 1337
+    "duration": 56
+  },
+  {
+    "name": "Your Smiling Face (MP3)",
+    "url": "assets/audio/generated_midi/Your Smiling Face.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "Your Smiling Face2 (MP3)",
+    "url": "assets/audio/generated_midi/Your Smiling Face2.mid",
+    "bpm": 120,
+    "duration": 0
   },
   {
     "name": "Z3boss",
     "url": "assets/audio/midi/z3boss.mid",
     "bpm": 92,
-    "duration": 35,
-    "noteCount": 1285
+    "duration": 35
   },
   {
     "name": "Z3lightw",
     "url": "assets/audio/midi/z3lightw.mid",
     "bpm": 136,
-    "duration": 78,
-    "noteCount": 1270
+    "duration": 78
   },
   {
     "name": "Z3LightWorldDungeon RockRemix",
     "url": "assets/audio/midi/Z3LightWorldDungeon_RockRemix.mid",
     "bpm": 153,
-    "duration": 115,
-    "noteCount": 2592
+    "duration": 115
   },
   {
     "name": "Zb Smw Rockroll2",
     "url": "assets/audio/midi/zb_smw_rockroll2.mid",
     "bpm": 135,
-    "duration": 137,
-    "noteCount": 5264
+    "duration": 137
   },
   {
     "name": "Zenkusa PopnTwinbee Level2",
     "url": "assets/audio/midi/Zenkusa_-_PopnTwinbee_Level2.mid",
     "bpm": 146,
-    "duration": 80,
-    "noteCount": 3170
+    "duration": 80
   },
   {
     "name": "Zenkusa PopnTwinbee Level5",
     "url": "assets/audio/midi/Zenkusa_-_PopnTwinbee_Level5.mid",
     "bpm": 166,
-    "duration": 98,
-    "noteCount": 2866
+    "duration": 98
+  },
+  {
+    "name": "そばにいるから (MP3)",
+    "url": "assets/audio/generated_midi/そばにいるから.mid",
+    "bpm": 120,
+    "duration": 0
   }
 ]
