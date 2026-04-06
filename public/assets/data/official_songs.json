@@ -32,21 +32,21 @@
     "url": "assets/audio/midi/begining.mid",
     "bpm": 230,
     "difficulty": 6,
-    "duration": 128
+    "duration": 127
   },
   {
     "name": "BL Popntwin Level7",
     "url": "assets/audio/midi/BL_popntwin_level7.mid",
     "bpm": 195,
     "difficulty": 6,
-    "duration": 109
+    "duration": 108
   },
   {
     "name": "Bloody Tears",
     "url": "assets/audio/midi/Bloody_Tears.mid",
     "bpm": 113,
     "difficulty": 6,
-    "duration": 120
+    "duration": 119
   },
   {
     "name": "BublBobl RK",
@@ -74,7 +74,7 @@
     "url": "assets/audio/midi/corazonazul_ff6boss.mid",
     "bpm": 110,
     "difficulty": 6,
-    "duration": 51
+    "duration": 50
   },
   {
     "name": "CV1 Vampire Killer",
@@ -88,7 +88,7 @@
     "url": "assets/audio/midi/cv5stg7c.mid",
     "bpm": 91,
     "difficulty": 6,
-    "duration": 91
+    "duration": 90
   },
   {
     "name": "DanceofGold",
@@ -109,7 +109,7 @@
     "url": "assets/audio/midi/DOOM - Robert C. Prince - E1M1 - At Doom's Gate.mid",
     "bpm": 95,
     "difficulty": 6,
-    "duration": 96
+    "duration": 95
   },
   {
     "name": "Dw3 Bt1",
@@ -137,21 +137,21 @@
     "url": "assets/audio/midi/exryu.mid",
     "bpm": 146,
     "difficulty": 6,
-    "duration": 187
+    "duration": 186
   },
   {
     "name": "Fe3 Main",
     "url": "assets/audio/midi/fe3_main.mid",
     "bpm": 120,
     "difficulty": 6,
-    "duration": 209
+    "duration": 208
   },
   {
     "name": "Ff2bsbtl",
     "url": "assets/audio/midi/ff2bsbtl.mid",
     "bpm": 170,
     "difficulty": 6,
-    "duration": 128
+    "duration": 127
   },
   {
     "name": "FF6 The Fierce Battle Xg",
@@ -165,7 +165,7 @@
     "url": "assets/audio/midi/ff6_zozo_v2.mid",
     "bpm": 115,
     "difficulty": 6,
-    "duration": 122
+    "duration": 121
   },
   {
     "name": "Fft 211",
@@ -196,83 +196,6 @@
     "duration": 65
   },
   {
-    "name": "GM01",
-    "url": "assets/audio/midi/GM01.mid",
-    "bpm": 72,
-    "difficulty": 6,
-    "duration": 156
-  },
-  {
-    "name": "GM02",
-    "url": "assets/audio/midi/GM02.mid",
-    "bpm": 160,
-    "difficulty": 6,
-    "duration": 351
-  },
-  {
-    "name": "GM03",
-    "url": "assets/audio/midi/GM03.mid",
-    "bpm": 140,
-    "difficulty": 6,
-    "duration": 86
-  },
-  {
-    "name": "GM04",
-    "url": "assets/audio/midi/GM04.mid",
-    "bpm": 104,
-    "difficulty": 6,
-    "duration": 333
-  },
-  {
-    "name": "GM05",
-    "url": "assets/audio/midi/GM05.mid",
-    "bpm": 158,
-    "difficulty": 6,
-    "duration": 200
-  },
-  {
-    "name": "GM06",
-    "url": "assets/audio/midi/GM06.mid",
-    "bpm": 120,
-    "difficulty": 6,
-    "duration": 91
-  },
-  {
-    "name": "GM07",
-    "url": "assets/audio/midi/GM07.mid",
-    "bpm": 140,
-    "difficulty": 6,
-    "duration": 14
-  },
-  {
-    "name": "GM08",
-    "url": "assets/audio/midi/GM08.mid",
-    "bpm": 104,
-    "difficulty": 6,
-    "duration": 333
-  },
-  {
-    "name": "GM09",
-    "url": "assets/audio/midi/GM09.mid",
-    "bpm": 113,
-    "difficulty": 6,
-    "duration": 35
-  },
-  {
-    "name": "GM10",
-    "url": "assets/audio/midi/GM10.mid",
-    "bpm": 135,
-    "difficulty": 6,
-    "duration": 114
-  },
-  {
-    "name": "GM11",
-    "url": "assets/audio/midi/GM11.mid",
-    "bpm": 104,
-    "difficulty": 6,
-    "duration": 333
-  },
-  {
     "name": "GokujyoParodius Stage1",
     "url": "assets/audio/midi/GokujyoParodius_Stage1.mid",
     "bpm": 206,
@@ -284,7 +207,7 @@
     "url": "assets/audio/midi/GokujyoParodius_Stage2.mid",
     "bpm": 144,
     "difficulty": 6,
-    "duration": 91
+    "duration": 90
   },
   {
     "name": "GokujyoParodius Stage4",
@@ -298,7 +221,7 @@
     "url": "assets/audio/midi/GokujyoParodius_StageSpecial.mid",
     "bpm": 60,
     "difficulty": 6,
-    "duration": 163
+    "duration": 162
   },
   {
     "name": "Gtgm",
@@ -319,21 +242,21 @@
     "url": "assets/audio/midi/Human2gm.mid",
     "bpm": 120,
     "difficulty": 6,
-    "duration": 125
+    "duration": 124
   },
   {
     "name": "HyruleCastlePunkRockRemix",
     "url": "assets/audio/midi/HyruleCastlePunkRockRemix.mid",
     "bpm": 170,
     "difficulty": 6,
-    "duration": 139
+    "duration": 138
   },
   {
     "name": "IoGtown",
     "url": "assets/audio/midi/IoGtown.mid",
     "bpm": 110,
     "difficulty": 6,
-    "duration": 197
+    "duration": 196
   },
   {
     "name": "Kefka",
@@ -354,35 +277,35 @@
     "url": "assets/audio/midi/livealive-killingfield.mid",
     "bpm": 140,
     "difficulty": 6,
-    "duration": 107
+    "duration": 106
   },
   {
     "name": "Melodies Of Life",
     "url": "assets/audio/midi/melodies_of_life.mid",
     "bpm": 68,
     "difficulty": 6,
-    "duration": 346
+    "duration": 345
   },
   {
     "name": "Olrox",
     "url": "assets/audio/midi/olrox.mid",
     "bpm": 82,
     "difficulty": 6,
-    "duration": 143
+    "duration": 142
   },
   {
     "name": "One Winged Angel",
     "url": "assets/audio/midi/One-Winged_Angel.mid",
     "bpm": 122,
     "difficulty": 6,
-    "duration": 248
+    "duration": 247
   },
   {
     "name": "Overworld",
     "url": "assets/audio/midi/overworld.mid",
     "bpm": 110,
     "difficulty": 6,
-    "duration": 62
+    "duration": 61
   },
   {
     "name": "Parodius Twinbees Theme",
@@ -410,7 +333,7 @@
     "url": "assets/audio/midi/popntwinbee-staffroll.mid",
     "bpm": 190,
     "difficulty": 6,
-    "duration": 101
+    "duration": 100
   },
   {
     "name": "Popntwinbee Stage3",
@@ -431,7 +354,7 @@
     "url": "assets/audio/midi/Rage Against the Machine - Killing in the Name Of.mid",
     "bpm": 118,
     "difficulty": 6,
-    "duration": 311
+    "duration": 310
   },
   {
     "name": "Requiem 02 [unknown]",
@@ -445,21 +368,21 @@
     "url": "assets/audio/midi/ryusfa2mix.MID",
     "bpm": 120,
     "difficulty": 6,
-    "duration": 228
+    "duration": 227
   },
   {
     "name": "Save Them",
     "url": "assets/audio/midi/Save_Them.mid",
     "bpm": 168,
     "difficulty": 6,
-    "duration": 115
+    "duration": 114
   },
   {
     "name": "Sfa2ken",
     "url": "assets/audio/midi/sfa2ken.mid",
     "bpm": 156,
     "difficulty": 6,
-    "duration": 176
+    "duration": 175
   },
   {
     "name": "Sfa2saku",
@@ -480,126 +403,14 @@
     "url": "assets/audio/midi/SMWTHEME.mid",
     "bpm": 67,
     "difficulty": 6,
-    "duration": 145
+    "duration": 144
   },
   {
     "name": "Som Maintheme",
     "url": "assets/audio/midi/som_maintheme.mid",
     "bpm": 250,
     "difficulty": 6,
-    "duration": 93
-  },
-  {
-    "name": "Stage00000",
-    "url": "assets/audio/midi/Stage00000.mid",
-    "bpm": 160,
-    "difficulty": 6,
-    "duration": 207
-  },
-  {
-    "name": "Stage00001",
-    "url": "assets/audio/midi/Stage00001.mid",
-    "bpm": 132,
-    "difficulty": 6,
-    "duration": 150
-  },
-  {
-    "name": "Stage00002",
-    "url": "assets/audio/midi/Stage00002.mid",
-    "bpm": 80,
-    "difficulty": 6,
-    "duration": 333
-  },
-  {
-    "name": "Stage00003",
-    "url": "assets/audio/midi/Stage00003.mid",
-    "bpm": 136,
-    "difficulty": 6,
-    "duration": 265
-  },
-  {
-    "name": "Stage00004",
-    "url": "assets/audio/midi/Stage00004.mid",
-    "bpm": 122,
-    "difficulty": 6,
-    "duration": 142
-  },
-  {
-    "name": "Stage00005",
-    "url": "assets/audio/midi/Stage00005.mid",
-    "bpm": 117,
-    "difficulty": 6,
-    "duration": 296
-  },
-  {
-    "name": "Stage00006",
-    "url": "assets/audio/midi/Stage00006.mid",
-    "bpm": 140,
-    "difficulty": 6,
-    "duration": 247
-  },
-  {
-    "name": "Stage00007",
-    "url": "assets/audio/midi/Stage00007.mid",
-    "bpm": 98,
-    "difficulty": 6,
-    "duration": 366
-  },
-  {
-    "name": "Stage00008",
-    "url": "assets/audio/midi/Stage00008.mid",
-    "bpm": 136,
-    "difficulty": 6,
-    "duration": 198
-  },
-  {
-    "name": "Stage00009",
-    "url": "assets/audio/midi/Stage00009.mid",
-    "bpm": 140,
-    "difficulty": 6,
-    "duration": 319
-  },
-  {
-    "name": "Stage00010",
-    "url": "assets/audio/midi/Stage00010.mid",
-    "bpm": 106,
-    "difficulty": 6,
-    "duration": 191
-  },
-  {
-    "name": "Stage00011",
-    "url": "assets/audio/midi/Stage00011.mid",
-    "bpm": 101,
-    "difficulty": 6,
-    "duration": 295
-  },
-  {
-    "name": "Stage00012",
-    "url": "assets/audio/midi/Stage00012.mid",
-    "bpm": 110,
-    "difficulty": 6,
-    "duration": 358
-  },
-  {
-    "name": "Stage00013",
-    "url": "assets/audio/midi/stage00013.mid",
-    "bpm": 146,
-    "difficulty": 6,
-    "duration": 237
-  },
-  {
-    "name": "Stage00014",
-    "url": "assets/audio/midi/stage00014.mid",
-    "bpm": 72,
-    "difficulty": 6,
-    "duration": 320
-  },
-  {
-    "name": "Stage00015",
-    "url": "assets/audio/midi/stage00015.mid",
-    "bpm": 116,
-    "difficulty": 6,
-    "duration": 131
+    "duration": 92
   },
   {
     "name": "Starcraft Terran Theme 03 MIDI",
@@ -634,7 +445,7 @@
     "url": "assets/audio/midi/supertwinbeestage1.mid",
     "bpm": 162,
     "difficulty": 6,
-    "duration": 115
+    "duration": 114
   },
   {
     "name": "T Ogre15",
@@ -648,14 +459,14 @@
     "url": "assets/audio/midi/Terranigma_-_Terranigma_-_Underworld.mid",
     "bpm": 239,
     "difficulty": 6,
-    "duration": 107
+    "duration": 106
   },
   {
     "name": "Teso 01",
     "url": "assets/audio/midi/teso_01.mid",
     "bpm": 126,
     "difficulty": 6,
-    "duration": 279
+    "duration": 278
   },
   {
     "name": "Teso 02",
@@ -665,18 +476,25 @@
     "duration": 205
   },
   {
+    "name": "test",
+    "url": "assets/audio/midi/test.mid",
+    "bpm": 68,
+    "difficulty": 6,
+    "duration": 162
+  },
+  {
     "name": "Theme Of Simon",
     "url": "assets/audio/midi/Theme_of_Simon.mid",
     "bpm": 120,
     "difficulty": 6,
-    "duration": 90
+    "duration": 89
   },
   {
     "name": "Trisection 1",
     "url": "assets/audio/midi/Trisection-1.mid",
     "bpm": 260,
     "difficulty": 6,
-    "duration": 166
+    "duration": 165
   },
   {
     "name": "Videogame Tune Ghouls And Ghosts Level 1",
@@ -704,7 +522,7 @@
     "url": "assets/audio/midi/Wicked_Child_1.mid",
     "bpm": 180,
     "difficulty": 6,
-    "duration": 114
+    "duration": 113
   },
   {
     "name": "Wicked Child DMC",
@@ -725,14 +543,14 @@
     "url": "assets/audio/midi/World1-1_Allstars.mid",
     "bpm": 145,
     "difficulty": 6,
-    "duration": 57
+    "duration": 56
   },
   {
     "name": "Z3boss",
     "url": "assets/audio/midi/z3boss.mid",
     "bpm": 92,
     "difficulty": 6,
-    "duration": 36
+    "duration": 35
   },
   {
     "name": "Z3lightw",
@@ -767,6 +585,6 @@
     "url": "assets/audio/midi/Zenkusa_-_PopnTwinbee_Level5.mid",
     "bpm": 166,
     "difficulty": 6,
-    "duration": 99
+    "duration": 98
   }
 ]
