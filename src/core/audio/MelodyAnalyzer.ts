@@ -147,12 +147,14 @@ export class MelodyAnalyzer {
 
             this.computeScore(stats);
 
-            // IGNORE DRUMS & PERCUSSION completely for melody analysis
-            if (stats.isDrum || stats.instrumentFamily.includes('percussion') || stats.instrumentFamily.includes('drum')) {
-                return;
+            // IGNORE DRUMS & PERCUSSION for melody analysis sorting, but KEEP them in the pool
+            if (!stats.isDrum && !stats.instrumentFamily.includes('percussion') && !stats.instrumentFamily.includes('drum')) {
+                analyzedChannels.push(stats);
+            } else {
+                // Still push drums for drum ranking, but tag them
+                stats.isDrum = true;
+                analyzedChannels.push(stats);
             }
-
-            analyzedChannels.push(stats);
         });
 
         // 3.5. First Principle: "Most Notes = Likely Melody" (User Request)
