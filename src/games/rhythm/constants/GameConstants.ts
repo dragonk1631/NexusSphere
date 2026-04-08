@@ -16,7 +16,7 @@ export const JUDGMENT_WINDOWS = {
 
 export const SPEED_OPTIONS = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0] as const;
 
-export const DIFFICULTY_OPTIONS = ['EASY', 'NORMAL', 'HARD'] as const;
+export const DIFFICULTY_OPTIONS = ['EASY', 'NORMAL', 'HARD', 'EXTREME'] as const;
 
 export const HUD_PALETTES: Record<string, {
     hpPanel: string;

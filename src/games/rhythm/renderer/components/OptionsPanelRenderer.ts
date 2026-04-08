@@ -20,7 +20,7 @@ export class OptionsPanelRenderer {
             if (diff === 'EASY') return '#2ecc71';   // Green
             if (diff === 'NORMAL') return '#3498db'; // Blue
             if (diff === 'HARD') return '#e74c3c';   // Red
-            if (diff === 'EXPERT') return '#9b59b6'; // Purple
+            if (diff === 'EXTREME') return '#ff0055'; // Deep Pink / Neon Fusion
             return '#c8d6e5';
         };
 

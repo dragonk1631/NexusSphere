@@ -29,6 +29,17 @@ export class NoteFactory {
         measureConfig: [number, number][] | null = null
     ): VisualNote[] {
         const ppq = midi.ppq;
+        const isAiGenerated = midi.tracks.some(t => t.name?.toLowerCase().includes('main gameplay'));
+
+        // Stage 1 Difficulty Shift for AI-generated songs
+        let effectiveDifficulty = difficulty;
+        if (isAiGenerated) {
+            console.log(`[NoteFactory] AI-Generated MIDI detected. Applying difficulty shift...`);
+            if (difficulty === 'EXTREME') effectiveDifficulty = 'HARD';
+            else if (difficulty === 'HARD') effectiveDifficulty = 'NORMAL';
+            else if (difficulty === 'NORMAL') effectiveDifficulty = 'NORMAL'; // NORMAL now matches HARD's timing
+            else effectiveDifficulty = 'EASY'; // Default for AI Easy
+        }
 
         // 1. Convert measureConfig array to Map if available
         const measureMap = new Map<number, number>();
@@ -124,7 +135,7 @@ export class NoteFactory {
         // 2. Collapse Chords BASED ON QUANTIZED TICKS (The Fix for jittery MIDI)
         const collapsed: QuantizedNote[] = [];
         const seenCounts = new Map<string, number>();
-        const maxLimit = (difficulty === 'HARD') ? 2 : 1;
+        const maxLimit = (effectiveDifficulty === 'HARD') ? 2 : 1;
 
         // EASY Mode Throttle: Scale minimum gap based on BPM
         let easyMinGap = midi.ppq / 2; // Default 1/8 note
@@ -135,9 +146,12 @@ export class NoteFactory {
         }
 
         let lastAcceptedTick = -99999;
+        const beatDurationMs = 60000 / midi.bpm;
+        const holdThresholdMs = beatDurationMs * 0.75;
 
         quantized.forEach(n => {
-            if (difficulty === 'EASY') {
+            if (effectiveDifficulty === 'EASY') {
+                // Standard EASY Throttle: Scale minimum gap based on BPM
                 // Drop notes that are too fast
                 // IMPORTANT: Do NOT drop notes that are strictly simultaneous (gap = 0).
                 const tickDiff = n.quantizedStartTick - lastAcceptedTick;
@@ -146,8 +160,14 @@ export class NoteFactory {
                 }
             }
 
-            // EASY mode: strictly 1 note per tick across ALL channels to guarantee no chords
-            const key = difficulty === 'EASY'
+            // [NEW] AI-NORMAL: Melody Only + Basic Rhythm Guard
+            if (isAiGenerated && difficulty === 'NORMAL') {
+                // Skip Drums (MIDI < 60 are typically Kick/Snare in our transcription)
+                if (n.midi && n.midi < 60) return;
+            }
+
+            // EASY mode (and AI-NORMAL): strictly 1 note per tick across ALL channels to guarantee no chords
+            const key = (effectiveDifficulty === 'EASY' || (isAiGenerated && difficulty === 'NORMAL'))
                 ? `GLOBAL_${n.quantizedStartTick}`
                 : `${n.channel}_${n.quantizedStartTick}`;
 
@@ -162,19 +182,25 @@ export class NoteFactory {
         // 3. Apply Time Correction (Sync Fix)
         RhythmQuantizer.applyTimeCorrection(collapsed, midi);
 
-        // Pre-calculate isHold so PatternAnalyzer and LaneAllocator know about holds
-        const beatDurationMs = 60000 / midi.bpm;
-        const holdThresholdMs = beatDurationMs * 0.75; // Increased threshold
-
         const preparedNotes = collapsed.map(n => {
-            const durationMs = n.duration * 1000;
-            const isHold = durationMs >= holdThresholdMs;
+            let durationMs = n.duration * 1000;
+            let isHold = durationMs >= holdThresholdMs;
+
+            // [NEW] AI-NORMAL Transformer: Convert ~50% of holds to TAPs while keeping timing
+            if (isAiGenerated && difficulty === 'NORMAL' && isHold) {
+                const isOnQuarterBeat = n.quantizedStartTick % midi.ppq === 0;
+                if (!isOnQuarterBeat) {
+                    // Convert to TAP: Maintain timing but remove hold requirement
+                    isHold = false;
+                    durationMs = 80; // Standard tap duration
+                }
+            }
 
             return {
                 ...n,
                 durationMs: durationMs,
                 isHold: isHold,
-                endTick: n.ticks + n.durationTicks,
+                endTick: n.ticks + (isHold ? n.durationTicks : Math.round((80 / 1000) * (midi.ppq * midi.bpm / 60))), 
                 isHolding: false,
                 accumulatedHoldTime: 0,
                 type: isHold ? 'HOLD' : 'TAP',
@@ -184,7 +210,7 @@ export class NoteFactory {
         });
 
         const patterns = PatternAnalyzer.analyze(preparedNotes as any[]);
-        let finalResult = LaneAllocator.assignLanes(patterns, laneCount, difficulty);
+        let finalResult = LaneAllocator.assignLanes(patterns, laneCount, effectiveDifficulty);
         
         // 4. [NEW] Trim Hand Conflicts
         // Ensure no long note overlaps with a subsequent note on the same hand.

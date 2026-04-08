@@ -289,7 +289,11 @@ export class HUDRenderer {
 
     private renderGameInfo(ctx: CanvasRenderingContext2D, state: HUDRenderState): void {
         const lineStr = state.keyMode ? state.keyMode.toString() : '6';
-        const modeStr = state.difficulty ? state.difficulty.substring(0, 2).toUpperCase() : 'NM';
+        let modeStr = 'NM';
+        if (state.difficulty) {
+            if (state.difficulty === 'EXTREME') modeStr = 'EX';
+            else modeStr = state.difficulty.substring(0, 2).toUpperCase();
+        }
         const speedStr = state.speed ? `x${state.speed.toFixed(1)}` : 'x1.0';
         
         const isMobile = state.isMobile;
