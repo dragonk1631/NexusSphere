@@ -88,43 +88,41 @@ async function main() {
             const { bpm, drums, melody } = data;
             console.log(`  BPM: ${bpm} | Drums: ${drums.length} | Melody: ${melody.length}`);
 
-            // Build MIDI
+            // Build Unified MIDI
             const midi = new Midi();
             midi.header.setTempo(Math.round(bpm));
 
-            // --- Lead Vocal (Channel 0) ---
-            const vt = midi.addTrack();
-            vt.name = 'Lead Vocal';
-            vt.channel = 0;
-            vt.instrument.number = 1;
-            melody.forEach((n, i) => {
-                // Pitch shape: E4-B4 melodic range
-                const pitch = 64 + Math.round(Math.sin(i * 0.35) * 5 + Math.cos(i * 0.11) * 3);
-                vt.addNote({
-                    midi: Math.max(48, Math.min(84, pitch)),
-                    time: n.time,
-                    duration: 0.18,
-                    velocity: Math.min(0.95, 0.45 + n.energy * 0.50)
-                });
-            });
+            // --- Main Gameplay Track (Channel 0 for direct processing) ---
+            const mainTrack = midi.addTrack();
+            mainTrack.name = 'Main Gameplay';
+            mainTrack.channel = 0;
+            mainTrack.instrument.number = 0; // Piano-ish base
 
-            // --- Main Drums (Channel 9) ---
-            const dt = midi.addTrack();
-            dt.name = 'Main Drums';
-            dt.channel = 9;
+            // 1. Add Drums (as short TAP notes)
             drums.forEach((n) => {
-                // Use the type from analyzer: kick=36, snare=38, etc.
-                let midiNote = 36; // Default Kick
+                let midiNote = 36; // Kick
                 if (n.type === 'snare') {
-                    // Randomize between Snare (38) and Electric Snare (40) for variety
                     midiNote = (n.time * 100) % 2 < 1 ? 38 : 40;
                 }
 
-                dt.addNote({
+                mainTrack.addNote({
                     midi: midiNote,
                     time: n.time,
-                    duration: 0.08, // Shorter duration for drums
+                    duration: 0.08, // Very short = TAP
                     velocity: Math.min(0.98, 0.60 + n.energy * 0.38)
+                });
+            });
+
+            // 2. Add Melody/Vocals (as long HOLD notes)
+            melody.forEach((n, i) => {
+                // Pitch variation for melody: F4 to C5 range (65-72)
+                const pitch = 65 + Math.round(Math.sin(i * 0.35) * 4 + Math.cos(i * 0.11) * 3);
+                
+                mainTrack.addNote({
+                    midi: Math.max(64, Math.min(84, pitch)),
+                    time: n.time,
+                    duration: 0.55, // Longer = HOLD
+                    velocity: Math.min(0.95, 0.45 + n.energy * 0.50)
                 });
             });
 
