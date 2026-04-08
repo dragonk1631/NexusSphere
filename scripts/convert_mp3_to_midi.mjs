@@ -112,14 +112,19 @@ async function main() {
             const dt = midi.addTrack();
             dt.name = 'Main Drums';
             dt.channel = 9;
-            drums.forEach((n, i) => {
-                // Strong beats → Kick (C2=36), weaker → Snare (D2=38)
-                const isKick = n.energy > 0.55 || i % 2 === 0;
+            drums.forEach((n) => {
+                // Use the type from analyzer: kick=36, snare=38, etc.
+                let midiNote = 36; // Default Kick
+                if (n.type === 'snare') {
+                    // Randomize between Snare (38) and Electric Snare (40) for variety
+                    midiNote = (n.time * 100) % 2 < 1 ? 38 : 40;
+                }
+
                 dt.addNote({
-                    midi: isKick ? 36 : 38,
+                    midi: midiNote,
                     time: n.time,
-                    duration: 0.10,
-                    velocity: Math.min(0.95, 0.55 + n.energy * 0.40)
+                    duration: 0.08, // Shorter duration for drums
+                    velocity: Math.min(0.98, 0.60 + n.energy * 0.38)
                 });
             });
 
