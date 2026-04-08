@@ -21,4 +21,10 @@ dist-ssr
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
+# AI / ML Local Cache
+pretrained_models/
+**/spleeter_out/
+**/demucs_out/
+test_bp.py
+out.json
+out2.json

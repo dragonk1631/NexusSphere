@@ -34,8 +34,10 @@ function analyzeWithLibrosa(mp3Path) {
                 return;
             }
             try {
-                // Remove BOM if present (Windows PowerShell pipe quirk)
-                const clean = stdout.replace(/^\uFEFF/, '').trim();
+                // Remove BOM and any AI debug messages printed to stdout
+                const startIdx = stdout.indexOf('{');
+                if (startIdx === -1) throw new Error("No JSON payload found inside script output.");
+                const clean = stdout.substring(startIdx).trim();
                 resolve(JSON.parse(clean));
             } catch (e) {
                 reject(new Error(`JSON parse failed: ${e.message}\nRaw: ${stdout.slice(0, 200)}`));
@@ -114,15 +116,16 @@ async function main() {
             });
 
             // 2. Add Melody/Vocals (as long HOLD notes)
-            melody.forEach((n, i) => {
-                // Pitch variation for melody: F4 to C5 range (65-72)
-                const pitch = 65 + Math.round(Math.sin(i * 0.35) * 4 + Math.cos(i * 0.11) * 3);
+            melody.forEach((n) => {
+                // Real pitch from Spotify Basic-Pitch!
+                // Bounded faintly between 60(C4) and 86(D6) for lane UI playability.
+                const pitch = Math.max(60, Math.min(86, n.pitch || 72));
                 
                 mainTrack.addNote({
-                    midi: Math.max(64, Math.min(84, pitch)),
+                    midi: pitch,
                     time: n.time,
-                    duration: 0.55, // Longer = HOLD
-                    velocity: Math.min(0.95, 0.45 + n.energy * 0.50)
+                    duration: n.duration, // Dynamic duration from Spotify Basic-Pitch
+                    velocity: Math.min(0.95, Math.max(0.4, n.energy * 0.8)) // Natural human velocity
                 });
             });
 

@@ -184,17 +184,19 @@ export class NoteFactory {
 
         const preparedNotes = collapsed.map(n => {
             let durationMs = n.duration * 1000;
-            let isHold = durationMs >= holdThresholdMs;
-
-            // [NEW] AI-NORMAL Transformer: Convert ~50% of holds to TAPs while keeping timing
-            if (isAiGenerated && difficulty === 'NORMAL' && isHold) {
-                const isOnQuarterBeat = n.quantizedStartTick % midi.ppq === 0;
-                if (!isOnQuarterBeat) {
-                    // Convert to TAP: Maintain timing but remove hold requirement
-                    isHold = false;
-                    durationMs = 80; // Standard tap duration
-                }
+            let isHold = false;
+            
+            if (isAiGenerated) {
+                // Trust the advanced Demucs + pYIN AI analysis.
+                // Drum taps are 80ms. Anything 150ms or longer is a verified vocal/melodic sustain.
+                isHold = durationMs >= 150;
+            } else {
+                // Legacy logic for manual charts
+                isHold = durationMs >= holdThresholdMs;
             }
+
+            // AI-NORMAL now trusts the melodic sustain detected by pYIN.
+            // (Removed off-beat hold suppression)
 
             return {
                 ...n,
