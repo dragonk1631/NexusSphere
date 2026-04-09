@@ -138,7 +138,7 @@ def analyze(mp3_path):
         finally:
             sys.stdout = original_stdout
         
-        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.3) ---
+        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.4) ---
         class VocalFidelityRefiner:
             def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120):
                 self.notes = sorted(notes, key=lambda x: x[0])
@@ -165,90 +165,94 @@ def analyze(mp3_path):
                     s_c, e_c = max(0, s_t + self.LATENCY_OFFSET), max(0, e_t + self.LATENCY_OFFSET)
                     if e_c <= s_c: continue
                     if self.get_local_ratio(s_t) > 0.11:
-                        filtered.append([s_c, e_c, int(pitch), float(energy)])
+                        filtered.append({"start": s_c, "end": e_c, "pitch": int(pitch), "energy": float(energy), "segments": [[s_c, e_c, int(pitch)]]})
                 
                 if not filtered: return []
 
-                # 2. Sequential Segmentation
-                segmented = []
-                current = []
-                for i in range(len(filtered)):
-                    n = filtered[i]
-                    if not current:
-                        current.append(n)
+                # 2. ELASTIC BRIDGE PASS: Merge ±1 semitone fragments (fix scattering)
+                # We group notes into "Breath Phrases"
+                phrases = []
+                for n in filtered:
+                    if not phrases:
+                        phrases.append(n)
                         continue
-                    prev = current[-1]
-                    gap = n[0] - prev[1]
-                    p_diff = abs(n[2] - prev[2])
                     
-                    is_melodic_run = False
-                    if p_diff == 1 and i + 1 < len(filtered):
-                        next_n = filtered[i+1]
-                        if (n[2] - prev[2]) == (next_n[2] - n[2]): is_melodic_run = True
+                    prev = phrases[-1]
+                    gap = n["start"] - prev["end"]
+                    # Compare against the LAST segment added to the phrase to allow slides (60->61->62)
+                    last_pitch = prev["segments"][-1][2]
+                    p_diff = abs(n["pitch"] - last_pitch)
                     
-                    is_same = p_diff == 0
-                    is_vibrato = (p_diff == 1 and not is_melodic_run and (n[1]-n[0]) < self.STABILITY_TIME)
-                    
-                    if gap < 0.15 and (is_same or is_vibrato):
-                        current.append(n)
+                    # Elastic Bridge Logic: Merge if close in time and pitch (vibrato/expressive/slide)
+                    if p_diff <= 1 and gap < 0.4:
+                        prev["end"] = max(prev["end"], n["end"])
+                        prev["energy"] = (prev["energy"] + n["energy"]) / 2
+                        prev["segments"].extend(n["segments"])
                     else:
-                        segmented.append(self.consolidate(current))
-                        current = [n]
-                if current:
-                    segmented.append(self.consolidate(current))
+                        phrases.append(n)
 
-                # 3. BRIDGE PASS: Merge same-pitch fragments if gap is small (fix breath split)
-                bridged = []
-                for s in segmented:
-                    if not bridged:
-                        bridged.append(s)
+                # 3. MODAL REALIGNMENT & GHOST PURGE
+                realigned = []
+                for p in phrases:
+                    duration = p["end"] - p["start"]
+                    # GHOST PURGE: Remove tiny artifacts that might disrupt the flow
+                    if duration < 0.06: continue
+                    
+                    # Re-calculate Modal Pitch for the entire phrase for stability
+                    all_segment_pitches = []
+                    for s_start, s_end, s_pitch in p["segments"]:
+                        # Weight by duration
+                        weight = int((s_end - s_start) * 100) + 1
+                        all_segment_pitches.extend([s_pitch] * weight)
+                    
+                    if all_segment_pitches:
+                        final_pitch = Counter(all_segment_pitches).most_common(1)[0][0]
+                    else:
+                        final_pitch = p["pitch"]
+
+                    realigned.append({
+                        "time": round(float(p["start"]), 4),
+                        "duration": round(float(duration), 4),
+                        "pitch": int(final_pitch),
+                        "energy": round(float(p["energy"]), 4)
+                    })
+
+                # 4. FINAL PHRASE MERGE: Combine adjacent realigned notes with same pitch
+                merged = []
+                for r in realigned:
+                    if not merged:
+                        merged.append(r)
                         continue
-                    prev = bridged[-1]
-                    # Check gap: use 350ms for VERY robust hold note consolidation
-                    gap = s['time'] - (prev['time'] + prev['duration'])
-                    if s['pitch'] == prev['pitch'] and gap < 0.35:
-                        # Bridge!
-                        prev['duration'] = round(float(s['time'] + s['duration'] - prev['time']), 4)
-                        prev['energy'] = round(float((prev['energy'] + s['energy']) / 2), 4)
+                    prev = merged[-1]
+                    gap = r['time'] - (prev['time'] + prev['duration'])
+                    if r['pitch'] == prev['pitch'] and gap < 0.2:
+                        prev['duration'] = round(float(r['time'] + r['duration'] - prev['time']), 4)
+                        prev['energy'] = round((prev['energy'] + r['energy']) / 2, 4)
                     else:
-                        bridged.append(s)
+                        merged.append(r)
 
-                # 4. STRICT MONOPHONIC PASS: Truncate overlaps (No Polyphony)
+                # 5. STRICT MONOPHONIC PASS: Truncate overlaps
                 final = []
-                epsilon = 0.001 # Small epsilon to prevent precision-related overlap triggers
-                for s in bridged:
+                epsilon = 0.001
+                for s in merged:
                     if not final:
                         final.append(s)
                         continue
                     
                     prev = final[-1]
                     prev_end = prev['time'] + prev['duration']
-                    
-                    # If current starts before previous ends (with epsilon), truncate previous
                     if s['time'] < (prev_end - epsilon):
-                        new_duration = s['time'] - prev['time']
-                        if new_duration > 0.03:
-                            prev['duration'] = round(float(new_duration), 4)
+                        new_dur = s['time'] - prev['time']
+                        if new_dur > 0.03:
+                            prev['duration'] = round(float(new_dur), 4)
                         else:
                             final.pop()
                             if not final:
                                 final.append(s)
                                 continue
-                    
                     final.append(s)
 
                 return final
-
-            def consolidate(self, segment):
-                pitches = [n[2] for n in segment]
-                modal_pitch = Counter(pitches).most_common(1)[0][0]
-                avg_energy = sum(n[3] for n in segment) / len(segment)
-                return {
-                    "time": round(float(segment[0][0]), 4),
-                    "duration": round(float(segment[-1][1] - segment[0][0]), 4),
-                    "pitch": modal_pitch,
-                    "energy": round(avg_energy, 4)
-                }
 
         # Times corresponding to RMS frames for gating
         rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
