@@ -127,23 +127,25 @@ def analyze(mp3_path):
         sys.stdout = io.StringIO()
         try:
             target_audio = vocals_path if os.path.exists(vocals_path) else mp3_abspath
-            # Tuning for HIGH PRECISION to undo previous "stuttering" issues
+            # Tuning for HIGH FIDELITY: Lower thresholds for better coverage,
+            # using our Energy-Ratio gate to prevent false positives.
             _, _, note_events = predict(
                 target_audio,
-                onset_threshold=0.55,   # Higher for better onset precision
-                frame_threshold=0.40,   # Stricter stability
-                minimum_note_length=150 # Increase minimum phrase fragment
+                onset_threshold=0.48,   # Improved sensitivity
+                frame_threshold=0.35,   # Catch soft/breathy starts
+                minimum_note_length=100 # Catch faster melodic phrases
             )
         finally:
             sys.stdout = original_stdout
         
-        # --- 6.1 Restoration & Stabilization Refiner (Vibrato-Aware) ---
-        class VocalRestorationRefiner:
+        # --- 6.1 Transcription Sync & Fidelity Refiner (v2) ---
+        class VocalFidelityRefiner:
             def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames):
                 self.notes = sorted(notes, key=lambda x: x[0])
                 self.v_rms = audio_rms_v
                 self.t_rms = audio_rms_t
                 self.ts = ts_frames
+                self.LATENCY_OFFSET = -0.25 # -250ms global sync correction
             
             def get_local_ratio(self, t):
                 idx = np.argmin(np.abs(self.ts - t))
@@ -152,35 +154,30 @@ def analyze(mp3_path):
             def refine(self):
                 if not self.notes: return []
                 
-                # 1. Energy-Ratio Filter: Remove bleed in instrumental sections
-                # If the vocal stem energy is < 12% of the original track, it's bleed.
+                # 1. Sync Correction & Energy-Ratio Gating
                 filtered_notes = []
                 for n in self.notes:
-                    start_t, end_t, pitch, _, _ = n
-                    ratio = self.get_local_ratio(start_t)
-                    if ratio > 0.12: # Bleed detection threshold
-                        filtered_notes.append(list(n))
+                    start_t, end_t, pitch, energy, _ = n
+                    # Apply sync correction
+                    start_corr = max(0, start_t + self.LATENCY_OFFSET)
+                    end_corr = max(0, end_t + self.LATENCY_OFFSET)
+                    
+                    if end_corr <= start_corr: continue
+                    
+                    ratio = self.get_local_ratio(start_t) # Check original audio time for energy
+                    if ratio > 0.11: # Stable bleed filter
+                        filtered_notes.append([start_corr, end_corr, pitch, energy])
                 
                 if not filtered_notes: return []
 
-                # 2. Monophonic Conflict Resolution
-                unique_notes = []
-                for n in filtered_notes:
-                    if not unique_notes:
-                        unique_notes.append(n)
-                        continue
-                    prev = unique_notes[-1]
-                    if n[0] < prev[1]: # Overlap
-                        if n[3] > prev[3]: unique_notes[-1] = n # Keep higher energy
-                    else:
-                        unique_notes.append(n)
-
-                # 3. Vibrato-Aware Contiguity Merging
-                # Merge if pitch difference is within ±1 semitone (vibrato jitter)
+                # 2. Granular Melodic Segmentation (Fixing Over-Smoothing)
+                # Keep fast melodic changes (legato) while merging jitter (vibrato).
                 stabilized = []
                 current_segment = []
                 
-                for n in unique_notes:
+                STABILITY_TIME = 0.12 # 120ms: Threshold to distinguish note change from vibrato
+                
+                for n in filtered_notes:
                     if not current_segment:
                         current_segment.append(n)
                         continue
@@ -189,11 +186,17 @@ def analyze(mp3_path):
                     gap = n[0] - prev[1]
                     pitch_diff = abs(int(n[2]) - int(prev[2]))
                     
-                    # If pitch is close and gap is small, it's part of the same vocal phrase
-                    if pitch_diff <= 1 and gap < 0.2:
+                    # Merge Logic (Vibrato-Aware Only):
+                    # - If pitch is identical, merge.
+                    # - If pitch is +/- 1 semitone but duration is very short (< STABILITY_TIME), merge (vibrato).
+                    # - If pitch changes and stays for > STABILITY_TIME, it's a NEW NOTE (melodic run).
+                    is_same_pitch = pitch_diff == 0
+                    is_short_jitter = (pitch_diff == 1 and (n[1] - n[0]) < STABILITY_TIME)
+                    
+                    if gap < 0.15 and (is_same_pitch or is_short_jitter):
                         current_segment.append(n)
                     else:
-                        # Finalize previous segment
+                        # Finalize segment with Modal Pitch
                         stabilized.append(self.consolidate(current_segment))
                         current_segment = [n]
                 
@@ -203,20 +206,12 @@ def analyze(mp3_path):
                 return stabilized
 
             def consolidate(self, segment):
-                """Converts a jittery phrase segment into a single stable hold note."""
-                start = segment[0][0]
-                end = segment[-1][1]
-                
-                # Modal Pitch: find the most frequent pitch to represent the stable phrase
                 pitches = [int(n[2]) for n in segment]
                 modal_pitch = Counter(pitches).most_common(1)[0][0]
-                
-                # Weighted Energy
                 avg_energy = sum(n[3] for n in segment) / len(segment)
-                
                 return {
-                    "time": round(float(start), 4),
-                    "duration": round(float(end - start), 4),
+                    "time": round(float(segment[0][0]), 4),
+                    "duration": round(float(segment[-1][1] - segment[0][0]), 4),
                     "pitch": int(modal_pitch),
                     "energy": round(float(avg_energy), 4)
                 }
@@ -224,10 +219,10 @@ def analyze(mp3_path):
         # Times corresponding to RMS frames for gating
         rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
         
-        refiner = VocalRestorationRefiner(note_events, vocal_rms, total_rms, rms_times)
+        refiner = VocalFidelityRefiner(note_events, vocal_rms, total_rms, rms_times)
         melody_data = refiner.refine()
         
-        print(f"  [AI] Vocal Restoration complete: {len(melody_data)} stable melodic phrases.", file=sys.stderr)
+        print(f"  [AI] Vocal Fidelity Pass complete: {len(melody_data)} precise melodic segments.", file=sys.stderr)
         
     except Exception as e:
         import traceback
