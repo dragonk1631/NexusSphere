@@ -138,7 +138,7 @@ def analyze(mp3_path):
         finally:
             sys.stdout = original_stdout
         
-        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.2) ---
+        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.3) ---
         class VocalFidelityRefiner:
             def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120):
                 self.notes = sorted(notes, key=lambda x: x[0])
@@ -148,8 +148,6 @@ def analyze(mp3_path):
                 self.bpm = bpm
                 self.LATENCY_OFFSET = -0.25
                 
-                # Dynamic Stability: Shorter in fast songs to catch 16th notes
-                # 120ms at 120 BPM, approx 80ms at 180 BPM
                 bpm_factor = 120.0 / max(float(self.bpm), 80.0)
                 self.STABILITY_TIME = 0.12 * bpm_factor
             
@@ -171,45 +169,75 @@ def analyze(mp3_path):
                 
                 if not filtered: return []
 
-                # 2. Sequential Fidelity Analysis (Vibrato vs. Melodic Run)
-                stabilized = []
-                current_segment = []
-                
+                # 2. Sequential Segmentation
+                segmented = []
+                current = []
                 for i in range(len(filtered)):
                     n = filtered[i]
-                    if not current_segment:
-                        current_segment.append(n)
+                    if not current:
+                        current.append(n)
                         continue
-                        
-                    prev = current_segment[-1]
+                    prev = current[-1]
                     gap = n[0] - prev[1]
                     p_diff = abs(n[2] - prev[2])
                     
-                    # Directional Check for Melodic Run:
-                    # Look ahead to see if this is a staircase (A -> B -> C) or oscillation (A -> B -> A)
                     is_melodic_run = False
                     if p_diff == 1 and i + 1 < len(filtered):
                         next_n = filtered[i+1]
-                        # Staircase detection: pitch continues in same direction
-                        # n[2]-prev[2] and next_n[2]-n[2] have same sign
-                        if (n[2] - prev[2]) == (next_n[2] - n[2]): 
-                           is_melodic_run = True
+                        if (n[2] - prev[2]) == (next_n[2] - n[2]): is_melodic_run = True
                     
-                    # Merge Logic:
-                    # - Identity: Merge
-                    # - Vibrato: Close pitch AND (not a melodic run OR extremely short jitter)
                     is_same = p_diff == 0
                     is_vibrato = (p_diff == 1 and not is_melodic_run and (n[1]-n[0]) < self.STABILITY_TIME)
                     
                     if gap < 0.15 and (is_same or is_vibrato):
-                        current_segment.append(n)
+                        current.append(n)
                     else:
-                        stabilized.append(self.consolidate(current_segment))
-                        current_segment = [n]
-                
-                if current_segment:
-                    stabilized.append(self.consolidate(current_segment))
-                return stabilized
+                        segmented.append(self.consolidate(current))
+                        current = [n]
+                if current:
+                    segmented.append(self.consolidate(current))
+
+                # 3. BRIDGE PASS: Merge same-pitch fragments if gap is small (fix breath split)
+                bridged = []
+                for s in segmented:
+                    if not bridged:
+                        bridged.append(s)
+                        continue
+                    prev = bridged[-1]
+                    # Check gap: use 350ms for VERY robust hold note consolidation
+                    gap = s['time'] - (prev['time'] + prev['duration'])
+                    if s['pitch'] == prev['pitch'] and gap < 0.35:
+                        # Bridge!
+                        prev['duration'] = round(float(s['time'] + s['duration'] - prev['time']), 4)
+                        prev['energy'] = round(float((prev['energy'] + s['energy']) / 2), 4)
+                    else:
+                        bridged.append(s)
+
+                # 4. STRICT MONOPHONIC PASS: Truncate overlaps (No Polyphony)
+                final = []
+                epsilon = 0.001 # Small epsilon to prevent precision-related overlap triggers
+                for s in bridged:
+                    if not final:
+                        final.append(s)
+                        continue
+                    
+                    prev = final[-1]
+                    prev_end = prev['time'] + prev['duration']
+                    
+                    # If current starts before previous ends (with epsilon), truncate previous
+                    if s['time'] < (prev_end - epsilon):
+                        new_duration = s['time'] - prev['time']
+                        if new_duration > 0.03:
+                            prev['duration'] = round(float(new_duration), 4)
+                        else:
+                            final.pop()
+                            if not final:
+                                final.append(s)
+                                continue
+                    
+                    final.append(s)
+
+                return final
 
             def consolidate(self, segment):
                 pitches = [n[2] for n in segment]
