@@ -3,6 +3,7 @@ import { MelodyAnalyzer } from '../../core/audio/MelodyAnalyzer';
 import { RhythmQuantizer, type QuantizedNote } from './logic/RhythmQuantizer';
 import { PatternAnalyzer } from './logic/PatternAnalyzer';
 import { LaneAllocator } from './logic/LaneAllocator';
+import { DifficultyManager } from './logic/DifficultyManager';
 
 export interface VisualNote extends GameNote {
     lane: number;
@@ -31,15 +32,12 @@ export class NoteFactory {
         const ppq = midi.ppq;
         const isAiGenerated = midi.tracks.some(t => t.name?.toLowerCase().includes('main gameplay'));
 
-        // Stage 1 Difficulty Shift for AI-generated songs
-        let effectiveDifficulty = difficulty;
-        if (isAiGenerated) {
-            console.log(`[NoteFactory] AI-Generated MIDI detected. Applying difficulty shift...`);
-            if (difficulty === 'EXTREME') effectiveDifficulty = 'HARD';
-            else if (difficulty === 'HARD') effectiveDifficulty = 'NORMAL';
-            else if (difficulty === 'NORMAL') effectiveDifficulty = 'NORMAL'; // NORMAL now matches HARD's timing
-            else effectiveDifficulty = 'EASY'; // Default for AI Easy
-        }
+        const diffManager = new DifficultyManager(difficulty, { 
+            isAiGenerated, 
+            bpm: midi.bpm, 
+            ppq: midi.ppq 
+        });
+        const effectiveDifficulty = diffManager.getEffectiveDifficulty();
 
         // 1. Convert measureConfig array to Map if available
         const measureMap = new Map<number, number>();
@@ -135,47 +133,18 @@ export class NoteFactory {
         // 2. Collapse Chords BASED ON QUANTIZED TICKS (The Fix for jittery MIDI)
         const collapsed: QuantizedNote[] = [];
         const seenCounts = new Map<string, number>();
-        const maxLimit = (effectiveDifficulty === 'HARD') ? 2 : 1;
-
-        // EASY Mode Throttle: Scale minimum gap based on BPM
-        let easyMinGap = midi.ppq / 2; // Default 1/8 note
-        if (midi.bpm >= 180) {
-            easyMinGap = midi.ppq * 2; // 1/2 note for very fast songs
-        } else if (midi.bpm >= 110) {
-            easyMinGap = midi.ppq; // 1/4 note for fast/medium songs
-        }
-
-        let lastAcceptedTick = -99999;
-        const beatDurationMs = 60000 / midi.bpm;
-        const holdThresholdMs = beatDurationMs * 0.75;
-
         quantized.forEach(n => {
-            if (effectiveDifficulty === 'EASY') {
-                // Standard EASY Throttle: Scale minimum gap based on BPM
-                // Drop notes that are too fast
-                // IMPORTANT: Do NOT drop notes that are strictly simultaneous (gap = 0).
-                const tickDiff = n.quantizedStartTick - lastAcceptedTick;
-                if (tickDiff > 0 && tickDiff < easyMinGap) {
-                    return;
-                }
-            }
+            if (!diffManager.shouldAcceptNote(n)) return;
 
-            // [NEW] AI-NORMAL: Melody Only + Basic Rhythm Guard
-            if (isAiGenerated && difficulty === 'NORMAL') {
-                // Skip Drums (MIDI < 60 are typically Kick/Snare in our transcription)
-                if (n.midi && n.midi < 60) return;
-            }
-
-            // EASY mode (and AI-NORMAL): strictly 1 note per tick across ALL channels to guarantee no chords
-            const key = (effectiveDifficulty === 'EASY' || (isAiGenerated && difficulty === 'NORMAL'))
+            const key = diffManager.isGlobalChordSuppressionActive()
                 ? `GLOBAL_${n.quantizedStartTick}`
                 : `${n.channel}_${n.quantizedStartTick}`;
 
             const count = seenCounts.get(key) || 0;
-            if (count < maxLimit) {
+            if (count < diffManager.getNoteChordLimit()) {
                 collapsed.push(n);
                 seenCounts.set(key, count + 1);
-                lastAcceptedTick = n.quantizedStartTick;
+                diffManager.recordAcceptedNote(n);
             }
         });
 
@@ -192,7 +161,7 @@ export class NoteFactory {
                 isHold = durationMs >= 150;
             } else {
                 // Legacy logic for manual charts
-                isHold = durationMs >= holdThresholdMs;
+                isHold = durationMs >= diffManager.getHoldThresholdMs();
             }
 
             // AI-NORMAL now trusts the melodic sustain detected by pYIN.
