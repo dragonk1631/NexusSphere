@@ -169,9 +169,58 @@ def analyze(mp3_path):
                 
                 if not filtered: return []
 
-                # 2. ELASTIC PHRASE BRIDGE (v2.7): Lead-in vs Tail Mode
+        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.8) ---
+        class VocalFidelityRefiner:
+            def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120):
+                self.notes = sorted(notes, key=lambda x: x[0])
+                self.v_rms = audio_rms_v
+                self.t_rms = audio_rms_t
+                self.ts = ts_frames
+                self.bpm = bpm
+                self.LATENCY_OFFSET = -0.25
+                self.MAX_HOLD_SEC = 4.0  # Gameplay constraint: don't hold too long
+                
+                # Dynamic Thresholding: High intensity is top ~20% of vocal energy
+                if len(self.v_rms) > 0:
+                    self.intensity_cutoff = np.percentile(self.v_rms, 80)
+                else:
+                    self.intensity_cutoff = 0.6
+            
+            def get_local_v_rms(self, t):
+                idx = np.argmin(np.abs(self.ts - t))
+                return self.v_rms[idx]
+
+            def get_local_ratio(self, t):
+                idx = np.argmin(np.abs(self.ts - t))
+                return self.v_rms[idx] / (self.t_rms[idx] + 1e-6)
+
+            def refine(self):
+                if not self.notes: return []
+                
+                # 1. Sync & Gating
+                filtered = []
+                for n in self.notes:
+                    s_t, e_t, pitch, energy, _ = n
+                    s_c, e_c = max(0, s_t + self.LATENCY_OFFSET), max(0, e_t + self.LATENCY_OFFSET)
+                    if e_c <= s_c: continue
+                    # Absolute gating based on vocal/total ratio
+                    if self.get_local_ratio(s_t) > 0.11:
+                        filtered.append({
+                            "start": s_c, 
+                            "end": e_c, 
+                            "pitch": int(pitch), 
+                            "energy": float(energy), 
+                            "v_rms": self.get_local_v_rms(s_t),
+                            "segments": [[s_c, e_c, int(pitch)]]
+                        })
+                
+                if not filtered: return []
+
+                # 2. ELASTIC PHRASE BRIDGE (v2.8): Generalized Intensity & Phrase Age
                 phrases = []
                 current_phrase_duration = 0
+                bpm_factor = 120.0 / max(float(self.bpm), 80.0)
+                stable_threshold = 0.16 * bpm_factor
                 
                 for n in filtered:
                     if not phrases:
@@ -184,35 +233,26 @@ def analyze(mp3_path):
                     last_pitch = prev["segments"][-1][2]
                     p_diff = abs(n["pitch"] - last_pitch)
                     
-                    avg_energy = (prev["energy"] + n["energy"]) / 2
-                    is_climax = avg_energy > 0.6
+                    # Statistical Intensity Check (Generalization)
+                    avg_v_rms = (prev["v_rms"] + n["v_rms"]) / 2
+                    is_high_intensity = avg_v_rms > self.intensity_cutoff
                     
-                    # Rhythmic Thresholds
-                    bpm_factor = 120.0 / max(float(self.bpm), 80.0)
-                    stable_threshold = 0.16 * bpm_factor
-                    
-                    # --- PHRASE CONTEXT (v2.7) ---
-                    # If we've been holding/singing for a while, we are in TAIL MODE.
                     is_tail = current_phrase_duration > 0.7
-                    
                     n_dur = n["end"] - n["start"]
                     
-                    # Strategic Decision:
-                    # Lead-in: Strict splitting (±1 tolerance).
-                    # Tail: Relaxed tolerance (±2) to capture vibrato at the end of phrases.
+                    # Logic derived from v2.7 heuristic pass
                     if is_tail and p_diff <= 2 and gap < 0.35:
                         pitch_tolerance = 2
-                    elif is_climax and p_diff <= 2 and n_dur < stable_threshold and gap < 0.2:
+                    elif is_high_intensity and p_diff <= 2 and n_dur < stable_threshold and gap < 0.2:
                         pitch_tolerance = 2
                     elif p_diff <= 1 and gap < 0.4:
                         pitch_tolerance = 1
                     else:
                         pitch_tolerance = 0
                     
-                    # Elastic Bridge Logic
                     if p_diff <= pitch_tolerance:
                         prev["end"] = max(prev["end"], n["end"])
-                        prev["energy"] = avg_energy
+                        prev["energy"] = (prev["energy"] + n["energy"]) / 2
                         prev["segments"].extend(n["segments"])
                         current_phrase_duration += (n_dur + gap)
                     else:
@@ -223,20 +263,14 @@ def analyze(mp3_path):
                 realigned = []
                 for p in phrases:
                     duration = p["end"] - p["start"]
-                    # GHOST PURGE: Remove tiny artifacts that might disrupt the flow
                     if duration < 0.06: continue
                     
-                    # Re-calculate Modal Pitch for the entire phrase for stability
                     all_segment_pitches = []
                     for s_start, s_end, s_pitch in p["segments"]:
-                        # Weight by duration
                         weight = int((s_end - s_start) * 100) + 1
                         all_segment_pitches.extend([s_pitch] * weight)
                     
-                    if all_segment_pitches:
-                        final_pitch = Counter(all_segment_pitches).most_common(1)[0][0]
-                    else:
-                        final_pitch = p["pitch"]
+                    final_pitch = Counter(all_segment_pitches).most_common(1)[0][0] if all_segment_pitches else p["pitch"]
 
                     realigned.append({
                         "time": round(float(p["start"]), 4),
@@ -245,28 +279,62 @@ def analyze(mp3_path):
                         "energy": round(float(p["energy"]), 4)
                     })
 
-                # 4. FINAL PHRASE MERGE: Combine adjacent realigned notes with same pitch
-                merged = []
+                # 4. GAMEPLAY CONSTRAINTS: Split Excessive Long Notes (v2.8)
+                constrained = []
+                beat_duration = 60.0 / max(float(self.bpm), 1.0)
+                
                 for r in realigned:
+                    if r["duration"] > self.MAX_HOLD_SEC:
+                        # Split!
+                        rem_dur = r["duration"]
+                        curr_time = r["time"]
+                        while rem_dur > self.MAX_HOLD_SEC:
+                            # Split at nearest whole beat for rhythm
+                            split_dur = beat_duration * round(self.MAX_HOLD_SEC / beat_duration)
+                            constrained.append({
+                                "time": round(float(curr_time), 4),
+                                "duration": round(float(split_dur), 4),
+                                "pitch": r["pitch"],
+                                "energy": r["energy"]
+                            })
+                            curr_time += split_dur
+                            rem_dur -= split_dur
+                        if rem_dur > 0.05:
+                            constrained.append({
+                                "time": round(float(curr_time), 4),
+                                "duration": round(float(rem_dur), 4),
+                                "pitch": r["pitch"],
+                                "energy": r["energy"]
+                            })
+                    else:
+                        constrained.append(r)
+
+                # 5. FINAL PHRASE MERGE & MONOPHONIC TRUNCATION
+                merged = []
+                for c in constrained:
                     if not merged:
-                        merged.append(r)
+                        merged.append(c)
                         continue
                     prev = merged[-1]
-                    gap = r['time'] - (prev['time'] + prev['duration'])
-                    if r['pitch'] == prev['pitch'] and gap < 0.2:
-                        prev['duration'] = round(float(r['time'] + r['duration'] - prev['time']), 4)
-                        prev['energy'] = round((prev['energy'] + r['energy']) / 2, 4)
+                    gap = c['time'] - (prev['time'] + prev['duration'])
+                    # Only merge small gaps if pitch is EXACTLY equal (post-realignment)
+                    if c['pitch'] == prev['pitch'] and gap < 0.15:
+                        # Only merge if the RESULTING note doesn't exceed 4s
+                        new_dur = c['time'] + c['duration'] - prev['time']
+                        if new_dur <= self.MAX_HOLD_SEC:
+                            prev['duration'] = round(float(new_dur), 4)
+                            prev['energy'] = round((prev['energy'] + c['energy']) / 2, 4)
+                        else:
+                            merged.append(c)
                     else:
-                        merged.append(r)
+                        merged.append(c)
 
-                # 5. STRICT MONOPHONIC PASS: Truncate overlaps
                 final = []
                 epsilon = 0.001
                 for s in merged:
                     if not final:
                         final.append(s)
                         continue
-                    
                     prev = final[-1]
                     prev_end = prev['time'] + prev['duration']
                     if s['time'] < (prev_end - epsilon):
