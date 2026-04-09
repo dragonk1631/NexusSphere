@@ -14,30 +14,37 @@ import numpy as np
 
 def analyze(mp3_path):
     # --- 1. Load audio (mono, 22050 Hz) ---
-    y, sr = librosa.load(mp3_path, mono=True, sr=22050)
+    sr = 22050
+    y, _ = librosa.load(mp3_path, mono=True, sr=sr)
     duration = librosa.get_duration(y=y, sr=sr)
 
-    # --- 2. Deep Learning Source Separation (Spleeter) ---
+    # --- 2. Deep Learning Source Separation (Demucs v4) ---
     import os
-    import static_ffmpeg
-    static_ffmpeg.add_paths()
-    from spleeter.separator import Separator
+    import subprocess
     
     mp3_abspath = os.path.abspath(mp3_path)
     base_name = os.path.splitext(os.path.basename(mp3_abspath))[0]
-    out_dir = os.path.join(os.path.dirname(mp3_abspath), "spleeter_out")
+    out_dir = os.path.join(os.path.dirname(mp3_abspath), "demucs_out")
     
-    print(f"  [AI] Separating stems with Spleeter for {base_name}...", file=sys.stderr)
+    print(f"  [AI] Separating stems with HTDemucs v4 for {base_name}...", file=sys.stderr)
     try:
-        vocals_path = os.path.join(out_dir, base_name, "vocals.wav")
-        drums_path = os.path.join(out_dir, base_name, "drums.wav")
+        # Demucs CLI output structure: {out_dir}/htdemucs/{base_name}/vocals.wav
+        vocals_path = os.path.join(out_dir, "htdemucs", base_name, "vocals.wav")
+        drums_path = os.path.join(out_dir, "htdemucs", base_name, "drums.wav")
         
         if not os.path.exists(vocals_path) or not os.path.exists(drums_path):
-            # Using Python API for maximum stability on Windows
-            separator = Separator('spleeter:4stems')
-            separator.separate_to_file(mp3_abspath, out_dir)
+            # Using CLI for maximum stability
+            cmd = [
+                "demucs",
+                "-n", "htdemucs",
+                "-o", out_dir,
+                "--shifts", "2",
+                mp3_abspath
+            ]
+            print(f"  [AI] Running command: {' '.join(cmd)}", file=sys.stderr)
+            subprocess.run(cmd, check=True, capture_output=True)
         else:
-            print(f"  [AI] Cached Spleeter stems found.", file=sys.stderr)
+            print(f"  [AI] Cached HTDemucs stems found.", file=sys.stderr)
             
         y_harm, _ = librosa.load(vocals_path, mono=True, sr=sr)
         y_perc, _ = librosa.load(drums_path, mono=True, sr=sr)
@@ -49,14 +56,14 @@ def analyze(mp3_path):
         if len(y_perc) < len(y): y_perc = np.pad(y_perc, (0, len(y) - len(y_perc)))
         else: y_perc = y_perc[:len(y)]
         
-        print(f"  [AI] Vocal isolation successful.", file=sys.stderr)
+        print(f"  [AI] Vocal isolation (Demucs) successful.", file=sys.stderr)
         
     except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stderr)
-        print(f"  [AI Warning] Spleeter failed ({e}). Falling back to simple HPSS filter.", file=sys.stderr)
+        print(f"  [AI Warning] Demucs failed ({e}). Falling back to simple HPSS filter.", file=sys.stderr)
         y_harm, y_perc = librosa.effects.hpss(y, margin=(2.0, 5.0))
-        vocals_path = mp3_abspath # Fallback to original for Basic-Pitch if split fails
+        vocals_path = mp3_abspath 
 
     # --- 3. BPM + beat positions ---
     tempo, beat_frames = librosa.beat.beat_track(
@@ -66,29 +73,20 @@ def analyze(mp3_path):
     bpm = float(tempo[0] if hasattr(tempo, '__len__') else tempo)
 
     # --- 4. Multi-band Drum Detection (High Resolution) ---
-    # Using 256 hop_length for ~11.6ms precision (sr=22050)
     hop_length_hires = 256
     D_perc = np.abs(librosa.stft(y_perc, hop_length=hop_length_hires))
     freqs = librosa.fft_frequencies(sr=sr)
     
-    # Low frequency mask (< 120Hz for Kick)
     lf_mask = freqs < 120
-    # High frequency mask (> 300Hz for Snare/Hat)
     hf_mask = freqs > 300
 
-    # Onset strength for Low Band (Kick)
-    # Using mean for Kick to capture the transient better
     o_env_low = librosa.onset.onset_strength(
         sr=sr, S=D_perc[lf_mask, :], aggregate=np.mean, hop_length=hop_length_hires
     )
-    # Onset strength for High Band (Snare/Hat)
-    # Using median for Snare to reduce noise spikes
     o_env_high = librosa.onset.onset_strength(
         sr=sr, S=D_perc[hf_mask, :], aggregate=np.median, hop_length=hop_length_hires
     )
 
-    # Detect Low Band Onsets (Kick)
-    # wait=3 at 256 hop is ~35ms, plenty for kick
     kick_frames = librosa.onset.onset_detect(
         onset_envelope=o_env_low, sr=sr, hop_length=hop_length_hires,
         units='frames', backtrack=True,
@@ -96,8 +94,6 @@ def analyze(mp3_path):
         delta=0.035, wait=3
     )
 
-    # Detect High Band Onsets (Snare/Fills)
-    # wait=2 at 256 hop is ~23ms, allowing 32nd notes at 160BPM
     snare_frames = librosa.onset.onset_detect(
         onset_envelope=o_env_high, sr=sr, hop_length=hop_length_hires,
         units='frames', backtrack=True,
@@ -105,67 +101,141 @@ def analyze(mp3_path):
         delta=0.03, wait=2
     )
 
-    # --- 5. Energy Extraction & Noise Floor Gating ---
+    # --- 5. Energy Extraction & Precision Noise Floor Gating ---
     hop_length_std = 512
-    perc_rms = librosa.feature.rms(y=y_perc, frame_length=2048, hop_length=hop_length_std)[0]
-    harm_rms = librosa.feature.rms(y=y_harm, frame_length=2048, hop_length=hop_length_std)[0]
+    # Frame-by-frame energy for isolated vocals and original audio
+    vocal_rms = librosa.feature.rms(y=y_harm, frame_length=2048, hop_length=hop_length_std)[0]
     total_rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=hop_length_std)[0]
+    perc_rms = librosa.feature.rms(y=y_perc, frame_length=2048, hop_length=hop_length_std)[0]
     
-    # Absolute noise floor (-45dB)
-    noise_floor = np.max(total_rms) * 0.005 # ~ -46dB from peak
+    # Calculate Vocal-to-Total energy ratio (Silence/Bleed Mask)
+    # If vocals are much weaker than background, it's likely bleed noise.
+    energy_ratio = vocal_rms / (total_rms + 1e-6)
+    
+    # Absolute noise floor
+    noise_floor = np.max(total_rms) * 0.005 
 
     # --- 6. Spotify Basic-Pitch Neural Network Inference ---
-    print(f"  [AI] Running Basic-Pitch Neural Network on vocals...", file=sys.stderr)
+    print(f"  [AI] Running Basic-Pitch Neural Network on isolated vocals...", file=sys.stderr)
     try:
         import io
-
+        from basic_pitch.inference import predict
+        from collections import Counter
         
-        # Suppress basic-pitch noisy stdout to prevent JSON corruption
+        # Suppress noisy stdout
         original_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
-            from basic_pitch.inference import predict
             target_audio = vocals_path if os.path.exists(vocals_path) else mp3_abspath
-            print(f"  [AI] Basic-Pitch analyzing: {os.path.basename(target_audio)}", file=sys.stderr)
-            # Relaxed thresholds for CLEAN isolated vocals.
-            # now that instruments are gone, we can capture soft vocal onsets.
+            # Tuning for HIGH PRECISION to undo previous "stuttering" issues
             _, _, note_events = predict(
                 target_audio,
-                onset_threshold=0.5,
-                frame_threshold=0.3,
-                minimum_note_length=100
+                onset_threshold=0.55,   # Higher for better onset precision
+                frame_threshold=0.40,   # Stricter stability
+                minimum_note_length=150 # Increase minimum phrase fragment
             )
         finally:
             sys.stdout = original_stdout
         
-        melody_data = []
-        for note in note_events:
-            start_t = note[0]
-            end_t = note[1]
-            dur = end_t - start_t
-            pitch = int(note[2])
-            velocity = note[3]
+        # --- 6.1 Restoration & Stabilization Refiner (Vibrato-Aware) ---
+        class VocalRestorationRefiner:
+            def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames):
+                self.notes = sorted(notes, key=lambda x: x[0])
+                self.v_rms = audio_rms_v
+                self.t_rms = audio_rms_t
+                self.ts = ts_frames
             
-            # Filter extremely short artifacts (common in raw ML outputs)
-            if dur >= 0.1:
-                melody_data.append({
-                    "time": round(float(start_t), 4),
-                    "duration": round(float(dur), 4),
-                    "pitch": int(pitch),
-                    "energy": round(float(velocity), 4)
-                })
+            def get_local_ratio(self, t):
+                idx = np.argmin(np.abs(self.ts - t))
+                return self.v_rms[idx] / (self.t_rms[idx] + 1e-6)
+
+            def refine(self):
+                if not self.notes: return []
+                
+                # 1. Energy-Ratio Filter: Remove bleed in instrumental sections
+                # If the vocal stem energy is < 12% of the original track, it's bleed.
+                filtered_notes = []
+                for n in self.notes:
+                    start_t, end_t, pitch, _, _ = n
+                    ratio = self.get_local_ratio(start_t)
+                    if ratio > 0.12: # Bleed detection threshold
+                        filtered_notes.append(list(n))
+                
+                if not filtered_notes: return []
+
+                # 2. Monophonic Conflict Resolution
+                unique_notes = []
+                for n in filtered_notes:
+                    if not unique_notes:
+                        unique_notes.append(n)
+                        continue
+                    prev = unique_notes[-1]
+                    if n[0] < prev[1]: # Overlap
+                        if n[3] > prev[3]: unique_notes[-1] = n # Keep higher energy
+                    else:
+                        unique_notes.append(n)
+
+                # 3. Vibrato-Aware Contiguity Merging
+                # Merge if pitch difference is within ±1 semitone (vibrato jitter)
+                stabilized = []
+                current_segment = []
+                
+                for n in unique_notes:
+                    if not current_segment:
+                        current_segment.append(n)
+                        continue
+                        
+                    prev = current_segment[-1]
+                    gap = n[0] - prev[1]
+                    pitch_diff = abs(int(n[2]) - int(prev[2]))
+                    
+                    # If pitch is close and gap is small, it's part of the same vocal phrase
+                    if pitch_diff <= 1 and gap < 0.2:
+                        current_segment.append(n)
+                    else:
+                        # Finalize previous segment
+                        stabilized.append(self.consolidate(current_segment))
+                        current_segment = [n]
+                
+                if current_segment:
+                    stabilized.append(self.consolidate(current_segment))
+                
+                return stabilized
+
+            def consolidate(self, segment):
+                """Converts a jittery phrase segment into a single stable hold note."""
+                start = segment[0][0]
+                end = segment[-1][1]
+                
+                # Modal Pitch: find the most frequent pitch to represent the stable phrase
+                pitches = [int(n[2]) for n in segment]
+                modal_pitch = Counter(pitches).most_common(1)[0][0]
+                
+                # Weighted Energy
+                avg_energy = sum(n[3] for n in segment) / len(segment)
+                
+                return {
+                    "time": round(float(start), 4),
+                    "duration": round(float(end - start), 4),
+                    "pitch": int(modal_pitch),
+                    "energy": round(float(avg_energy), 4)
+                }
+
+        # Times corresponding to RMS frames for gating
+        rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
         
-        melody_data.sort(key=lambda x: x["time"])
-        print(f"  [AI] Basic-Pitch found {len(melody_data)} vocal notes with >90% phrasing accuracy.", file=sys.stderr)
+        refiner = VocalRestorationRefiner(note_events, vocal_rms, total_rms, rms_times)
+        melody_data = refiner.refine()
+        
+        print(f"  [AI] Vocal Restoration complete: {len(melody_data)} stable melodic phrases.", file=sys.stderr)
         
     except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stderr)
-        print(f"  [AI Warning] Basic-Pitch failed: {e}. Falling back to empty melody.", file=sys.stderr)
+        print(f"  [AI Warning] Restoration failed: {e}. Falling back to empty melody.", file=sys.stderr)
         melody_data = []
 
-    # --- 7. Adaptive Energy Gating ---
-
+    # --- 7. Adaptive Signature-based Drum Refinement ---
     def frames_to_energy(onset_frames, rms, hop_ratio=1.0):
         energies = []
         for f in onset_frames:
@@ -174,7 +244,6 @@ def analyze(mp3_path):
         mx = max(energies) if energies else 1.0
         return [e / mx if mx > 0 else 0.5 for e in energies]
 
-    # --- 7. Adaptive Signature-based Drum Refinement ---
     def filter_onsets(onset_frames, sign_env, current_rms, h_rms, ratio_std=0.5):
         filtered = []
         if len(onset_frames) == 0: return []
@@ -231,11 +300,8 @@ def analyze(mp3_path):
             filtered.append(f)
         return filtered
 
-    kick_frames_filtered  = filter_onsets(kick_frames, o_env_low, perc_rms, harm_rms)
-    snare_frames_filtered = filter_onsets(snare_frames, o_env_high, perc_rms, harm_rms)
-
-    kick_frames_filtered  = filter_onsets(kick_frames, o_env_low, perc_rms, harm_rms)
-    snare_frames_filtered = filter_onsets(snare_frames, o_env_high, perc_rms, harm_rms)
+    kick_frames_filtered  = filter_onsets(kick_frames, o_env_low, perc_rms, vocal_rms)
+    snare_frames_filtered = filter_onsets(snare_frames, o_env_high, perc_rms, vocal_rms)
 
     kick_times  = librosa.frames_to_time(kick_frames_filtered, sr=sr, hop_length=hop_length_hires)
     snare_times = librosa.frames_to_time(snare_frames_filtered, sr=sr, hop_length=hop_length_hires)
