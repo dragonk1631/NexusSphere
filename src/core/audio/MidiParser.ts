@@ -11,6 +11,7 @@ export interface GameNote {
     durationTicks: number; // Duration in ticks
     importance: number;
     channel: number; // MIDI channel (0-15)
+    trackIndex: number; // SMF track index for perfect isolation
 }
 
 export interface GameTrack {
@@ -85,7 +86,8 @@ export class MidiParser {
                     ticks: note.ticks,
                     durationTicks: note.durationTicks,
                     importance,
-                    channel: noteChannel
+                    channel: noteChannel,
+                    trackIndex: trackIndex
                 };
             });
 

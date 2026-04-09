@@ -1,6 +1,7 @@
 import type { ParsedMidi } from './MidiParser';
 
-interface ChannelStats {
+interface TrackStats {
+    trackIndex: number;
     channel: number;
     notes: { midi: number, time: number, duration: number, velocity: number }[];
     trackNames: string[];
@@ -25,24 +26,25 @@ interface ChannelStats {
 
 export class MelodyAnalyzer {
     /**
-     * Analyze MIDI channels and return ranked list of melody channel candidates.
+     * Analyze MIDI tracks and return ranked list of Melody/Drum track indices.
      * Uses advanced heuristics including Instrument Family, Polyphony, Pitch Variance, and Rhythmic Entropy.
-     * @returns Array of channel numbers (0-15), sorted by probability (descending)
+     * @returns Array of track indices, sorted by probability (descending)
      */
-    public static findMelodyChannels(midi: ParsedMidi): number[] {
-        console.log(`[MelodyAnalyzer] Starting Advanced Analysis (v2)...`);
+    public static findMelodyTracks(midi: ParsedMidi): number[] {
+        console.log(`[MelodyAnalyzer] Starting Track-based Advanced Analysis (v3)...`);
 
         const duration = midi.duration || 180; // Default 3 mins if unknown
 
-        // 1. Initialize Stats Containers
-        const statsMap = new Map<number, ChannelStats>();
-        for (let i = 0; i < 16; i++) {
-            statsMap.set(i, {
-                channel: i,
+        // 1. Initialize Stats Containers (One per Track)
+        const statsMap = new Map<number, TrackStats>();
+        midi.tracks.forEach((track, trackIndex) => {
+            statsMap.set(trackIndex, {
+                trackIndex: trackIndex,
+                channel: track.channel,
                 notes: [],
-                trackNames: [],
-                instrumentFamily: 'unknown',
-                isDrum: i === 9,
+                trackNames: track.name ? [track.name.toLowerCase()] : [],
+                instrumentFamily: track.instrumentFamily ? track.instrumentFamily.toLowerCase() : 'unknown',
+                isDrum: track.isDrum,
                 noteCount: 0,
                 avgPitch: 0,
                 pitchStdDev: 0,
@@ -55,27 +57,12 @@ export class MelodyAnalyzer {
                 score: 0,
                 scoreDetails: []
             });
-        }
+        });
 
-        // 2. Aggregate Data from Tracks
-        midi.tracks.forEach(track => {
-            const ch = track.channel;
-            if (ch < 0 || ch >= 16) return;
+        // 2. Aggregate Data directly from each Track
+        midi.tracks.forEach((track, trackIndex) => {
+            const stats = statsMap.get(trackIndex)!;
 
-            const stats = statsMap.get(ch)!;
-
-            // Collect Track Names
-            if (track.name) {
-                stats.trackNames.push(track.name.toLowerCase());
-            }
-
-            // Collect Instrument Info (First valid one wins, usually)
-            if (track.instrumentFamily && stats.instrumentFamily === 'unknown') {
-                stats.instrumentFamily = track.instrumentFamily.toLowerCase();
-            }
-            if (track.isDrum) stats.isDrum = true;
-
-            // Collect Notes
             track.notes.forEach(note => {
                 stats.notes.push({
                     midi: note.midi,
@@ -87,7 +74,7 @@ export class MelodyAnalyzer {
         });
 
         // 3. Calculate Metrics & Compute Score
-        const analyzedChannels: ChannelStats[] = [];
+        const analyzedTracks: TrackStats[] = [];
 
         statsMap.forEach(stats => {
             // Filter ghost notes early to match NoteFactory logic (threshold 13)
@@ -149,20 +136,20 @@ export class MelodyAnalyzer {
 
             // IGNORE DRUMS & PERCUSSION for melody analysis sorting, but KEEP them in the pool
             if (!stats.isDrum && !stats.instrumentFamily.includes('percussion') && !stats.instrumentFamily.includes('drum')) {
-                analyzedChannels.push(stats);
+                analyzedTracks.push(stats);
             } else {
                 // Still push drums for drum ranking, but tag them
                 stats.isDrum = true;
-                analyzedChannels.push(stats);
+                analyzedTracks.push(stats);
             }
         });
 
         // 3.5. First Principle: "Most Notes = Likely Melody" (User Request)
         // Find the candidate with the absolute highest note count (excluding Drums)
         let maxNoteCount = -1;
-        let maxNoteCandidate: ChannelStats | null = null;
+        let maxNoteCandidate: TrackStats | null = null;
 
-        analyzedChannels.forEach(c => {
+        analyzedTracks.forEach(c => {
             // Only exclude explicit drum channels. We let low-pitch melodies compete.
             if (!c.isDrum) {
                 if (c.noteCount > maxNoteCount) {
@@ -175,38 +162,38 @@ export class MelodyAnalyzer {
         // Apply a massive bonus to maximize probability, but ONLY if it has a meaningful number of notes
         // and isn't explicitly named as a bass track.
         if (maxNoteCandidate && maxNoteCount > 20) {
-            const isExplicitBass = /bass/.test((maxNoteCandidate as ChannelStats).instrumentFamily);
+            const isExplicitBass = /bass/.test((maxNoteCandidate as TrackStats).instrumentFamily);
             if (!isExplicitBass) {
-                (maxNoteCandidate as ChannelStats).score += 1500;
-                (maxNoteCandidate as ChannelStats).scoreDetails.push("FirstPrinciple(MostNotes) +1500");
+                (maxNoteCandidate as TrackStats).score += 1500;
+                (maxNoteCandidate as TrackStats).scoreDetails.push("FirstPrinciple(MostNotes) +1500");
             }
         }
 
         // 4. Group by Type and Sort
-        const nonDrums = analyzedChannels.filter(c => !c.isDrum).sort((a, b) => b.score - a.score);
-        const drums = analyzedChannels.filter(c => c.isDrum).sort((a, b) => b.score - a.score);
+        const nonDrums = analyzedTracks.filter(c => !c.isDrum).sort((a, b) => b.score - a.score);
+        const drums = analyzedTracks.filter(c => c.isDrum).sort((a, b) => b.score - a.score);
 
         // 5. Build Hierarchical Result (Melody 1 -> 2 -> 3 -> Drums)
         const result: number[] = [];
 
         // Top candidates (increased for better gap filling)
         for (let i = 0; i < Math.min(nonDrums.length, 8); i++) {
-            result.push(nonDrums[i].channel);
+            result.push(nonDrums[i].trackIndex);
         }
 
-        // Best Drum Channel (as fallback)
+        // Best Drum Track (as fallback)
         if (drums.length > 0) {
-            result.push(drums[0].channel);
+            result.push(drums[0].trackIndex);
         }
 
         // Debug Output
-        console.log(`[Ranked Channels] Melodies: ${nonDrums.map(c => c.channel + 1)}, Drums: ${drums.map(c => c.channel + 1)}`);
-        console.log(`[Final hierarchy] ${result.map(c => c + 1)}`);
+        console.log(`[Ranked Tracks] Melodies: ${nonDrums.map(c => c.trackIndex)}, Drums: ${drums.map(c => c.trackIndex)}`);
+        console.log(`[Final hierarchy] ${result}`);
 
         return result;
     }
 
-    private static computeScore(stats: ChannelStats): void {
+    private static computeScore(stats: TrackStats): void {
         let score = 0;
         const details: string[] = [];
 
@@ -345,8 +332,17 @@ export class MelodyAnalyzer {
      * Legacy support
      */
     public static findMelodyTrack(midi: ParsedMidi): number {
-        const channels = this.findMelodyChannels(midi);
-        return channels.length > 0 ? channels[0] : -1;
+        const tracks = this.findMelodyTracks(midi);
+        return tracks.length > 0 ? tracks[0] : -1;
+    }
+
+    // Keep findMelodyChannels for backward compatibility but redirect to track-based
+    public static findMelodyChannels(midi: ParsedMidi): number[] {
+        const rankedTracks = this.findMelodyTracks(midi);
+        // Map back to channels (unique)
+        const channels = new Set<number>();
+        rankedTracks.forEach(tIdx => channels.add(midi.tracks[tIdx].channel));
+        return Array.from(channels);
     }
 
     /**
@@ -354,27 +350,26 @@ export class MelodyAnalyzer {
      * 1. Pick a global Primary Channel (Main melody).
      * 2. For each measure, if the Main Channel has no notes, 
      *    find the best available candidate that HAS notes in that specific measure.
-     * @returns Map<measureIndex, channelIndex>
+     * @returns Map<measureIndex, trackIndex>
      */
-    public static suggestGapFilling(midi: ParsedMidi): Map<number, number> {
+    public static suggestGapFilling(midi: ParsedMidi, candidates?: number[]): Map<number, number> {
         const config = new Map<number, number>();
 
-        // Use a deeper pool for gap filling (top 8 candidates instead of top 3)
-        const ranked = this.findMelodyChannels(midi);
+        // Use Track-based hierarchy
+        const ranked = candidates || this.findMelodyTracks(midi);
         if (ranked.length === 0) return config;
 
-        const mainChannel = ranked[0];
+        const mainTrackIdx = ranked[0];
         const ppq = midi.ppq || 480;
         const totalTicks = (midi as any).durationTicks || 0;
         const totalMeasures = Math.ceil(totalTicks / (ppq * 4));
 
-        // Group all notes by channel and measure for fast lookup
-        const channelMeasureMap = new Map<number, Set<number>>(); // Map<channel, Set<measureIdx>>
+        // Group all notes by track and measure for fast lookup
+        const trackMeasureMap = new Map<number, Set<number>>(); // Map<trackIdx, Set<measureIdx>>
 
-        midi.tracks.forEach(track => {
-            const ch = track.channel;
-            if (!channelMeasureMap.has(ch)) channelMeasureMap.set(ch, new Set());
-            const measureSet = channelMeasureMap.get(ch)!;
+        midi.tracks.forEach((track, trackIdx) => {
+            if (!trackMeasureMap.has(trackIdx)) trackMeasureMap.set(trackIdx, new Set());
+            const measureSet = trackMeasureMap.get(trackIdx)!;
 
             track.notes.forEach(note => {
                 if (note.velocity < 13) return; // Ignore ghosts
@@ -384,35 +379,26 @@ export class MelodyAnalyzer {
         });
 
         // Then, analyze transitions
-        // FIX: Always set measure 0 to mainChannel to provide a root for inheritance
-        let currentAssignedChannel = mainChannel;
-        config.set(0, mainChannel);
+        let currentAssignedTrack = mainTrackIdx;
 
         for (let m = 0; m < totalMeasures; m++) {
-            const mainHasNotes = channelMeasureMap.get(mainChannel)?.has(m);
+            const mainHasNotes = trackMeasureMap.get(mainTrackIdx)?.has(m);
 
             if (mainHasNotes) {
-                // Return to main channel if it has content
-                if (currentAssignedChannel !== mainChannel) {
-                    config.set(m, mainChannel);
-                    currentAssignedChannel = mainChannel;
-                }
+                // Return to main track if it has content
+                currentAssignedTrack = mainTrackIdx;
             } else {
                 // Gap detected! Find a candidate from ranked list that HAS notes here
-                let bestAlt: number | null = null;
                 for (let i = 1; i < ranked.length; i++) {
-                    const altCh = ranked[i];
-                    if (channelMeasureMap.get(altCh)?.has(m)) {
-                        bestAlt = altCh;
+                    const altTrackIdx = ranked[i];
+                    if (trackMeasureMap.get(altTrackIdx)?.has(m)) {
+                        currentAssignedTrack = altTrackIdx;
                         break;
                     }
                 }
-
-                if (bestAlt !== null && bestAlt !== currentAssignedChannel) {
-                    config.set(m, bestAlt);
-                    currentAssignedChannel = bestAlt;
-                }
             }
+            // Ensure EVERY measure has an assignment in the config map
+            config.set(m, currentAssignedTrack);
         }
 
         return config;
