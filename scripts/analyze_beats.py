@@ -179,14 +179,18 @@ def analyze(mp3_path):
                     
                     prev = phrases[-1]
                     gap = n["start"] - prev["end"]
-                    # Compare against the LAST segment added to the phrase to allow slides (60->61->62)
                     last_pitch = prev["segments"][-1][2]
                     p_diff = abs(n["pitch"] - last_pitch)
                     
-                    # Elastic Bridge Logic: Merge if close in time and pitch (vibrato/expressive/slide)
-                    if p_diff <= 1 and gap < 0.4:
+                    # Energy-Weighted Tolerance: 
+                    # If climax (>0.6 avg energy), AI jitter is higher. Allow ±2 semitones.
+                    avg_energy = (prev["energy"] + n["energy"]) / 2
+                    pitch_tolerance = 2 if avg_energy > 0.6 else 1
+                    
+                    # Elastic Bridge Logic: Merge if close in time and pitch
+                    if p_diff <= pitch_tolerance and gap < 0.4:
                         prev["end"] = max(prev["end"], n["end"])
-                        prev["energy"] = (prev["energy"] + n["energy"]) / 2
+                        prev["energy"] = avg_energy
                         prev["segments"].extend(n["segments"])
                     else:
                         phrases.append(n)
