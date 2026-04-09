@@ -1,74 +1,61 @@
-# [MP3 to MIDI Chart] Implementation Plan (v2.0)
+# [MP3 to MIDI Chart] Implementation Plan (v2.1 - Fidelity Pass)
 
-This document outlines the technical architecture for integrating MP3 playback into NexusSphere by leveraging the existing, well-established MIDI chart generation system.
+This document outlines the high-fidelity technical architecture for integrating MP3 playback into NexusSphere, utilizing state-of-the-art neural vocal transcription and granular melodic refinement.
 
 ---
 
 ## 🎯 Project Goals
 
-- **Unified Logic**: Reuse the current MIDI-based chart generation logic without modification.
-- **High Fidelity**: Provide a premium audio experience using MP3 files while maintaining the rhythmic precision of MIDI data.
-- **Independent Conversion**: Implement a robust MP3-to-MIDI conversion pipeline that operates independently of the game's core engine.
-- **Additive Integration**: Extend the current system to support MP3-based gameplay as a new feature, ensuring zero impact on the existing MIDI-only workflow.
+- **Neural Accuracy**: Achieve 90%+ transcription accuracy using deep learning (HTDemucs + Basic-Pitch).
+- **Zero-Latency Sync**: Maintain perfect alignment between audio onsets and MIDI notes (error margin < 10ms).
+- **Melodic Fidelity**: Capture rapid melodic changes (staccato, legato) while stabilizing vibrato jitter.
+- **Unified Logic**: Match the generated MIDI to the engine's existing 16-channel General MIDI standard for seamless chart generation.
 
 ---
 
-## 🏗️ Core Strategy: "Conversion-First"
+## 🏗️ Core Strategy: "Neural Extraction & Refinement"
 
-The central idea is to treat MP3 files as a source for MIDI generation. By converting an MP3 into a standard MIDI format, we can feed it directly into our proven chart generation logic.
+The system follows a three-stage pre-processing pipeline to convert raw MP3 audio into high-fidelity rhythm charts.
 
-### 1. Independent MP3-to-MIDI Converter
-- **Input**: MP3 Audio File.
-- **Logic**: Use AI-driven or signal-processing techniques to extract musical information (onsets, pitch, rhythm).
-- **Output**: A standard MIDI file with:
-    - **16 Channels**: Adhering to General MIDI (GM) standards.
-    - **Instrument Separation**: Distinct tracks/channels for different instruments (Drums, Bass, Melody, etc.).
-    - **Velocity & Duration**: Captured accurately to reflect the original audio's dynamics.
+### 1. High-Fidelity Source Separation (HTDemucs v4)
+- **Isolation**: Use `HTDemucs` (Hybrid Transformer) to isolate the **Vocal Stem** with minimal bleed from other instruments.
+- **Configuration**: Run with `shifts=2` to optimize for zero-artifact melodic extraction.
 
-### 2. Unified Chart Generation
-- **Zero Modification**: Use the existing `MidiParser` and `ChartGenerator` exactly as they are.
-- **Channel Selection**: Apply the same channel-prioritization and metadata-extraction logic used for native MIDI files.
-- **Difficulty Scaling**: Leverage the current algorithms to create different difficulty levels based on the generated MIDI data.
+### 2. Neural Pitch Inference (Spotify Basic-Pitch)
+- **Engine**: Leverage the `Basic-Pitch` neural network for monophonic pitch detection from the isolated vocal tract.
+- **Precision Tuning**: 
+    - `onset_threshold=0.48`: High sensitivity for capturing breathy or soft starts.
+    - `frame_threshold=0.35`: Balanced frame-level confidence for stability.
 
-### 3. Synchronized Hybrid Playback
-When a song is selected:
-1. **Match Check**: Look for an MP3 file with the same name as the MIDI chart.
-2. **Audio Source**: If found, use the MP3 as the primary audio output (BGM).
-3. **Gameplay Clock**: Use the MP3's playback position to drive the note movement in the chart.
-4. **Fallback**: If no MP3 is found, fall back to the built-in MIDI synthesizer for audio.
+### 3. Fidelity & Sync Refinement (VocalFidelityRefiner)
+To bridge the gap between AI raw data and gameplay-ready charts, we apply a specialized refinement layer:
+- **Sync Correction (-250ms)**: Subtracts a global 250ms offset to compensate for inference window latency, ensuring perfect "beat-match."
+- **Energy-Ratio Gating**: Compares isolated vocal energy against the original back-track. If the vocal ratio is $< 11\%$, it is treated as instrumental silence to prevent false positives (bleed notes).
+- **Vibrato-Aware Modal Pitch**:
+    - **Stability Rule**: If a pitch change ($\pm 1$ semitone) persists for $> 120ms$, it is preserved as a **New Note**.
+    - **Smoothing**: Rapid jitters (vibrato) $< 120ms$ are merged into stable phrases to avoid MIDI "flickering."
 
 ---
 
 ## 🛠️ Technical Requirements
 
-### 1. MP3 Processing Layer
-- Must produce a MIDI file that mimics a "well-composed" MIDI file.
-- Should separate percussive elements (Channel 10) from melodic ones.
-- Must ensure temporal synchronization (BPM and offset matching).
+### 1. Processing Stack
+- **Python 3.10+**: `librosa`, `torch==2.1.0+cu118`, `torchaudio`.
+- **Pre-Process**: Handled by `scripts/analyze_beats.py` (Analysis) and `scripts/convert_mp3_to_midi.mjs` (MIDI Generation).
 
-### 2. Audio Engine Updates
-- Implement a `HybridAudioManager` that can switch between `WebAudio (MP3)` and `MidiSynth`.
-- Ensure low-latency startup and seeking for MP3 playback.
-
----
-
-## ⚠️ Implementation Principles (*Crucial*)
-
-> [!IMPORTANT]
-> **Do NOT modify existing MIDI chart generation logic.** The system is already stable and high-quality. Our goal is to make the MP3 source "look like" a standard MIDI to the engine.
-
-- **Non-Destructive**: The MP3 pathway must be entirely additive.
-- **Standardization**: The generated MIDI must follow the 16-channel format to remain compatible with all existing filters and selection logic.
-- **Performance**: Heavy conversion (MP3 -> MIDI) should be handled as a pre-process step, not during game load if possible.
+### 2. Output Format
+- **Channel 1**: Refined Melodic Lead (Vocals).
+- **Channel 10**: HPSS-derived Percussive Onsets (Drums).
+- **Resolution**: High-precision JSON intermediate, quantized to MIDI for engine compatibility.
 
 ---
 
-## 🏁 Verification Plan
+## 🏁 Verification Benchmarks
 
-1. **Format Validation**: Ensure the generated MIDI from an MP3 can be opened and played in any standard MIDI editor.
-2. **Sync Test**: Verify that notes derived from the MP3 align perfectly with the audible peaks in the MP3 playback.
-3. **Regression Test**: Confirm that original MIDI-only songs still function perfectly.
+1.  **Sync Accuracy**: Verified via `check_sync.py`. Target error: **< 10ms**.
+2.  **Melodic Density**: Verified by note count analysis on fast songs (e.g., "想いは廻る"). Target: Retention of 16th-note runs without over-smoothing.
+3.  **Silence Precision**: Zero notes generated in instrumental breaks or intros (verified via energy-ratio logs).
 
 ---
 
-*Nexus Sphere Development Team - 2026-04-06*
+*Nexus Sphere Development Team - Revised 2026-04-09*
