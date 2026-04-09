@@ -182,12 +182,29 @@ def analyze(mp3_path):
                     last_pitch = prev["segments"][-1][2]
                     p_diff = abs(n["pitch"] - last_pitch)
                     
-                    # Energy-Weighted Tolerance: 
-                    # If climax (>0.6 avg energy), AI jitter is higher. Allow ±2 semitones.
+                    # Contextual Bridging (v2.6):
+                    # Distinguish between jitter/slides vs. intentional melodic steps.
                     avg_energy = (prev["energy"] + n["energy"]) / 2
-                    pitch_tolerance = 2 if avg_energy > 0.6 else 1
+                    is_climax = avg_energy > 0.6
                     
-                    # Elastic Bridge Logic: Merge if close in time and pitch
+                    # Rhythmic Threshold (approx 16th note)
+                    # Anything held longer than this is a real note, not jitter.
+                    # 120ms at 120 BPM, approx 80ms at 180 BPM
+                    bpm_factor = 120.0 / max(float(self.bpm), 80.0)
+                    stable_threshold = 0.15 * bpm_factor
+                    
+                    # Determine pitch tolerance
+                    # Allow ±1 for normal vibrato.
+                    # Allow ±2 only for EXTRA SHORT transitions in climaxes.
+                    n_dur = n["end"] - n["start"]
+                    if is_climax and p_diff <= 2 and n_dur < stable_threshold:
+                        pitch_tolerance = 2
+                    elif p_diff <= 1:
+                        pitch_tolerance = 1
+                    else:
+                        pitch_tolerance = 0 # Forced split
+                    
+                    # Elastic Bridge Logic
                     if p_diff <= pitch_tolerance and gap < 0.4:
                         prev["end"] = max(prev["end"], n["end"])
                         prev["energy"] = avg_energy
