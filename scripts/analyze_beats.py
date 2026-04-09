@@ -138,14 +138,20 @@ def analyze(mp3_path):
         finally:
             sys.stdout = original_stdout
         
-        # --- 6.1 Transcription Sync & Fidelity Refiner (v2) ---
+        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.2) ---
         class VocalFidelityRefiner:
-            def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames):
+            def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120):
                 self.notes = sorted(notes, key=lambda x: x[0])
                 self.v_rms = audio_rms_v
                 self.t_rms = audio_rms_t
                 self.ts = ts_frames
-                self.LATENCY_OFFSET = -0.25 # -250ms global sync correction
+                self.bpm = bpm
+                self.LATENCY_OFFSET = -0.25
+                
+                # Dynamic Stability: Shorter in fast songs to catch 16th notes
+                # 120ms at 120 BPM, approx 80ms at 180 BPM
+                bpm_factor = 120.0 / max(float(self.bpm), 80.0)
+                self.STABILITY_TIME = 0.12 * bpm_factor
             
             def get_local_ratio(self, t):
                 idx = np.argmin(np.abs(self.ts - t))
@@ -154,75 +160,76 @@ def analyze(mp3_path):
             def refine(self):
                 if not self.notes: return []
                 
-                # 1. Sync Correction & Energy-Ratio Gating
-                filtered_notes = []
+                # 1. Sync & Gating
+                filtered = []
                 for n in self.notes:
-                    start_t, end_t, pitch, energy, _ = n
-                    # Apply sync correction
-                    start_corr = max(0, start_t + self.LATENCY_OFFSET)
-                    end_corr = max(0, end_t + self.LATENCY_OFFSET)
-                    
-                    if end_corr <= start_corr: continue
-                    
-                    ratio = self.get_local_ratio(start_t) # Check original audio time for energy
-                    if ratio > 0.11: # Stable bleed filter
-                        filtered_notes.append([start_corr, end_corr, pitch, energy])
+                    s_t, e_t, pitch, energy, _ = n
+                    s_c, e_c = max(0, s_t + self.LATENCY_OFFSET), max(0, e_t + self.LATENCY_OFFSET)
+                    if e_c <= s_c: continue
+                    if self.get_local_ratio(s_t) > 0.11:
+                        filtered.append([s_c, e_c, int(pitch), float(energy)])
                 
-                if not filtered_notes: return []
+                if not filtered: return []
 
-                # 2. Granular Melodic Segmentation (Fixing Over-Smoothing)
-                # Keep fast melodic changes (legato) while merging jitter (vibrato).
+                # 2. Sequential Fidelity Analysis (Vibrato vs. Melodic Run)
                 stabilized = []
                 current_segment = []
                 
-                STABILITY_TIME = 0.12 # 120ms: Threshold to distinguish note change from vibrato
-                
-                for n in filtered_notes:
+                for i in range(len(filtered)):
+                    n = filtered[i]
                     if not current_segment:
                         current_segment.append(n)
                         continue
                         
                     prev = current_segment[-1]
                     gap = n[0] - prev[1]
-                    pitch_diff = abs(int(n[2]) - int(prev[2]))
+                    p_diff = abs(n[2] - prev[2])
                     
-                    # Merge Logic (Vibrato-Aware Only):
-                    # - If pitch is identical, merge.
-                    # - If pitch is +/- 1 semitone but duration is very short (< STABILITY_TIME), merge (vibrato).
-                    # - If pitch changes and stays for > STABILITY_TIME, it's a NEW NOTE (melodic run).
-                    is_same_pitch = pitch_diff == 0
-                    is_short_jitter = (pitch_diff == 1 and (n[1] - n[0]) < STABILITY_TIME)
+                    # Directional Check for Melodic Run:
+                    # Look ahead to see if this is a staircase (A -> B -> C) or oscillation (A -> B -> A)
+                    is_melodic_run = False
+                    if p_diff == 1 and i + 1 < len(filtered):
+                        next_n = filtered[i+1]
+                        # Staircase detection: pitch continues in same direction
+                        # n[2]-prev[2] and next_n[2]-n[2] have same sign
+                        if (n[2] - prev[2]) == (next_n[2] - n[2]): 
+                           is_melodic_run = True
                     
-                    if gap < 0.15 and (is_same_pitch or is_short_jitter):
+                    # Merge Logic:
+                    # - Identity: Merge
+                    # - Vibrato: Close pitch AND (not a melodic run OR extremely short jitter)
+                    is_same = p_diff == 0
+                    is_vibrato = (p_diff == 1 and not is_melodic_run and (n[1]-n[0]) < self.STABILITY_TIME)
+                    
+                    if gap < 0.15 and (is_same or is_vibrato):
                         current_segment.append(n)
                     else:
-                        # Finalize segment with Modal Pitch
                         stabilized.append(self.consolidate(current_segment))
                         current_segment = [n]
                 
                 if current_segment:
                     stabilized.append(self.consolidate(current_segment))
-                
                 return stabilized
 
             def consolidate(self, segment):
-                pitches = [int(n[2]) for n in segment]
+                pitches = [n[2] for n in segment]
                 modal_pitch = Counter(pitches).most_common(1)[0][0]
                 avg_energy = sum(n[3] for n in segment) / len(segment)
                 return {
                     "time": round(float(segment[0][0]), 4),
                     "duration": round(float(segment[-1][1] - segment[0][0]), 4),
-                    "pitch": int(modal_pitch),
-                    "energy": round(float(avg_energy), 4)
+                    "pitch": modal_pitch,
+                    "energy": round(avg_energy, 4)
                 }
 
         # Times corresponding to RMS frames for gating
         rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
         
-        refiner = VocalFidelityRefiner(note_events, vocal_rms, total_rms, rms_times)
+        # Pass the extracted BPM for stability scaling
+        refiner = VocalFidelityRefiner(note_events, vocal_rms, total_rms, rms_times, bpm=bpm)
         melody_data = refiner.refine()
         
-        print(f"  [AI] Vocal Fidelity Pass complete: {len(melody_data)} precise melodic segments.", file=sys.stderr)
+        print(f"  [AI] Vocal Fidelity v2.2 complete: {len(melody_data)} refined segments (BPM: {bpm:.1f}).", file=sys.stderr)
         
     except Exception as e:
         import traceback
