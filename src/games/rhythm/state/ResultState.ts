@@ -13,7 +13,7 @@ export class ResultState extends BaseGameState {
         
         try {
             this.game.audioEngine.stopBGM(false); 
-            this.game.audioEngine.playBGM(ASSET_PATHS.AUDIO.UI.RESULT, true);
+            this.game.audioEngine.playBGM(ASSET_PATHS.AUDIO.UI.RESULT, true, 0.5);
 
             if (this.game.scoreManager.isFullCombo()) {
                 this.game.audioEngine.playSFX(ASSET_PATHS.AUDIO.UI.CHEER);

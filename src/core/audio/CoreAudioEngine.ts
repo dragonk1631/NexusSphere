@@ -270,7 +270,7 @@ export class CoreAudioEngine {
      * Plays a looping background MP3/Audio file.
      * Routes through the mixer to respect master volume.
      */
-    public playBGM(url: string, loop: boolean = true): void {
+    public playBGM(url: string, loop: boolean = true, volume: number = 1.0): void {
         if (this.bgmPlayer && this.bgmPlayer.src.includes(url)) {
             if (this.bgmPlayer.paused) this.bgmPlayer.play().catch(() => {});
             return;
@@ -288,6 +288,7 @@ export class CoreAudioEngine {
         this.bgmSource = this.ctx.createMediaElementSource(this.bgmPlayer);
         this.mixer.connectSource(this.bgmSource as any);
 
+        this.bgmPlayer.volume = volume;
         this.bgmPlayer.play().catch(e => {
             AudioEngineLogger.warn(`BGM Playback failed: ${e}. (Need user gesture?)`);
         });
