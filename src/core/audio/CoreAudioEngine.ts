@@ -331,7 +331,7 @@ export class CoreAudioEngine {
      * Plays a one-shot sound effect (SFX) routed through the mixer.
      * Use for non-looping UI sounds or feedback.
      */
-    public playSFX(url: string): void {
+    public playSFX(url: string, volume: number = 1.0): void {
         const resolvedUrl = resolveAssetPath(url);
         const sfx = new Audio(resolvedUrl);
         sfx.crossOrigin = "anonymous";
@@ -339,6 +339,7 @@ export class CoreAudioEngine {
         const source = this.ctx.createMediaElementSource(sfx);
         this.mixer.connectSource(source as any);
         
+        sfx.volume = volume;
         sfx.play().catch(e => {
             AudioEngineLogger.warn(`SFX Playback failed: ${e}`);
         });

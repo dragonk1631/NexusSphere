@@ -16,7 +16,7 @@ export class ResultState extends BaseGameState {
             this.game.audioEngine.playBGM(ASSET_PATHS.AUDIO.UI.RESULT, true, 0.5);
 
             if (this.game.scoreManager.isFullCombo()) {
-                this.game.audioEngine.playSFX(ASSET_PATHS.AUDIO.UI.CHEER);
+                this.game.audioEngine.playSFX(ASSET_PATHS.AUDIO.UI.CHEER, 0.5);
             }
         } catch (e) {
             console.warn("[ResultState] Audio playback blocked or failed:", e);
