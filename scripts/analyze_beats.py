@@ -169,12 +169,14 @@ def analyze(mp3_path):
                 
                 if not filtered: return []
 
-                # 2. ELASTIC BRIDGE PASS: Merge ±1 semitone fragments (fix scattering)
-                # We group notes into "Breath Phrases"
+                # 2. ELASTIC PHRASE BRIDGE (v2.7): Lead-in vs Tail Mode
                 phrases = []
+                current_phrase_duration = 0
+                
                 for n in filtered:
                     if not phrases:
                         phrases.append(n)
+                        current_phrase_duration = n["end"] - n["start"]
                         continue
                     
                     prev = phrases[-1]
@@ -182,35 +184,40 @@ def analyze(mp3_path):
                     last_pitch = prev["segments"][-1][2]
                     p_diff = abs(n["pitch"] - last_pitch)
                     
-                    # Contextual Bridging (v2.6):
-                    # Distinguish between jitter/slides vs. intentional melodic steps.
                     avg_energy = (prev["energy"] + n["energy"]) / 2
                     is_climax = avg_energy > 0.6
                     
-                    # Rhythmic Threshold (approx 16th note)
-                    # Anything held longer than this is a real note, not jitter.
-                    # 120ms at 120 BPM, approx 80ms at 180 BPM
+                    # Rhythmic Thresholds
                     bpm_factor = 120.0 / max(float(self.bpm), 80.0)
-                    stable_threshold = 0.15 * bpm_factor
+                    stable_threshold = 0.16 * bpm_factor
                     
-                    # Determine pitch tolerance
-                    # Allow ±1 for normal vibrato.
-                    # Allow ±2 only for EXTRA SHORT transitions in climaxes.
+                    # --- PHRASE CONTEXT (v2.7) ---
+                    # If we've been holding/singing for a while, we are in TAIL MODE.
+                    is_tail = current_phrase_duration > 0.7
+                    
                     n_dur = n["end"] - n["start"]
-                    if is_climax and p_diff <= 2 and n_dur < stable_threshold:
+                    
+                    # Strategic Decision:
+                    # Lead-in: Strict splitting (±1 tolerance).
+                    # Tail: Relaxed tolerance (±2) to capture vibrato at the end of phrases.
+                    if is_tail and p_diff <= 2 and gap < 0.35:
                         pitch_tolerance = 2
-                    elif p_diff <= 1:
+                    elif is_climax and p_diff <= 2 and n_dur < stable_threshold and gap < 0.2:
+                        pitch_tolerance = 2
+                    elif p_diff <= 1 and gap < 0.4:
                         pitch_tolerance = 1
                     else:
-                        pitch_tolerance = 0 # Forced split
+                        pitch_tolerance = 0
                     
                     # Elastic Bridge Logic
-                    if p_diff <= pitch_tolerance and gap < 0.4:
+                    if p_diff <= pitch_tolerance:
                         prev["end"] = max(prev["end"], n["end"])
                         prev["energy"] = avg_energy
                         prev["segments"].extend(n["segments"])
+                        current_phrase_duration += (n_dur + gap)
                     else:
                         phrases.append(n)
+                        current_phrase_duration = n_dur
 
                 # 3. MODAL REALIGNMENT & GHOST PURGE
                 realigned = []
