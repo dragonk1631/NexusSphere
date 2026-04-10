@@ -17,7 +17,6 @@ export class DifficultyManager {
     private effectiveDifficulty: string;
     
     private lastAcceptedTick: number = -99999;
-    private lastAcceptedDrumTick: number = -99999;
     private easyMinGap: number = 0;
     private normalMinGap: number = 0;
     private holdThresholdMs: number = 0;
@@ -34,11 +33,11 @@ export class DifficultyManager {
     private calculateEffectiveDifficulty(): string {
         if (!this.context.isAiGenerated) return this.rawDifficulty;
 
-        // Current Parity logic for AI songs
-        if (this.rawDifficulty === 'EXTREME') return 'HARD';
-        if (this.rawDifficulty === 'HARD') return 'NORMAL';
-        if (this.rawDifficulty === 'NORMAL') return 'NORMAL';
-        return 'EASY';
+        // Hierarchical mapping for AI songs
+        // NORMAL -> NORMAL (Base)
+        // HARD -> HARD (Normal + Drums)
+        // EXTREME -> EXTREME (Hard + Chords/Extra)
+        return this.rawDifficulty;
     }
 
     private calculateEasyMinGap(): number {
@@ -52,46 +51,37 @@ export class DifficultyManager {
      * Returns the maximum simultaneous notes allowed for this difficulty.
      */
     public getNoteChordLimit(): number {
-        return (this.effectiveDifficulty === 'HARD') ? 2 : 1;
+        if (this.effectiveDifficulty === 'EXTREME' || !this.context.isAiGenerated) {
+            return 2;
+        }
+        return 1;
     }
 
     /**
      * Returns whether chords should be suppressed globally (all channels fused).
      */
     public isGlobalChordSuppressionActive(): boolean {
-        return (this.effectiveDifficulty === 'EASY' || (this.context.isAiGenerated && this.rawDifficulty === 'NORMAL'));
+        // Suppress chords (fuse tracks) for EASY and NORMAL/HARD (since they are monophonic per user request)
+        return (this.effectiveDifficulty === 'EASY' || 
+                this.effectiveDifficulty === 'NORMAL' || 
+                this.effectiveDifficulty === 'HARD');
     }
 
     /**
      * Determines if a note should be accepted based on density limits and difficulty rules.
      */
     public shouldAcceptNote(note: QuantizedNote): boolean {
-        // [Phase 3] AI-NORMAL Drum Pruning
-        if (this.context.isAiGenerated && this.rawDifficulty === 'NORMAL') {
-            if (note.midi && note.midi < 60) {
-                // 1. Sound Filtering: Only keep Snare (38, 40) and Kick (36)
-                const isSnare = (note.midi === 38 || note.midi === 40);
-                const isKick = (note.midi === 36 || note.midi === 35);
-                if (!isSnare && !isKick) return false;
-
-                // 2. Density Filtering: Minimum gap of 1 quarter note (ppq) for drums in Normal
-                const drumTickDiff = note.quantizedStartTick - this.lastAcceptedDrumTick;
-                if (drumTickDiff < this.context.ppq) return false;
-            }
-
-            // 3. Melody Density Filtering: Limit to 8th notes (variable by BPM)
-            // This prevents "Hard-level" instrumental sections from leaking into Normal.
+        // 1. NORMAL Difficulty Density Throttle (Apply to AI Melody)
+        if (this.context.isAiGenerated && this.effectiveDifficulty === 'NORMAL') {
             const tickDiff = note.quantizedStartTick - this.lastAcceptedTick;
             if (tickDiff > 0 && tickDiff < this.normalMinGap) {
                 return false;
             }
         }
 
-        // [Parity] EASY Throttle
+        // 2. EASY Throttle
         if (this.effectiveDifficulty === 'EASY') {
             const tickDiff = note.quantizedStartTick - this.lastAcceptedTick;
-            // IMPORTANT: Gap 0 (simultaneous) is ALLOWED within the chord limit logic handled elsewhere,
-            // but the throttle drops notes that are too close but NOT simultaneous.
             if (tickDiff > 0 && tickDiff < this.easyMinGap) {
                 return false;
             }
@@ -105,9 +95,6 @@ export class DifficultyManager {
      */
     public recordAcceptedNote(note: QuantizedNote): void {
         this.lastAcceptedTick = note.quantizedStartTick;
-        if (note.midi && note.midi < 60) {
-            this.lastAcceptedDrumTick = note.quantizedStartTick;
-        }
     }
 
     /**
@@ -178,5 +165,16 @@ export class DifficultyManager {
                 config.set(m, mainTrackIdx);
             }
         }
+    }
+
+    /**
+     * Hierarchical Track Inclusion Helpers
+     */
+    public shouldIncludeDrums(): boolean {
+        return this.effectiveDifficulty === 'HARD' || this.effectiveDifficulty === 'EXTREME';
+    }
+
+    public shouldIncludeExtraTracks(): boolean {
+        return this.effectiveDifficulty === 'EXTREME';
     }
 }

@@ -82,9 +82,23 @@ export class NoteFactory {
                         targetTrackIdx = autoMap.get(mIdx) ?? null;
                     }
 
-                    // [Phase 8] Perfect Isolation via Track Index comparison
-                    if (targetTrackIdx !== null && trackIndex === targetTrackIdx) {
-                        (note as any).isPrimary = true;
+                    // [Phase 9] Hierarchical Multi-Track Collection
+                    const isPrimary = (targetTrackIdx !== null && trackIndex === targetTrackIdx);
+                    const isDrum = track.isDrum || (track.name?.toLowerCase().includes('drums'));
+                    
+                    let shouldAccept = false;
+                    
+                    if (isPrimary) {
+                        shouldAccept = true;
+                    } else if (isDrum && diffManager.shouldIncludeDrums()) {
+                        shouldAccept = true;
+                    } else if (!isDrum && diffManager.shouldIncludeExtraTracks()) {
+                        // Include Bass/Instrumental tracks that are NOT the primary for this measure
+                        shouldAccept = true;
+                    }
+
+                    if (shouldAccept) {
+                        if (isPrimary) (note as any).isPrimary = true;
                         notes.push(note);
                     }
                 });
