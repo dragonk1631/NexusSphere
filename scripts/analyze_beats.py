@@ -49,21 +49,34 @@ def analyze(mp3_path):
         y_harm, _ = librosa.load(vocals_path, mono=True, sr=sr)
         y_perc, _ = librosa.load(drums_path, mono=True, sr=sr)
         
-        # Match lengths
-        if len(y_harm) < len(y): y_harm = np.pad(y_harm, (0, len(y) - len(y_harm)))
-        else: y_harm = y_harm[:len(y)]
+        # Load extra stems for multi-track inference
+        bass_path = os.path.join(out_dir, "htdemucs", base_name, "bass.wav")
+        other_path = os.path.join(out_dir, "htdemucs", base_name, "other.wav")
         
-        if len(y_perc) < len(y): y_perc = np.pad(y_perc, (0, len(y) - len(y_perc)))
-        else: y_perc = y_perc[:len(y)]
+        y_bass, _ = librosa.load(bass_path, mono=True, sr=sr) if os.path.exists(bass_path) else (np.zeros_like(y), sr)
+        y_other, _ = librosa.load(other_path, mono=True, sr=sr) if os.path.exists(other_path) else (np.zeros_like(y), sr)
+
+        # Match lengths for all
+        def sync_len(wav, target_len):
+            if len(wav) < target_len: return np.pad(wav, (0, target_len - len(wav)))
+            return wav[:target_len]
         
-        print(f"  [AI] Vocal isolation (Demucs) successful.", file=sys.stderr)
+        y_harm = sync_len(y_harm, len(y))
+        y_perc = sync_len(y_perc, len(y))
+        y_bass = sync_len(y_bass, len(y))
+        y_other = sync_len(y_other, len(y))
+        
+        print(f"  [AI] 4-Stem isolation (Demucs) successful.", file=sys.stderr)
         
     except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stderr)
         print(f"  [AI Warning] Demucs failed ({e}). Falling back to simple HPSS filter.", file=sys.stderr)
         y_harm, y_perc = librosa.effects.hpss(y, margin=(2.0, 5.0))
+        y_bass, y_other = np.zeros_like(y), np.zeros_like(y)
         vocals_path = mp3_abspath 
+        bass_path = ""
+        other_path = ""
 
     # --- 3. BPM + beat positions ---
     tempo, beat_frames = librosa.beat.beat_track(
@@ -103,267 +116,162 @@ def analyze(mp3_path):
 
     # --- 5. Energy Extraction & Precision Noise Floor Gating ---
     hop_length_std = 512
-    # Frame-by-frame energy for isolated vocals and original audio
     vocal_rms = librosa.feature.rms(y=y_harm, frame_length=2048, hop_length=hop_length_std)[0]
+    bass_rms  = librosa.feature.rms(y=y_bass, frame_length=2048, hop_length=hop_length_std)[0]
+    other_rms = librosa.feature.rms(y=y_other, frame_length=2048, hop_length=hop_length_std)[0]
     total_rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=hop_length_std)[0]
     perc_rms = librosa.feature.rms(y=y_perc, frame_length=2048, hop_length=hop_length_std)[0]
     
-    # Calculate Vocal-to-Total energy ratio (Silence/Bleed Mask)
-    # If vocals are much weaker than background, it's likely bleed noise.
-    energy_ratio = vocal_rms / (total_rms + 1e-6)
-    
-    # Absolute noise floor
     noise_floor = np.max(total_rms) * 0.005 
-
-    # --- 6. Spotify Basic-Pitch Neural Network Inference ---
-    print(f"  [AI] Running Basic-Pitch Neural Network on isolated vocals...", file=sys.stderr)
-    try:
-        import io
-        from basic_pitch.inference import predict
-        from collections import Counter
         
-        # Suppress noisy stdout
+    # --- 6. Triple Neural Network Inference (Basic-Pitch) ---
+    print(f"  [AI] Running Triple Inference (Vocal, Bass, Instrumental)...", file=sys.stderr)
+    
+    from basic_pitch.inference import predict
+    from collections import Counter
+    import io
+
+    class MelodyRefiner:
+        def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120, profile='vocal'):
+            self.notes = sorted(notes, key=lambda x: x[0])
+            self.v_rms = audio_rms_v
+            self.t_rms = audio_rms_t
+            self.ts = ts_frames
+            self.bpm = bpm
+            self.profile = profile
+            
+            # Calibration for Demucs v4 + Basic-Pitch
+            self.LATENCY_OFFSET = 0.0  # Align strictly with isolated stems
+            self.MAX_HOLD_SEC = 4.0
+            
+            # Gating sensitivity tuned for ISOLATED stems
+            if self.profile == 'bass':
+                self.ratio_gate = 0.04 
+            else:
+                self.ratio_gate = 0.05
+                
+            if len(self.v_rms) > 0:
+                self.intensity_cutoff = np.percentile(self.v_rms, 85)
+            else:
+                self.intensity_cutoff = 0.6
+        
+        def get_local_ratio(self, t):
+            if len(self.ts) == 0: return 1.0
+            idx = np.argmin(np.abs(self.ts - t))
+            return self.v_rms[idx] / (self.t_rms[idx] + 1e-6)
+
+        def refine(self):
+            if not self.notes: return []
+            
+            # 1. Sync & Gating
+            filtered = []
+            for n in self.notes:
+                s_t, e_t, pitch, energy, _ = n
+                s_c, e_c = max(0, s_t + self.LATENCY_OFFSET), max(0, e_t + self.LATENCY_OFFSET)
+                if e_c <= s_c: continue
+                
+                # Check isolation ratio to filter ghosts
+                if self.get_local_ratio(s_t) > self.ratio_gate:
+                    filtered.append({
+                        "start": s_c, "end": e_c, "pitch": int(pitch), "energy": float(energy),
+                        "segments": [[s_c, e_c, int(pitch)]]
+                    })
+            
+            if not filtered: return []
+
+            # 2. Phrase Bridging
+            phrases = []
+            bpm_factor = 120.0 / max(float(self.bpm), 80.0)
+            
+            for n in filtered:
+                if not phrases:
+                    phrases.append(n); continue
+                
+                prev = phrases[-1]
+                gap = n["start"] - prev["end"]
+                p_diff = abs(n["pitch"] - prev["segments"][-1][2])
+                
+                # Dynamic tolerance for bridging
+                tolerance = 0
+                if p_diff <= 2 and gap < 0.25: tolerance = 2
+                elif p_diff <= 1 and gap < 0.35: tolerance = 1
+
+                if p_diff <= tolerance:
+                    prev["end"] = max(prev["end"], n["end"])
+                    prev["segments"].extend(n["segments"])
+                else:
+                    phrases.append(n)
+
+            # 3. Output Translation (Dynamic Pitch Splitting)
+            final = []
+            MIN_SUB_DUR = 0.15  # Minimum duration for split notes
+            
+            for p in phrases:
+                # Group segments by pitch within the phrase
+                segments = sorted(p["segments"], key=lambda x: x[0])
+                if not segments: continue
+                
+                current_note = None
+                
+                for i, s in enumerate(segments):
+                    s_start, s_end, s_pitch = s
+                    
+                    if current_note is None:
+                        current_note = {"start": s_start, "end": s_end, "pitch": s_pitch}
+                    else:
+                        # If pitch is the same, extend the current note
+                        if s_pitch == current_note["pitch"]:
+                            current_note["end"] = max(current_note["end"], s_end)
+                        else:
+                            # Pitch changed. Check if the current note has met MIN_SUB_DUR
+                            dur = current_note["end"] - current_note["start"]
+                            if dur >= MIN_SUB_DUR or i == len(segments) - 1:
+                                # Close current note and start new one
+                                final.append({
+                                    "time": round(float(current_note["start"]), 4),
+                                    "duration": round(float(dur), 4),
+                                    "pitch": int(current_note["pitch"]),
+                                    "energy": round(float(p["energy"]), 4)
+                                })
+                                current_note = {"start": s_start, "end": s_end, "pitch": s_pitch}
+                            else:
+                                # Too short to split? 
+                                # Merge into current note but keep new pitch as the candidate
+                                current_note["end"] = max(current_note["end"], s_end)
+                                current_note["pitch"] = s_pitch
+                
+                # Close the last note of the phrase
+                if current_note:
+                    dur = current_note["end"] - current_note["start"]
+                    if dur >= 0.05: # Guard for very last bits
+                        final.append({
+                            "time": round(float(current_note["start"]), 4),
+                            "duration": round(float(dur), 4),
+                            "pitch": int(current_note["pitch"]),
+                            "energy": round(float(p["energy"]), 4)
+                        })
+            
+            return final
+
+    def run_inference(audio_path, rms, total_rms, ts, profile):
+        if not os.path.exists(audio_path): return []
+        print(f"    [AI] {profile} inference...", file=sys.stderr)
         original_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
-            target_audio = vocals_path if os.path.exists(vocals_path) else mp3_abspath
-            # Tuning for HIGH FIDELITY: Lower thresholds for better coverage,
-            # using our Energy-Ratio gate to prevent false positives.
-            _, _, note_events = predict(
-                target_audio,
-                onset_threshold=0.48,   # Improved sensitivity
-                frame_threshold=0.35,   # Catch soft/breathy starts
-                minimum_note_length=100 # Catch faster melodic phrases
-            )
+            _, _, events = predict(audio_path, onset_threshold=0.5, frame_threshold=0.3, minimum_note_length=100)
         finally:
             sys.stdout = original_stdout
-        
-        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.4) ---
-        class VocalFidelityRefiner:
-            def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120):
-                self.notes = sorted(notes, key=lambda x: x[0])
-                self.v_rms = audio_rms_v
-                self.t_rms = audio_rms_t
-                self.ts = ts_frames
-                self.bpm = bpm
-                self.LATENCY_OFFSET = -0.25
-                
-                bpm_factor = 120.0 / max(float(self.bpm), 80.0)
-                self.STABILITY_TIME = 0.12 * bpm_factor
             
-            def get_local_ratio(self, t):
-                idx = np.argmin(np.abs(self.ts - t))
-                return self.v_rms[idx] / (self.t_rms[idx] + 1e-6)
+        refiner = MelodyRefiner(events, rms, total_rms, ts, bpm=bpm, profile=profile)
+        return refiner.refine()
 
-            def refine(self):
-                if not self.notes: return []
-                
-                # 1. Sync & Gating
-                filtered = []
-                for n in self.notes:
-                    s_t, e_t, pitch, energy, _ = n
-                    s_c, e_c = max(0, s_t + self.LATENCY_OFFSET), max(0, e_t + self.LATENCY_OFFSET)
-                    if e_c <= s_c: continue
-                    if self.get_local_ratio(s_t) > 0.11:
-                        filtered.append({"start": s_c, "end": e_c, "pitch": int(pitch), "energy": float(energy), "segments": [[s_c, e_c, int(pitch)]]})
-                
-                if not filtered: return []
+    rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
+    
+    vocal_data = run_inference(vocals_path, vocal_rms, total_rms, rms_times, 'vocal')
+    bass_data  = run_inference(bass_path, bass_rms, total_rms, rms_times, 'bass')
+    other_data = run_inference(other_path, other_rms, total_rms, rms_times, 'instrumental')
 
-        # --- 6.1 Transcription Sync & Fidelity Refiner (v2.8) ---
-        class VocalFidelityRefiner:
-            def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120):
-                self.notes = sorted(notes, key=lambda x: x[0])
-                self.v_rms = audio_rms_v
-                self.t_rms = audio_rms_t
-                self.ts = ts_frames
-                self.bpm = bpm
-                self.LATENCY_OFFSET = -0.25
-                self.MAX_HOLD_SEC = 4.0  # Gameplay constraint: don't hold too long
-                
-                # Dynamic Thresholding: High intensity is top ~20% of vocal energy
-                if len(self.v_rms) > 0:
-                    self.intensity_cutoff = np.percentile(self.v_rms, 80)
-                else:
-                    self.intensity_cutoff = 0.6
-            
-            def get_local_v_rms(self, t):
-                idx = np.argmin(np.abs(self.ts - t))
-                return self.v_rms[idx]
-
-            def get_local_ratio(self, t):
-                idx = np.argmin(np.abs(self.ts - t))
-                return self.v_rms[idx] / (self.t_rms[idx] + 1e-6)
-
-            def refine(self):
-                if not self.notes: return []
-                
-                # 1. Sync & Gating
-                filtered = []
-                for n in self.notes:
-                    s_t, e_t, pitch, energy, _ = n
-                    s_c, e_c = max(0, s_t + self.LATENCY_OFFSET), max(0, e_t + self.LATENCY_OFFSET)
-                    if e_c <= s_c: continue
-                    # Absolute gating based on vocal/total ratio
-                    if self.get_local_ratio(s_t) > 0.11:
-                        filtered.append({
-                            "start": s_c, 
-                            "end": e_c, 
-                            "pitch": int(pitch), 
-                            "energy": float(energy), 
-                            "v_rms": self.get_local_v_rms(s_t),
-                            "segments": [[s_c, e_c, int(pitch)]]
-                        })
-                
-                if not filtered: return []
-
-                # 2. ELASTIC PHRASE BRIDGE (v2.8): Generalized Intensity & Phrase Age
-                phrases = []
-                current_phrase_duration = 0
-                bpm_factor = 120.0 / max(float(self.bpm), 80.0)
-                stable_threshold = 0.16 * bpm_factor
-                
-                for n in filtered:
-                    if not phrases:
-                        phrases.append(n)
-                        current_phrase_duration = n["end"] - n["start"]
-                        continue
-                    
-                    prev = phrases[-1]
-                    gap = n["start"] - prev["end"]
-                    last_pitch = prev["segments"][-1][2]
-                    p_diff = abs(n["pitch"] - last_pitch)
-                    
-                    # Statistical Intensity Check (Generalization)
-                    avg_v_rms = (prev["v_rms"] + n["v_rms"]) / 2
-                    is_high_intensity = avg_v_rms > self.intensity_cutoff
-                    
-                    is_tail = current_phrase_duration > 0.7
-                    n_dur = n["end"] - n["start"]
-                    
-                    # Logic derived from v2.7 heuristic pass
-                    if is_tail and p_diff <= 2 and gap < 0.35:
-                        pitch_tolerance = 2
-                    elif is_high_intensity and p_diff <= 2 and n_dur < stable_threshold and gap < 0.2:
-                        pitch_tolerance = 2
-                    elif p_diff <= 1 and gap < 0.4:
-                        pitch_tolerance = 1
-                    else:
-                        pitch_tolerance = 0
-                    
-                    if p_diff <= pitch_tolerance:
-                        prev["end"] = max(prev["end"], n["end"])
-                        prev["energy"] = (prev["energy"] + n["energy"]) / 2
-                        prev["segments"].extend(n["segments"])
-                        current_phrase_duration += (n_dur + gap)
-                    else:
-                        phrases.append(n)
-                        current_phrase_duration = n_dur
-
-                # 3. MODAL REALIGNMENT & GHOST PURGE
-                realigned = []
-                for p in phrases:
-                    duration = p["end"] - p["start"]
-                    if duration < 0.06: continue
-                    
-                    all_segment_pitches = []
-                    for s_start, s_end, s_pitch in p["segments"]:
-                        weight = int((s_end - s_start) * 100) + 1
-                        all_segment_pitches.extend([s_pitch] * weight)
-                    
-                    final_pitch = Counter(all_segment_pitches).most_common(1)[0][0] if all_segment_pitches else p["pitch"]
-
-                    realigned.append({
-                        "time": round(float(p["start"]), 4),
-                        "duration": round(float(duration), 4),
-                        "pitch": int(final_pitch),
-                        "energy": round(float(p["energy"]), 4)
-                    })
-
-                # 4. GAMEPLAY CONSTRAINTS: Split Excessive Long Notes (v2.8)
-                constrained = []
-                beat_duration = 60.0 / max(float(self.bpm), 1.0)
-                
-                for r in realigned:
-                    if r["duration"] > self.MAX_HOLD_SEC:
-                        # Split!
-                        rem_dur = r["duration"]
-                        curr_time = r["time"]
-                        while rem_dur > self.MAX_HOLD_SEC:
-                            # Split at nearest whole beat for rhythm
-                            split_dur = beat_duration * round(self.MAX_HOLD_SEC / beat_duration)
-                            constrained.append({
-                                "time": round(float(curr_time), 4),
-                                "duration": round(float(split_dur), 4),
-                                "pitch": r["pitch"],
-                                "energy": r["energy"]
-                            })
-                            curr_time += split_dur
-                            rem_dur -= split_dur
-                        if rem_dur > 0.05:
-                            constrained.append({
-                                "time": round(float(curr_time), 4),
-                                "duration": round(float(rem_dur), 4),
-                                "pitch": r["pitch"],
-                                "energy": r["energy"]
-                            })
-                    else:
-                        constrained.append(r)
-
-                # 5. FINAL PHRASE MERGE & MONOPHONIC TRUNCATION
-                merged = []
-                for c in constrained:
-                    if not merged:
-                        merged.append(c)
-                        continue
-                    prev = merged[-1]
-                    gap = c['time'] - (prev['time'] + prev['duration'])
-                    # Only merge small gaps if pitch is EXACTLY equal (post-realignment)
-                    if c['pitch'] == prev['pitch'] and gap < 0.15:
-                        # Only merge if the RESULTING note doesn't exceed 4s
-                        new_dur = c['time'] + c['duration'] - prev['time']
-                        if new_dur <= self.MAX_HOLD_SEC:
-                            prev['duration'] = round(float(new_dur), 4)
-                            prev['energy'] = round((prev['energy'] + c['energy']) / 2, 4)
-                        else:
-                            merged.append(c)
-                    else:
-                        merged.append(c)
-
-                final = []
-                epsilon = 0.001
-                for s in merged:
-                    if not final:
-                        final.append(s)
-                        continue
-                    prev = final[-1]
-                    prev_end = prev['time'] + prev['duration']
-                    if s['time'] < (prev_end - epsilon):
-                        new_dur = s['time'] - prev['time']
-                        if new_dur > 0.03:
-                            prev['duration'] = round(float(new_dur), 4)
-                        else:
-                            final.pop()
-                            if not final:
-                                final.append(s)
-                                continue
-                    final.append(s)
-
-                return final
-
-        # Times corresponding to RMS frames for gating
-        rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
-        
-        # Pass the extracted BPM for stability scaling
-        refiner = VocalFidelityRefiner(note_events, vocal_rms, total_rms, rms_times, bpm=bpm)
-        melody_data = refiner.refine()
-        
-        print(f"  [AI] Vocal Fidelity v2.2 complete: {len(melody_data)} refined segments (BPM: {bpm:.1f}).", file=sys.stderr)
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-        print(f"  [AI Warning] Restoration failed: {e}. Falling back to empty melody.", file=sys.stderr)
-        melody_data = []
 
     # --- 7. Adaptive Signature-based Drum Refinement ---
     def frames_to_energy(onset_frames, rms, hop_ratio=1.0):
@@ -453,7 +361,9 @@ def analyze(mp3_path):
         "duration": round(duration, 3),
         "beats": [round(float(t), 4) for t in beat_times.tolist()],
         "drums": all_drums,
-        "melody": melody_data
+        "vocal": vocal_data,
+        "bass": bass_data,
+        "instrumental": other_data
     }
 
     print(json.dumps(result))

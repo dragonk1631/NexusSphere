@@ -87,47 +87,79 @@ async function main() {
 
             if (data.error) throw new Error(data.error);
 
-            const { bpm, drums, melody } = data;
-            console.log(`  BPM: ${bpm} | Drums: ${drums.length} | Melody: ${melody.length}`);
+            const { bpm, drums, vocal, bass, instrumental } = data;
+            console.log(`  BPM: ${bpm} | Drums: ${drums?.length || 0} | Vocal: ${vocal?.length || 0} | Bass: ${bass?.length || 0} | Inst: ${instrumental?.length || 0}`);
 
-            // Build Unified MIDI
             const midi = new Midi();
             midi.header.setTempo(Math.round(bpm));
 
-            // --- Main Gameplay Track (Channel 0 for direct processing) ---
-            const mainTrack = midi.addTrack();
-            mainTrack.name = 'Main Gameplay';
-            mainTrack.channel = 0;
-            mainTrack.instrument.number = 0; // Piano-ish base
-
-            // 1. Add Drums (as short TAP notes)
-            drums.forEach((n) => {
-                let midiNote = 36; // Kick
-                if (n.type === 'snare') {
-                    midiNote = (n.time * 100) % 2 < 1 ? 38 : 40;
-                }
-
-                mainTrack.addNote({
-                    midi: midiNote,
-                    time: n.time,
-                    duration: 0.08, // Very short = TAP
-                    velocity: Math.min(0.98, 0.60 + n.energy * 0.38)
+            // --- 1. Main Gameplay Track (Vocals) ---
+            const vTrack = midi.addTrack();
+            vTrack.name = 'Main Gameplay';
+            vTrack.channel = 0;
+            vTrack.instrument.number = 0; 
+            if (vocal) {
+                vocal.forEach(n => {
+                    vTrack.addNote({
+                        midi: Math.max(60, Math.min(86, n.pitch || 72)),
+                        time: n.time,
+                        duration: n.duration,
+                        velocity: Math.min(0.95, Math.max(0.4, n.energy * 0.8))
+                    });
                 });
-            });
+            }
 
-            // 2. Add Melody/Vocals (as long HOLD notes)
-            melody.forEach((n) => {
-                // Real pitch from Spotify Basic-Pitch!
-                // Bounded faintly between 60(C4) and 86(D6) for lane UI playability.
-                const pitch = Math.max(60, Math.min(86, n.pitch || 72));
-                
-                mainTrack.addNote({
-                    midi: pitch,
-                    time: n.time,
-                    duration: n.duration, // Dynamic duration from Spotify Basic-Pitch
-                    velocity: Math.min(0.95, Math.max(0.4, n.energy * 0.8)) // Natural human velocity
+            // --- 2. Drum Track (Channel 9 - MIDI Standard) ---
+            const dTrack = midi.addTrack();
+            dTrack.name = 'Drums';
+            dTrack.channel = 9; 
+            dTrack.instrument.number = 0;
+            if (drums) {
+                drums.forEach(n => {
+                    let midiNote = 36; // Kick
+                    if (n.type === 'snare') {
+                        midiNote = (n.time * 100) % 2 < 1 ? 38 : 40;
+                    }
+                    dTrack.addNote({
+                        midi: midiNote,
+                        time: n.time,
+                        duration: 0.08,
+                        velocity: Math.min(0.98, 0.60 + n.energy * 0.38)
+                    });
                 });
-            });
+            }
+
+            // --- 3. Bass Track ---
+            const bTrack = midi.addTrack();
+            bTrack.name = 'Bass';
+            bTrack.channel = 1;
+            bTrack.instrument.number = 34; // Electric Bass (pick)
+            if (bass) {
+                bass.forEach(n => {
+                    bTrack.addNote({
+                        midi: Math.max(30, Math.min(50, n.pitch || 36)),
+                        time: n.time,
+                        duration: n.duration,
+                        velocity: Math.min(0.9, 0.4 + n.energy * 0.5)
+                    });
+                });
+            }
+
+            // --- 4. Instrumental Track ---
+            const iTrack = midi.addTrack();
+            iTrack.name = 'Instrumental';
+            iTrack.channel = 2;
+            iTrack.instrument.number = 81; // Lead 2 (sawtooth)
+            if (instrumental) {
+                instrumental.forEach(n => {
+                    iTrack.addNote({
+                        midi: Math.max(50, Math.min(80, n.pitch || 60)),
+                        time: n.time,
+                        duration: n.duration,
+                        velocity: Math.min(0.85, 0.3 + n.energy * 0.6)
+                    });
+                });
+            }
 
             fs.writeFileSync(midiPath, Buffer.from(midi.toArray()));
             console.log(`  [✓] → ${base}.mid`);
