@@ -1,5 +1,5 @@
 import type { QuantizedNote } from './RhythmQuantizer';
-import type { ParsedMidi, GameNote } from '../../../core/audio/MidiParser';
+import type { ParsedMidi } from '../../../core/audio/MidiParser';
 
 export interface DifficultyContext {
     isAiGenerated: boolean;
@@ -19,6 +19,7 @@ export class DifficultyManager {
     private lastAcceptedTick: number = -99999;
     private lastAcceptedDrumTick: number = -99999;
     private easyMinGap: number = 0;
+    private normalMinGap: number = 0;
     private holdThresholdMs: number = 0;
 
     constructor(difficulty: string, context: DifficultyContext) {
@@ -26,6 +27,7 @@ export class DifficultyManager {
         this.context = context;
         this.effectiveDifficulty = this.calculateEffectiveDifficulty();
         this.easyMinGap = this.calculateEasyMinGap();
+        this.normalMinGap = this.easyMinGap / 2; // Normal allows 2x density of Easy
         this.holdThresholdMs = (60000 / this.context.bpm) * 0.75;
     }
 
@@ -76,6 +78,13 @@ export class DifficultyManager {
                 const drumTickDiff = note.quantizedStartTick - this.lastAcceptedDrumTick;
                 if (drumTickDiff < this.context.ppq) return false;
             }
+
+            // 3. Melody Density Filtering: Limit to 8th notes (variable by BPM)
+            // This prevents "Hard-level" instrumental sections from leaking into Normal.
+            const tickDiff = note.quantizedStartTick - this.lastAcceptedTick;
+            if (tickDiff > 0 && tickDiff < this.normalMinGap) {
+                return false;
+            }
         }
 
         // [Parity] EASY Throttle
@@ -124,64 +133,50 @@ export class DifficultyManager {
     }
 
     /**
-     * [Phase 8] Refines the measure-to-track mapping for AI charts.
-     * Centralizes the "Vocals by default, Drums in long gaps" logic using TRACK isolation.
+     * [Phase 8] Refines the measure-to-track mapping for AI-generated charts.
+     * Unified with standard MIDI logic: switches to the best available candidate in the hierarchy
+     * whenever the primary vocal track is empty.
      */
     public refineAiChartStrategy(config: Map<number, number>, midi: ParsedMidi, rankedTracks: number[]): void {
-        if (this.rawDifficulty !== 'NORMAL') return; // Only strictly optimize for Normal for now
-
-        const vocalTrackIdx = rankedTracks[0];
-        const drumTrackIdx = rankedTracks[rankedTracks.length - 1];
-
+        // [Parity] Standardize AI chart fallback with general MIDI logic
+        // We remove the 5.0s "Vocal-only" enforcement to prevent empty sections.
+        
         const ppq = midi.ppq || 480;
-        const bpm = midi.bpm || 120;
-        const secPerMeasure = (4 * 60) / bpm;
+        const totalMeasures = Math.max(...config.keys(), 0) + 1;
 
-        // 1. Identify all "Melody" tracks (exclude drums)
-        const melodyTracks = rankedTracks.filter(tIdx => {
-            const track = (midi.tracks || [])[tIdx];
-            return track && !track.isDrum;
+        // Group note availability by track for fast checking
+        const trackMeasureMap = new Map<number, Set<number>>();
+        rankedTracks.forEach(tIdx => {
+            const track = midi.tracks[tIdx];
+            const mSet = new Set<number>();
+            if (track) {
+                track.notes.forEach(note => {
+                    if (note.velocity < 13) return;
+                    const mIdx = Math.floor(note.ticks / (ppq * 4));
+                    mSet.add(mIdx);
+                });
+            }
+            trackMeasureMap.set(tIdx, mSet);
         });
 
-        // 2. Scan all measures to check for ANY melody content
-        const totalMeasures = Math.max(...config.keys(), 0) + 1;
-        let emptyMeasures: number[] = [];
-
-        const applyDrums = () => {
-            // "딱 거기만!" -> Only if the gap is truly long (>= 5 seconds)
-            if (emptyMeasures.length * secPerMeasure >= 5.0) {
-                emptyMeasures.forEach(mIdx => config.set(mIdx, drumTrackIdx));
-            } else {
-                // Not long enough? Stay on the best Vocal/Melody track
-                emptyMeasures.forEach(mIdx => config.set(mIdx, vocalTrackIdx));
-            }
-            emptyMeasures = [];
-        };
+        const mainTrackIdx = rankedTracks[0];
 
         for (let m = 0; m < totalMeasures; m++) {
-            const mStart = m * ppq * 4;
-            const mEnd = (m + 1) * ppq * 4;
+            const mainHasNotes = trackMeasureMap.get(mainTrackIdx)?.has(m);
 
-            // Check if ANY melody track has notes here
-            let hasMelody = false;
-            for (const tIdx of melodyTracks) {
-                const track = (midi.tracks || [])[tIdx];
-                const hasNotes = track?.notes.some((n: GameNote) => 
-                    n.ticks < mEnd && (n.ticks + (n.durationTicks || 0)) > mStart && (n.velocity || 0) >= 13
-                );
-                if (hasNotes) {
-                    hasMelody = true;
-                    break;
+            if (!mainHasNotes) {
+                // Gap detected! Search through ranked fallback candidates (Instrumental -> Bass -> Drums)
+                for (let i = 1; i < rankedTracks.length; i++) {
+                    const altTrackIdx = rankedTracks[i];
+                    if (trackMeasureMap.get(altTrackIdx)?.has(m)) {
+                        config.set(m, altTrackIdx);
+                        break;
+                    }
                 }
-            }
-
-            if (hasMelody) {
-                applyDrums();
-                config.set(m, vocalTrackIdx); // Vocal candidate takes precedence
             } else {
-                emptyMeasures.push(m);
+                // Return to main track
+                config.set(m, mainTrackIdx);
             }
         }
-        applyDrums();
     }
 }

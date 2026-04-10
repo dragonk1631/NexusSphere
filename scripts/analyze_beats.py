@@ -147,8 +147,13 @@ def analyze(mp3_path):
             # Gating sensitivity tuned for ISOLATED stems
             if self.profile == 'bass':
                 self.ratio_gate = 0.04 
-            else:
+                self.MIN_SUB_DUR = 0.20 # Higher for Bass (avoid jitter)
+            elif self.profile == 'instrumental':
+                self.ratio_gate = 0.20 # Aggressive: Only keep very prominent sounds
+                self.MIN_SUB_DUR = 0.25 # Simplify accompaniment significantly
+            else: # Vocal
                 self.ratio_gate = 0.05
+                self.MIN_SUB_DUR = 0.15 # Maintain vocal detail
                 
             if len(self.v_rms) > 0:
                 self.intensity_cutoff = np.percentile(self.v_rms, 85)
@@ -204,7 +209,7 @@ def analyze(mp3_path):
 
             # 3. Output Translation (Dynamic Pitch Splitting)
             final = []
-            MIN_SUB_DUR = 0.15  # Minimum duration for split notes
+            MIN_SUB_DUR = self.MIN_SUB_DUR  # Use Profile-specific Min duration
             
             for p in phrases:
                 # Group segments by pitch within the phrase
@@ -251,15 +256,50 @@ def analyze(mp3_path):
                             "energy": round(float(p["energy"]), 4)
                         })
             
+            # 4. Monophonic Enforcement (Kill overlap for Inst/Bass)
+            if self.profile in ['instrumental', 'bass']:
+                final = self.enforce_monophony(final)
+                
             return final
 
-    def run_inference(audio_path, rms, total_rms, ts, profile):
+        def enforce_monophony(self, notes):
+            if not notes: return []
+            sorted_notes = sorted(notes, key=lambda x: x['time'])
+            result = []
+            
+            for n in sorted_notes:
+                if not result:
+                    result.append(n); continue
+                
+                prev = result[-1]
+                prev_end = prev['time'] + prev['duration']
+                
+                # Overlap detected?
+                if n['time'] < prev_end - 0.02: # 20ms tolerance
+                    if n['energy'] > prev['energy'] * 1.1: 
+                        # New note is significantly stronger: Cut previous note
+                        prev['duration'] = max(0.05, n['time'] - prev['time'])
+                        result.append(n)
+                    else:
+                        # New note is weaker or similar: Delay new note or skip it
+                        if (n['time'] + n['duration']) > prev_end + 0.1:
+                            orig_end = n['time'] + n['duration']
+                            n['time'] = prev_end + 0.02
+                            n['duration'] = max(0.05, orig_end - n['time'])
+                            result.append(n)
+                        else:
+                            continue # Skip it
+                else:
+                    result.append(n)
+            return result
+
+    def run_inference(audio_path, rms, total_rms, ts, profile, onset_th=0.5, frame_th=0.3):
         if not os.path.exists(audio_path): return []
-        print(f"    [AI] {profile} inference...", file=sys.stderr)
+        print(f"    [AI] {profile} inference (th={onset_th})...", file=sys.stderr)
         original_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
-            _, _, events = predict(audio_path, onset_threshold=0.5, frame_threshold=0.3, minimum_note_length=100)
+            _, _, events = predict(audio_path, onset_threshold=onset_th, frame_threshold=frame_th, minimum_note_length=100)
         finally:
             sys.stdout = original_stdout
             
@@ -268,9 +308,9 @@ def analyze(mp3_path):
 
     rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
     
-    vocal_data = run_inference(vocals_path, vocal_rms, total_rms, rms_times, 'vocal')
-    bass_data  = run_inference(bass_path, bass_rms, total_rms, rms_times, 'bass')
-    other_data = run_inference(other_path, other_rms, total_rms, rms_times, 'instrumental')
+    vocal_data = run_inference(vocals_path, vocal_rms, total_rms, rms_times, 'vocal', 0.5, 0.3)
+    bass_data  = run_inference(bass_path, bass_rms, total_rms, rms_times, 'bass', 0.6, 0.4)
+    other_data = run_inference(other_path, other_rms, total_rms, rms_times, 'instrumental', 0.75, 0.55)
 
 
     # --- 7. Adaptive Signature-based Drum Refinement ---

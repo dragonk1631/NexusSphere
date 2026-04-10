@@ -84,13 +84,6 @@ export class NoteFactory {
 
                     // [Phase 8] Perfect Isolation via Track Index comparison
                     if (targetTrackIdx !== null && trackIndex === targetTrackIdx) {
-                        // Strict Block for Normal Difficulty: Prevent any accidental "drum-like" bleed in melody tracks
-                        if (difficulty === 'NORMAL' && isAiGenerated && !track.isDrum && note.midi < 60) {
-                            // Extra check: if the selected track is NOT a drum track, 
-                            // we definitely don't want any suspicious low-pitch "hits" during vocal sections.
-                            return; 
-                        }
-
                         (note as any).isPrimary = true;
                         notes.push(note);
                     }
