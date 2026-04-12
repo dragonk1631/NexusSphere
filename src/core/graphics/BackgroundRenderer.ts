@@ -110,8 +110,7 @@ export class BackgroundRenderer {
                         this.emitProgress(p);
 
                         const urls = [
-                            `assets/images/background-themes/${theme.id}/${base}.${ext}`,
-                            `/assets/images/background-themes/${theme.id}/${base}.${ext}`
+                            `assets/images/background-themes/${theme.id}/${base}.${ext}`
                         ];
                         
                         for (const url of urls) {

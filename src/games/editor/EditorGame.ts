@@ -408,13 +408,13 @@ export class EditorGame extends BaseGame {
                     const savedConfig = JSON.parse(savedConfigStr);
                     // [FORCE UPGRADE] v1.3 Standardizes on MIDI Channels. 
                     // Older versions (v1.2) containing Track Indices are discarded to ensure a perfect state.
-                    if (savedConfig.version === "1.3" && savedConfig.measureConfig) {
+                    if (savedConfig.version === "1.3.1" && savedConfig.measureConfig) {
                         const entries = savedConfig.measureConfig;
                         entries.forEach((entry: [number, number]) => {
                             this.measureConfig.set(Number(entry[0]), Number(entry[1]));
                         });
                         loadedFromLocal = true;
-                        console.log(`[EditorGame] Loaded validated v1.3 config for ${this.midiData.name}`);
+                        console.log(`[EditorGame] Loaded validated v1.3.1 config for ${this.midiData.name}`);
                     } else {
                         console.warn(`[EditorGame] Outdated config version (${savedConfig.version || 'none'}). Forcing fresh Magic Analysis...`);
                     }
@@ -808,7 +808,7 @@ export class EditorGame extends BaseGame {
         const measureObj = Array.from(this.measureConfig.entries());
 
         const outputData = {
-            version: "1.3",
+            version: "1.3.1",
             metadata: {
                 title: this.midiData.name,
                 bpm: this.midiData.bpm,

@@ -774,7 +774,7 @@ export class MenuManager {
             if (existingStr) {
                 try {
                     const parsed = JSON.parse(existingStr);
-                    if (parsed.version === "1.3") {
+                    if (parsed.version === "1.3.1") {
                         needsSync = false;
                         skipCount++;
                     }
@@ -797,7 +797,17 @@ export class MenuManager {
                     console.log(`[MenuManager] Integrity Sync: [${syncedCount + 1}] Analyzing ${song.name}...`);
                     
                     const res = await fetch(song.url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    
                     const buffer = await res.arrayBuffer();
+                    
+                    // --- VALIDATION: Check for MIDI Signature (MThd) ---
+                    const view = new DataView(buffer);
+                    if (buffer.byteLength < 4 || 
+                        view.getUint32(0) !== 0x4d546864) { // 0x4d546864 = 'MThd'
+                        throw new Error(`Invalid MIDI signature (Possibly 404 HTML instead)`);
+                    }
+
                     const midiData = await this._midiParser.parse(buffer);
 
                     // Re-run the Strategy Analysis
@@ -809,9 +819,9 @@ export class MenuManager {
                         if (track) measureMap.set(mIdx, track.channel);
                     });
 
-                    // Save as v1.3
+                    // Save as v1.3.1
                     const outputData = {
-                        version: "1.3",
+                        version: "1.3.1",
                         metadata: {
                             title: midiData.name,
                             bpm: midiData.bpm,
