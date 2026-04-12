@@ -26,7 +26,7 @@ interface ChannelData {
     isDrum: boolean;
 }
 
-const CHANNEL_COLORS = [
+export const CHANNEL_COLORS = [
     '#FF5252', // Ch 1 Red
     '#FF4081', // Ch 2 Pink
     '#E040FB', // Ch 3 Purple

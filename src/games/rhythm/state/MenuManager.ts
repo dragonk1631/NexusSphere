@@ -6,6 +6,7 @@ import { MenuMusicManager } from '../../../core/audio/MenuMusicManager';
 import { SPEED_OPTIONS, DIFFICULTY_OPTIONS } from '../constants/GameConstants';
 import { computeMenuLayout } from '../renderer/MenuLayout';
 import { AssetLoader } from '../../../core/asset/AssetLoader';
+import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -66,6 +67,11 @@ export class MenuManager {
         await this.loadUserSongs();
         this.loadFavoriteStates(); // Load favorites into the newly loaded lists
         this.sortSongList();
+        
+        // --- IRONCLAD: Proactive Library Integrity Sync (v1.3) ---
+        // We start this in the background to ensure all songs are compliant
+        // with the latest channel-based selection before the user plays them.
+        this.syncLibraryIntegrity();
     }
 
     public loadFavoriteStates() {
@@ -741,6 +747,88 @@ export class MenuManager {
             if (files && files.length > 0) this.handleFileDrop(files);
         };
         input.click();
+    }
+
+    /**
+     * IRONCLAD: Library Integrity Sync (v1.3)
+     * Proactively scans all official songs for missing or outdated configurations.
+     * This ensures 100% chart accuracy before the user even selects a song.
+     */
+    private async syncLibraryIntegrity(): Promise<void> {
+        if (this.officialSongs.length === 0) return;
+
+        console.log(`[MenuManager] Integrity Sync: Scanning ${this.officialSongs.length} official songs...`);
+        
+        let syncedCount = 0;
+        let skipCount = 0;
+
+        for (const song of this.officialSongs) {
+            // 1. Identify storage key (Same as EditorGame)
+            const strippedName = song.url.split('/').pop()?.replace(/\.mid$/i, '') || 'unknown';
+            const safeName = strippedName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const storageKey = `beatmap_config_${safeName}`;
+
+            // 2. Check existing version
+            const existingStr = localStorage.getItem(storageKey);
+            let needsSync = true;
+            if (existingStr) {
+                try {
+                    const parsed = JSON.parse(existingStr);
+                    if (parsed.version === "1.3") {
+                        needsSync = false;
+                        skipCount++;
+                    }
+                } catch (e) {
+                    console.warn(`[MenuManager] Integrity Sync: Invalid config for ${song.name}. Overwriting.`);
+                }
+            }
+
+            if (needsSync) {
+                try {
+                    // Yield to main thread every few songs to keep UI silky smooth
+                    if (syncedCount % 3 === 0) await new Promise(r => setTimeout(r, 200));
+
+                    // PROFESSIONAL: Avoid network storm if engine is already busy with a real game
+                    if (this.audioEngine.isPlaying() && !this.previewMidi) {
+                        console.log("[MenuManager] Integrity Sync: Pausing background sync (Game active).");
+                        break; 
+                    }
+
+                    console.log(`[MenuManager] Integrity Sync: [${syncedCount + 1}] Analyzing ${song.name}...`);
+                    
+                    const res = await fetch(song.url);
+                    const buffer = await res.arrayBuffer();
+                    const midiData = await this._midiParser.parse(buffer);
+
+                    // Re-run the Strategy Analysis
+                    const autoTrackConfig = MelodyAnalyzer.suggestGapFilling(midiData);
+                    const measureMap = new Map<number, number>();
+
+                    autoTrackConfig.forEach((tIdx, mIdx) => {
+                        const track = midiData.tracks[tIdx];
+                        if (track) measureMap.set(mIdx, track.channel);
+                    });
+
+                    // Save as v1.3
+                    const outputData = {
+                        version: "1.3",
+                        metadata: {
+                            title: midiData.name,
+                            bpm: midiData.bpm,
+                            duration: midiData.duration
+                        },
+                        measureConfig: Array.from(measureMap.entries())
+                    };
+
+                    localStorage.setItem(storageKey, JSON.stringify(outputData));
+                    syncedCount++;
+                } catch (err) {
+                    console.error(`[MenuManager] Integrity Sync: Failed to sync ${song.name}:`, err);
+                }
+            }
+        }
+
+        console.log(`[MenuManager] Integrity Sync Complete. (Synced: ${syncedCount}, Already Valid: ${skipCount})`);
     }
 
     public destroy(): void {
