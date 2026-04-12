@@ -23,5 +23,5 @@ export function resolveAssetPath(path: string): string {
     // 4. 기초 경로와 자산 경로 결합
     const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     
-    return `${base}${normalizedPath}`;
+    return `${base}${normalizedPath}`.normalize('NFC');
 }

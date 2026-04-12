@@ -96,39 +96,17 @@ export class BackgroundRenderer {
 
             // 2. Attempt to load background image
             try {
-                const extensions = ['webp', 'png', 'jpg', 'jpeg'];
-                const baseNames = [`bg_${theme.id}`, 'bg'];
-                
                 let loadedBitmap: ImageBitmap | null = null;
-                let currentStep = 0;
                 
-                for (const base of baseNames) {
-                    for (const ext of extensions) {
-                        currentStep++;
-                        const p = (currentStep / (baseNames.length * extensions.length)) * 0.95; 
-                        this.emitProgress(p);
+                // Deterministic Path Selection
+                const url = theme.bgUrl || `assets/images/background-themes/${theme.id}/bg_${theme.id}.jpg`;
+                
+                this.emitProgress(0.5);
 
-                        const variations = [
-                            base,
-                            base.replace(/-/g, '_'),
-                            base.replace(/_/g, '-'),
-                            base.replace(/[^a-z0-9]/gi, '') // alphanumeric only
-                        ];
-
-                        for (const variant of variations) {
-                            const url = `assets/images/background-themes/${theme.id}/${variant}.${ext}`;
-                            try {
-                                const response = await fetch(url);
-                                if (response.ok) {
-                                    const blob = await response.blob();
-                                    loadedBitmap = await createImageBitmap(blob);
-                                    break;
-                                }
-                            } catch (e) { /* Retry other variants */ }
-                        }
-                        if (loadedBitmap) break;
-                    }
-                    if (loadedBitmap) break;
+                const response = await fetch(url);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    loadedBitmap = await createImageBitmap(blob);
                 }
 
                 if (loadedBitmap) {
@@ -137,6 +115,7 @@ export class BackgroundRenderer {
                         bitmap: loadedBitmap
                     }, [loadedBitmap]);
                 } else {
+                    console.warn(`[BackgroundRenderer] No background image found for ${theme.id} at ${url}. Falling back to gradient.`);
                     this.worker.postMessage({
                         type: 'SET_BG_IMAGE',
                         bitmap: null

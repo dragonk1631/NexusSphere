@@ -25,13 +25,14 @@ export interface ThemeConfig {
     bubblePulseGrad: string[]; // For UI bubbles like MainMenu
     semantic: SemanticPalette;
     bgm?: string;
+    bgUrl?: string;
     songTitle?: string;
 }
 
 export class ThemeManager {
     private static instance: ThemeManager | null = null;
     private currentThemeId: string = 'deep-space';
-    private themeSongs: Map<string, { url: string, title: string }> = new Map();
+    private themeSongs: Map<string, { url: string, title: string, bgUrl?: string }> = new Map();
     private initPromise: Promise<void>;
     private isReady: boolean = false;
     private listeners: Array<(theme: ThemeConfig) => void> = [];
@@ -253,7 +254,11 @@ export class ThemeManager {
             if (res.ok) {
                 const data = await res.json();
                 data.forEach((item: any) => {
-                    this.themeSongs.set(item.themeId, { url: item.url, title: item.songTitle });
+                    this.themeSongs.set(item.themeId, { 
+                        url: item.url, 
+                        title: item.songTitle,
+                        bgUrl: item.bgUrl 
+                    });
                 });
                 console.log(`[ThemeManager] Loaded ${this.themeSongs.size} theme songs.`);
                 this.isReady = true;
@@ -285,6 +290,7 @@ export class ThemeManager {
         return {
             ...theme,
             bgm: bgmInfo?.url,
+            bgUrl: bgmInfo?.bgUrl,
             songTitle: bgmInfo?.title
         };
     }

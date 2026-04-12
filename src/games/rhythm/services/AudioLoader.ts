@@ -41,6 +41,9 @@ export class AudioLoader {
             // Reset current data
             this.beatmapData = null;
 
+            // 0. Resolve MIDI Name for tracking/mapping
+            const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+
             // 1. MIDI Loading & Parsing
             if (isTestMode && transitionData) {
                 console.log("[AudioLoader] Test Mode: Loading MIDI from transition buffer.");
@@ -78,6 +81,7 @@ export class AudioLoader {
                     } else {
                         // Normal Server Song
                         const midiRes = await fetch(midiUrl);
+                        if (!midiRes.ok) throw new Error(`MIDI fetch failed for ${midiName} at ${midiUrl} (Status: ${midiRes.status})`);
                         midiBuffer = await midiRes.arrayBuffer();
                     }
 
@@ -91,7 +95,6 @@ export class AudioLoader {
             }
 
             // 2. Hybrid Audio Check (MP3 + MIDI Sync)
-            const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
             const mp3Path = `assets/audio/mp3/${midiName}.mp3`;
             const al = AssetLoader.getInstance();
             let isHybrid = false;
@@ -149,7 +152,13 @@ export class AudioLoader {
                     if (res.ok && contentType && contentType.includes("application/json")) {
                         this.beatmapData = await res.json();
                         console.log("[AudioLoader] Custom beatmap found and loaded from server.");
+                    } else if (res.status === 404) {
+                        // Explicitly null if 404, allowing AI fallback
+                        this.beatmapData = null;
+                        console.log(`[AudioLoader] No custom beatmap found for ${midiName} (404). Falling back to AI logic.`);
                     } else {
+                        // Other errors (500, etc) should be warned
+                        console.warn(`[AudioLoader] Beatmap lookup failed with status ${res.status}`);
                         this.beatmapData = null;
                     }
                 } catch (e) {

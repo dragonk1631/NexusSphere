@@ -2,51 +2,61 @@
   {
     "themeId": "marchen",
     "songTitle": "Nexus Marchen",
-    "url": "assets/audio/ui/themes/marchen/정상을_향해_더_높이.mp3"
+    "url": "assets/audio/ui/themes/marchen/정상을_향해_더_높이.mp3",
+    "bgUrl": "assets/images/background-themes/marchen/bg_marchen.jpg"
   },
   {
     "themeId": "deep-space",
     "songTitle": "Celestial Voyage",
-    "url": "assets/audio/ui/themes/deep-space/Before_The_Game_Starts.mp3"
+    "url": "assets/audio/ui/themes/deep-space/Before_The_Game_Starts.mp3",
+    "bgUrl": "assets/images/background-themes/deep-space/bg_deep-space.jpg"
   },
   {
     "themeId": "fireworks",
     "songTitle": "Sparkle Festival",
-    "url": "assets/audio/ui/themes/fireworks/Paper_Lanterns_Rising.mp3"
+    "url": "assets/audio/ui/themes/fireworks/Paper_Lanterns_Rising.mp3",
+    "bgUrl": "assets/images/background-themes/fireworks/bg_fireworks.jpg"
   },
   {
     "themeId": "sunset-overdrive",
     "songTitle": "Rose Gold Horizon",
-    "url": "assets/audio/ui/themes/sunset-overdrive/After_the_Last_Hit.mp3"
+    "url": "assets/audio/ui/themes/sunset-overdrive/After_the_Last_Hit.mp3",
+    "bgUrl": "assets/images/background-themes/sunset-overdrive/bg_sunset-overdrive.jpg"
   },
   {
     "themeId": "matrix-grid",
     "songTitle": "Digital Pulse",
-    "url": "assets/audio/ui/themes/matrix-grid/Vector_Override.mp3"
+    "url": "assets/audio/ui/themes/matrix-grid/Vector_Override.mp3",
+    "bgUrl": "assets/images/background-themes/matrix-grid/bg_matrix-grid.jpg"
   },
   {
     "themeId": "vaporwave",
     "songTitle": "Synthwave Dream",
-    "url": "assets/audio/ui/themes/vaporwave/Westbound_at_Sunset.mp3"
+    "url": "assets/audio/ui/themes/vaporwave/Westbound_at_Sunset.mp3",
+    "bgUrl": "assets/images/background-themes/vaporwave/bg_vaporwave.jpg"
   },
   {
     "themeId": "midnight-ocean",
     "songTitle": "Deep Teal Echo",
-    "url": "assets/audio/ui/themes/midnight-ocean/옥빛_바다_무도회.mp3"
+    "url": "assets/audio/ui/themes/midnight-ocean/옥빛_바다_무도회.mp3",
+    "bgUrl": "assets/images/background-themes/midnight-ocean/bg_midnight-ocean.jpg"
   },
   {
     "themeId": "crimson-flare",
     "songTitle": "Flame Dance",
-    "url": "assets/audio/ui/themes/crimson-flare/Where_Iron_Meets_the_Ember.mp3"
+    "url": "assets/audio/ui/themes/crimson-flare/Where_Iron_Meets_the_Ember.mp3",
+    "bgUrl": "assets/images/background-themes/crimson-flare/bg_crimson-flare.jpg"
   },
   {
     "themeId": "monochrome-tech",
     "songTitle": "Binary Soul",
-    "url": "assets/audio/ui/themes/monochrome-tech/Platinum_Gates.mp3"
+    "url": "assets/audio/ui/themes/monochrome-tech/Platinum_Gates.mp3",
+    "bgUrl": "assets/images/background-themes/monochrome-tech/bg_monochrome-tech.jpg"
   },
   {
     "themeId": "winter-snow",
     "songTitle": "Frozen Crystal",
-    "url": "assets/audio/ui/themes/winter-snow/Keys_by_the_Hearth.mp3"
+    "url": "assets/audio/ui/themes/winter-snow/Keys_by_the_Hearth.mp3",
+    "bgUrl": "assets/images/background-themes/winter-snow/bg_winter-snow.jpg"
   }
 ]
