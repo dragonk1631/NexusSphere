@@ -406,16 +406,17 @@ export class EditorGame extends BaseGame {
             if (savedConfigStr) {
                 try {
                     const savedConfig = JSON.parse(savedConfigStr);
-                    if (savedConfig.version === "1.2" && savedConfig.measureConfig) {
-                        // Version 1.2 Format (New Measure-Based)
+                    // [FORCE UPGRADE] v1.3 Standardizes on MIDI Channels. 
+                    // Older versions (v1.2) containing Track Indices are discarded to ensure a perfect state.
+                    if (savedConfig.version === "1.3" && savedConfig.measureConfig) {
                         const entries = savedConfig.measureConfig;
                         entries.forEach((entry: [number, number]) => {
                             this.measureConfig.set(Number(entry[0]), Number(entry[1]));
                         });
                         loadedFromLocal = true;
-                        console.log(`[EditorGame] Loaded Measure Config from LocalStorage for ${this.midiData.name}`);
+                        console.log(`[EditorGame] Loaded validated v1.3 config for ${this.midiData.name}`);
                     } else {
-                        console.warn(`[EditorGame] Found old config format for ${this.midiData.name}. Ignoring.`);
+                        console.warn(`[EditorGame] Outdated config version (${savedConfig.version || 'none'}). Forcing fresh Magic Analysis...`);
                     }
                 } catch (err) {
                     console.warn(`[EditorGame] Failed to parse local config:`, err);
@@ -423,9 +424,9 @@ export class EditorGame extends BaseGame {
             }
 
             if (!loadedFromLocal) {
-                // Apply strategic Magic Analyze (Gap Filling) as default if no saved config exists
+                // Apply strategic Magic Analyze (Gap Filling) as default if no valid v1.3 config exists
                 this.handleMagicAnalyze();
-                console.log(`[EditorGame] Applied strategic Magic defaults (Gap Filling) on load.`);
+                console.log(`[EditorGame] Perfect State Guaranteed: Strategic Magic Analysis applied on load.`);
             }
 
             // Render Layout with RESET state (which relies on measureConfig and channelData)
@@ -807,7 +808,7 @@ export class EditorGame extends BaseGame {
         const measureObj = Array.from(this.measureConfig.entries());
 
         const outputData = {
-            version: "1.2",
+            version: "1.3",
             metadata: {
                 title: this.midiData.name,
                 bpm: this.midiData.bpm,
@@ -1483,19 +1484,24 @@ export class EditorGame extends BaseGame {
         if (!this.midiData) return;
 
         console.log('[EditorGame] Executing Magic Auto-Analyze (Gap Filling)...');
-        const autoConfig = MelodyAnalyzer.suggestGapFilling(this.midiData);
+        const autoTrackConfig = MelodyAnalyzer.suggestGapFilling(this.midiData);
 
-        if (autoConfig.size > 0) {
+        if (autoTrackConfig.size > 0) {
             // Clear current map and apply auto-generated one
             this.measureConfig.clear();
-            autoConfig.forEach((ch, mIdx) => {
-                this.measureConfig.set(mIdx, ch);
+            autoTrackConfig.forEach((tIdx, mIdx) => {
+                // [FIX] Map Suggested Track Index back to MIDI Channel Number (0-15)
+                // This ensures measureConfig strictly contains Channel indices for the UI & Factory.
+                const track = this.midiData!.tracks[tIdx];
+                if (track) {
+                    this.measureConfig.set(mIdx, track.channel);
+                }
             });
 
             this.handleSaveConfig(false);
             this.updateTrackLayout();
             this.render();
-            console.log(`[EditorGame] Magic Analyze complete. Applied ${autoConfig.size} strategic changes.`);
+            console.log(`[EditorGame] Magic Analyze complete. Applied ${autoTrackConfig.size} strategic channel assignments.`);
         }
     }
 }
