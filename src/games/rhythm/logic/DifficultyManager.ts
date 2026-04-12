@@ -51,20 +51,20 @@ export class DifficultyManager {
      * Returns the maximum simultaneous notes allowed for this difficulty.
      */
     public getNoteChordLimit(): number {
-        if (this.effectiveDifficulty === 'EXTREME' || !this.context.isAiGenerated) {
+        if (this.effectiveDifficulty === 'EXTREME') {
             return 2;
         }
+        // NORMAL and HARD are strictly monophonic (1 note at a time)
         return 1;
     }
 
     /**
      * Returns whether chords should be suppressed globally (all channels fused).
+     * This enforces monophony across all active tracks.
      */
     public isGlobalChordSuppressionActive(): boolean {
-        // Suppress chords (fuse tracks) for EASY and NORMAL/HARD (since they are monophonic per user request)
-        return (this.effectiveDifficulty === 'EASY' || 
-                this.effectiveDifficulty === 'NORMAL' || 
-                this.effectiveDifficulty === 'HARD');
+        // Suppress chords (fuse tracks) for EASY, NORMAL, and HARD
+        return (this.effectiveDifficulty !== 'EXTREME');
     }
 
     /**

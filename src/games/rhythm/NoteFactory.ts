@@ -138,6 +138,12 @@ export class NoteFactory {
         // 1. Quantize
         const quantized = RhythmQuantizer.quantize(notesToProcess, midi.ppq);
 
+        // Sort by primary status to ensure vocal/melody priority during monophonic collapse
+        quantized.sort((a, b) => {
+            if (a.quantizedStartTick !== b.quantizedStartTick) return a.quantizedStartTick - b.quantizedStartTick;
+            return ((b as any).isPrimary ? 1 : 0) - ((a as any).isPrimary ? 1 : 0);
+        });
+
         // 2. Collapse Chords
         const collapsed: QuantizedNote[] = [];
         const seenCounts = new Map<string, number>();

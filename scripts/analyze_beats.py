@@ -130,6 +130,30 @@ def analyze(mp3_path):
     from basic_pitch.inference import predict
     from collections import Counter
     import io
+    from scipy.signal import medfilt
+
+    class RhythmQuantizer:
+        def __init__(self, beat_times, bpm):
+            self.beats = beat_times
+            self.bpm = bpm
+            self.grid = []
+            if len(beat_times) > 1:
+                # Create a 1/16 grid by interpolating between beats
+                for i in range(len(beat_times) - 1):
+                    b1, b2 = beat_times[i], beat_times[i+1]
+                    for j in range(16):
+                        self.grid.append(b1 + (b2 - b1) * j / 16.0)
+                self.grid.append(beat_times[-1])
+            self.grid = np.array(self.grid)
+
+        def snap(self, t, threshold=0.045, strength=1.0):
+            if len(self.grid) == 0: return t
+            idx = np.argmin(np.abs(self.grid - t))
+            closest = self.grid[idx]
+            diff = abs(t - closest)
+            if diff < threshold:
+                return t + (closest - t) * strength
+            return t
 
     class MelodyRefiner:
         def __init__(self, notes, audio_rms_v, audio_rms_t, ts_frames, bpm=120, profile='vocal'):
@@ -139,21 +163,25 @@ def analyze(mp3_path):
             self.ts = ts_frames
             self.bpm = bpm
             self.profile = profile
+            self.quantizer = None # Set externally
             
             # Calibration for Demucs v4 + Basic-Pitch
-            self.LATENCY_OFFSET = 0.0  # Align strictly with isolated stems
+            self.LATENCY_OFFSET = -0.015 # Compensation for neural buffer
             self.MAX_HOLD_SEC = 4.0
             
             # Gating sensitivity tuned for ISOLATED stems
             if self.profile == 'bass':
-                self.ratio_gate = 0.04 
-                self.MIN_SUB_DUR = 0.20 # Higher for Bass (avoid jitter)
+                self.ratio_gate = 0.06 
+                self.MIN_SUB_DUR = 0.18 
+                self.snap_strength = 1.0 # Strict for Bass
             elif self.profile == 'instrumental':
-                self.ratio_gate = 0.20 # Aggressive: Only keep very prominent sounds
-                self.MIN_SUB_DUR = 0.25 # Simplify accompaniment significantly
+                self.ratio_gate = 0.22 
+                self.MIN_SUB_DUR = 0.22 
+                self.snap_strength = 0.9 # High for Instruments
             else: # Vocal
                 self.ratio_gate = 0.05
-                self.MIN_SUB_DUR = 0.15 # Maintain vocal detail
+                self.MIN_SUB_DUR = 0.15 
+                self.snap_strength = 0.65 # Lenient for Vocals (preserve expression)
                 
             if len(self.v_rms) > 0:
                 self.intensity_cutoff = np.percentile(self.v_rms, 85)
@@ -177,6 +205,10 @@ def analyze(mp3_path):
                 
                 # Check isolation ratio to filter ghosts
                 if self.get_local_ratio(s_t) > self.ratio_gate:
+                    # Quantization 
+                    if self.quantizer:
+                        s_c = self.quantizer.snap(s_c, strength=self.snap_strength)
+                    
                     filtered.append({
                         "start": s_c, "end": e_c, "pitch": int(pitch), "energy": float(energy),
                         "segments": [[s_c, e_c, int(pitch)]]
@@ -232,10 +264,20 @@ def analyze(mp3_path):
                             dur = current_note["end"] - current_note["start"]
                             if dur >= MIN_SUB_DUR or i == len(segments) - 1:
                                 # Close current note and start new one
+                                # Apply Pitch Smoothing (Median of segments)
+                                if self.profile == 'vocal' and len(p["segments"]) > 3:
+                                    pitches = [seg[2] for seg in p["segments"] if seg[0] >= current_note["start"] and seg[1] <= current_note["end"]]
+                                    if pitches:
+                                        refined_pitch = int(np.median(pitches))
+                                    else:
+                                        refined_pitch = int(current_note["pitch"])
+                                else:
+                                    refined_pitch = int(current_note["pitch"])
+
                                 final.append({
                                     "time": round(float(current_note["start"]), 4),
                                     "duration": round(float(dur), 4),
-                                    "pitch": int(current_note["pitch"]),
+                                    "pitch": refined_pitch,
                                     "energy": round(float(p["energy"]), 4)
                                 })
                                 current_note = {"start": s_start, "end": s_end, "pitch": s_pitch}
@@ -293,6 +335,11 @@ def analyze(mp3_path):
                     result.append(n)
             return result
 
+    rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
+    
+    # Initialize Quantizer
+    quantizer = RhythmQuantizer(beat_times, bpm)
+    
     def run_inference(audio_path, rms, total_rms, ts, profile, onset_th=0.5, frame_th=0.3):
         if not os.path.exists(audio_path): return []
         print(f"    [AI] {profile} inference (th={onset_th})...", file=sys.stderr)
@@ -304,12 +351,11 @@ def analyze(mp3_path):
             sys.stdout = original_stdout
             
         refiner = MelodyRefiner(events, rms, total_rms, ts, bpm=bpm, profile=profile)
+        refiner.quantizer = quantizer # Apply global grid
         return refiner.refine()
 
-    rms_times = librosa.frames_to_time(range(len(vocal_rms)), sr=sr, hop_length=hop_length_std)
-    
     vocal_data = run_inference(vocals_path, vocal_rms, total_rms, rms_times, 'vocal', 0.5, 0.3)
-    bass_data  = run_inference(bass_path, bass_rms, total_rms, rms_times, 'bass', 0.6, 0.4)
+    bass_data  = run_inference(bass_path, bass_rms, total_rms, rms_times, 'bass', 0.6, 0.45)
     other_data = run_inference(other_path, other_rms, total_rms, rms_times, 'instrumental', 0.75, 0.55)
 
 
