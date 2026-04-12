@@ -399,8 +399,9 @@ export class EditorGame extends BaseGame {
             this.measureConfig.clear();
 
             const strippedName = this.currentMidiFileName.replace(/\.mid$/i, '');
-            const safeName = strippedName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            const savedConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
+            const safeName = encodeURIComponent(strippedName).replace(/%/g, '_').toLowerCase();
+            const storageKey = `beatmap_config_${safeName}_v133`;
+            const savedConfigStr = localStorage.getItem(storageKey);
             let loadedFromLocal = false;
 
             if (savedConfigStr) {
@@ -408,13 +409,13 @@ export class EditorGame extends BaseGame {
                     const savedConfig = JSON.parse(savedConfigStr);
                     // [FORCE UPGRADE] v1.3 Standardizes on MIDI Channels. 
                     // Older versions (v1.2) containing Track Indices are discarded to ensure a perfect state.
-                    if (savedConfig.version === "1.3.1" && savedConfig.measureConfig) {
+                    if (savedConfig.version === "1.3.3" && savedConfig.measureConfig) {
                         const entries = savedConfig.measureConfig;
                         entries.forEach((entry: [number, number]) => {
                             this.measureConfig.set(Number(entry[0]), Number(entry[1]));
                         });
                         loadedFromLocal = true;
-                        console.log(`[EditorGame] Loaded validated v1.3.1 config for ${this.midiData.name}`);
+                        console.log(`[EditorGame] Loaded validated v1.3.3 config for ${this.midiData.name}`);
                     } else {
                         console.warn(`[EditorGame] Outdated config version (${savedConfig.version || 'none'}). Forcing fresh Magic Analysis...`);
                     }
@@ -808,7 +809,7 @@ export class EditorGame extends BaseGame {
         const measureObj = Array.from(this.measureConfig.entries());
 
         const outputData = {
-            version: "1.3.1",
+            version: "1.3.3",
             metadata: {
                 title: this.midiData.name,
                 bpm: this.midiData.bpm,
@@ -818,8 +819,8 @@ export class EditorGame extends BaseGame {
         };
 
         const strippedName = this.currentMidiFileName.replace(/\.mid$/i, '');
-        const safeName = strippedName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        localStorage.setItem(`beatmap_config_${safeName}`, JSON.stringify(outputData));
+        const safeName = encodeURIComponent(strippedName).replace(/%/g, '_').toLowerCase();
+        localStorage.setItem(`beatmap_config_${safeName}_v133`, JSON.stringify(outputData));
         console.log(`[EditorGame] Saved config to localStorage for ${safeName}`);
 
         if (showFeedback) {

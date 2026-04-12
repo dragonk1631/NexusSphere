@@ -100,22 +100,23 @@ export class BackgroundRenderer {
                 const baseNames = [`bg_${theme.id}`, 'bg'];
                 
                 let loadedBitmap: ImageBitmap | null = null;
-                const totalSteps = baseNames.length * extensions.length;
                 let currentStep = 0;
                 
                 for (const base of baseNames) {
                     for (const ext of extensions) {
                         currentStep++;
-                        const p = (currentStep / totalSteps) * 0.95; 
+                        const p = (currentStep / (baseNames.length * extensions.length)) * 0.95; 
                         this.emitProgress(p);
 
-                        const underscoredBase = base.replace(/-/g, '_');
-                        const urls = [
-                            `assets/images/background-themes/${theme.id}/${base}.${ext}`,
-                            `assets/images/background-themes/${theme.id}/${underscoredBase}.${ext}`
+                        const variations = [
+                            base,
+                            base.replace(/-/g, '_'),
+                            base.replace(/_/g, '-'),
+                            base.replace(/[^a-z0-9]/gi, '') // alphanumeric only
                         ];
-                        
-                        for (const url of urls) {
+
+                        for (const variant of variations) {
+                            const url = `assets/images/background-themes/${theme.id}/${variant}.${ext}`;
                             try {
                                 const response = await fetch(url);
                                 if (response.ok) {
@@ -123,7 +124,7 @@ export class BackgroundRenderer {
                                     loadedBitmap = await createImageBitmap(blob);
                                     break;
                                 }
-                            } catch (e) { /* Retry */ }
+                            } catch (e) { /* Retry other variants */ }
                         }
                         if (loadedBitmap) break;
                     }

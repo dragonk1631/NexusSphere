@@ -344,10 +344,12 @@ export class MenuManager {
     private async syncLibraryIntegrity(): Promise<void> {
         if (this.officialSongs.length === 0) return;
         for (const song of this.officialSongs) {
-            const safeName = song.url.split('/').pop()?.replace(/\.mid$/i, '').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            const key = `beatmap_config_${safeName}`;
+            const midiName = song.url.split('/').pop()?.replace(/\.mid$/i, '') || 'unknown';
+            // v1.3.3: Use a unique identity that supports Non-ASCII (Korean) characters
+            const safeName = encodeURIComponent(midiName).replace(/%/g, '_').toLowerCase();
+            const key = `beatmap_config_${safeName}_v133`;
             const existing = localStorage.getItem(key);
-            if (!existing || JSON.parse(existing).version !== "1.3.2") {
+            if (!existing || JSON.parse(existing).version !== "1.3.3") {
                 try {
                     if (this.audioEngine.isPlaying() && !this.previewMidi) break;
                     await this.performSyncOperation(song, key);
@@ -357,24 +359,29 @@ export class MenuManager {
     }
 
     public async ensureSongSynced(song: SongEntry): Promise<void> {
-        const safeName = song.url.split('/').pop()?.replace(/\.mid$/i, '').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const key = `beatmap_config_${safeName}`;
+        const midiName = song.url.split('/').pop()?.replace(/\.mid$/i, '') || 'unknown';
+        const safeName = encodeURIComponent(midiName).replace(/%/g, '_').toLowerCase();
+        // Use v133 suffix to ensure we don't pick up the old corrupted ____ configs
+        const key = `beatmap_config_${safeName}_v133`;
         const existing = localStorage.getItem(key);
-        if (!existing || JSON.parse(existing).version !== "1.3.2") {
+        if (!existing || JSON.parse(existing).version !== "1.3.3") {
             await this.performSyncOperation(song, key);
         }
     }
 
     private async performSyncOperation(song: SongEntry, storageKey: string): Promise<void> {
-        const res = await fetch(song.url);
-        if (!res.ok) return;
+        // PROFESSIONAL: URI encode the URL to prevent 404s on GitHub Pages for Korean filenames
+        const encodedUrl = song.url.split('/').map(part => part.includes('.') ? part : encodeURIComponent(part)).join('/');
+        
+        const res = await fetch(encodedUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
-        if (new DataView(buffer).getUint32(0) !== 0x4d546864) return;
+        if (new DataView(buffer).getUint32(0) !== 0x4d546864) throw new Error(`Invalid MIDI`);
         const midiData = await this._midiParser.parse(buffer);
         const autoTrackConfig = MelodyAnalyzer.suggestGapFilling(midiData);
         const measureMap = Array.from(autoTrackConfig.entries()).map(([m, t]) => [m, midiData.tracks[t]?.channel ?? 0]);
         localStorage.setItem(storageKey, JSON.stringify({
-            version: "1.3.2",
+            version: "1.3.3",
             metadata: { title: midiData.name, bpm: midiData.bpm, duration: midiData.duration },
             measureConfig: measureMap
         }));
