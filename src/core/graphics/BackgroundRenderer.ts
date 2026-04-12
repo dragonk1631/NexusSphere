@@ -109,8 +109,10 @@ export class BackgroundRenderer {
                         const p = (currentStep / totalSteps) * 0.95; 
                         this.emitProgress(p);
 
+                        const underscoredBase = base.replace(/-/g, '_');
                         const urls = [
-                            `assets/images/background-themes/${theme.id}/${base}.${ext}`
+                            `assets/images/background-themes/${theme.id}/${base}.${ext}`,
+                            `assets/images/background-themes/${theme.id}/${underscoredBase}.${ext}`
                         ];
                         
                         for (const url of urls) {
