@@ -218,16 +218,22 @@ const startApp = async () => {
   }
 };
 
+import { SystemInitializer } from './core/SystemInitializer';
+
 const showTitle = () => {
   titleScreen = new TitleScreen(async () => {
     if (titleScreen) titleScreen.destroy();
     titleScreen = null;
     
     const loading = LoadingOverlay.getInstance();
-    loading.show("LOADING MAIN MENU...");
     
-    // Ensure background is ready (in case theme changed)
+    // 1. Ensure background is ready
+    loading.show("LOADING MAIN MENU...");
     await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+    
+    // 2. Perform System Initialization (Integrity Sync)
+    // This is where all 404s for discovery happen SILENTLY.
+    await SystemInitializer.getInstance().run();
     
     loading.hide();
     mainMenu = new MainMenu(handleGameStart);

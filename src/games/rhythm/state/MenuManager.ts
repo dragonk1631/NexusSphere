@@ -8,6 +8,7 @@ import { computeMenuLayout } from '../renderer/MenuLayout';
 import { AssetLoader } from '../../../core/asset/AssetLoader';
 import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
 import { resolveAssetPath } from '../../../core/utils/PathUtils';
+import { SystemInitializer } from '../../../core/SystemInitializer';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -66,13 +67,11 @@ export class MenuManager {
     private async init() {
         await this.loadOfficialSongs();
         await this.loadUserSongs();
-        this.loadFavoriteStates(); // Load favorites into the newly loaded lists
+        this.loadFavoriteStates(); 
         this.sortSongList();
         
-        // --- IRONCLAD: Proactive Library Integrity Sync (v1.3) ---
-        // We start this in the background to ensure all songs are compliant
-        // with the latest channel-based selection before the user plays them.
-        this.syncLibraryIntegrity();
+        // --- IRONCLAD: Library Sync moved to SystemInitializer ---
+        // Integrity sync is now performed during the Title -> Menu transition.
     }
 
     public loadFavoriteStates() {
@@ -99,18 +98,11 @@ export class MenuManager {
     }
 
     public async loadOfficialSongs() {
-        try {
-            const res = await fetch(resolveAssetPath('assets/data/official_songs.json'));
-            if (!res.ok) throw new Error("Failed to load official songs list.");
-            const data = await res.json();
-            this.officialSongs = data.map((s: any) => ({
-                ...s,
-                isCustom: false
-            } as SongEntry));
-            this.loadFavoriteStates(); // Sync favorites and apply filter
-        } catch (e) {
-            console.error("[MenuManager] Failed to load official songs:", e);
-        }
+        // PROFESSIONAL: We now consume the pre-verified list from the SystemInitializer.
+        // This list has already been probed for 404s and normalized to NFD if needed.
+        const si = SystemInitializer.getInstance();
+        this.officialSongs = [...si.getVerifiedSongs()];
+        this.loadFavoriteStates();
     }
 
     public async loadUserSongs() {
