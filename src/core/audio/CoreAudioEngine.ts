@@ -260,7 +260,6 @@ export class CoreAudioEngine {
             const now = startAnchor;
             const duration = this.mp3Buffer.duration;
             const finalGain = this.autoNormalizationGain * this.userMetadataVolume;
-            const fadeId = ++this.currentPreviewId; // Reuse ID to tag this playback session
             
             // 1. Initial State: Full Volume (No Fade-in)
             this.mp3GainNode.gain.cancelScheduledValues(now);
