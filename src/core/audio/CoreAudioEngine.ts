@@ -34,7 +34,6 @@ export class CoreAudioEngine {
     private autoNormalizationGain: number = 1.0;
     private userMetadataVolume: number = 1.0;
     private isPreviewLoop: boolean = false;
-    private currentPreviewId: number = 0;
 
     // Internal State
     private isReady: boolean = false;
