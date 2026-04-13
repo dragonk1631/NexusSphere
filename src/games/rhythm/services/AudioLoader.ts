@@ -78,7 +78,7 @@ export class AudioLoader {
                         midiBuffer = await blob.arrayBuffer();
                     } else {
                         // Normal Server Song
-                        const midiRes = await fetch(midiUrl);
+                        const midiRes = await fetch(resolveAssetPath(midiUrl));
                         midiBuffer = await midiRes.arrayBuffer();
                     }
 
