@@ -1,7 +1,10 @@
 [
   {
+    "id": "meaning_of_you",
     "name": "너의 의미 (MP3)",
     "url": "assets/audio/generated_midi/너의 의미.mid",
+    "audioUrl": "assets/audio/mp3/너의 의미.mp3",
+    "beatmapUrl": "assets/data/beatmaps/너의 의미.json",
     "bpm": 120,
     "difficulty": 4,
     "duration": 174,
@@ -9,8 +12,10 @@
     "volume": 1
   },
   {
+    "id": "meaning_of_you_v2",
     "name": "너의 의미2 (MP3)",
     "url": "assets/audio/generated_midi/너의 의미2.mid",
+    "audioUrl": "assets/audio/mp3/너의 의미2.mp3",
     "bpm": 120,
     "difficulty": 4,
     "duration": 0,
@@ -26,8 +31,10 @@
     "volume": 1
   },
   {
+    "id": "omoi_wa_mawaru",
     "name": "想いは廻る (MP3)",
     "url": "assets/audio/generated_midi/想いは廻る.mid",
+    "audioUrl": "assets/audio/mp3/想いは廻る.mp3",
     "bpm": 120,
     "difficulty": 4,
     "duration": 0,

@@ -27,6 +27,7 @@ export interface ThemeConfig {
     bubblePulseGrad: string[]; // For UI bubbles like MainMenu
     semantic: SemanticPalette;
     bgm?: string;
+    bgImage?: string; // Explicit background image path to avoid guessing
     songTitle?: string;
 }
 
@@ -57,7 +58,8 @@ export class ThemeManager {
                 levelExpert: '#6c5ce7',
                 speedOption: '#00e5ff',
                 modeOption: '#e056a0',
-            }
+            },
+            bgImage: 'assets/images/background-themes/deep-space/bg_deep-space.jpg'
         },
         {
             id: 'fireworks',
@@ -76,7 +78,8 @@ export class ThemeManager {
                 levelExpert: '#FFD000',
                 speedOption: '#FFD000',
                 modeOption: '#FF006E',
-            }
+            },
+            bgImage: 'assets/images/background-themes/fireworks/bg_fireworks.jpg'
         },
         {
             id: 'sunset-overdrive',
@@ -95,7 +98,8 @@ export class ThemeManager {
                 levelExpert: '#5D2E29',
                 speedOption: '#E3C1A1',
                 modeOption: '#8E4A42',
-            }
+            },
+            bgImage: 'assets/images/background-themes/sunset-overdrive/bg_sunset-overdrive.jpg'
         },
         {
             id: 'matrix-grid',
@@ -114,7 +118,8 @@ export class ThemeManager {
                 levelExpert: '#006600',
                 speedOption: '#88FF88',
                 modeOption: '#00CC44',
-            }
+            },
+            bgImage: 'assets/images/background-themes/matrix-grid/bg_matrix-grid.jpg'
         },
         {
             id: 'vaporwave',
@@ -133,7 +138,8 @@ export class ThemeManager {
                 levelExpert: '#FF00FF', // Deep neon purple
                 speedOption: '#FF80CC',
                 modeOption: '#b388ff',
-            }
+            },
+            bgImage: 'assets/images/background-themes/vaporwave/bg_vaporwave.jpg'
         },
         {
             id: 'midnight-ocean',
@@ -152,7 +158,8 @@ export class ThemeManager {
                 levelExpert: '#004D40', // Deep Teal
                 speedOption: '#4dd0e1',
                 modeOption: '#64ffda',
-            }
+            },
+            bgImage: 'assets/images/background-themes/midnight-ocean/bg_midnight-ocean.jpg'
         },
         {
             id: 'crimson-flare',
@@ -171,7 +178,8 @@ export class ThemeManager {
                 levelExpert: '#8B0000', // Deep ember
                 speedOption: '#FFCC00',
                 modeOption: '#FF6600',
-            }
+            },
+            bgImage: 'assets/images/background-themes/crimson-flare/bg_crimson-flare.jpg'
         },
         {
             id: 'marchen',
@@ -190,7 +198,8 @@ export class ThemeManager {
                 levelExpert: '#d81b60',
                 speedOption: '#fff275',
                 modeOption: '#ec407a',
-            }
+            },
+            bgImage: 'assets/images/background-themes/marchen/bg_marchen.jpg'
         },
         {
             id: 'monochrome-tech',
@@ -209,7 +218,8 @@ export class ThemeManager {
                 levelExpert: '#666666',
                 speedOption: '#FFFFFF',
                 modeOption: '#CCCCCC',
-            }
+            },
+            bgImage: 'assets/images/background-themes/monochrome-tech/bg_monochrome-tech.jpg'
         },
         {
             id: 'winter-snow',
@@ -228,7 +238,8 @@ export class ThemeManager {
                 levelExpert: '#01579b', // Deep ice
                 speedOption: '#80deea',
                 modeOption: '#4fc3f7',
-            }
+            },
+            bgImage: 'assets/images/background-themes/winter-snow/bg_winter-snow.jpg'
         },
     ];
 
@@ -287,6 +298,7 @@ export class ThemeManager {
         return {
             ...theme,
             bgm: bgmInfo?.url,
+            bgImage: theme.bgImage,
             songTitle: bgmInfo?.title
         };
     }

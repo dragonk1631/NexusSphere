@@ -20,9 +20,9 @@ export function resolveAssetPath(path: string): string {
     // 3. 경로의 시작부분 슬래시 제거 (기초 경로와 중복 방지)
     let normalizedPath = path.startsWith('/') ? path.slice(1) : path;
 
-    // 4. 세그먼트별 URL 인코딩 (한글 경로 등 대응) - 전체 encodeURI는 쿼리 파라미터 등을 망칠 수 있으므로 조심스럽게 적용
-    // 슬래시는 유지하면서 각 폴더/파일명만 인코딩합니다.
-    normalizedPath = normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+    // 4. PROFESSIONAL: Normalize to NFC for Linux/Web standard compatibility.
+    // Modern browsers automatically handle non-ASCII encoding when fetching.
+    normalizedPath = normalizedPath.normalize('NFC');
     
     // 5. 기초 경로와 자산 경로 결합
     const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;

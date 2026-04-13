@@ -86,65 +86,7 @@ export class BackgroundRenderer {
 
         this.currentInstanceThemeId = theme.id;
         
-        this.pendingLoad = (async () => {
-            this.emitProgress(0);
-            
-            // 1. Send theme config to worker
-            this.worker.postMessage({
-                type: 'SET_THEME',
-                theme: JSON.parse(JSON.stringify(theme))
-            });
-
-            // 2. Attempt to load background image
-            try {
-                const extensions = ['webp', 'png', 'jpg', 'jpeg'];
-                const baseNames = [`bg_${theme.id}`, 'bg'];
-                
-                let loadedBitmap: ImageBitmap | null = null;
-                const totalSteps = baseNames.length * extensions.length;
-                let currentStep = 0;
-                
-                for (const base of baseNames) {
-                    for (const ext of extensions) {
-                        currentStep++;
-                        const p = (currentStep / totalSteps) * 0.95; 
-                        this.emitProgress(p);
-
-                        const url = resolveAssetPath(`assets/images/background-themes/${theme.id}/${base}.${ext}`);
-                        
-                        try {
-                            // PROFESSIONAL: Use HEAD request first to avoid 404 noise in console
-                            const check = await fetch(url, { method: 'HEAD' });
-                            if (check.ok) {
-                                const response = await fetch(url);
-                                if (response.ok) {
-                                    const blob = await response.blob();
-                                    loadedBitmap = await createImageBitmap(blob);
-                                    break;
-                                }
-                            }
-                        } catch (e) { /* Retry */ }
-                        if (loadedBitmap) break;
-                    }
-                    if (loadedBitmap) break;
-                }
-
-                if (loadedBitmap) {
-                    this.worker.postMessage({
-                        type: 'SET_BG_IMAGE',
-                        bitmap: loadedBitmap
-                    }, [loadedBitmap]);
-                } else {
-                    this.worker.postMessage({
-                        type: 'SET_BG_IMAGE',
-                        bitmap: null
-                    });
-                }
-            } catch (error) {
-                console.error("[BackgroundRenderer] Failed to load background image:", error);
-            }
-            this.emitProgress(1.0);
-        })();
+        this.pendingLoad = this.loadThemeInternal(theme);
 
         try {
             await this.pendingLoad;
@@ -152,6 +94,67 @@ export class BackgroundRenderer {
             if (onProgress) this.progressObservers.delete(onProgress);
         }
         return this.pendingLoad;
+    }
+
+    private async loadThemeInternal(theme: ThemeConfig) {
+        this.emitProgress(0);
+        
+        // 1. Send theme config to worker
+        this.worker.postMessage({
+            type: 'SET_THEME',
+            theme: JSON.parse(JSON.stringify(theme))
+        });
+
+        // 2. Attempt to load background image (PRIORITY: Manifest -> Smart Fallback)
+        try {
+            let url = theme.bgImage ? resolveAssetPath(theme.bgImage) : null;
+            
+            // Smart Fallback for themes that don't have explicit bgImage yet
+            if (!url) {
+                const fallbackUrl = `assets/images/background-themes/${theme.id}/bg_${theme.id}.jpg`;
+                url = resolveAssetPath(fallbackUrl);
+            }
+
+            let loadedBitmap: ImageBitmap | null = null;
+            
+            if (url) {
+                this.emitProgress(0.5);
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        loadedBitmap = await createImageBitmap(blob);
+                    } else {
+                        // If explicit/primary JPG fails, try ONE common alternate extension SILENTLY
+                        const altUrl = url.replace(/\.jpg$/i, '.webp');
+                        if (altUrl !== url) {
+                            const altRes = await fetch(altUrl);
+                            if (altRes.ok) {
+                                const blob = await altRes.blob();
+                                loadedBitmap = await createImageBitmap(blob);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`[BackgroundRenderer] Fallback attempt for ${url}`, e);
+                }
+            }
+
+            if (loadedBitmap) {
+                this.worker.postMessage({
+                    type: 'SET_BG_IMAGE',
+                    bitmap: loadedBitmap
+                }, [loadedBitmap]);
+            } else {
+                this.worker.postMessage({
+                    type: 'SET_BG_IMAGE',
+                    bitmap: null
+                });
+            }
+        } catch (error) {
+            console.error("[BackgroundRenderer] Failed to load background image:", error);
+        }
+        this.emitProgress(1.0);
     }
 
     /**

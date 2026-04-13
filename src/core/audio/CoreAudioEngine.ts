@@ -225,11 +225,13 @@ export class CoreAudioEngine {
         }
 
         const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
-        this.timer.resume(seqTime);
+        // PROFESSIONAL: Capture the exact hardware time at the moment of 'play' request
+        const hardwareTime = this.ctx.currentTime;
+        this.timer.resume(seqTime, hardwareTime);
         this.stopBGM(true); // PROFESSIONAL: Fade out menu music when MIDI starts
         
         if (this.isHybridMode && this.mp3Buffer) {
-            this.startMp3At(seqTime);
+            this.startMp3At(seqTime, hardwareTime);
             // Mute all midi synth channels to favor MP3 audio
             for (let i = 0; i < 16; i++) {
                 this.setChannelVolume(i, 0);
@@ -239,7 +241,7 @@ export class CoreAudioEngine {
         this.sequencer?.play();
     }
 
-    private startMp3At(time: number): void {
+    private startMp3At(time: number, anchor?: number): void {
         this.stopMp3();
         if (!this.mp3Buffer) return;
 
@@ -248,8 +250,9 @@ export class CoreAudioEngine {
         this.mp3SourceNode.playbackRate.value = this.sequencer?.playbackRate || 1;
         this.mp3SourceNode.connect(this.mp3GainNode);
         
-        // Start with a small offset to account for sequencer ramp up
-        this.mp3SourceNode.start(0, Math.max(0, time));
+        // PROFESSIONAL: Start the buffer at the precision anchor if provided
+        const startAnchor = anchor !== undefined ? anchor : this.ctx.currentTime;
+        this.mp3SourceNode.start(startAnchor, Math.max(0, time));
     }
 
     private stopMp3(): void {

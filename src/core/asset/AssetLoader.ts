@@ -75,12 +75,13 @@ export class AssetLoader {
     }
 
     /**
-     * Checks if a JSON file exists at the given path.
+     * Checks if a JSON file exists and is valid. (Silent on console)
      */
     public async checkJsonExists(path: string): Promise<boolean> {
         const resolvedPath = resolveAssetPath(path);
         try {
-            const response = await fetch(resolvedPath, { method: 'HEAD' });
+            // PROFESSIONAL: Instead of HEAD, use a standard GET with partial check
+            const response = await fetch(resolvedPath);
             if (!response.ok) return false;
 
             const contentType = response.headers.get('content-type');
@@ -88,6 +89,16 @@ export class AssetLoader {
         } catch (e) {
             return false;
         }
+    }
+
+    /**
+     * Validates if the buffer has a MIDI Magic Number (MThd)
+     */
+    public validateMidi(buffer: ArrayBuffer): boolean {
+        if (buffer.byteLength < 4) return false;
+        const view = new Uint8Array(buffer);
+        // Magic Number: [M, T, h, d] -> [0x4D, 0x54, 0x68, 0x64]
+        return view[0] === 0x4D && view[1] === 0x54 && view[2] === 0x68 && view[3] === 0x64;
     }
 
     /**

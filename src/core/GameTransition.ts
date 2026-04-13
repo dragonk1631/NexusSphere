@@ -11,6 +11,7 @@ export interface TransitionData {
         volume: number;
         difficulty?: string;
         measureConfig?: [number, number][]; // Array of [MeasureIndex, PrimaryChannel]
+        song?: any; // Add song property to fix type error in loaders
         songList?: any[]; // Optional list of songs for restoration (e.g. folder contents)
     };
 }

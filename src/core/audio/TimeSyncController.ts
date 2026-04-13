@@ -31,11 +31,12 @@ export class TimeSyncController {
         AudioEngineLogger.info(`TimeSync paused at ${this.pausedTime.toFixed(3)}s`);
     }
 
-    public resume(anchor: number = 0) {
+    public resume(offset: number = 0, anchor?: number) {
         if (this.isPlaying) return;
-        this.smoothClock.start(this.pausedTime, anchor);
+        const finalAnchor = anchor !== undefined ? anchor : this.ctx.currentTime;
+        this.smoothClock.start(offset, finalAnchor);
         this.isPlaying = true;
-        AudioEngineLogger.info(`TimeSync resumed at ${this.pausedTime.toFixed(3)}s (anchor: ${anchor.toFixed(3)})`);
+        AudioEngineLogger.info(`TimeSync resumed at ${offset.toFixed(3)}s (anchor: ${finalAnchor.toFixed(3)})`);
     }
 
     public seek(time: number, anchor?: number) {
