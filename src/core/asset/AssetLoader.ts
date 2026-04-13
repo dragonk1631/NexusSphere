@@ -67,9 +67,24 @@ export class AssetLoader {
             const response = await fetch(resolvedPath, { method: 'HEAD' });
             if (!response.ok) return false;
 
-            // [CRITICAL FIX] Ensure it is actually an audio file, not an HTML fallback
             const contentType = response.headers.get('content-type');
             return !!contentType && contentType.startsWith('audio/');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * Checks if a JSON file exists at the given path.
+     */
+    public async checkJsonExists(path: string): Promise<boolean> {
+        const resolvedPath = resolveAssetPath(path);
+        try {
+            const response = await fetch(resolvedPath, { method: 'HEAD' });
+            if (!response.ok) return false;
+
+            const contentType = response.headers.get('content-type');
+            return !!contentType && (contentType.includes('application/json') || contentType.includes('text/plain'));
         } catch (e) {
             return false;
         }

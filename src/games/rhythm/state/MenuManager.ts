@@ -7,6 +7,7 @@ import { SPEED_OPTIONS, DIFFICULTY_OPTIONS } from '../constants/GameConstants';
 import { computeMenuLayout } from '../renderer/MenuLayout';
 import { AssetLoader } from '../../../core/asset/AssetLoader';
 import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
+import { resolveAssetPath } from '../../../core/utils/PathUtils';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -99,7 +100,7 @@ export class MenuManager {
 
     public async loadOfficialSongs() {
         try {
-            const res = await fetch('assets/data/official_songs.json');
+            const res = await fetch(resolveAssetPath('assets/data/official_songs.json'));
             if (!res.ok) throw new Error("Failed to load official songs list.");
             const data = await res.json();
             this.officialSongs = data.map((s: any) => ({
@@ -336,7 +337,7 @@ export class MenuManager {
                     if (!blob) throw new Error("Custom MIDI file not found in storage.");
                     buffer = await blob.arrayBuffer();
                 } else {
-                    const res = await fetch(currentSong.url);
+                    const res = await fetch(resolveAssetPath(currentSong.url));
                     buffer = await res.arrayBuffer();
                 }
 
@@ -796,8 +797,34 @@ export class MenuManager {
 
                     console.log(`[MenuManager] Integrity Sync: [${syncedCount + 1}] Analyzing ${song.name}...`);
                     
-                    const res = await fetch(song.url);
+                    // 3. Fetch MIDI buffer
+                    let res = await fetch(resolveAssetPath(song.url));
+                    
+                    // CASE-SENSITIVITY SAFETY: If 404, try lowercase version (common on Linux)
+                    if (!res.ok && song.url.toLowerCase() !== song.url) {
+                        const lcUrl = song.url.substring(0, song.url.lastIndexOf('/') + 1) + 
+                                      song.url.substring(song.url.lastIndexOf('/') + 1).toLowerCase();
+                        console.log(`[MenuManager] Integrity Sync: 404 for ${song.url}, retrying with lowercase: ${lcUrl}`);
+                        res = await fetch(resolveAssetPath(lcUrl));
+                    }
+
+                    if (!res.ok) {
+                        console.warn(`[MenuManager] Integrity Sync: Failed to fetch ${song.url} (Status: ${res.status})`);
+                        continue;
+                    }
+
                     const buffer = await res.arrayBuffer();
+
+                    // 4. HEADER VALIDATION (Anti-MHdr Error)
+                    // Skip if not a valid MIDI file (e.g. macOS .DS_Store, AppleDouble ._ files, or 404 HTML pages)
+                    const header = new Uint8Array(buffer.slice(0, 4));
+                    const isMidi = header[0] === 0x4D && header[1] === 0x54 && header[2] === 0x68 && header[3] === 0x64;
+                    if (!isMidi) {
+                        const magic = String.fromCharCode(...header);
+                        console.warn(`[MenuManager] Integrity Sync: Skipping invalid MIDI ${song.name} (Magic: ${magic})`);
+                        continue;
+                    }
+
                     const midiData = await this._midiParser.parse(buffer);
 
                     // Re-run the Strategy Analysis

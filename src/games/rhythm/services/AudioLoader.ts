@@ -1,4 +1,5 @@
 import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
+import { resolveAssetPath } from '../../../core/utils/PathUtils';
 import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
 import { type BeatmapData } from '../types/BeatmapTypes';
 import { type TransitionData } from '../types/GameTypes';
@@ -142,14 +143,14 @@ export class AudioLoader {
             if (!this.beatmapData) {
                 const beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
                 try {
-                    console.log(`[AudioLoader] Checking for beatmap at: ${beatmapUrl}`);
-                    const res = await fetch(beatmapUrl);
-                    const contentType = res.headers.get("content-type");
-
-                    if (res.ok && contentType && contentType.includes("application/json")) {
+                    // PROFESSIONAL: Check if JSON exists before fetching to avoid 404 noise
+                    if (await AssetLoader.getInstance().checkJsonExists(beatmapUrl)) {
+                        console.log(`[AudioLoader] Loading beatmap from: ${beatmapUrl}`);
+                        const res = await fetch(resolveAssetPath(beatmapUrl));
                         this.beatmapData = await res.json();
-                        console.log("[AudioLoader] Custom beatmap found and loaded from server.");
+                        console.log("[AudioLoader] Custom beatmap loaded from server.");
                     } else {
+                        console.log(`[AudioLoader] No beatmap found at ${beatmapUrl}, using synthetic default.`);
                         this.beatmapData = null;
                     }
                 } catch (e) {

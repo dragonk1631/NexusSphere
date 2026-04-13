@@ -1,3 +1,5 @@
+import { resolveAssetPath } from './utils/PathUtils';
+
 export interface SemanticPalette {
     /** Difficulty: EASY */
     levelEasy: string;
@@ -249,7 +251,7 @@ export class ThemeManager {
 
     private async loadThemeSongs() {
         try {
-            const res = await fetch('assets/data/theme_songs.json');
+            const res = await fetch(resolveAssetPath('assets/data/theme_songs.json'));
             if (res.ok) {
                 const data = await res.json();
                 data.forEach((item: any) => {

@@ -1,4 +1,5 @@
 import { NoteSkinManager } from '../../../core/NoteSkinManager';
+import { resolveAssetPath } from '../../../core/utils/PathUtils';
 
 export class RenderCache {
     private static instance: RenderCache;
@@ -834,13 +835,18 @@ export class RenderCache {
         let isPreRendered = false;
         for (const path of iconPaths) {
             try {
-                img = await this.loadImage(path);
-                if (img) {
-                    // Pre-rendered 'thumb' or 'preview' files are used directly
-                    if (path.includes('/thumb.') || path.includes('/preview.')) {
-                        isPreRendered = true;
+                const resolvedPath = resolveAssetPath(path);
+                // PROFESSIONAL: Use HEAD request to check existence before loading to avoid 404 spam
+                const check = await fetch(resolvedPath, { method: 'HEAD' });
+                if (check.ok) {
+                    img = await this.loadImage(resolvedPath);
+                    if (img) {
+                        // Pre-rendered 'thumb' or 'preview' files are used directly
+                        if (path.includes('/thumb.') || path.includes('/preview.')) {
+                            isPreRendered = true;
+                        }
+                        break;
                     }
-                    break;
                 }
             } catch (e) { /* continue */ }
         }

@@ -1,6 +1,7 @@
 import { ThemeManager, type ThemeConfig } from '../ThemeManager';
 import { ScreenUtils } from '../utils/ScreenUtils';
 import { PerformanceMonitor } from '../utils/PerformanceMonitor';
+import { resolveAssetPath } from '../utils/PathUtils';
 
 export class BackgroundRenderer {
     private static instance: BackgroundRenderer | null = null;
@@ -109,21 +110,20 @@ export class BackgroundRenderer {
                         const p = (currentStep / totalSteps) * 0.95; 
                         this.emitProgress(p);
 
-                        const urls = [
-                            `assets/images/background-themes/${theme.id}/${base}.${ext}`,
-                            `/assets/images/background-themes/${theme.id}/${base}.${ext}`
-                        ];
+                        const url = resolveAssetPath(`assets/images/background-themes/${theme.id}/${base}.${ext}`);
                         
-                        for (const url of urls) {
-                            try {
+                        try {
+                            // PROFESSIONAL: Use HEAD request first to avoid 404 noise in console
+                            const check = await fetch(url, { method: 'HEAD' });
+                            if (check.ok) {
                                 const response = await fetch(url);
                                 if (response.ok) {
                                     const blob = await response.blob();
                                     loadedBitmap = await createImageBitmap(blob);
                                     break;
                                 }
-                            } catch (e) { /* Retry */ }
-                        }
+                            }
+                        } catch (e) { /* Retry */ }
                         if (loadedBitmap) break;
                     }
                     if (loadedBitmap) break;
