@@ -88,7 +88,7 @@ export class SmoothClock {
             
             // PROFESSIONAL SAFETY: If drift is catastrophic (>200ms), perform an emergency re-anchor
             if (drift > 0.2) {
-                AudioEngineLogger.warn(`SmoothClock: Catastrophic drift (${(drift * 1000).toFixed(0)}ms). Force re-anchoring to source.`);
+                // Silently re-anchor for catastrophic drift to keep the console clean for the user
                 this.reAnchor(rawAudioTime, rawAudioTime);
                 return rawAudioTime;
             }

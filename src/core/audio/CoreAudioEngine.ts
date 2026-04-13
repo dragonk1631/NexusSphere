@@ -33,6 +33,8 @@ export class CoreAudioEngine {
     private mp3GainNode: GainNode;
     private autoNormalizationGain: number = 1.0;
     private userMetadataVolume: number = 1.0;
+    private isPreviewLoop: boolean = false;
+    private currentPreviewId: number = 0;
 
     // Internal State
     private isReady: boolean = false;
@@ -252,16 +254,65 @@ export class CoreAudioEngine {
         
         // PROFESSIONAL: Start the buffer at the precision anchor if provided
         const startAnchor = anchor !== undefined ? anchor : this.ctx.currentTime;
+        
+        // --- LOOP & FADE AUTOMATION (Phase 4) ---
+        if (this.isPreviewLoop) {
+            const now = startAnchor;
+            const duration = this.mp3Buffer.duration;
+            const finalGain = this.autoNormalizationGain * this.userMetadataVolume;
+            const fadeId = ++this.currentPreviewId; // Reuse ID to tag this playback session
+            
+            // 1. Initial State: Full Volume (No Fade-in)
+            this.mp3GainNode.gain.cancelScheduledValues(now);
+            this.mp3GainNode.gain.setValueAtTime(finalGain, now);
+            
+            // 2. Sustain & Fade Out (1.5s - Optimal balance)
+            const fadeOutDuration = 1.5;
+            const fadeOutStart = now + (duration / (this.sequencer?.playbackRate || 1)) - fadeOutDuration;
+            
+            if (fadeOutStart > now) {
+                this.mp3GainNode.gain.setValueAtTime(finalGain, fadeOutStart);
+                this.mp3GainNode.gain.exponentialRampToValueAtTime(0.001, now + (duration / (this.sequencer?.playbackRate || 1)));
+            }
+
+            // 4. Recursive Loop
+            this.mp3SourceNode.onended = () => {
+                // Only loop if we are still in loop mode and the ID matches (not stopped/changed)
+                if (this.isPreviewLoop && this.isPlaying()) {
+                    AudioEngineLogger.info("[CoreAudioEngine] Looping preview...");
+                    // [SYNC FIX] Seek back to 0 so the sequencer and clock match the audio restart.
+                    // This eliminates the "Catastrophic drift" logs.
+                    this.seek(0);
+                    this.play(); 
+                }
+            };
+        }
+
         this.mp3SourceNode.start(startAnchor, Math.max(0, time));
+    }
+
+    public setPreviewLoop(enabled: boolean): void {
+        this.isPreviewLoop = enabled;
+        if (!enabled) {
+            // If disabling, ensure gain is reset
+            this.updateHybridGain();
+        }
     }
 
     private stopMp3(): void {
         if (this.mp3SourceNode) {
             try {
+                this.mp3SourceNode.onended = null;
                 this.mp3SourceNode.stop();
                 this.mp3SourceNode.disconnect();
             } catch (e) {}
             this.mp3SourceNode = null;
+        }
+
+        // PROFESSIONAL: Reset gain automation on stop
+        if (this.mp3GainNode) {
+            this.mp3GainNode.gain.cancelScheduledValues(this.ctx.currentTime);
+            this.updateHybridGain();
         }
     }
 

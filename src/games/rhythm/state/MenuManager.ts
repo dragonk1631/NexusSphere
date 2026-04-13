@@ -422,6 +422,7 @@ export class MenuManager {
                 // 6. ATOMIC UPDATE: Synchronize state switch
                 // We reset time and set MIDI data only when audio is actually ready to emit sound.
                 this.audioEngine.startPreciseTime(0);
+                this.audioEngine.setPreviewLoop(true); // START Natural Loop with Fades
                 this.previewMidi = parsedMidi; // Atomic switch: visualizer now sees the new, normalized data
 
                 this.audioEngine.play();
@@ -783,6 +784,7 @@ export class MenuManager {
 
     public stopPreview(): void {
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
+        this.audioEngine.setPreviewLoop(false); // STOP Natural Loop
         this.audioEngine.stop();
         this.previewMidi = null; // IMPORTANT: Clear preview state so background tasks know we are not in Preview mode
         
