@@ -225,9 +225,11 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
         this.resize(this.canvas.width, this.canvas.height);
 
-        // CRITICAL FIX: The constructor sets the initial state directly (no setState call),
-        // so enter() is NEVER called on startup. We must call it explicitly here,
-        // AFTER songs are loaded so playPreview() has a non-empty song list to work with.
+        // [STABILITY FIX] Proactively initialize the audio engine (SoundFonts) 
+        // BEFORE entering the menu state, so playPreview() has a ready engine.
+        await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
+
+        // Explicitly enter if starting in MENU
         if (this.currentState === GameState.MENU && !this.isTestMode) {
             this.currentStateObj.enter();
         }
@@ -351,6 +353,12 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     }
 
     public async load(): Promise<void> {
+        // [STABILITY FIX] Skip heavy asset loading when in MENU mode.
+        // The audio engine initialization is now handled in init() above.
+        if (this.currentState === GameState.MENU) {
+            return;
+        }
+
         this.audioEngine.resetTimeState();
         await this.audioEngine.init(ASSET_PATHS.AUDIO.SOUNDFONTS.DEFAULT);
         
@@ -379,7 +387,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     }
 
     public async create(): Promise<void> {
-        if (!this.midiData) return;
+        // [STABILITY FIX] Skip object creation if no MIDI metadata is loaded (e.g. initial Menu launch)
+        if (!this.midiData || this.currentState === GameState.MENU) return;
 
         // Ensure Audio Engine is fully ready before creating objects
         await this.audioEngine.ensureReady();

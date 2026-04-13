@@ -311,21 +311,25 @@ export class MenuManager {
         }
 
         const currentSong = this.songList[this.selectedSongIndex];
-        if (this.currentSongUrl === currentSong.url && this.audioEngine.isPlaying()) return;
+        
+        // [REDUNDANCY FIX] Tighten check: If same song is ALREADY PLAYING or still loading, don't restart.
+        if (this.currentSongUrl === currentSong.url && (this.audioEngine.isPlaying() || this.previewTimeout)) return;
 
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
         
         // UNBLOCK: RESUME IMMEDIATELY on the user interaction stack.
-        // This must be called BEFORE the setTimeout(300ms) to satisfy browser autoplay policies.
         this.audioEngine.resume();
-
-        // Pause the main theme before MIDI preview starts
-        MenuMusicManager.getInstance().pauseMusic(true);
-        this.audioEngine.stop();
 
         const previewId = ++this.currentPreviewId;
         this.previewTimeout = setTimeout(async () => {
             if (previewId !== this.currentPreviewId) return;
+            
+            // PROFESSIONAL: Pause theme and stop old MIDI *only* when the new one is ready to start parsing.
+            // This prevents silence gaps during fast scrolling.
+            MenuMusicManager.getInstance().pauseMusic(true);
+            this.audioEngine.stop();
+            this.previewMidi = null;
+
             try {
                 let buffer: ArrayBuffer;
                 if (currentSong.isCustom) {
@@ -339,6 +343,9 @@ export class MenuManager {
                     buffer = await res.arrayBuffer();
                 }
                 if (previewId !== this.currentPreviewId) return;
+
+                // 0. Final safety check before heavy processing
+                this.audioEngine.stop();
 
                 // 1. Parse MIDI
                 const parsedMidi = await this._midiParser.parse(buffer.slice(0));
@@ -413,6 +420,11 @@ export class MenuManager {
                     console.warn("Failed to play preview:", e);
                     this.previewMidi = null;
                 }
+            } finally {
+                // Clear the timeout reference if this was the latest request
+                if (previewId === this.currentPreviewId) {
+                    this.previewTimeout = null;
+                }
             }
         }, 300);
     }
@@ -434,6 +446,7 @@ export class MenuManager {
             this.selectedSongIndex = (this.selectedSongIndex + shift) % this.songList.length;
             if (this.selectedSongIndex < 0) this.selectedSongIndex += this.songList.length;
             this.touchStartY = y - (diffY % threshold);
+            this.playPreview();
             return true;
         }
         return false;
@@ -447,6 +460,7 @@ export class MenuManager {
         } else {
             this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
         }
+        this.playPreview();
     }
 
     public selectNextDifficulty(): void {
@@ -497,9 +511,11 @@ export class MenuManager {
         switch (code) {
             case 'ArrowUp':
                 this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
+                this.playPreview();
                 break;
             case 'ArrowDown':
                 this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+                this.playPreview();
                 break;
             case 'ArrowLeft':
                 this.selectPreviousDifficulty();
@@ -525,6 +541,12 @@ export class MenuManager {
 
     public handlePointerDown(x: number, y: number, width: number, height: number, isMobile: boolean): void {
         this.audioEngine.resume();
+        
+        // [STABILITY RESCUE] If first song preview was blocked by autoplay, interaction rescues it
+        if (!this.audioEngine.isPlaying() && !this.previewTimeout && this.songList.length > 0) {
+            this.playPreview();
+        }
+
         const layout = computeMenuLayout(width, height, isMobile);
 
         // Primary Exit (Deprecated, handled by bottom Back)
