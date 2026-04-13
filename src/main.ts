@@ -176,6 +176,7 @@ function setupGlobalInteraction() {
   const handleInteraction = () => {
     enforceLandscape(true);
     // AUDIO UNLOCK: The first user gesture unlocks the AudioContext for all audio.
+    globalAudioEngine.resume();
     MenuMusicManager.getInstance().tryUnblock();
   };
 
@@ -210,6 +211,7 @@ const startApp = async () => {
   if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
     new MobileStartScreen(() => {
       // MobileStartScreen tap IS the first user gesture — unlock audio immediately
+      globalAudioEngine.resume(); // Unlock primary engine
       MenuMusicManager.getInstance().tryUnblock();
       showTitle();
     });
@@ -227,7 +229,10 @@ const showTitle = () => {
   });
 
   titleScreen = new TitleScreen(async () => {
-    // 2. Wait for initialization if not finished
+    // 2. Unlock Audio immediately on the "PUSH START" click
+    globalAudioEngine.resume();
+    
+    // 3. Wait for initialization if not finished
     const loading = LoadingOverlay.getInstance();
     loading.show("FINISHING INITIALIZATION...");
     

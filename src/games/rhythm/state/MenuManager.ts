@@ -325,15 +325,19 @@ export class MenuManager {
                 let buffer: ArrayBuffer;
                 if (currentSong.isCustom) {
                     const blob = await this.storage.getSongBlob(currentSong.url);
+                    if (previewId !== this.currentPreviewId) return;
                     if (!blob) throw new Error("Custom MIDI file not found in storage.");
                     buffer = await blob.arrayBuffer();
                 } else {
                     const res = await fetch(resolveAssetPath(currentSong.url));
+                    if (previewId !== this.currentPreviewId) return;
                     buffer = await res.arrayBuffer();
                 }
+                if (previewId !== this.currentPreviewId) return;
 
                 // 1. Parse MIDI
                 const parsedMidi = await this._midiParser.parse(buffer.slice(0));
+                if (previewId !== this.currentPreviewId) return;
 
                 // 2. Normalize MIDI (Shift first note to 0s to eliminate initial quiet gap/desync)
                 let firstNoteTime = Infinity;
@@ -367,34 +371,32 @@ export class MenuManager {
                 }
 
                 // 4. Prepare Engine
-                const al = AssetLoader.getInstance();
-                const ac = al.getAudioContext();
-                if (ac.state === 'suspended') {
-                    console.log("[MenuManager] Resuming AudioContext for preview...");
-                    await ac.resume();
-                }
+                await this.audioEngine.resume();
+                if (previewId !== this.currentPreviewId) return;
 
-                // Explicit audioUrl from manifest is 100% reliable; otherwise guess from MIDI filename.
+                // 5. Probe Audio
+                const al = AssetLoader.getInstance();
                 const explicitMp3 = (currentSong as any).audioUrl;
                 const midiName = decodeURI(currentSong.url).split('/').pop()?.replace(/\.mid$/i, '') || 'test';
                 const mp3Path = explicitMp3 || `assets/audio/mp3/${midiName}.mp3`;
                 
-                console.log(`[MenuManager] Probing preview audio for "${currentSong.name}":`, mp3Path);
-                
                 if (await al.checkAssetExists(mp3Path)) {
-                    console.log(`[MenuManager] Hybrid Preview detected: ${mp3Path}`);
+                    if (previewId !== this.currentPreviewId) return;
                     const mp3Buffer = await al.loadAudio(mp3Path);
+                    if (previewId !== this.currentPreviewId) return;
                     await this.audioEngine.loadHybrid(buffer, mp3Buffer);
                     
                     // Apply Normalization Volume
                     const vol = (currentSong as any).volume ?? 1.0;
                     this.audioEngine.setHybridVolume(vol);
                 } else {
-                    console.log(`[MenuManager] Falling back to MIDI Preview for: ${currentSong.name}`);
+                    if (previewId !== this.currentPreviewId) return;
                     await this.audioEngine.loadMidi(buffer);
                 }
 
-                // 4. ATOMIC UPDATE: Synchronize state switch
+                if (previewId !== this.currentPreviewId) return;
+
+                // 6. ATOMIC UPDATE: Synchronize state switch
                 // We reset time and set MIDI data only when audio is actually ready to emit sound.
                 this.audioEngine.startPreciseTime(0);
                 this.previewMidi = parsedMidi; // Atomic switch: visualizer now sees the new, normalized data
@@ -402,11 +404,14 @@ export class MenuManager {
                 this.audioEngine.play();
                 this._currentSongUrl = currentSong.url;
             } catch (e) {
-                console.warn("Failed to play preview:", e);
-                this.previewMidi = null;
+                if (previewId === this.currentPreviewId) {
+                    console.warn("Failed to play preview:", e);
+                    this.previewMidi = null;
+                }
             }
         }, 300);
     }
+
     private _currentSongUrl: string = "";
     public get currentSongUrl(): string { return this._currentSongUrl; }
 
