@@ -1,4 +1,3 @@
-import { AssetLoader } from './asset/AssetLoader';
 import { resolveAssetPath } from './utils/PathUtils';
 import type { SongEntry } from '../games/rhythm/types/GameTypes';
 import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';

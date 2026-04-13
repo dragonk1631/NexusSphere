@@ -6,7 +6,6 @@ import { MenuMusicManager } from '../../../core/audio/MenuMusicManager';
 import { SPEED_OPTIONS, DIFFICULTY_OPTIONS } from '../constants/GameConstants';
 import { computeMenuLayout } from '../renderer/MenuLayout';
 import { AssetLoader } from '../../../core/asset/AssetLoader';
-import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
 import { resolveAssetPath } from '../../../core/utils/PathUtils';
 import { SystemInitializer } from '../../../core/SystemInitializer';
 
