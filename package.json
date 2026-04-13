@@ -4,9 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:host": "vite --host",
-    "build": "tsc && vite build",
+    "dev": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && vite",
+    "dev:host": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && vite --host",
+    "manifest": "node scripts/generate_assets_manifest.js",
+    "previews": "node scripts/generate_previews.js",
+    "build": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && tsc && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {

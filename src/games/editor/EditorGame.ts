@@ -1,6 +1,7 @@
 import { BaseGame } from '../../core/BaseGame';
 import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
+import { resolveAssetPath } from '../../core/utils/PathUtils';
 import { MidiParser } from '../../core/audio/MidiParser';
 import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
@@ -218,7 +219,7 @@ export class EditorGame extends BaseGame {
         // Fetch Song List (Official + Custom)
         try {
             // 1. Fetch Official List
-            const res = await fetch('assets/data/midi_list.json');
+            const res = await fetch(resolveAssetPath('assets/data/midi_list.json'));
             let official: SongEntry[] = [];
             if (res.ok) {
                 official = await res.json();
@@ -338,7 +339,7 @@ export class EditorGame extends BaseGame {
                 buffer = await blob.arrayBuffer();
                 console.log(`[EditorGame] Loaded user-uploaded MIDI from storage: ${name}`);
             } else {
-                const res = await fetch(name);
+                const res = await fetch(resolveAssetPath(name));
                 buffer = await res.arrayBuffer();
             }
             this.rawMidiBuffer = buffer;

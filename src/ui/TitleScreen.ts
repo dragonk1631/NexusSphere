@@ -14,6 +14,7 @@ export class TitleScreen {
     private logoCache: HTMLCanvasElement | null = null;
     private lastAlpha: number = 0;
     private fontReady: boolean = false;
+    private progress: number = 0;
 
     constructor(onStart: () => void) {
         this.onStart = onStart;
@@ -57,6 +58,10 @@ export class TitleScreen {
             this.preRenderLogo();
             this.container.style.opacity = '1';
         });
+    }
+
+    public setProgress(p: number) {
+        this.progress = Math.max(0, Math.min(1, p));
     }
 
     public resize() {
@@ -289,6 +294,34 @@ export class TitleScreen {
         ctx.fillText('PUSH START', w / 2, promptY);
         ctx.restore();
         ctx.restore();
+
+        // 4. Progress Bar (Sleek, matching theme)
+        if (this.progress > 0 && this.progress < 1) {
+            ctx.save();
+            const barW = w * 0.4;
+            const barH = 4;
+            const barX = w / 2 - barW / 2;
+            const barY = h - 20;
+
+            // Track
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, barW, barH, barH / 2);
+            ctx.fill();
+
+            // Progress
+            const fillW = barW * this.progress;
+            const grad = ctx.createLinearGradient(barX, 0, barX + fillW, 0);
+            grad.addColorStop(0, theme.color2);
+            grad.addColorStop(1, theme.color1);
+            ctx.fillStyle = grad;
+            ctx.shadowColor = theme.color2;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, fillW, barH, barH / 2);
+            ctx.fill();
+            ctx.restore();
+        }
     }
 
     public destroy() {

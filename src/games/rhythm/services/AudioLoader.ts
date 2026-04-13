@@ -1,4 +1,5 @@
 import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
+import { resolveAssetPath } from '../../../core/utils/PathUtils';
 import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
 import { type BeatmapData } from '../types/BeatmapTypes';
 import { type TransitionData } from '../types/GameTypes';
@@ -80,8 +81,7 @@ export class AudioLoader {
                         midiBuffer = await blob.arrayBuffer();
                     } else {
                         // Normal Server Song
-                        const midiRes = await fetch(midiUrl);
-                        if (!midiRes.ok) throw new Error(`MIDI fetch failed for ${midiName} at ${midiUrl} (Status: ${midiRes.status})`);
+                        const midiRes = await fetch(resolveAssetPath(midiUrl));
                         midiBuffer = await midiRes.arrayBuffer();
                     }
 
@@ -94,75 +94,77 @@ export class AudioLoader {
                 }
             }
 
-            // 2. Hybrid Audio Check (MP3 + MIDI Sync)
-            const mp3Path = `assets/audio/mp3/${midiName}.mp3`;
+            // 2. Hybrid Audio Loading - Deterministic Strategy
+            // PRIORITY: Manifest/TransitionData -> Smart Fallback
+            const song = transitionData?.settings?.song || (transitionData as any)?.song;
             const al = AssetLoader.getInstance();
             let isHybrid = false;
             
-            if (await al.checkAssetExists(mp3Path)) {
-                console.log(`[AudioLoader] Hybrid MP3 detected: ${mp3Path}`);
-                isHybrid = true;
+            // Priority 1: Explicit URL from Manifest
+            let mp3Path = song?.audioUrl; 
+            
+            // Priority 2: Smart Guessing Fallback (For legacy/vast library support)
+            if (!mp3Path && !midiUrl.startsWith('file_')) {
+                const decodedUrl = decodeURI(midiUrl);
+                const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+                mp3Path = `assets/audio/mp3/${midiName}.mp3`;
+            }
+
+            if (mp3Path) {
                 try {
-                    const mp3Buffer = await al.loadAudio(mp3Path);
-                    const currentMidiBuffer = isTestMode && transitionData ? transitionData.midiBuffer : this.cachedMidi?.buffer;
-                    if (currentMidiBuffer) {
-                        await this.audioEngine.loadHybrid(currentMidiBuffer, mp3Buffer);
-                        
-                        // Apply Normalization Volume
-                        let vol = 1.0;
-                        if (transitionData && (transitionData as any).volume !== undefined) {
-                            vol = (transitionData as any).volume;
-                        } else if (this.beatmapData && (this.beatmapData as any).volume !== undefined) {
-                            vol = (this.beatmapData as any).volume;
+                    // SILENT PROBE: Only load if it's really an audio file (Avoids excessive 404 noise)
+                    if (await al.checkAssetExists(mp3Path)) {
+                        isHybrid = true;
+                        const mp3Buffer = await al.loadAudio(mp3Path);
+                        const currentMidiBuffer = isTestMode && transitionData ? transitionData.midiBuffer : this.cachedMidi?.buffer;
+                        if (currentMidiBuffer) {
+                            await this.audioEngine.loadHybrid(currentMidiBuffer, mp3Buffer);
+                            
+                            // Apply Normalization Volume from Manifest
+                            let vol = song?.volume !== undefined ? song.volume : 1.0;
+                            this.audioEngine.setHybridVolume(vol);
                         }
-                        this.audioEngine.setHybridVolume(vol);
-                        console.log(`[AudioLoader] Hybrid Volume set to: ${vol}`);
                     }
                 } catch (e) {
-                    console.warn(`[AudioLoader] Failed to load hybrid MP3: ${mp3Path}`, e);
+                    console.warn(`[AudioLoader] MP3 loading failed, continuing with MIDI-only: ${mp3Path}`);
                 }
             }
 
-            // Check LocalStorage First (User Settings Override)
+            // 3. Beatmap Configuration Loading
+            // Idempotency: Always decode first in case the path was already encoded
+            const decodedUrl = decodeURI(midiUrl);
+            const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
             const safeName = midiName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const localConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
 
-            // [Logic Fix] For Hybrid songs, we MUST prioritize the server-side generated beatmap
-            // unless the user specifically wants their local edit. 
-            // However, to fix the "0 notes" issue, we only use local if it results in valid notes (later check)
-            // or we just skip local check for Hybrid songs for now.
+            // Prioritize LocalStorage if not in Hybrid Mode
             if (localConfigStr && !isHybrid) {
                 try {
                     this.beatmapData = JSON.parse(localConfigStr);
-                    console.log(`[AudioLoader] Loaded beatmap config from LocalStorage for ${midiName}`);
                 } catch (e) {
-                    console.warn(`[AudioLoader] Failed to parse local config for ${midiName}`, e);
                     this.beatmapData = null;
                 }
             }
 
-            // If no local override (or if Hybrid), check server
+            // PRIORITY: Explicit Manifest -> Smart Fallback Guess
             if (!this.beatmapData) {
-                const beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
-                try {
-                    console.log(`[AudioLoader] Checking for beatmap at: ${beatmapUrl}`);
-                    const res = await fetch(beatmapUrl);
-                    const contentType = res.headers.get("content-type");
+                let beatmapUrl = song?.beatmapUrl;
+                if (!beatmapUrl) {
+                    beatmapUrl = `${ASSET_PATHS.DATA.BEATMAPS}${midiName}.json`;
+                }
 
-                    if (res.ok && contentType && contentType.includes("application/json")) {
-                        this.beatmapData = await res.json();
-                        console.log("[AudioLoader] Custom beatmap found and loaded from server.");
-                    } else if (res.status === 404) {
-                        // Explicitly null if 404, allowing AI fallback
-                        this.beatmapData = null;
-                        console.log(`[AudioLoader] No custom beatmap found for ${midiName} (404). Falling back to AI logic.`);
-                    } else {
-                        // Other errors (500, etc) should be warned
-                        console.warn(`[AudioLoader] Beatmap lookup failed with status ${res.status}`);
+                if (beatmapUrl) {
+                    try {
+                        if (await AssetLoader.getInstance().checkJsonExists(beatmapUrl)) {
+                            const res = await fetch(resolveAssetPath(beatmapUrl));
+                            if (res.ok) {
+                                this.beatmapData = await res.json();
+                                console.log("[AudioLoader] Custom beatmap loaded successfully.");
+                            }
+                        }
+                    } catch (e) {
                         this.beatmapData = null;
                     }
-                } catch (e) {
-                    this.beatmapData = null;
                 }
             }
         })();

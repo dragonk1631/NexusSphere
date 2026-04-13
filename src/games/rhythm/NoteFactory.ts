@@ -82,7 +82,7 @@ export class NoteFactory {
             const notesToReturn: GameNote[] = [];
             midi.tracks.forEach((track, trackIndex) => {
                 track.notes.forEach(note => {
-                    if (note.velocity < 13) return; // Ghost note gate
+                    if (note.velocity < 1) return; // Almost all notes accepted
 
                     const p = ppq || 480;
                     const mIdx = Math.floor(note.ticks / (p * 4));

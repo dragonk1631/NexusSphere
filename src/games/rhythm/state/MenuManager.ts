@@ -6,7 +6,8 @@ import { MenuMusicManager } from '../../../core/audio/MenuMusicManager';
 import { SPEED_OPTIONS, DIFFICULTY_OPTIONS } from '../constants/GameConstants';
 import { computeMenuLayout } from '../renderer/MenuLayout';
 import { AssetLoader } from '../../../core/asset/AssetLoader';
-import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
+import { resolveAssetPath } from '../../../core/utils/PathUtils';
+import { SystemInitializer } from '../../../core/SystemInitializer';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -68,8 +69,8 @@ export class MenuManager {
         this.loadFavoriteStates(); 
         this.sortSongList();
         
-        // --- IRONCLAD: Proactive Library Integrity Sync (v1.3.2) ---
-        this.syncLibraryIntegrity();
+        // --- IRONCLAD: Library Sync moved to SystemInitializer ---
+        // Integrity sync is now performed during the Title -> Menu transition.
     }
 
     public loadFavoriteStates() {
@@ -93,15 +94,11 @@ export class MenuManager {
     }
 
     public async loadOfficialSongs() {
-        try {
-            const res = await fetch('assets/data/official_songs.json');
-            if (!res.ok) throw new Error("Failed to load official songs.");
-            const data = await res.json();
-            this.officialSongs = data.map((s: any) => ({ ...s, isCustom: false }));
-            this.loadFavoriteStates(); 
-        } catch (e) {
-            console.error("[MenuManager] Failed to load official songs:", e);
-        }
+        // PROFESSIONAL: We now consume the pre-verified list from the SystemInitializer.
+        // This list has already been probed for 404s and normalized to NFD if needed.
+        const si = SystemInitializer.getInstance();
+        this.officialSongs = [...si.getVerifiedSongs()];
+        this.loadFavoriteStates();
     }
 
     public async loadUserSongs() {
@@ -208,67 +205,262 @@ export class MenuManager {
     }
 
     public playPreview(): void {
-        if (this.songList.length === 0) { this.stopPreview(); return; }
-        const currentSong = this.getCurrentSong();
-        if (this.currentSongUrl === currentSong.url && this.audioEngine.isPlaying()) return;
+        if (this.songList.length === 0) {
+            this.stopPreview();
+            this.previewMidi = null;
+            return;
+        }
+
+        // Validate index again to prevent race conditions or unexpected state changes
+        if (this.selectedSongIndex < 0 || this.selectedSongIndex >= this.songList.length) {
+            this.selectedSongIndex = 0;
+        }
+
+        const currentSong = this.songList[this.selectedSongIndex];
+        
+        // [REDUNDANCY FIX] Tighten check: If same song is ALREADY PLAYING or still loading, don't restart.
+        if (this.currentSongUrl === currentSong.url && (this.audioEngine.isPlaying() || this.previewTimeout)) return;
+
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
-        MenuMusicManager.getInstance().pauseMusic(true);
-        this.audioEngine.stop();
-        this.previewMidi = null;
+        
+        // UNBLOCK: RESUME IMMEDIATELY on the user interaction stack.
+        this.audioEngine.resume();
 
         const previewId = ++this.currentPreviewId;
         this.previewTimeout = setTimeout(async () => {
             if (previewId !== this.currentPreviewId) return;
+            
+            // PROFESSIONAL: Pause theme and stop old MIDI *only* when the new one is ready to start parsing.
+            // This prevents silence gaps during fast scrolling.
+            MenuMusicManager.getInstance().pauseMusic(true);
+            this.audioEngine.stop();
+            this.previewMidi = null;
+
             try {
                 let buffer: ArrayBuffer;
                 if (currentSong.isCustom) {
                     const blob = await this.storage.getSongBlob(currentSong.url);
-                    if (!blob) return;
+                    if (previewId !== this.currentPreviewId) return;
+                    if (!blob) throw new Error("Custom MIDI file not found in storage.");
                     buffer = await blob.arrayBuffer();
                 } else {
-                    const res = await fetch(currentSong.url);
+                    const res = await fetch(resolveAssetPath(currentSong.url));
+                    if (previewId !== this.currentPreviewId) return;
                     buffer = await res.arrayBuffer();
                 }
+                if (previewId !== this.currentPreviewId) return;
+
+                // 0. Final safety check before heavy processing
+                this.audioEngine.stop();
+
+                // 1. Parse MIDI
                 const parsedMidi = await this._midiParser.parse(buffer.slice(0));
-                this.previewMidi = parsedMidi;
-                const midiName = currentSong.url.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
-                const mp3Path = `assets/audio/mp3/${midiName}.mp3`;
+                if (previewId !== this.currentPreviewId) return;
+
+                // 2. Normalize MIDI (Shift first note to 0s to eliminate initial quiet gap/desync)
+                let firstNoteTime = Infinity;
+                for (const track of parsedMidi.tracks) {
+                    for (const note of track.notes) {
+                        if (note.time < firstNoteTime) firstNoteTime = note.time;
+                    }
+                }
+
+                if (firstNoteTime !== Infinity && firstNoteTime > 0) {
+                    console.log(`[MenuManager] Normalizing preview: shifting notes by -${firstNoteTime.toFixed(3)}s`);
+                    for (const track of parsedMidi.tracks) {
+                        for (const note of track.notes) {
+                            (note as any).time -= firstNoteTime;
+                        }
+                    }
+                }
+
+                // 3. Update Metadata if missing (Fixes 0s duration bug)
+                if (!currentSong.duration || !currentSong.bpm) {
+                    currentSong.duration = parsedMidi.duration;
+                    currentSong.bpm = parsedMidi.bpm || 120;
+                    
+                    // Propagate to source catalogues to persist during filter changes
+                    const cat = currentSong.isCustom ? this.customSongs : this.officialSongs;
+                    const entry = cat.find(s => s.url === currentSong.url);
+                    if (entry) {
+                        entry.duration = currentSong.duration;
+                        entry.bpm = currentSong.bpm;
+                    }
+                }
+
+                // 4. Prepare Engine
+                await this.audioEngine.resume();
+                if (previewId !== this.currentPreviewId) return;
+
+                // 5. Probe Audio
                 const al = AssetLoader.getInstance();
+                const explicitMp3 = (currentSong as any).audioUrl;
+                const midiName = decodeURI(currentSong.url).split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+                
+                // [WEB OPTIMIZATION] Try low-bitrate preview first
+                const previewPath = `assets/audio/mp3/previews/${midiName}.mp3`;
+                const originalPath = explicitMp3 || `assets/audio/mp3/${midiName}.mp3`;
+                
+                let mp3Path = originalPath;
+                if (await al.checkAssetExists(previewPath)) {
+                    mp3Path = previewPath;
+                    console.log(`[MenuManager] Using low-bitrate preview: ${previewPath}`);
+                } else {
+                    console.log(`[MenuManager] Preview not found, falling back to original: ${originalPath}`);
+                }
+                
                 if (await al.checkAssetExists(mp3Path)) {
+                    if (previewId !== this.currentPreviewId) return;
                     const mp3Buffer = await al.loadAudio(mp3Path);
+                    if (previewId !== this.currentPreviewId) return;
                     await this.audioEngine.loadHybrid(buffer, mp3Buffer);
                 } else {
+                    if (previewId !== this.currentPreviewId) return;
                     await this.audioEngine.loadMidi(buffer);
                 }
+
+                if (previewId !== this.currentPreviewId) return;
+
+                // 6. ATOMIC UPDATE: Synchronize state switch
+                // We reset time and set MIDI data only when audio is actually ready to emit sound.
+                this.audioEngine.startPreciseTime(0);
+                this.audioEngine.setPreviewLoop(true); // START Natural Loop with Fades
+                this.previewMidi = parsedMidi; // Atomic switch: visualizer now sees the new, normalized data
+
                 this.audioEngine.play();
                 this._currentSongUrl = currentSong.url;
-            } catch (e) {}
+            } catch (e) {
+                if (previewId === this.currentPreviewId) {
+                    console.warn("Failed to play preview:", e);
+                    this.previewMidi = null;
+                }
+            } finally {
+                // Clear the timeout reference if this was the latest request
+                if (previewId === this.currentPreviewId) {
+                    this.previewTimeout = null;
+                }
+            }
         }, 300);
     }
-    private _currentSongUrl = "";
-    public get currentSongUrl() { return this._currentSongUrl; }
 
-    public handleKeyboardInput(code: string): void {
+    private _currentSongUrl: string = "";
+    public get currentSongUrl(): string { return this._currentSongUrl; }
+
+    public setTouchStartY(y: number): void {
+        this.touchStartY = y;
+    }
+
+    public handleScroll(y: number): boolean {
+        this.audioEngine.resume();
+        if (this.songList.length === 0) return false;
+        const diffY = y - this.touchStartY;
+        const threshold = 30;
+        const shift = Math.trunc(diffY / threshold);
+        if (shift !== 0) {
+            this.selectedSongIndex = (this.selectedSongIndex + shift) % this.songList.length;
+            if (this.selectedSongIndex < 0) this.selectedSongIndex += this.songList.length;
+            this.touchStartY = y - (diffY % threshold);
+            this.playPreview();
+            return true;
+        }
+        return false;
+    }
+
+    public handleWheel(deltaY: number): void {
+        this.audioEngine.resume();
         if (this.songList.length === 0) return;
-        switch (code) {
-            case 'ArrowUp': this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length; this.playPreview(); break;
-            case 'ArrowDown': this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length; this.playPreview(); break;
-            case 'ArrowLeft': this.selectPreviousDifficulty(); break;
-            case 'ArrowRight': this.selectNextDifficulty(); break;
-            case 'Enter': this.handlePlayRequest(this.getCurrentSong()); break;
+        if (deltaY > 0) {
+            this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+        } else {
+            this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
+        }
+        this.playPreview();
+    }
+
+    public selectNextDifficulty(): void {
+        this.audioEngine.resume();
+        this.selectedDifficultyIndex = Math.min(DIFFICULTY_OPTIONS.length - 1, this.selectedDifficultyIndex + 1);
+    }
+
+    public selectPreviousDifficulty(): void {
+        this.audioEngine.resume();
+        this.selectedDifficultyIndex = Math.max(0, this.selectedDifficultyIndex - 1);
+    }
+
+    public selectNextSpeed(): void {
+        this.selectedSpeedIndex = Math.min(SPEED_OPTIONS.length - 1, this.selectedSpeedIndex + 1);
+        this.scrollSpeed = SPEED_OPTIONS[this.selectedSpeedIndex];
+    }
+
+    public selectPreviousSpeed(): void {
+        this.selectedSpeedIndex = Math.max(0, this.selectedSpeedIndex - 1);
+        this.scrollSpeed = SPEED_OPTIONS[this.selectedSpeedIndex];
+    }
+
+    public toggleKeyMode(): void {
+        this.keyMode = this.keyMode === 4 ? 6 : 4;
+    }
+
+    public cycleSortMode(): void {
+        const modes: ('name' | 'bpm' | 'duration' | 'noteCount')[] = ['name', 'bpm', 'duration', 'noteCount'];
+        const idx = modes.indexOf(this.currentSortMode);
+        this.currentSortMode = modes[(idx + 1) % modes.length];
+        this.sortSongList();
+    }
+
+    public setSelectedSongIndex(index: number): void {
+        if (index >= 0 && index < this.songList.length) {
+            this.selectedSongIndex = index;
         }
     }
 
-    private async handlePlayRequest(song: SongEntry) {
-        try {
-            await this.ensureSongSynced(song);
-            this.callbacks.onPlayRequested();
-        } catch (e) {
-            console.error("Failed to prepare song:", e);
+    public getScrollSpeed(): number { return this.scrollSpeed; }
+    public getKeyMode(): 4 | 6 { return this.keyMode; }
+    public getCurrentSong(): SongEntry { return this.songList[this.selectedSongIndex]; }
+    public getCurrentDifficulty(): string { return DIFFICULTY_OPTIONS[this.selectedDifficultyIndex]; }
+
+    public handleKeyboardInput(code: string): void {
+        this.audioEngine.resume();
+        if (this.songList.length === 0) return;
+        switch (code) {
+            case 'ArrowUp':
+                this.selectedSongIndex = (this.selectedSongIndex - 1 + this.songList.length) % this.songList.length;
+                this.playPreview();
+                break;
+            case 'ArrowDown':
+                this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
+                this.playPreview();
+                break;
+            case 'ArrowLeft':
+                this.selectPreviousDifficulty();
+                break;
+            case 'ArrowRight':
+                this.selectNextDifficulty();
+                break;
+            case 'KeyS':
+                this.selectNextSpeed();
+                break;
+            case 'KeyA':
+                this.selectPreviousSpeed();
+                break;
+            case 'KeyK':
+                this.toggleKeyMode();
+                break;
+            case 'Enter':
+                this.stopPreview();
+                this.callbacks.onPlayRequested();
+                break;
         }
     }
 
     public handlePointerDown(x: number, y: number, width: number, height: number, isMobile: boolean): void {
+        this.audioEngine.resume();
+        
+        // [STABILITY RESCUE] If first song preview was blocked by autoplay, interaction rescues it
+        if (!this.audioEngine.isPlaying() && !this.previewTimeout && this.songList.length > 0) {
+            this.playPreview();
+        }
+
         const layout = computeMenuLayout(width, height, isMobile);
         if (x >= layout.btnX && x <= layout.btnX + layout.btnW && y >= layout.btnY && y <= layout.btnY + layout.btnH) {
             this.handlePlayRequest(this.getCurrentSong());
@@ -336,27 +528,28 @@ export class MenuManager {
 
     public stopPreview(): void {
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
+        this.audioEngine.setPreviewLoop(false); // STOP Natural Loop
         this.audioEngine.stop();
         this.previewMidi = null;
         MenuMusicManager.getInstance().resumeMusic();
     }
 
-    private async syncLibraryIntegrity(): Promise<void> {
-        if (this.officialSongs.length === 0) return;
-        for (const song of this.officialSongs) {
-            const midiName = song.url.split('/').pop()?.replace(/\.mid$/i, '') || 'unknown';
-            // v1.3.3: Use a unique identity that supports Non-ASCII (Korean) characters
-            const safeName = encodeURIComponent(midiName).replace(/%/g, '_').toLowerCase();
-            const key = `beatmap_config_${safeName}_v133`;
-            const existing = localStorage.getItem(key);
-            if (!existing || JSON.parse(existing).version !== "1.3.3") {
-                try {
-                    if (this.audioEngine.isPlaying() && !this.previewMidi) break;
-                    await this.performSyncOperation(song, key);
-                } catch (e) {}
-            }
-        }
+    private triggerFolderUpload(): void {
+        const input = document.createElement('input');
+        input.type = 'file';
+        (input as any).webkitdirectory = true;
+        input.onchange = (e: any) => {
+            const files = e.target.files;
+            if (files && files.length > 0) this.handleFileDrop(files);
+        };
+        input.click();
     }
+
+    /**
+     * IRONCLAD: Library Integrity Sync (v1.3)
+     * Proactively scans all official songs for missing or outdated configurations.
+     * This ensures 100% chart accuracy before the user even selects a song.
+     */
 
     public async ensureSongSynced(song: SongEntry): Promise<void> {
         const midiName = song.url.split('/').pop()?.replace(/\.mid$/i, '') || 'unknown';

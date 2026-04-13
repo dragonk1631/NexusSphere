@@ -34,12 +34,15 @@ export interface SongEntry {
     id?: string;
     name: string;
     url: string;
+    audioUrl?: string; // Explicit MP3 path to avoid guessing
+    beatmapUrl?: string; // Explicit JSON path to avoid guessing
     bpm?: number;
     duration?: number;
     noteCount?: number;
     difficulty?: number;
     isCustom?: boolean;
     isFavorite?: boolean;
+    volume?: number;
 }
 
 /**

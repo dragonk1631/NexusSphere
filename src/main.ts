@@ -176,6 +176,7 @@ function setupGlobalInteraction() {
   const handleInteraction = () => {
     enforceLandscape(true);
     // AUDIO UNLOCK: The first user gesture unlocks the AudioContext for all audio.
+    globalAudioEngine.resume();
     MenuMusicManager.getInstance().tryUnblock();
   };
 
@@ -210,6 +211,7 @@ const startApp = async () => {
   if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
     new MobileStartScreen(() => {
       // MobileStartScreen tap IS the first user gesture — unlock audio immediately
+      globalAudioEngine.resume(); // Unlock primary engine
       MenuMusicManager.getInstance().tryUnblock();
       showTitle();
     });
@@ -218,16 +220,30 @@ const startApp = async () => {
   }
 };
 
+import { SystemInitializer } from './core/SystemInitializer';
+
 const showTitle = () => {
+  // 1. Start background initialization immediately
+  const initPromise = SystemInitializer.getInstance().run((p) => {
+    if (titleScreen) titleScreen.setProgress(p);
+  });
+
   titleScreen = new TitleScreen(async () => {
+    // 2. Unlock Audio immediately on the "PUSH START" click
+    globalAudioEngine.resume();
+    
+    // 3. Wait for initialization if not finished
+    const loading = LoadingOverlay.getInstance();
+    loading.show("FINISHING INITIALIZATION...");
+    
+    // Safety check: ensure background and library are 100% ready
+    await Promise.all([
+      BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p)),
+      initPromise
+    ]);
+
     if (titleScreen) titleScreen.destroy();
     titleScreen = null;
-    
-    const loading = LoadingOverlay.getInstance();
-    loading.show("LOADING MAIN MENU...");
-    
-    // Ensure background is ready (in case theme changed)
-    await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
     
     loading.hide();
     mainMenu = new MainMenu(handleGameStart);
@@ -402,6 +418,10 @@ function returnToMenu(): void {
 }
 
 function handleGameStart(mode: string) {
+  // ROOT UNLOCK: Claim audio ownership immediately on the user gesture stack
+  // before any async launch orchestration begins.
+  globalAudioEngine.resume();
+
   if (mode === 'rhythm') {
     launchGame(RhythmGame);
   } else if (mode === 'pong') {

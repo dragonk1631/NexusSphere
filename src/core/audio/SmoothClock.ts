@@ -85,6 +85,13 @@ export class SmoothClock {
 
         if (drift > 0.1 && this.firstMoveDetected && (now % 1000 < 20) && hasSignalMoved) { // Log occasionally (approx every 1s)
             AudioEngineLogger.metric('SYNC', `Drift detected: ${(drift * 1000).toFixed(1)}ms offset.`);
+            
+            // PROFESSIONAL SAFETY: If drift is catastrophic (>200ms), perform an emergency re-anchor
+            if (drift > 0.2) {
+                // Silently re-anchor for catastrophic drift to keep the console clean for the user
+                this.reAnchor(rawAudioTime, rawAudioTime);
+                return rawAudioTime;
+            }
         }
 
         this.lastReportedTime = preciseTime;
