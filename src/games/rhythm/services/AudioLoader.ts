@@ -102,7 +102,8 @@ export class AudioLoader {
             
             // Priority 2: Smart Guessing Fallback (For legacy/vast library support)
             if (!mp3Path && !midiUrl.startsWith('file_')) {
-                const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+                const decodedUrl = decodeURI(midiUrl);
+                const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
                 mp3Path = `assets/audio/mp3/${midiName}.mp3`;
             }
 
@@ -127,7 +128,9 @@ export class AudioLoader {
             }
 
             // 3. Beatmap Configuration Loading
-            const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+            // Idempotency: Always decode first in case the path was already encoded
+            const decodedUrl = decodeURI(midiUrl);
+            const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
             const safeName = midiName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const localConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
 

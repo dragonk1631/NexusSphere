@@ -61,7 +61,7 @@ export class LegacyNoteFactory {
             const notesToProcess: GameNote[] = [];
             midi.tracks.forEach((track: any) => {
                 track.notes.forEach((note: any) => {
-                    if (note.velocity < 13) return;
+                    if (note.velocity < 1) return;
                     const measureIdx = Math.floor(note.ticks / (ppq * 4));
                     
                     const isDrum = (note.channel === 9 || track.isDrum || track.name?.toLowerCase().includes('drums'));

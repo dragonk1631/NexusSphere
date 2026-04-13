@@ -64,7 +64,20 @@ export class AssetLoader {
     public async checkAssetExists(path: string): Promise<boolean> {
         const resolvedPath = resolveAssetPath(path);
         try {
-            const response = await fetch(resolvedPath, { method: 'HEAD' });
+            let response = await fetch(resolvedPath, { method: 'HEAD' });
+            
+            // 🚀 SMART FALLBACK: If 404 and it looks like it has Korean characters, try NFD normalization
+            if (!response.ok && /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/.test(path)) {
+                // Decode to get raw korean, then normalize to NFD
+                const nfdPath = decodeURI(path).normalize('NFD');
+                const nfdResolved = resolveAssetPath(nfdPath);
+                
+                if (nfdResolved !== resolvedPath) {
+                    console.log(`[AssetLoader] 404 for NFC, retrying with NFD: ${nfdPath}`);
+                    response = await fetch(nfdResolved, { method: 'HEAD' });
+                }
+            }
+
             if (!response.ok) return false;
 
             const contentType = response.headers.get('content-type');
@@ -81,7 +94,19 @@ export class AssetLoader {
         const resolvedPath = resolveAssetPath(path);
         try {
             // PROFESSIONAL: Instead of HEAD, use a standard GET with partial check
-            const response = await fetch(resolvedPath);
+            let response = await fetch(resolvedPath);
+            
+            // 🚀 SMART FALLBACK: If 404 and it looks like it has Korean characters, try NFD normalization
+            if (!response.ok && /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/.test(path)) {
+                const nfdPath = decodeURI(path).normalize('NFD');
+                const nfdResolved = resolveAssetPath(nfdPath);
+                
+                if (nfdResolved !== resolvedPath) {
+                    console.log(`[AssetLoader] JSON 404 for NFC, retrying with NFD: ${nfdPath}`);
+                    response = await fetch(nfdResolved);
+                }
+            }
+
             if (!response.ok) return false;
 
             const contentType = response.headers.get('content-type');

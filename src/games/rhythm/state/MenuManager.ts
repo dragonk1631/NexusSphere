@@ -376,7 +376,8 @@ export class MenuManager {
                 }
 
                 // 4. Prepare Engine
-                const midiName = currentSong.url.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+                const decodedUrl = decodeURI(currentSong.url);
+                const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
                 const mp3Path = `assets/audio/mp3/${midiName}.mp3`;
                 const al = AssetLoader.getInstance();
                 
