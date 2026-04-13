@@ -31,6 +31,11 @@ export class SystemInitializer {
         if (onProgress) onProgress(0);
         
         try {
+            const al = AssetLoader.getInstance();
+
+            // 0. Load Asset Manifest (Ensures zero-noise probing)
+            await al.loadManifest();
+
             // 1. Load Official Songs Manifest
             const res = await fetch(resolveAssetPath('assets/data/official_songs.json'));
             if (!res.ok) throw new Error("Failed to load song manifest.");
@@ -41,8 +46,8 @@ export class SystemInitializer {
             let processed = 0;
             const total = this.officialSongs.length;
 
-            // 2. Proactive Asset Probing (Parallel with Batching)
-            const BATCH_SIZE = 5;
+            // 2. Silent Asset Verification (Using the manifest loaded in Step 0)
+            const BATCH_SIZE = 10;
             for (let i = 0; i < total; i += BATCH_SIZE) {
                 const batch = this.officialSongs.slice(i, i + BATCH_SIZE);
                 await Promise.all(batch.map(async (song) => {
@@ -68,12 +73,12 @@ export class SystemInitializer {
         const al = AssetLoader.getInstance();
 
         // A. MIDI Check (Required)
-        // 만약 MIDI 파일 자체가 없다면 아예 게임이 불가능하므로 Invalid 처리
-        const midiExists = await fetch(resolveAssetPath(song.url), { method: 'HEAD' }).then(r => r.ok).catch(() => false);
+        // Silent check using manifest
+        const midiExists = await al.checkAssetExists(song.url);
         
         if (!midiExists) {
             (song as any).isInvalid = true;
-            this.invalidSongs.push({ id: song.id || 'unknown', name: song.name, reason: "MIDI file not found (404)" });
+            this.invalidSongs.push({ id: song.id || 'unknown', name: song.name, reason: "MIDI file not found in manifest" });
             return;
         }
 
