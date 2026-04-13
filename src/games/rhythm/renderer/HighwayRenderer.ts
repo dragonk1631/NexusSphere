@@ -103,6 +103,9 @@ export class HighwayRenderer {
         // 2. Gameplay (Falling Notes)
         this.renderNotes(ctx, state, visualNotes, lastNoteIndex, alpha);
 
+        // [4K EXCLUSIVE] Cyber Dashboard for unused lanes
+        this.laneRenderer.renderCyberDashboard(ctx, state, this.cache);
+
         // 3. Hardware Console Housing (Unified Bar + Individual Buttons)
         // Draw the console body FIRST so buttons sit INSIDE it.
         this.laneRenderer.renderHardwareDeck(ctx, state, this.cache);

@@ -56,10 +56,17 @@ export class ReceptorRenderer {
             const drawX = Math.round(centerLaneX - drawW / 2);
             const physicsY = isActive ? (state.hitLineY - drawH / 2) + pressDepth : (state.hitLineY - drawH / 2);
 
+            const isLocked = state.keyMode === 4 && (i === 0 || i === state.laneCount - 1);
+
             ctx.save();
             
+            if (isLocked) {
+                ctx.globalAlpha = 0.15; // Heavily desaturated
+                ctx.filter = 'grayscale(100%)';
+            }
+            
             // Hit Animation Glow (Optional, Mobile Optimized)
-            if (isActive) {
+            if (isActive && !isLocked) {
                 ctx.globalCompositeOperation = 'screen';
                 ctx.globalAlpha = 0.5;
                 ctx.beginPath();
@@ -110,7 +117,7 @@ export class ReceptorRenderer {
             }
 
             // 2b. PC KEY LABELS (User requested: Unified White, Lane Color Outline, Black Shadow)
-            if (!state.isMobile && state.keyLabels[i]) {
+            if (!state.isMobile && state.keyLabels[i] && !isLocked) {
                 ctx.save();
                 ctx.font = '900 21px "Orbitron"';
                 ctx.textAlign = 'center';
