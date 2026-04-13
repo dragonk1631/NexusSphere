@@ -390,7 +390,18 @@ export class MenuManager {
                 const al = AssetLoader.getInstance();
                 const explicitMp3 = (currentSong as any).audioUrl;
                 const midiName = decodeURI(currentSong.url).split('/').pop()?.replace(/\.mid$/i, '') || 'test';
-                const mp3Path = explicitMp3 || `assets/audio/mp3/${midiName}.mp3`;
+                
+                // [WEB OPTIMIZATION] Try low-bitrate preview first
+                const previewPath = `assets/audio/mp3/previews/${midiName}.mp3`;
+                const originalPath = explicitMp3 || `assets/audio/mp3/${midiName}.mp3`;
+                
+                let mp3Path = originalPath;
+                if (await al.checkAssetExists(previewPath)) {
+                    mp3Path = previewPath;
+                    console.log(`[MenuManager] Using low-bitrate preview: ${previewPath}`);
+                } else {
+                    console.log(`[MenuManager] Preview not found, falling back to original: ${originalPath}`);
+                }
                 
                 if (await al.checkAssetExists(mp3Path)) {
                     if (previewId !== this.currentPreviewId) return;
