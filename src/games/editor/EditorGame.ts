@@ -1,6 +1,7 @@
 import { BaseGame } from '../../core/BaseGame';
 import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
+import { resolveAssetPath } from '../../core/utils/PathUtils';
 import { MidiParser } from '../../core/audio/MidiParser';
 import type { ParsedMidi, GameNote } from '../../core/audio/MidiParser';
 import { EditorUI } from './EditorUI';
