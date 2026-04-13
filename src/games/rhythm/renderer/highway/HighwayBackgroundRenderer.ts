@@ -12,8 +12,18 @@ export class HighwayBackgroundRenderer {
      */
     public onResize(ctx: CanvasRenderingContext2D, state: HighwayRenderState): void {
         const roadGrad = ctx.createLinearGradient(0, state.horizonY, 0, state.bottomY);
-        roadGrad.addColorStop(0, 'rgba(10, 10, 30, 0.3)'); 
-        roadGrad.addColorStop(1, 'rgba(5, 5, 20, 0.85)'); 
+        
+        // Mode-Specific Atmosphere
+        if (state.keyMode === 6) {
+            // 6K: Deep Cosmic Purple (Matches the grander, complex feel)
+            roadGrad.addColorStop(0, 'rgba(30, 10, 50, 0.45)'); 
+            roadGrad.addColorStop(1, 'rgba(15, 5, 25, 0.95)'); 
+        } else {
+            // 4K: Focused Cyan/Blue (Matches the sharp, precision feel)
+            roadGrad.addColorStop(0, 'rgba(10, 25, 40, 0.35)'); 
+            roadGrad.addColorStop(1, 'rgba(5, 10, 20, 0.85)'); 
+        }
+        
         this.roadGradient = roadGrad;
     }
 
