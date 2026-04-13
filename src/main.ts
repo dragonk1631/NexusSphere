@@ -221,19 +221,24 @@ const startApp = async () => {
 import { SystemInitializer } from './core/SystemInitializer';
 
 const showTitle = () => {
+  // 1. Start background initialization immediately
+  const initPromise = SystemInitializer.getInstance().run((p) => {
+    if (titleScreen) titleScreen.setProgress(p);
+  });
+
   titleScreen = new TitleScreen(async () => {
+    // 2. Wait for initialization if not finished
+    const loading = LoadingOverlay.getInstance();
+    loading.show("FINISHING INITIALIZATION...");
+    
+    // Safety check: ensure background and library are 100% ready
+    await Promise.all([
+      BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p)),
+      initPromise
+    ]);
+
     if (titleScreen) titleScreen.destroy();
     titleScreen = null;
-    
-    const loading = LoadingOverlay.getInstance();
-    
-    // 1. Ensure background is ready
-    loading.show("LOADING MAIN MENU...");
-    await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
-    
-    // 2. Perform System Initialization (Integrity Sync)
-    // This is where all 404s for discovery happen SILENTLY.
-    await SystemInitializer.getInstance().run();
     
     loading.hide();
     mainMenu = new MainMenu(handleGameStart);

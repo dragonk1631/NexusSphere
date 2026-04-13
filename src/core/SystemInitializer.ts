@@ -1,6 +1,6 @@
 import { resolveAssetPath } from './utils/PathUtils';
 import type { SongEntry } from '../games/rhythm/types/GameTypes';
-import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
+import { AssetLoader } from './asset/AssetLoader';
 
 /**
  * SystemInitializer
@@ -25,10 +25,10 @@ export class SystemInitializer {
 
     /**
      * 전체 자산 점검을 수행합니다.
+     * @param onProgress 진행률 콜백 (0.0 ~ 1.0)
      */
-    public async run(): Promise<SongEntry[]> {
-        const loading = LoadingOverlay.getInstance();
-        loading.show("VERIFYING SONG LIBRARY...");
+    public async run(onProgress?: (p: number) => void): Promise<SongEntry[]> {
+        if (onProgress) onProgress(0);
         
         try {
             // 1. Load Official Songs Manifest
@@ -42,14 +42,13 @@ export class SystemInitializer {
             const total = this.officialSongs.length;
 
             // 2. Proactive Asset Probing (Parallel with Batching)
-            // 브라우저 404 로그는 이 곳에서 발생하며, 이후 메뉴 진입 시에는 발생하지 않습니다.
             const BATCH_SIZE = 5;
             for (let i = 0; i < total; i += BATCH_SIZE) {
                 const batch = this.officialSongs.slice(i, i + BATCH_SIZE);
                 await Promise.all(batch.map(async (song) => {
                     await this.probeSongAssets(song);
                     processed++;
-                    loading.updateProgress(processed / total);
+                    if (onProgress) onProgress(processed / total);
                 }));
             }
 
@@ -65,10 +64,9 @@ export class SystemInitializer {
         }
     }
 
-    /**
-     * 개별 곡의 필수 자산 존재 여부를 확인합니다.
-     */
     private async probeSongAssets(song: SongEntry) {
+        const al = AssetLoader.getInstance();
+
         // A. MIDI Check (Required)
         // 만약 MIDI 파일 자체가 없다면 아예 게임이 불가능하므로 Invalid 처리
         const midiExists = await fetch(resolveAssetPath(song.url), { method: 'HEAD' }).then(r => r.ok).catch(() => false);
@@ -79,12 +77,20 @@ export class SystemInitializer {
             return;
         }
 
-        // B. MP3 Discovery (Optional fallback)
-        // 굳이 여기서 MP3를 로드하진 않고, 존재 여부만 미리 체크해서 캐시해둡니다.
-        // 현재 SongEntry에는 cache 속성이 없어서 필요시 동적으로 추가하거나 AudioLoader에서 재사용합니다.
-        
-        // C. Beatmap JSON Discovery (Optional fallback)
-        // 이 과정에서 발생하는 404는 정상적인 '탐색' 과정입니다.
+        // B. MP3 Discovery (Proactive normalization check)
+        // Explicit audioUrl이 있다면 그것을 우선적으로 확인합니다.
+        const audioPath = song.audioUrl || `assets/audio/mp3/${song.name}.mp3`;
+        const audioExists = await al.checkAssetExists(audioPath);
+        if (audioExists) {
+            (song as any).hasAudio = true;
+        }
+
+        // C. Beatmap JSON Discovery
+        const beatmapPath = song.beatmapUrl || `assets/data/beatmaps/${song.name}.json`;
+        const beatmapExists = await al.checkJsonExists(beatmapPath);
+        if (beatmapExists) {
+            (song as any).hasBeatmap = true;
+        }
     }
 
     private logHiddenSongs() {

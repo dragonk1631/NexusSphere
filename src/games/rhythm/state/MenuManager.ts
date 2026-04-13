@@ -367,10 +367,19 @@ export class MenuManager {
                 }
 
                 // 4. Prepare Engine
-                const decodedUrl = decodeURI(currentSong.url);
-                const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
-                const mp3Path = `assets/audio/mp3/${midiName}.mp3`;
                 const al = AssetLoader.getInstance();
+                const ac = al.getAudioContext();
+                if (ac.state === 'suspended') {
+                    console.log("[MenuManager] Resuming AudioContext for preview...");
+                    await ac.resume();
+                }
+
+                // Explicit audioUrl from manifest is 100% reliable; otherwise guess from MIDI filename.
+                const explicitMp3 = (currentSong as any).audioUrl;
+                const midiName = decodeURI(currentSong.url).split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+                const mp3Path = explicitMp3 || `assets/audio/mp3/${midiName}.mp3`;
+                
+                console.log(`[MenuManager] Probing preview audio for "${currentSong.name}":`, mp3Path);
                 
                 if (await al.checkAssetExists(mp3Path)) {
                     console.log(`[MenuManager] Hybrid Preview detected: ${mp3Path}`);
@@ -381,6 +390,7 @@ export class MenuManager {
                     const vol = (currentSong as any).volume ?? 1.0;
                     this.audioEngine.setHybridVolume(vol);
                 } else {
+                    console.log(`[MenuManager] Falling back to MIDI Preview for: ${currentSong.name}`);
                     await this.audioEngine.loadMidi(buffer);
                 }
 
