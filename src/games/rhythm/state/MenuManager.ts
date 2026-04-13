@@ -314,6 +314,11 @@ export class MenuManager {
         if (this.currentSongUrl === currentSong.url && this.audioEngine.isPlaying()) return;
 
         if (this.previewTimeout) clearTimeout(this.previewTimeout);
+        
+        // UNBLOCK: RESUME IMMEDIATELY on the user interaction stack.
+        // This must be called BEFORE the setTimeout(300ms) to satisfy browser autoplay policies.
+        this.audioEngine.resume();
+
         // Pause the main theme before MIDI preview starts
         MenuMusicManager.getInstance().pauseMusic(true);
         this.audioEngine.stop();
@@ -420,6 +425,7 @@ export class MenuManager {
     }
 
     public handleScroll(y: number): boolean {
+        this.audioEngine.resume();
         if (this.songList.length === 0) return false;
         const diffY = y - this.touchStartY;
         const threshold = 30;
@@ -434,6 +440,7 @@ export class MenuManager {
     }
 
     public handleWheel(deltaY: number): void {
+        this.audioEngine.resume();
         if (this.songList.length === 0) return;
         if (deltaY > 0) {
             this.selectedSongIndex = (this.selectedSongIndex + 1) % this.songList.length;
@@ -443,10 +450,12 @@ export class MenuManager {
     }
 
     public selectNextDifficulty(): void {
+        this.audioEngine.resume();
         this.selectedDifficultyIndex = Math.min(DIFFICULTY_OPTIONS.length - 1, this.selectedDifficultyIndex + 1);
     }
 
     public selectPreviousDifficulty(): void {
+        this.audioEngine.resume();
         this.selectedDifficultyIndex = Math.max(0, this.selectedDifficultyIndex - 1);
     }
 
@@ -483,6 +492,7 @@ export class MenuManager {
     public getCurrentDifficulty(): string { return DIFFICULTY_OPTIONS[this.selectedDifficultyIndex]; }
 
     public handleKeyboardInput(code: string): void {
+        this.audioEngine.resume();
         if (this.songList.length === 0) return;
         switch (code) {
             case 'ArrowUp':
@@ -514,6 +524,7 @@ export class MenuManager {
     }
 
     public handlePointerDown(x: number, y: number, width: number, height: number, isMobile: boolean): void {
+        this.audioEngine.resume();
         const layout = computeMenuLayout(width, height, isMobile);
 
         // Primary Exit (Deprecated, handled by bottom Back)

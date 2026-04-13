@@ -418,6 +418,10 @@ function returnToMenu(): void {
 }
 
 function handleGameStart(mode: string) {
+  // ROOT UNLOCK: Claim audio ownership immediately on the user gesture stack
+  // before any async launch orchestration begins.
+  globalAudioEngine.resume();
+
   if (mode === 'rhythm') {
     launchGame(RhythmGame);
   } else if (mode === 'pong') {
