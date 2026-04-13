@@ -70,15 +70,13 @@ export class SystemInitializer {
      * 개별 곡의 필수 자산 존재 여부를 확인합니다.
      */
     private async probeSongAssets(song: SongEntry) {
-        const al = AssetLoader.getInstance();
-        
         // A. MIDI Check (Required)
         // 만약 MIDI 파일 자체가 없다면 아예 게임이 불가능하므로 Invalid 처리
         const midiExists = await fetch(resolveAssetPath(song.url), { method: 'HEAD' }).then(r => r.ok).catch(() => false);
         
         if (!midiExists) {
             (song as any).isInvalid = true;
-            this.invalidSongs.push({ id: song.id, name: song.name, reason: "MIDI file not found (404)" });
+            this.invalidSongs.push({ id: song.id || 'unknown', name: song.name, reason: "MIDI file not found (404)" });
             return;
         }
 
