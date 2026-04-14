@@ -117,7 +117,7 @@ export class MainMenu {
                     height: clamp(50px, 8vh, 80px); /* Fixed height ceiling v46 */
                     box-sizing: border-box;
                 }
-                .mm-top-hud > * { pointer-events: auto; } /* Enable hud buttons */
+                /* .mm-top-hud > * { pointer-events: auto; } <-- REMOVED v63: Grid cells were blocking canvas touch */
 
                 .mm-top-spacer {
                     height: clamp(50px, 8vh, 80px); /* Matches HUD height to prevent overlap v46 */
@@ -128,6 +128,7 @@ export class MainMenu {
                 .mm-version-badge {
                     margin-left: 0;
                     justify-self: start; /* Anchor to the left v56 */
+                    pointer-events: auto; /* Enable touch ONLY on the badge v63 */
                 }
                 .mm-version-badge, .mm-currency-badge {
                     display: inline-flex;
@@ -144,6 +145,7 @@ export class MainMenu {
                     text-shadow: 0 2px 10px rgba(0,0,0,0.85); /* HUD Halo v56 */
                     white-space: nowrap;
                     color: white;
+                    pointer-events: auto; /* Enable touch ONLY on badges v63 */
                 }
                 .mm-currency-badge.gold { border-color: rgba(255,210,80,0.4); background: rgba(255,190,0,0.1); }
                 .mm-currency-badge.gem { border-color: rgba(130,180,255,0.4); background: rgba(80,130,255,0.1); }
@@ -168,6 +170,7 @@ export class MainMenu {
                     min-width: clamp(200px, 25vw, 350px);
                     overflow: hidden;
                     justify-self: center; /* Anchor to the dead center v56 */
+                    pointer-events: auto; /* Enable touch v63 */
                 }
                 .mm-visualizer { display: flex; align-items: flex-end; gap: 3px; height: clamp(10px, 1.8vh, 18px); padding-bottom: 2px; }
                 .mm-vis-bar {

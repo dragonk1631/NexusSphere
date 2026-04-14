@@ -57,6 +57,7 @@ export class ReceptorRenderer {
             const physicsY = isActive ? (state.hitLineY - drawH / 2) + pressDepth : (state.hitLineY - drawH / 2);
 
             const isLocked = state.keyMode === 4 && (i === 0 || i === state.laneCount - 1);
+            const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
 
             ctx.save();
             
@@ -69,7 +70,6 @@ export class ReceptorRenderer {
 
                 // Draw small crossing chains over the receptor v57
                 ctx.save();
-                const chainSize = drawH * 0.4;
                 ctx.strokeStyle = '#222222';
                 ctx.lineWidth = 4;
                 ctx.beginPath();
@@ -103,7 +103,6 @@ export class ReceptorRenderer {
                 
                 // 1b. PREMIUM AMBIENT PULSE (Multi-layered 'Living' Bloom)
                 const pulse = (Math.sin(state.cachedNow * 0.01) + 1) * 0.5;
-                const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
                 
                 ctx.save();
                 ctx.globalCompositeOperation = 'lighter';

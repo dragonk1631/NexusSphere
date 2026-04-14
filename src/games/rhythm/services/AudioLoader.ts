@@ -4,7 +4,7 @@ import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
 import { type BeatmapData } from '../types/BeatmapTypes';
 import { type TransitionData } from '../types/GameTypes';
 import { type CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
-import { LocalSongStorage } from '../services/LocalSongStorage';
+import { LocalSongStorage } from './LocalSongStorage';
 import { AssetLoader } from '../../../core/asset/AssetLoader';
 
 /**
@@ -43,7 +43,8 @@ export class AudioLoader {
             this.beatmapData = null;
 
             // 0. Resolve MIDI Name for tracking/mapping
-            const midiName = midiUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+            const decodedUrl = decodeURI(midiUrl);
+            const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
 
             // 1. MIDI Loading & Parsing
             if (isTestMode && transitionData) {
@@ -105,8 +106,6 @@ export class AudioLoader {
             
             // Priority 2: Smart Guessing Fallback (For legacy/vast library support)
             if (!mp3Path && !midiUrl.startsWith('file_')) {
-                const decodedUrl = decodeURI(midiUrl);
-                const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
                 mp3Path = `assets/audio/mp3/${midiName}.mp3`;
             }
 
@@ -131,9 +130,7 @@ export class AudioLoader {
             }
 
             // 3. Beatmap Configuration Loading
-            // Idempotency: Always decode first in case the path was already encoded
-            const decodedUrl = decodeURI(midiUrl);
-            const midiName = decodedUrl.split('/').pop()?.replace(/\.mid$/i, '') || 'test';
+            // Use already resolved names
             const safeName = midiName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const localConfigStr = localStorage.getItem(`beatmap_config_${safeName}`);
 
