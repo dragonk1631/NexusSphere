@@ -32,29 +32,37 @@ export function resolveAssetPath(path: string): string {
         return path;
     }
 
-    // 2. 이미 절대 경로로 인코딩된 것 같으면(예: http로 시작하지 않지만 %를 포함함) 그대로 반환하거나 처리
-    // 단, %를 포함하더라도 BASE_URL이 안 붙어 있을 수 있으므로 신중히 처리
+    const externalUrl = import.meta.env.VITE_ASSET_EXTERNAL_URL;
+    const assetVersion = import.meta.env.VITE_ASSET_VERSION || '1.0.0';
     let normalizedPath = normalizePath(path);
 
-    // 3. Vite의 BASE_URL (예: '/' 또는 '/NexusSphere/')
-    const baseUrl = import.meta.env.BASE_URL || '/';
-    
-    // 4. 경로의 시작부분 슬래시 제거 (기초 경로와 중복 방지)
+    // 2. 경로의 시작부분 슬래시 제거 (기초 경로와 중복 방지)
     normalizedPath = normalizedPath.startsWith('/') ? normalizedPath.slice(1) : normalizedPath;
 
-    // 5. 기초 경로와 자산 경로 결합
-    const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const resolved = `${base}${normalizedPath}`;
+    let resolved: string;
+
+    if (externalUrl) {
+        // [PHASE 1] External CDN Support
+        const host = externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`;
+        resolved = `${host}${normalizedPath}`;
+    } else {
+        // [DEFAULT] Vite's BASE_URL (예: '/' 또는 '/NexusSphere/')
+        const baseUrl = import.meta.env.BASE_URL || '/';
+        const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+        resolved = `${base}${normalizedPath}`;
+    }
+
+    // [PHASE 1] Hashing Strategy: Append version query parameter
+    // If it already has a query, append with &, else with ?
+    const separator = resolved.includes('?') ? '&' : '?';
+    resolved = `${resolved}${separator}v=${assetVersion}`;
     
-    // 6. PROFESSIONAL: Idempotent Encoding
-    // If the path already contains percent-encoded characters, decode it first to prevent double encoding.
-    // Example: "너의 의미" -> "%EB%84%88..." -> resolve again -> "%25EB..." (ERROR)
+    // 3. PROFESSIONAL: Idempotent Encoding
     const needsEncoding = /[\u0080-\uffff\s]/.test(resolved);
     const isAlreadyEncoded = resolved.includes('%');
 
     try {
         if (isAlreadyEncoded) {
-            // 이미 인코딩된 부분이 있다면 전체를 디코딩하고 다시 인코딩하여 표준화
             const decoded = decodeURI(resolved);
             return encodeURI(decoded).replace(/%5B/g, '[').replace(/%5D/g, ']');
         }
