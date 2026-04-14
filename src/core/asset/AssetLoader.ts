@@ -32,14 +32,16 @@ export class AssetLoader {
             return this.imageCache.get(path)!;
         }
 
+        const resolvedPath = resolveAssetPath(path);
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
                 this.imageCache.set(path, img);
+                this.logCacheStatus(resolvedPath, 'IMAGE');
                 resolve(img);
             };
             img.onerror = () => reject(`Failed to load image: ${path}`);
-            img.src = resolveAssetPath(path);
+            img.src = resolvedPath;
         });
     }
 
@@ -49,12 +51,14 @@ export class AssetLoader {
     public async loadManifest(): Promise<void> {
         if (this.manifestLoaded) return;
         try {
-            const res = await fetch(resolveAssetPath('assets_manifest.json'));
+            const url = resolveAssetPath('assets_manifest.json');
+            const res = await fetch(url);
             if (res.ok) {
                 const list = await res.json();
                 this.manifest = new Set(list);
                 this.manifestLoaded = true;
-                console.log(`[AssetLoader] Manifest loaded with ${this.manifest.size} entries.`);
+                this.logCacheStatus(url, 'MANIFEST');
+                console.log(`[AssetLoader] Assets synchronization initialized with ${this.manifest.size} entries.`);
             }
         } catch (e) {
             console.warn("[AssetLoader] Failed to load manifest, falling back to network probes.", e);
@@ -100,6 +104,7 @@ export class AssetLoader {
             worker.onmessage = (e) => {
                 const { success, buffer, error } = e.data;
                 if (success) {
+                    this.logCacheStatus(url, 'AUDIO');
                     resolve(buffer);
                 } else {
                     reject(new Error(error));
@@ -144,6 +149,7 @@ export class AssetLoader {
         const resolvedPath = resolveAssetPath(path);
         try {
             const response = await fetch(resolvedPath, { method: 'HEAD' });
+            this.logCacheStatus(resolvedPath, 'PROBE');
             return response.ok;
         } catch (e) {
             return false;
@@ -177,6 +183,40 @@ export class AssetLoader {
         ];
 
         await Promise.all(promises);
+    }
+
+    /**
+     * 캐시 상태를 분석하여 콘솔에 시각적으로 출력합니다. (R2 최적화 점검용)
+     */
+    private logCacheStatus(url: string, type: string) {
+        // 성능 데이터가 기록될 때까지 잠시 대기
+        setTimeout(() => {
+            const entries = performance.getEntriesByName(url);
+            if (entries.length === 0) return;
+            
+            const entry = entries[entries.length - 1] as PerformanceResourceTiming;
+            let status = 'NETWORK (200)';
+            let color = '#00ffcc'; // 네온 싸이언 (네트워크)
+            
+            // 1. TransferSize가 0이면 브라우저 메모리/디스크 캐시에서 완전 적중 (0ms)
+            // 2. TransferSize가 매우 작고 기간이 짧으면 304 Not Modified (R2 검증 완료)
+            if (entry.transferSize === 0) {
+                status = '⚡ FULL CACHE HIT (0ms)';
+                color = '#ff00ff'; // 네온 핑크 (캐시 히트)
+            } else if (entry.transferSize < 1000) { 
+                status = '☁️ R2 VERIFIED (304)';
+                color = '#ffff00'; // 네온 옐로우 (304 검증)
+            }
+            
+            console.log(
+                `%c[AssetLoader:${type}] %c${status} %c${url} (%c${Math.round(entry.duration)}ms%c)`,
+                'color: #888;',
+                `color: ${color}; font-weight: bold;`,
+                'color: #aaa;',
+                'color: #fff;',
+                'color: #aaa;'
+            );
+        }, 200);
     }
 
     public getAudioContext(): AudioContext {

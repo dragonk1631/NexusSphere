@@ -724,7 +724,7 @@ export class RenderCache {
         leftHlGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.8)');
         leftHlGrad.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
         ctx.strokeStyle = leftHlGrad;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
         ctx.moveTo(tl.x, tl.y); ctx.lineTo(bl.x, bl.y);
         ctx.stroke();
@@ -736,7 +736,7 @@ export class RenderCache {
         leftOuterGrad.addColorStop(0.7, themeColor1);
         leftOuterGrad.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
         ctx.strokeStyle = leftOuterGrad;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
         ctx.moveTo(tl.x - railWidth, tl.y); ctx.lineTo(bl.x - railWidth * 2, bl.y);
         ctx.stroke();
@@ -758,7 +758,7 @@ export class RenderCache {
         rightHlGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.8)');
         rightHlGrad.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
         ctx.strokeStyle = rightHlGrad;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
         ctx.moveTo(tr.x, tr.y); ctx.lineTo(br.x, br.y);
         ctx.stroke();
@@ -770,7 +770,7 @@ export class RenderCache {
         rightOuterGrad.addColorStop(0.7, themeColor1);
         rightOuterGrad.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
         ctx.strokeStyle = rightOuterGrad;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
         ctx.moveTo(tr.x + railWidth, tr.y); ctx.lineTo(br.x + railWidth * 2, br.y);
         ctx.stroke();
@@ -779,7 +779,7 @@ export class RenderCache {
 
 
         // Dividers: fade from horizon and stop at hit line (no overlap with judgment area)
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.3;
         for (let i = 1; i < laneCount; i++) {
             const topX = getPerspectiveX(i, horizonY);
             const botX = getPerspectiveX(i, hitLineY);

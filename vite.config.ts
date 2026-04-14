@@ -11,23 +11,27 @@ export default defineConfig(({ command }) => ({
         VitePWA({
             registerType: 'autoUpdate',
             devOptions: {
-                enabled: false // 시크릿 창이 아닌 일반 창에서도 SSL 에러 없이 접속되도록 SW는 비활성화
+                enabled: true // 개발 단계에서도 Service Worker를 활성화하여 캐싱을 테스트함
             },
             workbox: {
-                // [PHASE 2] 외부 에셋(R2 등) 캐싱 규칙 추가
+                // 대용량 사운드폰트(32MB+) 및 오디오 파일을 캐싱하기 위해 제한 해제 (100MB)
+                maximumFileSizeToCacheInBytes: 100 * 1024 * 1024,
+                globPatterns: ['**/*.{js,css,html,ico,png,svg,json,mp3,mid,sf2}'],
+                
+                // [PHASE 2] 외부 에셋(R2 등) 및 API 데이터 캐싱 규칙
                 runtimeCaching: [
                     {
-                        // 이미지 및 오디오 파일 확장자 매칭 (외부 URL 포함)
-                        urlPattern: /\.(?:png|jpg|jpeg|svg|mp3|wav|ogg|sf2|mid)(?:\?.*)?$/i,
-                        handler: 'CacheFirst', // 캐시에서 먼저 찾고 없으면 네트워크
+                        // 이미지, 오디오, 그리고 설정 파일(.json) 포함
+                        urlPattern: /\.(?:png|jpg|jpeg|svg|mp3|wav|ogg|sf2|mid|json)(?:\?.*)?$/i,
+                        handler: 'CacheFirst', // 로컬 캐시 우선 (있으면 네트워크 안 탐)
                         options: {
-                            cacheName: 'nexussphere-external-assets',
+                            cacheName: 'nexussphere-asset-vault',
                             expiration: {
-                                maxEntries: 200,             // 최대 200개 파일 보관
-                                maxAgeSeconds: 60 * 60 * 24 * 365, // 1년간 보관 (Aggressive)
+                                maxEntries: 500,
+                                maxAgeSeconds: 60 * 60 * 24 * 365, // 1년간 보관
                             },
                             cacheableResponse: {
-                                statuses: [0, 200], // 0(Opaque, CDN) 및 200 응답만 캐싱
+                                statuses: [0, 200],
                             },
                         },
                     },

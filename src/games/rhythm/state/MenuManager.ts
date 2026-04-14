@@ -254,13 +254,21 @@ export class MenuManager {
                 await this.audioEngine.resume();
                 if (previewId !== this.currentPreviewId) return;
 
-                const al = AssetLoader.getInstance();
                 const midiName = decodeURI(currentSong.url).split('/').pop()?.replace(/\.mid$/i, '') || 'test';
-                const originalPath = (currentSong as any).audioUrl || `assets/audio/mp3/${midiName}.mp3`;
                 
-                if (await al.checkAssetExists(originalPath)) {
+                // [PRIORITY] 1. Snippet Preview (10s) -> 2. Full MP3 Fallback
+                const previewPath = (currentSong as any).previewUrl || `assets/audio/mp3/previews/${midiName}.mp3`;
+                const fullPath = (currentSong as any).audioUrl || `assets/audio/mp3/${midiName}.mp3`;
+                
+                const al = AssetLoader.getInstance();
+                let actualPath = fullPath;
+                if (await al.checkAssetExists(previewPath)) {
+                    actualPath = previewPath;
+                }
+                
+                if (await al.checkAssetExists(actualPath)) {
                     if (previewId !== this.currentPreviewId) return;
-                    const mp3Buffer = await al.loadAudio(originalPath);
+                    const mp3Buffer = await al.loadAudio(actualPath);
                     if (previewId !== this.currentPreviewId) return;
                     await this.audioEngine.loadHybrid(buffer, mp3Buffer);
                 } else {

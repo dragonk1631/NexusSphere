@@ -82,16 +82,16 @@ define(['./workbox-ca84f546'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.17lfrrs4464"
+    "revision": "0.7nqa0g98cc8"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
-  workbox.registerRoute(/\.(?:png|jpg|jpeg|svg|mp3|wav|ogg|sf2|mid)(?:\?.*)?$/i, new workbox.CacheFirst({
-    "cacheName": "nexussphere-external-assets",
+  workbox.registerRoute(/\.(?:png|jpg|jpeg|svg|mp3|wav|ogg|sf2|mid|json)(?:\?.*)?$/i, new workbox.CacheFirst({
+    "cacheName": "nexussphere-asset-vault",
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 200,
+      maxEntries: 500,
       maxAgeSeconds: 31536000
     }), new workbox.CacheableResponsePlugin({
       statuses: [0, 200]

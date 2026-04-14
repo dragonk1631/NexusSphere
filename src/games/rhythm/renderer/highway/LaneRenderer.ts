@@ -36,22 +36,22 @@ export class LaneRenderer {
             const topX = cache.getX(i, state.horizonY, state);
             const botX = cache.getX(i, borderY, state); 
 
-            // 1. Shining Pulse Glow
+            // 1. Shining Pulse Glow (Reduced to 2.5px for a sharper look)
             ctx.strokeStyle = `rgba(255, 255, 255, ${glowAlpha})`;
-            ctx.lineWidth = 4.5;
+            ctx.lineWidth = 2.5;
             ctx.beginPath();
             ctx.moveTo(topX, state.horizonY);
             ctx.lineTo(botX, borderY);
             ctx.stroke();
 
-            // 2. Main Divider Line (Fixed to 1.5px)
+            // 2. Main Divider Line (Fixed to 1.3px)
             ctx.strokeStyle = `rgba(255, 255, 255, ${coreAlpha})`;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1.3;
             ctx.stroke();
 
-            // 3. High-Intensity Core (Optional but adds 'shine')
+            // 3. High-Intensity Core (Reduced to 0.4px for precision)
             ctx.strokeStyle = `rgba(255, 255, 255, ${coreAlpha * 1.5})`;
-            ctx.lineWidth = 0.6;
+            ctx.lineWidth = 0.4;
             ctx.stroke();
         }
         ctx.restore();
@@ -91,9 +91,9 @@ export class LaneRenderer {
             ctx.lineWidth = 6;
             ctx.stroke();
 
-            // 3. High-Intensity Core (1.5px)
+            // 3. High-Intensity Core (1.3px)
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1.3;
             ctx.stroke();
         };
 
