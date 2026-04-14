@@ -28,12 +28,15 @@ export class CoreAudioEngine {
 
     // Hybrid Mode (MP3 + MIDI)
     private isHybridMode: boolean = false;
+    private isStreamingMode: boolean = false;
     private mp3Buffer: AudioBuffer | null = null;
+    private streamingPlayer: HTMLAudioElement | null = null;
     private mp3SourceNode: AudioBufferSourceNode | null = null;
     private mp3GainNode: GainNode;
     private autoNormalizationGain: number = 1.0;
     private userMetadataVolume: number = 1.0;
     private isPreviewLoop: boolean = false;
+    private syncMonitorId: number | null = null;
 
     // Internal State
     private isReady: boolean = false;
@@ -88,7 +91,9 @@ export class CoreAudioEngine {
 
                 // Load SoundFont
                 try {
-                    const sfRes = await this.fetchWithTimeout(soundFontUrl);
+                    const resolvedUrl = resolveAssetPath(soundFontUrl);
+                    AudioEngineLogger.info(`Loading SoundFont from: ${resolvedUrl}`);
+                    const sfRes = await this.fetchWithTimeout(resolvedUrl);
 
                     const sfData = await sfRes.arrayBuffer();
 
@@ -186,20 +191,35 @@ export class CoreAudioEngine {
         }
     }
 
-    public async loadHybrid(midiBuffer: ArrayBuffer, mp3Buffer: AudioBuffer): Promise<void> {
+    public async loadHybrid(midiBuffer: ArrayBuffer, audioData: AudioBuffer | HTMLAudioElement): Promise<void> {
         await this.loadMidi(midiBuffer);
-        this.mp3Buffer = mp3Buffer;
-        this.isHybridMode = true;
         
-        // AUTOMATED NORMALIZATION (Phase 4)
-        const peakValue = this.scanPeakAmplitude(mp3Buffer);
-        const targetPeak = 0.707; // -3dB
-        this.autoNormalizationGain = peakValue > 0 ? targetPeak / peakValue : 1.0;
+        if (audioData instanceof AudioBuffer) {
+            this.mp3Buffer = audioData;
+            this.streamingPlayer = null;
+            this.isStreamingMode = false;
+            
+            // AUTOMATED NORMALIZATION (Phase 4)
+            const peakValue = this.scanPeakAmplitude(audioData);
+            const targetPeak = 0.707; // -3dB
+            this.autoNormalizationGain = peakValue > 0 ? targetPeak / peakValue : 1.0;
+        } else {
+            this.mp3Buffer = null;
+            this.streamingPlayer = audioData;
+            this.isStreamingMode = true;
+            this.autoNormalizationGain = 1.0; // Streaming normalization is harder, default to 1
+            
+            // Route streaming player through mixer
+            if (this.bgmSource) this.bgmSource.disconnect();
+            this.bgmSource = this.ctx.createMediaElementSource(audioData);
+            this.bgmSource.connect(this.mp3GainNode);
+        }
+
+        this.isHybridMode = true;
         
         // Cap the gain to prevent extreme clipping for very quiet tracks
         if (this.autoNormalizationGain > 3.0) this.autoNormalizationGain = 3.0;
 
-        AudioEngineLogger.info(`Hybrid Engine: Normalized Peak ${peakValue.toFixed(2)} -> Gain x${this.autoNormalizationGain.toFixed(2)}`);
         this.updateHybridGain();
     }
 
@@ -231,8 +251,15 @@ export class CoreAudioEngine {
         this.timer.resume(seqTime, hardwareTime);
         this.stopBGM(true); // PROFESSIONAL: Fade out menu music when MIDI starts
         
-        if (this.isHybridMode && this.mp3Buffer) {
-            this.startMp3At(seqTime, hardwareTime);
+        if (this.isHybridMode) {
+            if (this.isStreamingMode && this.streamingPlayer) {
+                this.streamingPlayer.currentTime = Math.max(0, seqTime);
+                this.streamingPlayer.play();
+                this.startSyncMonitor();
+            } else if (this.mp3Buffer) {
+                this.startMp3At(seqTime, hardwareTime);
+            }
+
             // Mute all midi synth channels to favor MP3 audio
             for (let i = 0; i < 16; i++) {
                 this.setChannelVolume(i, 0);
@@ -298,6 +325,8 @@ export class CoreAudioEngine {
     }
 
     private stopMp3(): void {
+        this.stopSyncMonitor();
+
         if (this.mp3SourceNode) {
             try {
                 this.mp3SourceNode.onended = null;
@@ -307,10 +336,52 @@ export class CoreAudioEngine {
             this.mp3SourceNode = null;
         }
 
+        if (this.streamingPlayer) {
+            this.streamingPlayer.pause();
+        }
+
         // PROFESSIONAL: Reset gain automation on stop
         if (this.mp3GainNode) {
             this.mp3GainNode.gain.cancelScheduledValues(this.ctx.currentTime);
             this.updateHybridGain();
+        }
+    }
+
+    /**
+     * [PHASE 3] Re-Anchor (Sync Correction) Logic
+     * 오디오 스트리밍 타임과 절대적인 AudioContext 타임의 오차를 감시합니다.
+     */
+    private startSyncMonitor(): void {
+        this.stopSyncMonitor();
+        
+        const monitor = () => {
+            if (!this.isPlaying() || !this.streamingPlayer || !this.isStreamingMode) return;
+
+            const masterTime = this.getPreciseTime();
+            const audioTime = this.streamingPlayer.currentTime;
+            const drift = Math.abs(masterTime - audioTime);
+
+            // [CRITICAL] 10ms 이상의 오차가 발생하면 리엔커 보정 실시
+            if (drift > 0.010) {
+                // AudioContext(masterTime)는 고정되어 있으며 판정의 기준이 됨.
+                // 스트리밍 오디오(audioTime)를 마스터 타임에 맞게 강제 정렬.
+                this.streamingPlayer.currentTime = masterTime;
+                
+                if (drift > 0.050) { // 50ms 이상의 심각한 지연 발견 시 로그
+                    AudioEngineLogger.warn(`[SyncMonitor] Heavy drift detected: ${Math.round(drift * 1000)}ms. Re-anchoring...`);
+                }
+            }
+
+            this.syncMonitorId = requestAnimationFrame(monitor);
+        };
+        
+        this.syncMonitorId = requestAnimationFrame(monitor);
+    }
+
+    private stopSyncMonitor(): void {
+        if (this.syncMonitorId !== null) {
+            cancelAnimationFrame(this.syncMonitorId);
+            this.syncMonitorId = null;
         }
     }
 
