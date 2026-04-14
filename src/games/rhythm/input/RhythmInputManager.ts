@@ -1,4 +1,5 @@
 import { GameState } from '../types/GameTypes';
+import { ScreenUtils } from '../../../core/utils/ScreenUtils';
 
 /**
  * Interface for components that need to react to game inputs.
@@ -120,10 +121,29 @@ export class RhythmInputManager {
         const handlePointer = (clientX: number, clientY: number, id: number, type: 'down' | 'move' | 'up') => {
             const state = this.handler.getCurrentState();
             const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
-            const x = (clientX - rect.left) * scaleX;
-            const y = (clientY - rect.top) * scaleY;
+            
+            // [V66] Advanced Coordinate Mapping: Handle CSS Rotation (Forced Landscape)
+            const isForced = ScreenUtils.getVirtualDimensions().isForced;
+            
+            let x: number, y: number;
+            
+            if (isForced) {
+                const relX = (clientX - rect.left) / rect.width;
+                const relY = (clientY - rect.top) / rect.height;
+
+                // Rotated mapping (Corrected for 90deg clockwise CSS transform)
+                // Physical Bottom (relY=1) -> Logical Left (x=0)
+                // Physical Top (relY=0) -> Logical Right (x=W)
+                // Physical Left (relX=0) -> Logical Top (y=0)
+                // Physical Right (relX=1) -> Logical Bottom (y=H)
+                x = (1 - relY) * this.canvas.width;
+                y = relX * this.canvas.height;
+            } else {
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                x = (clientX - rect.left) * scaleX;
+                y = (clientY - rect.top) * scaleY;
+            }
 
             if (state === GameState.PLAYING) {
                 if (this.handler.isInputBlocked()) {
