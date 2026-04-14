@@ -52,7 +52,7 @@ export class MenuState extends BaseGameState {
     }
 
     public onPointerUp(x: number, y: number): void {
-        this.game.menuManager.handlePointerUp(x, y, this.game.canvas.width, this.game.canvas.height, this.game.isMobile);
+        this.game.menuManager.handlePointerUp();
         this.syncSettings();
     }
 
