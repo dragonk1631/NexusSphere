@@ -51,7 +51,7 @@ export class MenuState extends BaseGameState {
         this.game.menuManager.handlePointerMove(x, y, this.game.canvas.width, this.game.canvas.height, this.game.isMobile);
     }
 
-    public onPointerUp(x: number, y: number): void {
+    public onPointerUp(_x: number, _y: number): void {
         this.game.menuManager.handlePointerUp();
         this.syncSettings();
     }
