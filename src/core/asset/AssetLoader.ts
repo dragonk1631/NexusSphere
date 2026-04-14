@@ -62,7 +62,7 @@ export class AssetLoader {
     }
 
     /**
-     * 오디오 파일을 로드하여 AudioBuffer로 변환하고 캐싱합니다.
+     * 오디오 파일을 로드하여 AudioBuffer로 변환하고 캐싱합니다. (Web Worker 사용)
      */
     public async loadAudio(path: string): Promise<AudioBuffer> {
         if (this.audioBufferCache.has(path)) {
@@ -70,12 +70,50 @@ export class AssetLoader {
         }
 
         const resolvedPath = resolveAssetPath(path);
-        const response = await fetch(resolvedPath);
-        const arrayBuffer = await response.arrayBuffer();
+        
+        // [PHASE 3] Web Worker를 사용한 비동기 로딩 (Main thread 부하 방지)
+        const arrayBuffer = await this.fetchWithWorker(resolvedPath);
+        
+        // decodeAudioData는 브라우저 내부 스레드에서 돌아가지만, 
+        // 큰 파일의 경우 완료 시점에 메인 스레드 순각 점유가 발생할 수 있으므로 주의
         const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
         this.audioBufferCache.set(path, audioBuffer);
         return audioBuffer;
+    }
+
+    /**
+     * [PHASE 3] 오디오 스트리밍을 위해 HTMLAudioElement를 반환합니다.
+     */
+    public loadAudioStreaming(path: string): HTMLAudioElement {
+        const resolvedPath = resolveAssetPath(path);
+        const audio = new Audio(resolvedPath);
+        audio.crossOrigin = "anonymous";
+        audio.preload = "auto";
+        return audio;
+    }
+
+    private async fetchWithWorker(url: string): Promise<ArrayBuffer> {
+        return new Promise((resolve, reject) => {
+            const worker = new Worker(new URL('../audio/workers/AudioLoader.worker.ts', import.meta.url), { type: 'module' });
+            
+            worker.onmessage = (e) => {
+                const { success, buffer, error } = e.data;
+                if (success) {
+                    resolve(buffer);
+                } else {
+                    reject(new Error(error));
+                }
+                worker.terminate();
+            };
+
+            worker.onerror = (e) => {
+                reject(new Error("Worker error: " + e.message));
+                worker.terminate();
+            };
+
+            worker.postMessage({ url });
+        });
     }
 
     /**
