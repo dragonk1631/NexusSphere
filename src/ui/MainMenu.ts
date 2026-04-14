@@ -108,8 +108,8 @@ export class MainMenu {
                     top: 0; left: 0; right: 0;
                     z-index: 200; /* Stays above everything v45 */
                     padding: clamp(6px, 1.5vh, 12px) clamp(16px, 4vw, 48px);
-                    display: flex;
-                    justify-content: space-between;
+                    display: grid;
+                    grid-template-columns: 1fr auto 1fr;
                     align-items: center;
                     animation: mm-fadeInDown 0.5s ease both;
                     background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
@@ -126,7 +126,8 @@ export class MainMenu {
                 }
 
                 .mm-version-badge {
-                    margin-left: 100px; /* Shift to avoid FPS counter overlap v50 */
+                    margin-left: 0;
+                    justify-self: start; /* Anchor to the left v56 */
                 }
                 .mm-version-badge, .mm-currency-badge {
                     display: inline-flex;
@@ -166,6 +167,7 @@ export class MainMenu {
                     white-space: nowrap;
                     min-width: clamp(200px, 25vw, 350px);
                     overflow: hidden;
+                    justify-self: center; /* Anchor to the dead center v56 */
                 }
                 .mm-visualizer { display: flex; align-items: flex-end; gap: 3px; height: clamp(10px, 1.8vh, 18px); padding-bottom: 2px; }
                 .mm-vis-bar {
@@ -180,13 +182,28 @@ export class MainMenu {
 
                 .mm-bgm-text-wrapper {
                     flex: 1; width: clamp(150px, 20vw, 300px); overflow: hidden;
-                    mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
-                    -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+                    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+                    -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
                     display: flex;
+                    justify-content: flex-start;
                 }
-                .mm-bgm-text-content { display: flex; width: max-content; animation: mm-marquee 18s linear infinite; }
-                .mm-bgm-text-item { white-space: nowrap; padding-right: clamp(100px, 15vw, 200px); }
-                @keyframes mm-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+                .mm-bgm-text-content { 
+                    display: flex; 
+                    width: max-content; 
+                    animation: mm-marquee 15s linear infinite; /* Increased scroll speed slightly v55 */
+                    justify-content: flex-start;
+                }
+                .mm-bgm-text-item { 
+                    min-width: clamp(150px, 20vw, 300px);
+                    white-space: nowrap; 
+                    padding-right: 80px; /* Reduced gap between loops v55 */
+                    text-align: center;
+                }
+                @keyframes mm-marquee { 
+                    0%   { transform: translateX(0); }
+                    8%   { transform: translateX(0); } /* Reduced pause time (approx half of 15%) v55 */
+                    100% { transform: translateX(-50%); } 
+                }
 
                 /* ── MAIN MENU CONTAINER ── */
                 .mm-container {
@@ -331,7 +348,7 @@ export class MainMenu {
                         </div>
                     </div>
                 </div>
-                <div class="mm-hud-right">
+                <div class="mm-hud-right" style="justify-self: end; display: flex; gap: clamp(8px, 1vw, 20px);">
                     <div class="mm-currency-badge gold">🪙 1,000</div>
                     <div class="mm-currency-badge gem">💎 50</div>
                 </div>
@@ -465,11 +482,7 @@ export class MainMenu {
 
     private showSettings(): void {
         this.settingsUI = new SettingsUI((action) => {
-            if (action === 'layout_editor') {
-                this.settingsUI?.destroy();
-                this.hideAll();
-                this.onStartGame('layout_editor');
-            } else if (action === 'back') {
+            if (action === 'back') {
                 this.settingsUI?.destroy();
                 this.show(); // This will re-create/re-show both HUD and Menu
             }

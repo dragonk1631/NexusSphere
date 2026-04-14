@@ -2,7 +2,6 @@ import './style.css';
 import { PongGame } from './games/puzzle/PongGame';
 import { RhythmGame } from './games/rhythm/RhythmGame';
 import { EditorGame } from './games/editor/EditorGame';
-import { LayoutEditor } from './games/editor/LayoutEditor';
 import { MainMenu } from './ui/MainMenu';
 import { TitleScreen } from './ui/TitleScreen';
 import { MobileStartScreen } from './ui/MobileStartScreen';
@@ -37,7 +36,19 @@ const fpsDiv = document.createElement('div');
 fpsDiv.id = 'fps-counter';
 fpsDiv.style.cssText = "position:fixed; top:5px; left:5px; background:rgba(0,0,0,0.5); color:#00ff00; padding:2px 6px; z-index:99999; font-size:14px; pointer-events:none; font-family:monospace; border-radius:4px; font-weight:bold;";
 fpsDiv.innerText = `FPS: --`;
+
+// Initial FPS Visibility v50
+const initialShowFps = localStorage.getItem('nexus_show_fps') === 'true';
+fpsDiv.style.display = initialShowFps ? 'block' : 'none';
+
 document.body.appendChild(fpsDiv);
+
+// Listener for Setting Changes
+window.addEventListener('nexus-setting-changed', (e: any) => {
+  if (e.detail.key === 'nexus_show_fps') {
+    fpsDiv.style.display = e.detail.value ? 'block' : 'none';
+  }
+});
 
 let fpsFrameCount = 0;
 let fpsLastTime = performance.now();
@@ -428,15 +439,9 @@ function handleGameStart(mode: string) {
     launchGame(PongGame);
   } else if (mode === 'editor') {
     launchGame(EditorGame);
-  } else if (mode === 'layout_editor') {
-    launchGame(LayoutEditor);
   }
 }
 
-// Listen for Layout Editor exit event
-window.addEventListener('layout-exit', () => {
-  returnToMenu();
-});
 
 // Listen for Game Switch event (e.g. Editor -> Rhythm)
 window.addEventListener('switch-game', (e: any) => {

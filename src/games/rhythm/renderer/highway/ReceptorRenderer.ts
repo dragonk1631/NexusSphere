@@ -61,59 +61,83 @@ export class ReceptorRenderer {
             ctx.save();
             
             if (isLocked) {
-                ctx.globalAlpha = 0.15; // Heavily desaturated
-                ctx.filter = 'grayscale(100%)';
-            }
-            
-            // Hit Animation Glow (Optional, Mobile Optimized)
-            if (isActive && !isLocked) {
-                ctx.globalCompositeOperation = 'screen';
-                ctx.globalAlpha = 0.5;
-                ctx.beginPath();
-                ctx.ellipse(centerLaneX, state.hitLineY, laneW * 0.9, drawH * 0.5, 0, 0, Math.PI * 2);
-                ctx.fillStyle = this.groundGlowGradients[i] || 'rgba(255,255,255,0.2)';
-                ctx.fill();
-            }
-
-            // 1. Draw receptor image
-            ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
-            
-            // 1b. PREMIUM AMBIENT PULSE (Multi-layered 'Living' Bloom)
-            const pulse = (Math.sin(state.cachedNow * 0.01) + 1) * 0.5;
-            const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
-            
-            ctx.save();
-            ctx.globalCompositeOperation = 'lighter';
-            
-            // Layer 1: Base High-Intensity Glow (More vivid)
-            ctx.globalAlpha = 0.2 + pulse * 0.4; 
-            if (!state.isMobile) {
-                ctx.shadowColor = laneCol;
-                ctx.shadowBlur = 10 + pulse * 15;
-            }
-            ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
-            
-            // Layer 2: Secondary Wide-Area Aura (Spectacular Shimmer)
-            if (pulse > 0.4) {
-                ctx.globalAlpha = (pulse - 0.4) * 0.3; // Ramps up during peak pulse
-                if (!state.isMobile) {
-                    ctx.shadowBlur = 25; // Wide atmospheric bloom
-                }
+                ctx.save();
+                ctx.globalAlpha = 0.4;
+                ctx.filter = 'grayscale(100%) contrast(1.2)';
                 ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
-            }
-            ctx.restore();
-            
-            // Pressed Glow Effect (More Noticeable Hit Feedback)
-            if (isActive) {
-                ctx.globalCompositeOperation = 'lighter';
-                ctx.globalAlpha = 0.8; // Increased from 0.6
+                ctx.restore();
+
+                // Draw small crossing chains over the receptor v57
+                ctx.save();
+                const chainSize = drawH * 0.4;
+                ctx.strokeStyle = '#222222';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(drawX, physicsY); ctx.lineTo(drawX + drawW, physicsY + drawH);
+                ctx.moveTo(drawX + drawW, physicsY); ctx.lineTo(drawX, physicsY + drawH);
+                ctx.stroke();
+                
+                // Metallic detailing on the cross
+                ctx.strokeStyle = '#555555';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.font = '900 10px "Orbitron"';
+                ctx.fillStyle = '#ff3300';
+                ctx.textAlign = 'center';
+                ctx.fillText('SEALED', centerLaneX, physicsY + drawH/2);
+                ctx.restore();
+            } else {
+                // Hit Animation Glow (Optional, Mobile Optimized)
+                if (isActive) {
+                    ctx.globalCompositeOperation = 'screen';
+                    ctx.globalAlpha = 0.5;
+                    ctx.beginPath();
+                    ctx.ellipse(centerLaneX, state.hitLineY, laneW * 0.9, drawH * 0.5, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = this.groundGlowGradients[i] || 'rgba(255,255,255,0.2)';
+                    ctx.fill();
+                }
+
+                // 1. Draw receptor image
                 ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
                 
-                ctx.fillStyle = '#ffffff';
-                ctx.globalAlpha = 0.35; // Increased from 0.2
-                ctx.beginPath();
-                ctx.ellipse(centerLaneX, physicsY + drawH/2, drawW * 0.35, drawH * 0.18, 0, 0, Math.PI * 2);
-                ctx.fill();
+                // 1b. PREMIUM AMBIENT PULSE (Multi-layered 'Living' Bloom)
+                const pulse = (Math.sin(state.cachedNow * 0.01) + 1) * 0.5;
+                const laneCol = LANE_COLORS[i % LANE_COLORS.length][0];
+                
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                
+                // Layer 1: Base High-Intensity Glow (More vivid)
+                ctx.globalAlpha = 0.2 + pulse * 0.4; 
+                if (!state.isMobile) {
+                    ctx.shadowColor = laneCol;
+                    ctx.shadowBlur = 10 + pulse * 15;
+                }
+                ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
+                
+                // Layer 2: Secondary Wide-Area Aura (Spectacular Shimmer)
+                if (pulse > 0.4) {
+                    ctx.globalAlpha = (pulse - 0.4) * 0.3; // Ramps up during peak pulse
+                    if (!state.isMobile) {
+                        ctx.shadowBlur = 25; // Wide atmospheric bloom
+                    }
+                    ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
+                }
+                ctx.restore();
+                
+                // Pressed Glow Effect (More Noticeable Hit Feedback)
+                if (isActive) {
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = 0.8; // Increased from 0.6
+                    ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.globalAlpha = 0.35; // Increased from 0.2
+                    ctx.beginPath();
+                    ctx.ellipse(centerLaneX, physicsY + drawH/2, drawW * 0.35, drawH * 0.18, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
 
             // 2b. PC KEY LABELS (User requested: Unified White, Lane Color Outline, Black Shadow)

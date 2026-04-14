@@ -160,7 +160,7 @@ export class LaneRenderer {
     }
 
     /**
-     * Renders a high-performance "Cyber Dashboard" in unused 4K lanes.
+     * Renders a high-fidelity "Chained Seal" effect for unused 4K lanes.
      * PERFORMANCE-FIRST: All logic batches geometric draws into single paths.
      */
     public renderCyberDashboard(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache): void {
@@ -171,67 +171,90 @@ export class LaneRenderer {
         
         ctx.save();
         
-        // 1. Beat-Sync Calculation (Once per frame)
-        const beatProg = (state.cachedNow * (state.bpm / 60000)) % 1;
-        const pulse = (Math.sin(beatProg * Math.PI * 2) + 1) * 0.5;
+        const pulse = (Math.sin(state.cachedNow * 0.004) + 1) * 0.5;
 
         for (const lane of lockedLanes) {
-            const tlX = Math.round(cache.getX(lane, state.horizonY, state));
-            const trX = Math.round(cache.getX(lane + 1, state.horizonY, state));
-            const blX = Math.round(cache.getX(lane, borderY, state));
-            const brX = Math.round(cache.getX(lane + 1, borderY, state));
+            const tlX = cache.getX(lane, state.horizonY, state);
+            const trX = cache.getX(lane + 1, state.horizonY, state);
+            const blX = cache.getX(lane, borderY, state);
+            const brX = cache.getX(lane + 1, borderY, state);
 
-            // A. Dark Minimalist Base
-            ctx.fillStyle = 'rgba(5, 5, 15, 0.85)';
+            // 1. Heavy Vignette Foundation
+            const grad = ctx.createLinearGradient(0, state.horizonY, 0, borderY);
+            grad.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+            grad.addColorStop(0.5, 'rgba(10, 5, 20, 0.7)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
+            ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.moveTo(tlX, state.horizonY);
-            ctx.lineTo(trX, state.horizonY);
-            ctx.lineTo(brX, borderY);
-            ctx.lineTo(blX, borderY);
+            ctx.moveTo(tlX, state.horizonY); ctx.lineTo(trX, state.horizonY); ctx.lineTo(brX, borderY); ctx.lineTo(blX, borderY);
             ctx.fill();
 
-            // B. Batch Render: Circuitry + Spectrum (Single Drawing Pass)
+            // 2. Sealed Chain Mesh (Procedural)
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(tlX, state.horizonY); ctx.lineTo(trX, state.horizonY); ctx.lineTo(brX, borderY); ctx.lineTo(blX, borderY);
             ctx.clip();
 
-            ctx.strokeStyle = `rgba(0, 200, 255, ${0.1 + pulse * 0.1})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
+            // Criss-Cross Chains
+            this.drawPerspectiveChain(ctx, tlX, state.horizonY, brX, borderY, 12);
+            this.drawPerspectiveChain(ctx, trX, state.horizonY, blX, borderY, 12);
+            
+            // Vertical Tension Chain
+            const midTopX = (tlX + trX) / 2;
+            const midBotX = (blX + brX) / 2;
+            this.drawPerspectiveChain(ctx, midTopX, state.horizonY, midBotX, borderY, 16);
 
-            // 1. Spectrum Analyzer Bars (Fake but beat-synced)
-            const numBars = 6;
-            const barW = Math.round((brX - blX) / (numBars + 2));
-            const barGap = 4;
-            for (let j = 0; j < numBars; j++) {
-                const barH = 20 + (Math.sin(state.cachedNow * 0.01 + j) * 15) * pulse;
-                const barX = blX + (j + 1) * (barW + barGap);
-                const barY = borderY - 40;
-                ctx.moveTo(barX, barY);
-                ctx.lineTo(barX, barY - barH);
-                ctx.moveTo(barX + barW, barY);
-                ctx.lineTo(barX + barW, barY - barH);
-                ctx.rect(barX, barY - barH, barW, 2); // Cap
-            }
-
-            // 2. Vertical Data Lines (Subtle perspective rails)
-            for (let k = 0; k < 3; k++) {
-                const lx = blX + (k + 1) * (barW * 2);
-                ctx.moveTo(lx, borderY);
-                ctx.lineTo(lx - (borderY - state.horizonY) * 0.2, state.horizonY);
-            }
-
-            ctx.stroke();
+            // 3. Warning Decals (Soft Pulse)
+            ctx.globalAlpha = 0.2 + pulse * 0.3;
+            ctx.fillStyle = '#ff3300';
+            ctx.font = '900 24px "Orbitron"';
+            ctx.textAlign = 'center';
+            const textY = borderY - 100;
+            ctx.fillText('LOCKED', midBotX, textY);
+            
             ctx.restore();
-
-            // 3. Status Nodes (Tiny pips)
-            ctx.fillStyle = pulse > 0.8 ? 'rgba(0, 255, 150, 0.4)' : 'rgba(0, 255, 150, 0.1)';
-            const nodeX = Math.round((blX + brX) / 2);
-            const nodeY = borderY - 80;
-            ctx.fillRect(nodeX - 2, nodeY - 2, 4, 4);
         }
 
         ctx.restore();
+    }
+
+    private drawPerspectiveChain(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, size: number): void {
+        const segments = 15;
+        const dx = (x2 - x1) / segments;
+        const dy = (y2 - y1) / segments;
+
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        for (let i = 0; i <= segments; i++) {
+            const px = x1 + dx * i;
+            const py = y1 + dy * i;
+            const currentSize = size * (0.4 + (i / segments) * 0.6); // Perspective scaling
+
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.rotate(Math.atan2(dy, dx));
+
+            // Link Outer Shadow
+            ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+            ctx.lineWidth = currentSize * 0.8;
+            ctx.strokeRect(-currentSize/2, -currentSize/4, currentSize, currentSize/2);
+
+            // Iron Link Base
+            const grad = ctx.createLinearGradient(0, -currentSize/2, 0, currentSize/2);
+            grad.addColorStop(0, '#555555');
+            grad.addColorStop(0.5, '#222222');
+            grad.addColorStop(1, '#111111');
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = currentSize * 0.4;
+            ctx.strokeRect(-currentSize/2, -currentSize/4, currentSize, currentSize/2);
+
+            // Metallic Highlight
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = currentSize * 0.1;
+            ctx.strokeRect(-currentSize/2 + 1, -currentSize/4 + 1, currentSize - 2, currentSize/2 - 2);
+
+            ctx.restore();
+        }
     }
 }

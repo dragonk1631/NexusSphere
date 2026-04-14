@@ -209,11 +209,10 @@ export class TitleScreen {
         const theme = ThemeManager.getInstance().getCurrentTheme();
         ctx.clearRect(0, 0, w, h);
 
-        // 1. Version Badge
         ctx.save();
         ctx.font = '900 12px "Orbitron"';
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillText('v1.0.0 EARLY ACCESS', 20, 30);
+        ctx.fillText('v1.0.0', 20, 30);
         ctx.restore();
 
         // 2. Main Logo (Cinematic Saturating Glow Pulse)

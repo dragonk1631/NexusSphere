@@ -255,7 +255,14 @@ export class RhythmInputManager {
         if (x < startX || x > startX + totalWidthBottom) return -1;
 
         const lane = Math.floor((x - startX) / this.laneBottomWidth);
-        return Math.max(0, Math.min(lane, this.laneCount - 1));
+        const snappedLane = Math.max(0, Math.min(lane, this.laneCount - 1));
+
+        // [4K EXCLUSIVE] Block input for sealed outer lanes v57
+        if (this.keyMode === 4 && (snappedLane === 0 || snappedLane === this.laneCount - 1)) {
+            return -1;
+        }
+
+        return snappedLane;
     }
 
     private getLaneFromKey(code: string): number {

@@ -591,19 +591,123 @@ export class SettingsUI {
             `;
             // Add listeners for audio sliders if needed (omitted for brevity as per existing pattern)
         } else if (this.activeTab === 'gameplay') {
+            const showFps = localStorage.getItem('nexus_show_fps') === 'true';
             container.innerHTML = `
-                <div class="setting-row" style="width:100%;box-sizing:border-box; margin-bottom: 20px; padding-top: 10px;">
-                    <label style="flex:1;">UI LAYOUT CONFIGURATION</label>
-                    <button id="btn-layout-editor" class="glass-btn primary" style="flex:1;">🎨 OPEN LAYOUT EDITOR</button>
+                <style>
+                    /* Toggle Switch Style v51 - Compact Version */
+                    .nexus-switch {
+                        position: relative; display: inline-block;
+                        width: 48px; height: 24px;
+                        flex-shrink: 0;
+                    }
+                    .nexus-switch input { opacity: 0; width: 0; height: 0; }
+                    .nexus-slider {
+                        position: absolute; cursor: pointer;
+                        top: 0; left: 0; right: 0; bottom: 0;
+                        background-color: rgba(255,255,255,0.1);
+                        transition: .25s; border-radius: 20px;
+                        border: 2px solid rgba(255,255,255,0.3);
+                    }
+                    .nexus-slider:before {
+                        position: absolute; content: "";
+                        height: 18px; width: 18px;
+                        left: 1px; bottom: 1px;
+                        background-color: #fff;
+                        transition: .25s; border-radius: 50%;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+                    }
+                    input:checked + .nexus-slider {
+                        background-color: #00E5FF;
+                        border-color: #fff;
+                        box-shadow: 0 0 12px rgba(0,229,255,0.5);
+                    }
+                    input:checked + .nexus-slider:before {
+                        transform: translateX(24px);
+                    }
+
+                    .dev-options-box {
+                        background: rgba(0, 0, 0, 0.75);
+                        border: 2px solid rgba(255, 255, 255, 0.25);
+                        border-radius: 20px;
+                        padding: 24px;
+                        margin-top: 10px;
+                        box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+                        backdrop-filter: blur(12px);
+                        -webkit-backdrop-filter: blur(12px);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                    }
+                    
+                    .dev-header-row {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        width: 100%;
+                    }
+
+                    .dev-label {
+                        font-family: 'Black Han Sans', sans-serif;
+                        color: #fff;
+                        font-size: 1.4rem;
+                        text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+                        letter-spacing: 1px;
+                        margin: 0;
+                    }
+
+                    .dev-status-wrapper {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                    }
+
+                    .dev-status-text {
+                        font-size: 0.95rem;
+                        font-weight: 800;
+                        color: #00E5FF;
+                        text-transform: uppercase;
+                        text-shadow: 1px 1px 2px #000;
+                    }
+
+                    .dev-desc {
+                        color: rgba(255,255,255,0.9);
+                        font-size: 0.95rem;
+                        font-family: 'Outfit';
+                        font-weight: 600;
+                        text-shadow: 1px 1px 3px #000;
+                        line-height: 1.6;
+                        margin: 0;
+                        padding-top: 12px;
+                        border-top: 1px solid rgba(255,255,255,0.1);
+                    }
+                </style>
+
+                <div class="dev-options-box">
+                    <div class="dev-header-row">
+                        <h3 class="dev-label">DEVELOPER OPTIONS</h3>
+                        <div class="dev-status-wrapper">
+                            <span class="dev-status-text">SHOW FPS MONITOR</span>
+                            <label class="nexus-switch">
+                                <input type="checkbox" id="check-show-fps" ${showFps ? 'checked' : ''}>
+                                <span class="nexus-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <p class="dev-desc">
+                        * 개발자 옵션을 활성화하면 프레임률(FPS), 지터, 시스템 부하 등 주요 성능 지표를 실시간으로 모니터링할 수 있습니다. 
+                        기기 성능에 최적화된 설정을 찾는 데 유용합니다.
+                    </p>
                 </div>
-                <p style="color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-top: 10px; font-family: 'Outfit';">
-                    * 아케이드 터치 스크린 규격에 맞춰 각 UI 요소의 위치와 크기를 자유롭게 조절할 수 있습니다.
-                </p>
             `;
-            const btn = container.querySelector('#btn-layout-editor');
-            btn?.addEventListener('click', () => {
-                this.destroy();
-                this.onAction('layout_editor');
+            
+            const fpsCheck = container.querySelector('#check-show-fps') as HTMLInputElement;
+            fpsCheck?.addEventListener('change', (e) => {
+                const checked = (e.target as HTMLInputElement).checked;
+                localStorage.setItem('nexus_show_fps', checked.toString());
+                // Dispatch event for main.ts to react
+                window.dispatchEvent(new CustomEvent('nexus-setting-changed', { 
+                    detail: { key: 'nexus_show_fps', value: checked } 
+                }));
             });
         }
     }
