@@ -1,4 +1,5 @@
 import { resolveAssetPath } from '../utils/PathUtils';
+import { OfflineDownloadManager } from './OfflineDownloadManager';
 
 /**
  * NexusSphere Asset Loader
@@ -66,6 +67,13 @@ export class AssetLoader {
     }
 
     /**
+     * 매니페스트 데이터를 외부에 공유합니다. (OfflineDownloadManager 등에서 사용)
+     */
+    public getManifest(): Set<string> | null {
+        return this.manifestLoaded ? this.manifest : null;
+    }
+
+    /**
      * 오디오 파일을 로드하여 AudioBuffer로 변환하고 캐싱합니다. (Web Worker 사용)
      */
     public async loadAudio(path: string): Promise<AudioBuffer> {
@@ -91,13 +99,33 @@ export class AssetLoader {
      */
     public loadAudioStreaming(path: string): HTMLAudioElement {
         const resolvedPath = resolveAssetPath(path);
-        const audio = new Audio(resolvedPath);
+        const audio = new Audio();
         audio.crossOrigin = "anonymous";
         audio.preload = "auto";
+
+        const vault = OfflineDownloadManager.getInstance();
+        vault.getCachedResponse(path).then(async (response) => {
+            if (response) {
+                const blob = await response.blob();
+                audio.src = URL.createObjectURL(blob);
+            } else {
+                audio.src = resolvedPath;
+            }
+        });
+
         return audio;
     }
 
     private async fetchWithWorker(url: string): Promise<ArrayBuffer> {
+        // [VAULT CHECK] 오프라인 저장소(Vault)에서 먼저 확인합니다.
+        const vault = OfflineDownloadManager.getInstance();
+        const cachedResponse = await vault.getCachedResponse(url);
+        
+        if (cachedResponse) {
+            console.log(`%c[AssetLoader:VAULT] 📦 LOADED FROM VAULT: ${url}`, 'color: #00ff00; font-weight: bold;');
+            return await cachedResponse.arrayBuffer();
+        }
+
         return new Promise((resolve, reject) => {
             const worker = new Worker(new URL('../audio/workers/AudioLoader.worker.ts', import.meta.url), { type: 'module' });
             

@@ -1,6 +1,7 @@
 import { resolveAssetPath } from './utils/PathUtils';
 import type { SongEntry } from '../games/rhythm/types/GameTypes';
 import { AssetLoader } from './asset/AssetLoader';
+import { OfflineDownloadManager } from './asset/OfflineDownloadManager';
 
 /**
  * SystemInitializer
@@ -36,11 +37,27 @@ export class SystemInitializer {
             // 0. Load Asset Manifest (Ensures zero-noise probing)
             await al.loadManifest();
 
-            // 1. Load Official Songs Manifest
-            const res = await fetch(resolveAssetPath('assets/data/official_songs.json'));
+            // 0.5. Vault에 매니페스트를 공유하여, 존재하지 않는 파일의 다운로드를 원천 차단합니다.
+            const vault = OfflineDownloadManager.getInstance();
+            const manifest = al.getManifest();
+            if (manifest) {
+                vault.setKnownAssets(manifest);
+            }
+
+            // 1. Load Official Songs Manifest (Vault 우선 → R2 요청 방지)
+            const res = await vault.vaultFetch('assets/data/official_songs.json');
             if (!res.ok) throw new Error("Failed to load song manifest.");
             const data = await res.json();
             this.officialSongs = data.map((s: any) => ({ ...s, isCustom: false }));
+            
+            // [OFFLINE VAULT SYNC] 모든 시스템 자산을 오프라인 저장소(Vault)에 설치합니다.
+            await vault.installLibrary(this.officialSongs, (p) => {
+                const percent = Math.floor(p * 100);
+                const status = p < 0.2 ? 'Instruments' : 'Library';
+                if (onProgress) onProgress(0.1 + (p * 0.9));
+                // Console logging as a substitute for the missing UI call
+                console.log(`[Vault] Syncing ${status}... (${percent}%)`);
+            });
             
             this.invalidSongs = [];
             let processed = 0;

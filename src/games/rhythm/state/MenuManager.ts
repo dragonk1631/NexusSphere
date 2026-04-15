@@ -9,6 +9,7 @@ import { AssetLoader } from '../../../core/asset/AssetLoader';
 import { resolveAssetPath } from '../../../core/utils/PathUtils';
 import { SystemInitializer } from '../../../core/SystemInitializer';
 import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
+import { OfflineDownloadManager } from '../../../core/asset/OfflineDownloadManager';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -229,7 +230,7 @@ export class MenuManager {
                     if (!blob) throw new Error("Custom MIDI not found.");
                     buffer = await blob.arrayBuffer();
                 } else {
-                    const res = await fetch(resolveAssetPath(currentSong.url));
+                    const res = await OfflineDownloadManager.getInstance().vaultFetch(currentSong.url);
                     if (previewId !== this.currentPreviewId) return;
                     buffer = await res.arrayBuffer();
                 }

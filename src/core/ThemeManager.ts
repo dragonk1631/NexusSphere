@@ -1,4 +1,4 @@
-import { resolveAssetPath } from './utils/PathUtils';
+import { OfflineDownloadManager } from './asset/OfflineDownloadManager';
 
 export interface SemanticPalette {
     /** Difficulty: EASY */
@@ -262,7 +262,8 @@ export class ThemeManager {
 
     private async loadThemeSongs() {
         try {
-            const res = await fetch(resolveAssetPath('assets/data/theme_songs.json'));
+            const vault = OfflineDownloadManager.getInstance();
+            const res = await vault.vaultFetch('assets/data/theme_songs.json');
             if (res.ok) {
                 const data = await res.json();
                 data.forEach((item: any) => {

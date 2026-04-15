@@ -34,17 +34,32 @@ export class MenuMusicManager {
 
     private ensureAudio(url?: string): HTMLAudioElement {
         if (!this.audio) {
-            const currentUrl = url || ThemeManager.getInstance().getCurrentTheme().bgm;
-            if (!currentUrl) {
-                console.warn("[MenuMusicManager] No BGM URL provided and no theme BGM found.");
-            }
-            this.audio = new Audio(currentUrl ? resolveAssetPath(currentUrl) : "");
+            this.audio = new Audio();
             this.audio.loop = true;
             this.audio.volume = 0.75;
-        } else if (url && !this.audio.src.includes(url)) {
-            // Smoothly update source if it matches a new theme
-            this.audio.src = resolveAssetPath(url);
         }
+
+        const currentUrl = url || ThemeManager.getInstance().getCurrentTheme().bgm;
+        if (currentUrl) {
+            const resolvedUrl = resolveAssetPath(currentUrl);
+            const vault = (window as any).OfflineDownloadManager?.getInstance() || null;
+            
+            // Check Vault
+            if (vault && vault.getCachedResponse) {
+                vault.getCachedResponse(currentUrl).then(async (response: any) => {
+                    if (response) {
+                        const blob = await response.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        if (this.audio) this.audio.src = blobUrl;
+                    } else {
+                        if (this.audio) this.audio.src = resolvedUrl;
+                    }
+                });
+            } else {
+                this.audio.src = resolvedUrl;
+            }
+        }
+        
         return this.audio;
     }
 
@@ -125,8 +140,20 @@ export class MenuMusicManager {
             }
             
             player.pause();
-            const resolvedUrl = resolveAssetPath(newUrl);
-            player.src = resolvedUrl;
+            
+            // [Hardening] 오프라인 대응: Vault 확인
+            const vault = (window as any).OfflineDownloadManager?.getInstance() || null;
+            let finalUrl = resolveAssetPath(newUrl);
+            
+            if (vault && vault.getCachedResponse) {
+                const response = await vault.getCachedResponse(newUrl);
+                if (response) {
+                    const blob = await response.blob();
+                    finalUrl = URL.createObjectURL(blob);
+                }
+            }
+
+            player.src = finalUrl;
             player.load();
             
             // Wait for enough data to play, with immediate error handling for 404s/invalid paths
@@ -144,7 +171,7 @@ export class MenuMusicManager {
                     isHandled = true;
                     player.removeEventListener('canplay', onCanPlay);
                     player.removeEventListener('error', onError);
-                    reject(new Error("Source not found: " + resolvedUrl + " (Internal: " + error.message + ")"));
+                    reject(new Error("Source not found: " + finalUrl + " (Internal: " + error.message + ")"));
                 };
                 player.addEventListener('canplay', onCanPlay);
                 player.addEventListener('error', onError);

@@ -11,18 +11,26 @@ export default defineConfig(({ command }) => ({
         VitePWA({
             registerType: 'autoUpdate',
             devOptions: {
-                enabled: true // 개발 단계에서도 Service Worker를 활성화하여 캐싱을 테스트함
+                enabled: false // SSL 인증서 오류 방지를 위해 개발 모드에서는 SW 비활성화 (빌드 시 자동 활성화)
             },
             workbox: {
-                // 대용량 사운드폰트(32MB+) 및 오디오 파일을 캐싱하기 위해 제한 해제 (100MB)
-                maximumFileSizeToCacheInBytes: 100 * 1024 * 1024,
+                // 대용량 사운드폰트(32MB+) 및 오디오 파일을 캐싱하기 위해 제한 해제 (150MB)
+                maximumFileSizeToCacheInBytes: 150 * 1024 * 1024,
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,json,mp3,mid,sf2}'],
+                
+                // [PHASE 1] v=... 쿼리 파라미터가 캐시 적중을 방해하지 않도록 설정 (오프라인 핵심)
+                ignoreURLParametersMatching: [/^v$/],
                 
                 // [PHASE 2] 외부 에셋(R2 등) 및 API 데이터 캐싱 규칙
                 runtimeCaching: [
                     {
                         // 이미지, 오디오, 그리고 설정 파일(.json) 포함
-                        urlPattern: /\.(?:png|jpg|jpeg|svg|mp3|wav|ogg|sf2|mid|json)(?:\?.*)?$/i,
+                        // [Hardening] vault_sync 파라미터가 있는 요청(수동 동기화)은 서비스 워커가 간섭하지 않도록 제외함.
+                        urlPattern: ({ url }) => {
+                            const isAsset = /\.(?:png|jpg|jpeg|svg|mp3|wav|ogg|sf2|mid|json)(?:\?.*)?$/i.test(url.pathname);
+                            const isSync = url.searchParams.has('vault_sync');
+                            return isAsset && !isSync;
+                        },
                         handler: 'CacheFirst', // 로컬 캐시 우선 (있으면 네트워크 안 탐)
                         options: {
                             cacheName: 'nexussphere-asset-vault',

@@ -7,6 +7,8 @@ import { AudioEngineLogger, LogLevel } from './AudioEngineLogger';
 import { AudioMixer } from './AudioMixer';
 import { TimeSyncController } from './TimeSyncController';
 import { resolveAssetPath } from '../utils/PathUtils';
+import { OfflineDownloadManager } from '../asset/OfflineDownloadManager';
+import { BinaryVault } from '../asset/BinaryVault';
 import type { ISynth, ISequencer } from './AudioTypes';
 
 /**
@@ -64,19 +66,19 @@ export class CoreAudioEngine {
     public async init(soundFontUrl: string): Promise<void> {
         if (this.initializing) return this.initializing;
 
-        this.initializing = (async () => {
+        const initTask = async () => {
             if (this.isReady) return;
 
             try {
-                // Load AudioWorklet Module
+                // 1. Load AudioWorklet Module
                 await this.ctx.audioWorklet.addModule(processorUrl);
 
                 const isMobile = ScreenUtils.isMobile();
                 if (isMobile) {
-                    AudioEngineLogger.info("Mobile optimization active: Reverb/Chorus disabled, polyphony capped.");
+                    AudioEngineLogger.info("Mobile optimization active: Reverb/Chorus disabled.");
                 }
 
-                // Instantiate Synth
+                // 2. Instantiate Synth
                 this.synth = new WorkletSynthesizer(this.ctx, {
                     initializeReverbProcessor: !isMobile,
                     initializeChorusProcessor: !isMobile,
@@ -84,40 +86,64 @@ export class CoreAudioEngine {
                     enableEventSystem: true
                 }) as unknown as ISynth;
 
-                // Connect Synth to Mixer
+                // 3. Connect Synth to Mixer
                 this.mixer.connectSource(this.synth as ISynth);
-
                 await this.synth.isReady;
 
-                // Load SoundFont
-                try {
-                    const resolvedUrl = resolveAssetPath(soundFontUrl);
-                    AudioEngineLogger.info(`Loading SoundFont from: ${resolvedUrl}`);
-                    const sfRes = await this.fetchWithTimeout(resolvedUrl);
+                // 4. Load SoundFont (Priority Loading with Retry)
+                let sfLoaded = false;
+                for (let retry = 0; retry < 2; retry++) {
+                    try {
+                        const resolvedUrl = resolveAssetPath(soundFontUrl);
+                        AudioEngineLogger.info(`Vault: Loading SoundFont (Attempt ${retry + 1})...`);
+                        
+                        let sfData: ArrayBuffer;
+                        
+                        // 1. IndexedDB(BinaryVault) 우선 확인 (서비스 워커 우회)
+                        const binaryVault = BinaryVault.getInstance();
+                        const cachedBlob = await binaryVault.get(soundFontUrl);
+                        
+                        if (cachedBlob) {
+                            AudioEngineLogger.info("Vault: SF2 loaded from BinaryVault (IndexedDB).");
+                            sfData = await cachedBlob.arrayBuffer();
+                        } else {
+                            // 2. Fetch Fallback (Cache API or Network)
+                            const sfRes = await this.fetchWithTimeout(resolvedUrl);
+                            sfData = await sfRes.arrayBuffer();
+                        }
 
-                    const sfData = await sfRes.arrayBuffer();
+                        // Validate SoundFont Header (RIFF)
+                        const header = new TextDecoder().decode(new Uint8Array(sfData.slice(0, 4)));
+                        if (header.toLowerCase() !== 'riff') throw new Error("Invalid SoundFont binary (No RIFF header)");
 
-                    // Validate RIFF
-                    const header = new TextDecoder().decode(new Uint8Array(sfData.slice(0, 4)));
-                    if (header.toLowerCase() !== 'riff') throw new Error("Invalid SoundFont header");
+                        await this.synth.soundBankManager.addSoundBank(sfData);
+                        sfLoaded = true;
+                        break;
+                    } catch (err) {
+                        AudioEngineLogger.warn(`Vault: SoundFont attempt ${retry + 1} failed: ${err}`);
+                        if (retry < 1) await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
 
-                    await this.synth.soundBankManager.addSoundBank(sfData);
+                if (sfLoaded) {
                     this.sequencer = new Sequencer(this.synth as any) as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = true;
-                    AudioEngineLogger.info("Engine Ready with SoundFont");
-                } catch (sfError) {
-                    AudioEngineLogger.warn(`SoundFont load failed: ${sfError}. Running in silent mode.`);
+                    AudioEngineLogger.info("Vault: Engine Ready with SoundFont.");
+                } else {
+                    AudioEngineLogger.warn("Vault: All SoundFont load attempts failed. Running in silent mode.");
                     this.sequencer = new Sequencer(this.synth as any) as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = false;
                 }
             } catch (e) {
-                AudioEngineLogger.error("Critical Engine Init failed:", e);
+                AudioEngineLogger.error("Vault: Critical Engine Init failed:", e);
+                this.initializing = null; // Allow retry after critical failure
                 throw e;
             }
-        })();
+        };
 
+        this.initializing = initTask();
         return this.initializing;
     }
 
@@ -403,20 +429,31 @@ export class CoreAudioEngine {
         this.stop(false); // PROFESSIONAL: Stop any MIDI before starting BGM
 
         const resolvedUrl = resolveAssetPath(url);
-        this.bgmPlayer = new Audio(resolvedUrl);
-        this.bgmPlayer.loop = loop;
-        this.bgmPlayer.crossOrigin = "anonymous";
         
-        // Route through WebAudio Mixer
-        this.bgmSource = this.ctx.createMediaElementSource(this.bgmPlayer);
-        this.mixer.connectSource(this.bgmSource as any);
+        // [Hardening] 오프라인 대응: Vault 캐시를 우선 확인하여 Blob URL 생성
+        const vault = OfflineDownloadManager.getInstance();
+        vault.getCachedResponse(url).then(async (response) => {
+            let finalUrl = resolvedUrl;
+            if (response) {
+                const blob = await response.blob();
+                finalUrl = URL.createObjectURL(blob);
+            }
+            
+            this.bgmPlayer = new Audio(finalUrl);
+            this.bgmPlayer.loop = loop;
+            this.bgmPlayer.crossOrigin = "anonymous";
+            
+            // Route through WebAudio Mixer
+            this.bgmSource = this.ctx.createMediaElementSource(this.bgmPlayer);
+            this.mixer.connectSource(this.bgmSource as any);
 
-        this.bgmPlayer.volume = volume;
-        this.bgmPlayer.play().catch(e => {
-            AudioEngineLogger.warn(`BGM Playback failed: ${e}. (Need user gesture?)`);
+            this.bgmPlayer.volume = volume;
+            this.bgmPlayer.play().catch(e => {
+                AudioEngineLogger.warn(`BGM Playback failed: ${e}. (Need user gesture?)`);
+            });
+            
+            AudioEngineLogger.info(`BGM Started: ${url} ${response ? '(Vault)' : '(Network)'}`);
         });
-        
-        AudioEngineLogger.info(`BGM Started: ${url}`);
     }
 
     /**
@@ -456,21 +493,35 @@ export class CoreAudioEngine {
      */
     public playSFX(url: string, volume: number = 1.0): void {
         const resolvedUrl = resolveAssetPath(url);
-        const sfx = new Audio(resolvedUrl);
-        sfx.crossOrigin = "anonymous";
         
-        const source = this.ctx.createMediaElementSource(sfx);
-        this.mixer.connectSource(source as any);
-        
-        sfx.volume = volume;
-        sfx.play().catch(e => {
-            AudioEngineLogger.warn(`SFX Playback failed: ${e}`);
-        });
+        // [Hardening] 오프라인 대응: Vault 캐시를 우선 확인하여 Blob URL 생성
+        const vault = OfflineDownloadManager.getInstance();
+        vault.getCachedResponse(url).then(async (response) => {
+            let finalUrl = resolvedUrl;
+            if (response) {
+                const blob = await response.blob();
+                finalUrl = URL.createObjectURL(blob);
+            }
 
-        // Clean up source when audio ends
-        sfx.onended = () => {
-            source.disconnect();
-        };
+            const sfx = new Audio(finalUrl);
+            sfx.crossOrigin = "anonymous";
+            
+            const source = this.ctx.createMediaElementSource(sfx);
+            this.mixer.connectSource(source as any);
+            
+            sfx.volume = volume;
+            sfx.play().catch(e => {
+                AudioEngineLogger.warn(`SFX Playback failed: ${e}`);
+            });
+
+            // Clean up source AND revoke object URL when audio ends
+            sfx.onended = () => {
+                source.disconnect();
+                if (finalUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(finalUrl);
+                }
+            };
+        });
     }
 
     public isBGMPlaying(): boolean {
@@ -717,9 +768,9 @@ export class CoreAudioEngine {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeoutMs);
 
-        const resolvedUrl = resolveAssetPath(url);
         try {
-            const response = await fetch(resolvedUrl, { signal: controller.signal });
+            const vault = OfflineDownloadManager.getInstance();
+            const response = await vault.vaultFetch(url, { signal: controller.signal });
             clearTimeout(id);
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response;

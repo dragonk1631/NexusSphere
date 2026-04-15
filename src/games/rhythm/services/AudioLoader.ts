@@ -1,11 +1,11 @@
 import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
-import { resolveAssetPath } from '../../../core/utils/PathUtils';
 import { MidiParser, type ParsedMidi } from '../../../core/audio/MidiParser';
 import { type BeatmapData } from '../types/BeatmapTypes';
 import { type TransitionData } from '../types/GameTypes';
 import { type CoreAudioEngine } from '../../../core/audio/CoreAudioEngine';
 import { LocalSongStorage } from './LocalSongStorage';
 import { AssetLoader } from '../../../core/asset/AssetLoader';
+import { OfflineDownloadManager } from '../../../core/asset/OfflineDownloadManager';
 
 /**
  * AudioLoader handles MIDI and beatmap asset loading and caching.
@@ -82,7 +82,7 @@ export class AudioLoader {
                         midiBuffer = await blob.arrayBuffer();
                     } else {
                         // Normal Server Song
-                        const midiRes = await fetch(resolveAssetPath(midiUrl));
+                        const midiRes = await OfflineDownloadManager.getInstance().vaultFetch(midiUrl);
                         midiBuffer = await midiRes.arrayBuffer();
                     }
 
@@ -153,7 +153,7 @@ export class AudioLoader {
                 if (beatmapUrl) {
                     try {
                         if (await AssetLoader.getInstance().checkJsonExists(beatmapUrl)) {
-                            const res = await fetch(resolveAssetPath(beatmapUrl));
+                            const res = await OfflineDownloadManager.getInstance().vaultFetch(beatmapUrl);
                             if (res.ok) {
                                 this.beatmapData = await res.json();
                                 console.log("[AudioLoader] Custom beatmap loaded successfully.");

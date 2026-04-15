@@ -46,14 +46,20 @@ export class TitleScreen {
         window.addEventListener('keydown', unlockAudio);
 
         const brandingFont = '900 24px "Black Han Sans"';
-        document.fonts.load(brandingFont).then(() => {
-            this.fontReady = true;      // Allow the game loop to render now
-            this.logoCache = null;      // Clear any stale cache made before font was ready
-            this.preRenderLogo();       // Pre-render with the correct font
+        
+        // [Hardening] 폰트 로딩이 지연되거나 차단되어도 UI가 나타나도록 2초 타임아웃 추가
+        const fontLoadPromise = document.fonts.load(brandingFont);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Font Timeout")), 2000));
+
+        Promise.race([fontLoadPromise, timeoutPromise]).then(() => {
+            this.fontReady = true;      
+            this.logoCache = null;      
+            this.preRenderLogo();       
             requestAnimationFrame(() => {
                 this.container.style.opacity = '1';
             });
-        }).catch(() => {
+        }).catch((err) => {
+            console.warn("[TitleScreen] Font load fallback triggered:", err);
             this.fontReady = true;
             this.preRenderLogo();
             this.container.style.opacity = '1';
@@ -300,7 +306,13 @@ export class TitleScreen {
             const barW = w * 0.4;
             const barH = 4;
             const barX = w / 2 - barW / 2;
-            const barY = h - 20;
+            const barY = h - 30;
+
+            // Label
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = '700 12px "Orbitron"';
+            ctx.fillText('INSTALLING ASSETS...', w / 2, barY - 15);
 
             // Track
             ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
