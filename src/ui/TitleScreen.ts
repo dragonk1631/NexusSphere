@@ -18,17 +18,6 @@ export class TitleScreen {
     private progress: number = 0;
     private status: string = "";
     private bgImage: HTMLImageElement | null = null;
-    private tips: string[] = [
-        "NEXUSSPHERE: ALL MUSIC IS STORED AS PURE DATA.",
-        "CHECK YOUR LATENCY SETTINGS FOR OPTIMAL TIMING.",
-        "FEVER MODE DOUBLES YOUR SCORE MULTIPLIER.",
-        "PERFECT JUDGMENTS INCREASE YOUR COMBO EXPONENTIALLY.",
-        "YOU CAN PLAY OFFLINE ONCE THE SYNC IS COMPLETE.",
-        "THE SPHERE OBSERVES YOUR RHYTHM.",
-        "DRINK WATER TO IMPROVE YOUR REACTION TIME."
-    ];
-    private currentTip: string = "";
-    private tipTimer: number = 0;
 
     constructor(onStart: () => void) {
         this.onStart = onStart;
@@ -75,8 +64,6 @@ export class TitleScreen {
         };
         window.addEventListener('pointerdown', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
-
-        this.currentTip = this.tips[Math.floor(Math.random() * this.tips.length)];
 
         const brandingFont = '900 24px "Black Han Sans"';
         // Add font loading timeout safety
@@ -167,12 +154,6 @@ export class TitleScreen {
         this.lastAlpha = alpha;
         this.time += 0.016;
         
-        // Update Tip Timer
-        this.tipTimer += 0.016;
-        if (this.tipTimer > 5) {
-            this.tipTimer = 0;
-            this.currentTip = this.tips[Math.floor(Math.random() * this.tips.length)];
-        }
 
         this.render();
     }
