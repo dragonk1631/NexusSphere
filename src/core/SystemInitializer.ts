@@ -25,62 +25,74 @@ export class SystemInitializer {
 
     /**
      * 전체 자산 점검을 수행합니다.
-     * @param onProgress 진행률 콜백 (0.0 ~ 1.0)
+     * @param onProgress 진행률 콜백 (percentage, statusText)
      */
-    public async run(onProgress?: (p: number) => void): Promise<SongEntry[]> {
-        if (onProgress) onProgress(0);
+    public async run(onProgress?: (p: number, status: string) => void): Promise<SongEntry[]> {
+        const report = (p: number, status: string) => {
+            if (onProgress) onProgress(p, status);
+        };
+
+        report(0, "Initializing Engine...");
         
         try {
             const al = AssetLoader.getInstance();
-
-            // 0. Load Asset Manifest (Ensures zero-noise probing)
-            await al.loadManifest();
-
-            // 0.5. Vault에 매니페스트를 공유하여, 존재하지 않는 파일의 다운로드를 원천 차단합니다.
             const vault = OfflineDownloadManager.getInstance();
+
+            // 0. Load Asset Manifest
+            await al.loadManifest();
             const manifest = al.getManifest();
             if (manifest) {
                 vault.setKnownAssets(manifest);
             }
 
-            // 1. Load Official Songs Manifest (Vault 우선 → R2 요청 방지)
+            // 1. Load Official Songs Manifest
+            report(0.05, "Fetching Catalog...");
             const res = await vault.vaultFetch('assets/data/official_songs.json');
             if (!res.ok) throw new Error("Failed to load song manifest.");
             const data = await res.json();
             this.officialSongs = data.map((s: any) => ({ ...s, isCustom: false }));
             
-            // [OFFLINE VAULT SYNC] 모든 시스템 자산을 오프라인 저장소(Vault)에 설치합니다.
-            await vault.installLibrary(this.officialSongs, (p) => {
-                const percent = Math.floor(p * 100);
-                const status = p < 0.2 ? 'Instruments' : 'Library';
-                if (onProgress) onProgress(0.1 + (p * 0.9));
-                // Console logging as a substitute for the missing UI call
-                console.log(`[Vault] Syncing ${status}... (${percent}%)`);
-            });
+            // 2. Vault Sync Phase (0.1 ~ 0.70)
+            const isSyncDone = (localStorage.getItem('nexus-vault-sync-v1') === 'done');
             
+            if (!isSyncDone) {
+                report(0.1, "Synchronizing Library (Initial)...");
+                await vault.installLibrary(this.officialSongs, (p, status) => {
+                    report(0.1 + (p * 0.6), status);
+                });
+            } else {
+                report(0.7, "Library Sync Verified.");
+            }
+            
+            // 3. Asset Verification Phase (0.70 ~ 0.95)
+            report(0.7, "Verifying Assets...");
             this.invalidSongs = [];
             let processed = 0;
             const total = this.officialSongs.length;
 
-            // 2. Silent Asset Verification (Using the manifest loaded in Step 0)
-            const BATCH_SIZE = 10;
+            // [Optimization] Mobile에서 이미 싱크가 완료된 경우 검증 배치를 크게 가져갑니다.
+            const BATCH_SIZE = isSyncDone ? 25 : 10;
+            
             for (let i = 0; i < total; i += BATCH_SIZE) {
                 const batch = this.officialSongs.slice(i, i + BATCH_SIZE);
                 await Promise.all(batch.map(async (song) => {
                     await this.probeSongAssets(song);
                     processed++;
-                    if (onProgress) onProgress(processed / total);
+                    const verifyProgress = 0.7 + (processed / total) * 0.25;
+                    report(verifyProgress, `Verifying: ${song.name}`);
                 }));
             }
 
-            // 3. Final Logging
+            // 4. Finalizing (0.95 ~ 1.0)
+            report(0.95, "Preparing Stage...");
             this.logHiddenSongs();
-
-            // 4. Update and Return only VALID songs
             this.verifiedSongs = this.officialSongs.filter(s => !(s as any).isInvalid);
+            
+            report(1, "Ready.");
             return this.verifiedSongs;
         } catch (e) {
             console.error("[SystemInitializer] Critical error during initialization:", e);
+            report(1, "Initialization Failed.");
             return [];
         }
     }

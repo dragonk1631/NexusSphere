@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && vite",
     "dev:host": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && vite --host",
-    "manifest": "node scripts/generate_assets_manifest.js",
+    "manifest": "node scripts/generate_assets_manifest.js && node scripts/generate_bundle.mjs",
     "previews": "node scripts/generate_previews.js",
-    "build": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && tsc && vite build",
+    "build": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && node scripts/generate_bundle.mjs && tsc && vite build",
     "preview": "vite preview",
     "deploy-assets": "node scripts/deploy_assets.mjs"
   },
@@ -24,6 +24,7 @@
     "@aws-sdk/client-s3": "^3.1030.0",
     "@tonejs/midi": "^2.0.28",
     "dotenv": "^16.4.7",
+    "fflate": "^0.8.2",
     "ffmpeg-static": "^5.3.0",
     "lil-gui": "^0.21.0",
     "spessasynth_lib": "^4.1.5"

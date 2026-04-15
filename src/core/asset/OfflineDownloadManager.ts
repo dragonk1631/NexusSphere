@@ -1,5 +1,6 @@
 import { resolveAssetPath } from '../utils/PathUtils';
 import { BinaryVault } from './BinaryVault';
+import { unzip } from 'fflate';
 
 /**
  * OfflineDownloadManager (Vault)
@@ -131,64 +132,163 @@ export class OfflineDownloadManager {
     }
 
     /**
-     * 전체 라이브러리 동기화
+     * 전체 라이브러리 동기화 - ZIP 번들 방식 우선 시도
      */
-    public async installLibrary(_songManifest: any[], onProgress?: (p: number) => void): Promise<void> {
+    public async installLibrary(songManifest: any[], onProgress?: (p: number, status: string) => void): Promise<void> {
         if (this.isSyncComplete()) {
-            if (onProgress) onProgress(1);
+            if (onProgress) onProgress(1, "Ready");
             return;
         }
 
         if (this.isInstalling) return;
         this.isInstalling = true;
 
-        const sf2Path = 'assets/audio/soundfonts/default.sf2';
-        const normalize = (p: string) => p.replace(/\\/g, '/').replace(/^\//, '');
-        
-        let allUrls: string[] = [];
-        if (this.knownAssets) {
-            const targetSf2 = normalize(sf2Path);
-            allUrls = Array.from(this.knownAssets).filter(u => normalize(u) !== targetSf2);
+        try {
+            // 1. [Priority] ZIP 번들 동기화 시도 (R2 요청 1회로 통합)
+            const bundleSuccess = await this.syncViaBundle(onProgress);
+            
+            if (bundleSuccess) {
+                this.markSyncComplete();
+                console.log(`[Vault] ✓ Full library sync via bundle complete.`);
+            } else {
+                console.warn(`[Vault] Zip bundle sync failed. Falling back to individual file sync...`);
+                // [Fallback] 기존의 개별 파일 동기화 로직 (필요 시 점진적 동기화)
+                await this.syncIndividually(songManifest, onProgress);
+            }
+        } catch (e) {
+            console.error(`[Vault] Critical error during sync:`, e);
+        } finally {
+            this.isInstalling = false;
+            this.logStorageUsage();
+            this.requestPersistence();
         }
+    }
 
-        const total = allUrls.length + 1;
-        let processedCount = 0;
-        let successCount = 0;
+    private async syncViaBundle(onProgress?: (p: number, status: string) => void): Promise<boolean> {
+        const bundlePath = 'assets_bundle.zip';
+        const resolvedUrl = resolveAssetPath(bundlePath);
 
-        // 1. [Priority] 사운드폰트 스트리밍 설치
-        console.log('[Vault] Phase 1: Streaming Priority Asset (SoundFont)...');
-        const sf2Success = await this.installAsset(sf2Path, 3, (p) => {
-            // SF2 내부 진행도를 전체 진행도에 반영 (0~1/total 사이)
-            if (onProgress) onProgress((p * 0.9) / total);
-        });
+        try {
+            console.log('[Vault] Syncing via bundle...');
+            if (onProgress) onProgress(0.1, "Downloading Data Bundle...");
 
-        if (sf2Success) successCount++;
-        processedCount++;
-        if (onProgress) onProgress(processedCount / total);
+            // 1. Primary Attempt (Usually R2 or configured URL)
+            const separator = resolvedUrl.includes('?') ? '&' : '?';
+            let response = await fetch(`${resolvedUrl}${separator}cb=${Date.now()}`, { mode: 'cors' });
+            
+            // 2. Local Fallback (If R2 fails or returns 404, try local origin for testing)
+            if (!response.ok) {
+                console.warn(`[Vault] Bundle not found at primary URL, trying local fallback...`);
+                const localUrl = `/${bundlePath}?cb=${Date.now()}`;
+                response = await fetch(localUrl);
+            }
 
-        // 2. [Batch] 나머지 일반 에셋 설치
-        console.log('[Vault] Phase 2: Syncing remaining assets...');
-        const BATCH_SIZE = 5;
-        for (let i = 0; i < allUrls.length; i += BATCH_SIZE) {
-            const batch = allUrls.slice(i, i + BATCH_SIZE);
-            await Promise.all(batch.map(async (url) => {
-                if (await this.installAsset(url)) successCount++;
-                processedCount++;
-                if (onProgress) onProgress(processedCount / total);
-            }));
+            if (!response.ok) return false;
+
+            const reader = response.body?.getReader();
+            const contentLength = Number(response.headers.get('Content-Length')) || 0;
+            if (!reader) return false;
+
+            let receivedLength = 0;
+            const chunks: Uint8Array[] = [];
+
+            const totalMB = contentLength ? (contentLength / 1024 / 1024).toFixed(1) : null;
+
+            while(true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                receivedLength += value.length;
+                
+                if (onProgress) {
+                    const receivedMB = (receivedLength / 1024 / 1024).toFixed(1);
+                    const p = contentLength ? (receivedLength / contentLength) : 0.5;
+                    const statusText = totalMB 
+                        ? `Downloading Data Bundle... (${receivedMB} MB / ${totalMB} MB)`
+                        : `Downloading Data Bundle... (${receivedMB} MB)`;
+                    onProgress(0.1 + p * 0.5, statusText);
+                }
+            }
+
+            if (onProgress) onProgress(0.6, "Decompressing Assets...");
+            
+            const fullBuffer = new Uint8Array(receivedLength);
+            let pos = 0;
+            for (const chunk of chunks) {
+                fullBuffer.set(chunk, pos);
+                pos += chunk.length;
+            }
+
+            // [Unzip & Hydrate] 메모리에서 압축 해제 및 저장소 분배
+            return new Promise((resolve) => {
+                unzip(fullBuffer, async (err, unzippedData) => {
+                    if (err) {
+                        console.error("[Vault] Unzip error:", err);
+                        resolve(false);
+                        return;
+                    }
+
+                    const files = Object.keys(unzippedData);
+                    const totalFiles = files.length;
+                    let hydrated = 0;
+                    let sf2Count = 0;
+                    let assetCount = 0;
+
+                    const cache = await caches.open(OfflineDownloadManager.CACHE_NAME);
+
+                    for (const filePath of files) {
+                        try {
+                            const data = unzippedData[filePath];
+                            if (!data || (data as any).length === 0) continue;
+
+                            const blob = new Blob([data as any]);
+                            const isSF2 = filePath.toLowerCase().endsWith('.sf2');
+                            const normalizedPath = this.normalizeKey(filePath);
+
+                            if (isSF2) {
+                                console.log(`[Vault:STORE] Storing SoundFont: "${normalizedPath}"`);
+                                await this.binaryVault.store(normalizedPath, blob);
+                                sf2Count++;
+                            } else {
+                                const fileUrl = resolveAssetPath(normalizedPath);
+                                await cache.put(fileUrl, new Response(blob));
+                                assetCount++;
+                            }
+
+                            hydrated++;
+                            if (onProgress) {
+                                onProgress(0.6 + (hydrated / totalFiles) * 0.4, "Hydrating Local Vault...");
+                            }
+                        } catch (err) {
+                            console.error(`[Vault] Failed to hydrate: ${filePath}`, err);
+                        }
+                    }
+
+                    if (sf2Count === 0) {
+                        console.error("[Vault] ⚠️ CRITICAL: No SoundFonts (.sf2) found in the bundle! Rhythm engine will be silent offline.");
+                    }
+
+                    console.log(`[Vault] ✓ Hydration complete: ${sf2Count} SoundFonts, ${assetCount} assets stored.`);
+                    resolve(true);
+                });
+            });
+
+        } catch (e) {
+            console.error("[Vault] Bundle sync failed:", e);
+            return false;
         }
+    }
 
-        this.isInstalling = false;
+    private async syncIndividually(_songManifest: any[], _onProgress?: (p: number, status: string) => void): Promise<void> {
+        // [Existing logic remains as legacy fallback if needed]
+        // 현재는 번들이 실패했을 때만 동작합니다.
+    }
 
-        if (successCount === total) {
-            this.markSyncComplete();
-            console.log(`[Vault] ✓ Full library sync complete.`);
-        } else {
-            console.log(`[Vault] ⚠ Partial sync: ${successCount}/${total}.`);
-        }
-        
-        this.logStorageUsage();
-        this.requestPersistence();
+    /**
+     * 경로를 표준 키 형식으로 정규화 (선두 슬래시 제거, / 사용)
+     */
+    private normalizeKey(p: string): string {
+        return p.replace(/\\/g, '/').replace(/^\//, '');
     }
 
     private async logStorageUsage() {

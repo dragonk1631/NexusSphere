@@ -7,10 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Build & Assets
 node_modules
 dist
 dist-ssr
 *.local
+public/assets_bundle.zip
+
+# Scratch & Inspect
+scratch/
+.deploy_state.json
 
 # Editor directories and files
 .vscode/*

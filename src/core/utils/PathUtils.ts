@@ -53,9 +53,11 @@ export function resolveAssetPath(path: string): string {
     }
 
     // [PHASE 1] Hashing Strategy: Append version query parameter
-    // If it already has a query, append with &, else with ?
-    const separator = resolved.includes('?') ? '&' : '?';
-    resolved = `${resolved}${separator}v=${assetVersion}`;
+    // If it already has version or cache-buster, skip.
+    if (!resolved.includes('v=') && !resolved.includes('cb=')) {
+        const separator = resolved.includes('?') ? '&' : '?';
+        resolved = `${resolved}${separator}v=${assetVersion}`;
+    }
     
     // 3. PROFESSIONAL: Idempotent Encoding
     const needsEncoding = /[\u0080-\uffff\s]/.test(resolved);

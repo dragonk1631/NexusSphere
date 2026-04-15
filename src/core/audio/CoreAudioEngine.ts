@@ -101,13 +101,16 @@ export class CoreAudioEngine {
                         
                         // 1. IndexedDB(BinaryVault) 우선 확인 (서비스 워커 우회)
                         const binaryVault = BinaryVault.getInstance();
-                        const cachedBlob = await binaryVault.get(soundFontUrl);
+                        const normalizedSfPath = soundFontUrl.replace(/\\/g, '/').replace(/^\//, '');
+                        console.log(`[Vault:LOAD] Attempting lookup in BinaryVault. Key: "${normalizedSfPath}"`);
+                        const cachedBlob = await binaryVault.get(normalizedSfPath);
                         
                         if (cachedBlob) {
-                            AudioEngineLogger.info("Vault: SF2 loaded from BinaryVault (IndexedDB).");
+                            AudioEngineLogger.info(`Vault: SF2 "${normalizedSfPath}" found in BinaryVault.`);
                             sfData = await cachedBlob.arrayBuffer();
                         } else {
                             // 2. Fetch Fallback (Cache API or Network)
+                            AudioEngineLogger.info(`Vault: "${normalizedSfPath}" not in BinaryVault, falling back to fetch: ${resolvedUrl}`);
                             const sfRes = await this.fetchWithTimeout(resolvedUrl);
                             sfData = await sfRes.arrayBuffer();
                         }

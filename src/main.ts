@@ -235,8 +235,11 @@ import { SystemInitializer } from './core/SystemInitializer';
 
 const showTitle = () => {
   // 1. Start background initialization immediately
-  const initPromise = SystemInitializer.getInstance().run((p) => {
-    if (titleScreen) titleScreen.setProgress(p);
+  const initPromise = SystemInitializer.getInstance().run((p, status) => {
+    if (titleScreen) {
+      titleScreen.setProgress(p);
+      titleScreen.setStatus(status);
+    }
   });
 
   titleScreen = new TitleScreen(async () => {

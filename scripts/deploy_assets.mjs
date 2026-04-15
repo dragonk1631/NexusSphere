@@ -38,6 +38,7 @@ function prepareLocal() {
     try {
         execSync('node scripts/sync_song_list.mjs', { stdio: 'inherit' });
         execSync('node scripts/generate_assets_manifest.js', { stdio: 'inherit' });
+        execSync('node scripts/generate_bundle.mjs', { stdio: 'inherit' });
     } catch (e) {
         console.error('❌ Failed to prepare local assets:', e.message);
         process.exit(1);
@@ -92,19 +93,20 @@ async function smartSync() {
     }
 
     // Always upload critical files
-    const criticalFiles = ['assets_manifest.json', 'assets/data/official_songs.json', 'assets/data/midi_list.json'];
+    const criticalFiles = ['assets_manifest.json', 'assets_bundle.zip', 'assets/data/official_songs.json', 'assets/data/midi_list.json'];
     
     scan(ASSETS_DIR);
 
     for (const f of criticalFiles) {
         const fullPath = path.join(PUBLIC_DIR, f);
         if (fs.existsSync(fullPath)) {
+            // Force upload critical files to ensure metadata is always fresh
             uploadPromises.push(uploadFileToR2(fullPath, f));
         }
     }
 
     if (uploadPromises.length > 0) {
-        console.log(`📤 Uploading ${uploadPromises.length} changed files...`);
+        console.log(`📤 Uploading ${uploadPromises.length} files (including bundle and manifest)...`);
         await Promise.all(uploadPromises);
     } else {
         console.log('✨ Everything is already up to date!');
@@ -124,10 +126,11 @@ async function uploadFileToR2(filePath, r2Key) {
             Key: r2Key,
             Body: fileContent,
             ContentType: contentType,
+            CacheControl: 'max-age=31536000' // 1 year caching for generic assets
         });
 
         await s3.send(command);
-        console.log(`  ✔ Uploaded: ${r2Key}`);
+        console.log(`  ✔ Uploaded: ${r2Key} (${contentType})`);
     } catch (e) {
         console.error(`  ❌ Failed to upload ${r2Key}:`, e.message);
     }
@@ -142,7 +145,9 @@ function getContentType(filePath) {
         '.mp3': 'audio/mpeg',
         '.png': 'image/png',
         '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg'
+        '.jpeg': 'image/jpeg',
+        '.zip': 'application/zip',
+        '.sf2': 'application/octet-stream'
     };
     return map[ext] || 'application/octet-stream';
 }
