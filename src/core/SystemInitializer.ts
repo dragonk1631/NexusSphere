@@ -1,4 +1,3 @@
-import { resolveAssetPath } from './utils/PathUtils';
 import type { SongEntry } from '../games/rhythm/types/GameTypes';
 import { AssetLoader } from './asset/AssetLoader';
 import { OfflineDownloadManager } from './asset/OfflineDownloadManager';
