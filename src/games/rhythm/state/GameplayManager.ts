@@ -160,7 +160,7 @@ export class GameplayManager {
                     this.scoreManager.addScore(10);
                     note.accumulatedHoldTime -= tickInterval;
                     this._comboAnim = 0.5;
-                    this._judgmentAnim = 0.5; // Sync judgment pulse with combo tick
+                    this._judgmentAnim = 0.6; // Stronger sync for hold ticks
                 }
 
                 // Tick 2: Visual Effects (Particles & Theme-specific hit effects)
@@ -184,13 +184,15 @@ export class GameplayManager {
         }
 
         if (this._judgmentAnim > 0) {
-            this._judgmentAnim -= delta * 0.006; // Slightly faster decay for judgments
+            this._judgmentAnim -= delta * 0.005; // Unified decay rate with comboAnim
             if (this._judgmentAnim < 0) this._judgmentAnim = 0;
         }
 
         const currentCombo = this.scoreManager.getCombo();
         if (currentCombo > this._lastCombo) {
             this._comboAnim = 1.0;
+            // Optionally boost pulse on regular combo increase if not already high
+            if (this._judgmentAnim < 0.5) this._judgmentAnim = 0.5;
         }
         this._lastCombo = currentCombo;
 
