@@ -13,6 +13,7 @@ export interface HUDRenderState {
     height: number;
     comboAnim: number;
     judgmentAnim: number;
+    isHolding: boolean;
     lastJudgment: { text: string, color: string, time: number, value: Judgment } | null;
     cachedNow: number;
     isMobile: boolean;
@@ -554,14 +555,20 @@ export class HUDRenderer {
         // Beat Pulse: Peaks sharply at 1 on beat, decays smoothly
         const beatPulse = Math.max(0, 1 - beatPhase);
         
+        // [Persistence] If holding, keep alpha high to prevent jittering during redraws
+        let effectiveAlpha = alpha;
+        if (state?.isHolding && effectiveAlpha < 0.8) {
+            effectiveAlpha = 0.8;
+        }
+        
         // Final Scale combining:
         // 1. Standard Fade-out (alpha 1 -> 0)
         // 2. Initial Popup Spike (judgmentAnim 1 -> 0)
         // 3. Rhythmic Beat Pulse (beatPulse 1 -> 0)
-        const scale = (0.9 + alpha * 0.25) * (1 + judgmentAnim * 0.35) * (1 + beatPulse * 0.08);
+        const scale = (0.9 + effectiveAlpha * 0.25) * (1 + judgmentAnim * 0.35) * (1 + beatPulse * 0.08);
         
         ctx.save();
-        ctx.globalAlpha = Math.max(0, alpha * (0.85 + judgmentAnim * 0.15));
+        ctx.globalAlpha = Math.max(0, effectiveAlpha * (0.85 + judgmentAnim * 0.15));
         ctx.translate(x, y);
         ctx.scale(scale, scale);
 

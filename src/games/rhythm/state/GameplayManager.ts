@@ -71,6 +71,10 @@ export class GameplayManager {
     public get resumeCountdown(): number { return this._resumeCountdown; }
     public set resumeCountdown(val: number) { this._resumeCountdown = val; }
 
+    public isHoldingAnyLane(): boolean {
+        return this._holdingLanes.some(lane => lane !== null);
+    }
+
     public setHoldingLane(lane: number, note: VisualNote | null): void {
         this._holdingLanes[lane] = note;
     }
@@ -161,6 +165,7 @@ export class GameplayManager {
                     note.accumulatedHoldTime -= tickInterval;
                     this._comboAnim = 0.5;
                     this._judgmentAnim = 0.6; // Stronger sync for hold ticks
+                    this.judgmentSystem.refreshLastJudgmentTime(currentTime); // KEEP LABEL ALIVE
                 }
 
                 // Tick 2: Visual Effects (Particles & Theme-specific hit effects)
