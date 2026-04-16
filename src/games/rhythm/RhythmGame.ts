@@ -577,6 +577,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         hud.comboAnim = this.gameplayManager.comboAnim;
         hud.judgmentAnim = this.gameplayManager.judgmentAnim;
         hud.lastJudgment = this.judgmentSystem.getLastJudgment();
+        hud.cachedNow = this.currentFrameTime;
         hud.isMobile = this.isMobile;
         
         if (this.isTestMode) {

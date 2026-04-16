@@ -558,7 +558,7 @@ export class HUDRenderer {
         // 1. Standard Fade-out (alpha 1 -> 0)
         // 2. Initial Popup Spike (judgmentAnim 1 -> 0)
         // 3. Rhythmic Beat Pulse (beatPulse 1 -> 0)
-        const scale = (0.9 + alpha * 0.25) * (1 + judgmentAnim * 0.22) * (1 + beatPulse * 0.04);
+        const scale = (0.9 + alpha * 0.25) * (1 + judgmentAnim * 0.35) * (1 + beatPulse * 0.08);
         
         ctx.save();
         ctx.globalAlpha = Math.max(0, alpha * (0.85 + judgmentAnim * 0.15));
@@ -577,7 +577,7 @@ export class HUDRenderer {
         ctx.strokeText(text, 0, 0);
 
         // 2. 테마 색상 기반 네온 효과 (Intensifies with judgment pulse)
-        ctx.shadowBlur = 10 + judgmentAnim * 15 + beatPulse * 5;
+        ctx.shadowBlur = 10 + judgmentAnim * 20 + beatPulse * 8;
         ctx.shadowColor = color;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
