@@ -1,6 +1,7 @@
 import { ScreenUtils } from '../core/utils/ScreenUtils';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 import { ThemeManager } from '../core/ThemeManager';
+import { AssetLoader } from '../core/asset/AssetLoader';
 
 export class TitleScreen {
     private container: HTMLDivElement;
@@ -35,20 +36,21 @@ export class TitleScreen {
 
         this.resize();
 
-        // 1. Prepare Background Image with Fallback
-        this.bgImage = new Image();
+        // 1. Prepare Background Image with Vault-Aware Loader
         const showUI = () => {
             requestAnimationFrame(() => {
                 this.container.style.opacity = '1';
             });
         };
 
-        this.bgImage.onload = showUI;
-        this.bgImage.onerror = () => {
-            console.error("[TitleScreen] Background image failed to load.");
+        const bgPath = 'assets/images/ui/loading_bg.png';
+        AssetLoader.getInstance().loadImage(bgPath).then(img => {
+            this.bgImage = img;
+            showUI();
+        }).catch(err => {
+            console.error("[TitleScreen] Background image failed to load:", err);
             showUI(); // Show UI even without background
-        };
-        this.bgImage.src = 'assets/images/ui/loading_bg.png';
+        });
 
         // 2. Extra safety timeout: Show UI after 2.5s regardless of asset state
         setTimeout(showUI, 2500);

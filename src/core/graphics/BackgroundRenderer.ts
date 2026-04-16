@@ -2,6 +2,7 @@ import { ThemeManager, type ThemeConfig } from '../ThemeManager';
 import { ScreenUtils } from '../utils/ScreenUtils';
 import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { resolveAssetPath } from '../utils/PathUtils';
+import { OfflineDownloadManager } from '../asset/OfflineDownloadManager';
 
 export class BackgroundRenderer {
     private static instance: BackgroundRenderer | null = null;
@@ -107,28 +108,26 @@ export class BackgroundRenderer {
 
         // 2. Attempt to load background image (PRIORITY: Manifest -> Smart Fallback)
         try {
-            let url = theme.bgImage ? resolveAssetPath(theme.bgImage) : null;
-            
-            // Smart Fallback for themes that don't have explicit bgImage yet
-            if (!url) {
-                const fallbackUrl = `assets/images/background-themes/${theme.id}/bg_${theme.id}.jpg`;
-                url = resolveAssetPath(fallbackUrl);
-            }
+            const fallbackPath = `assets/images/background-themes/${theme.id}/bg_${theme.id}.jpg`;
+            let url = theme.bgImage ? resolveAssetPath(theme.bgImage) : resolveAssetPath(fallbackPath);
 
             let loadedBitmap: ImageBitmap | null = null;
             
             if (url) {
                 this.emitProgress(0.5);
                 try {
-                    const response = await fetch(url);
+                    const vault = OfflineDownloadManager.getInstance();
+                    const primaryPath = theme.bgImage || fallbackPath;
+                    const response = await vault.vaultFetch(primaryPath);
+                    
                     if (response.ok) {
                         const blob = await response.blob();
                         loadedBitmap = await createImageBitmap(blob);
                     } else {
                         // If explicit/primary JPG fails, try ONE common alternate extension SILENTLY
-                        const altUrl = url.replace(/\.jpg$/i, '.webp');
-                        if (altUrl !== url) {
-                            const altRes = await fetch(altUrl);
+                        const altPath = primaryPath.replace(/\.jpg$/i, '.webp');
+                        if (altPath !== primaryPath) {
+                            const altRes = await vault.vaultFetch(altPath);
                             if (altRes.ok) {
                                 const blob = await altRes.blob();
                                 loadedBitmap = await createImageBitmap(blob);

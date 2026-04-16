@@ -1,5 +1,6 @@
 import { NoteSkinManager } from '../../../core/NoteSkinManager';
-import { resolveAssetPath } from '../../../core/utils/PathUtils';
+import { AssetLoader } from '../../../core/asset/AssetLoader';
+import { OfflineDownloadManager } from '../../../core/asset/OfflineDownloadManager';
 
 export class RenderCache {
     private static instance: RenderCache;
@@ -833,15 +834,16 @@ export class RenderCache {
 
         let img: HTMLImageElement | null = null;
         let isPreRendered = false;
+        
+        const vault = OfflineDownloadManager.getInstance();
+        const al = AssetLoader.getInstance();
+
         for (const path of iconPaths) {
             try {
-                const resolvedPath = resolveAssetPath(path);
-                // PROFESSIONAL: Use HEAD request to check existence before loading to avoid 404 spam
-                const check = await fetch(resolvedPath, { method: 'HEAD' });
-                if (check.ok) {
-                    img = await this.loadImage(resolvedPath);
+                // 1. Check Vault FIRST (Silent & Offline-Safe)
+                if (await vault.isAssetCached(path)) {
+                    img = await al.loadImage(path);
                     if (img) {
-                        // Pre-rendered 'thumb' or 'preview' files are used directly
                         if (path.includes('/thumb.') || path.includes('/preview.')) {
                             isPreRendered = true;
                         }
@@ -849,6 +851,24 @@ export class RenderCache {
                     }
                 }
             } catch (e) { /* continue */ }
+        }
+
+        // 2. Network Fallback (Only if not found in vault)
+        if (!img) {
+            for (const path of iconPaths) {
+                try {
+                    const res = await vault.vaultFetch(path, { method: 'HEAD' });
+                    if (res.ok) {
+                        img = await al.loadImage(path);
+                        if (img) {
+                            if (path.includes('/thumb.') || path.includes('/preview.')) {
+                                isPreRendered = true;
+                            }
+                            break;
+                        }
+                    }
+                } catch (e) { /* continue */ }
+            }
         }
 
         if (!img) return "";
@@ -923,16 +943,7 @@ export class RenderCache {
         return dataUrl;
     }
 
-    private loadImage(url: string): Promise<HTMLImageElement> {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject();
-            img.src = url;
-            // Cross-origin for static assets if needed
-            img.crossOrigin = "anonymous";
-        });
-    }
+
 
     public getPreviewDataURL(skinId: string): string {
         // Use Lane 3 (Cyber Cyan) colors for preview mapping

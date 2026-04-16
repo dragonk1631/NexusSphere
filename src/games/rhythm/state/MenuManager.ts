@@ -457,8 +457,8 @@ export class MenuManager {
     }
 
     private async performSyncOperation(song: SongEntry, storageKey: string): Promise<void> {
-        const encodedUrl = song.url.split('/').map(part => part.includes('.') ? part : encodeURIComponent(part)).join('/');
-        const res = await fetch(encodedUrl); if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await OfflineDownloadManager.getInstance().vaultFetch(song.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
         const midiData = await this._midiParser.parse(buffer);
         const autoTrackConfig = MelodyAnalyzer.suggestGapFilling(midiData);

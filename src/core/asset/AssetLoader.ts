@@ -33,17 +33,33 @@ export class AssetLoader {
             return this.imageCache.get(path)!;
         }
 
-        const resolvedPath = resolveAssetPath(path);
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                this.imageCache.set(path, img);
-                this.logCacheStatus(resolvedPath, 'IMAGE');
-                resolve(img);
-            };
-            img.onerror = () => reject(`Failed to load image: ${path}`);
-            img.src = resolvedPath;
-        });
+        const vault = OfflineDownloadManager.getInstance();
+        
+        try {
+            // [VAULT-FIRST] 보트(캐시) 우선 조회 -> 외부 CDN -> 로컬 오리진 순으로 시도
+            const response = await vault.vaultFetch(path);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const finalSrc = URL.createObjectURL(blob);
+
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => {
+                    this.imageCache.set(path, img);
+                    resolve(img);
+                };
+                img.onerror = () => reject(`Failed to decode image blob: ${path}`);
+                img.src = finalSrc;
+            });
+        } catch (e) {
+            console.error(`[AssetLoader] Failed to load image via vault: ${path}`, e);
+            throw e;
+        }
     }
 
     /**
@@ -52,13 +68,12 @@ export class AssetLoader {
     public async loadManifest(): Promise<void> {
         if (this.manifestLoaded) return;
         try {
-            const url = resolveAssetPath('assets_manifest.json');
-            const res = await fetch(url);
+            const path = 'assets_manifest.json';
+            const res = await OfflineDownloadManager.getInstance().vaultFetch(path);
             if (res.ok) {
                 const list = await res.json();
                 this.manifest = new Set(list);
                 this.manifestLoaded = true;
-                this.logCacheStatus(url, 'MANIFEST');
                 console.log(`[AssetLoader] Assets synchronization initialized with ${this.manifest.size} entries.`);
             }
         } catch (e) {
@@ -133,6 +148,11 @@ export class AssetLoader {
                 const { success, buffer, error } = e.data;
                 if (success) {
                     this.logCacheStatus(url, 'AUDIO');
+                    
+                    // [VAULT AUTO-SAVE] Save the freshly fetched audio to vault for future offline use
+                    // We don't await this as it can happen in the background
+                    vault.vaultFetch(url).catch(() => {});
+                    
                     resolve(buffer);
                 } else {
                     reject(new Error(error));
@@ -156,6 +176,7 @@ export class AssetLoader {
         // Normalize path to match manifest entry (relative to public/)
         const normalizedPath = path.replace(/\\/g, '/').replace(/^\//, '');
 
+        // 1. Check Vault Manifest (Most efficient)
         if (this.manifestLoaded) {
             if (this.manifest.has(normalizedPath)) return true;
             
@@ -170,14 +191,21 @@ export class AssetLoader {
             if (this.manifest.has(decoded.normalize('NFC'))) return true;
             if (this.manifest.has(decoded.normalize('NFD'))) return true;
 
+            // Fallback: Even if not in manifest, it might be in Cache Storage (e.g. dynamic/new assets)
+            const vault = OfflineDownloadManager.getInstance();
+            if (await vault.isAssetCached(path)) return true;
+
             return false;
         }
 
-        // Fallback to noisy network probe only if manifest failed
-        const resolvedPath = resolveAssetPath(path);
+        // 2. Check Vault Cache directly if manifest is unavailable
+        const vault = OfflineDownloadManager.getInstance();
+        if (await vault.isAssetCached(path)) return true;
+
+        // 3. Fallback to noisy network probe only if vault fails
         try {
-            const response = await fetch(resolvedPath, { method: 'HEAD' });
-            this.logCacheStatus(resolvedPath, 'PROBE');
+            const response = await vault.vaultFetch(path, { method: 'HEAD' });
+            this.logCacheStatus(path, 'PROBE');
             return response.ok;
         } catch (e) {
             return false;

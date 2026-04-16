@@ -317,18 +317,45 @@ export class OfflineDownloadManager {
     }
 
     /**
+     * 특정 에셋이 현재 로컬 보트(캐시)에 저장되어 있는지 확인합니다.
+     */
+    public async isAssetCached(url: string): Promise<boolean> {
+        try {
+            if (url.endsWith('.sf2')) {
+                return await this.binaryVault.has(url);
+            }
+            const cache = await caches.open(OfflineDownloadManager.CACHE_NAME);
+            const resolvedUrl = resolveAssetPath(url);
+            const existing = await cache.match(resolvedUrl);
+            return !!existing;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Vault 우선 fetch: 캐시(IDB/CacheAPI) 우선 조회 후 네트워크 요청
      */
     public async vaultFetch(url: string, init?: RequestInit): Promise<Response> {
-        const resolvedUrl = resolveAssetPath(url);
-
         // 1. Vault 저장소(IDB/CacheAPI) 확인
         const cached = await this.getCachedResponse(url);
-        if (cached) return cached;
+        if (cached) {
+            // [LOGGING] 로컬 보트 적중 시 시각적 피드백 제공 (디버깅 용이성)
+            console.log(`%c[Vault:HIT] %c${url}`, 'color: #00ff00; font-weight: bold;', 'color: #aaa;');
+            return cached;
+        }
 
         // 2. 네트워크 fallback
-        const response = await fetch(resolvedUrl, init);
+        const resolvedUrl = resolveAssetPath(url);
+        let response = await fetch(resolvedUrl, init);
         
+        // [Resilient Fallback] 외부 CDN(R2/GitHub) 요청이 실패하고, 
+        // 로컬 경로가 외부 경로와 다른 경우 로컬 오리진에서 다시 시도합니다.
+        if (!response.ok && resolvedUrl !== url && !url.startsWith('http')) {
+            console.warn(`%c[Vault:FALLBACK] %cExternal fetch failed for ${url}, trying local origin...`, 'color: #ffaa00; font-weight: bold;', 'color: #aaa;');
+            response = await fetch(url, init);
+        }
+
         // 자동 저장 (백그라운드)
         if (response.ok && response.status !== 206) {
             const clone = response.clone();

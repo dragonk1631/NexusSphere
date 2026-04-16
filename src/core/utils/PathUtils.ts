@@ -36,17 +36,22 @@ export function resolveAssetPath(path: string): string {
     const assetVersion = import.meta.env.VITE_ASSET_VERSION || '1.0.0';
     let normalizedPath = normalizePath(path);
 
+    // [CORE-UI-BYPASS] 앱 실행 직후 보여야 하는 핵심 UI 리소스는 CDN을 거치지 않고 메인 호스트(GitHub Pages)에서 직접 로드합니다.
+    const isCoreUI = normalizedPath.includes('assets/images/ui/') || 
+                     normalizedPath.includes('assets/favicons/') ||
+                     normalizedPath.includes('assets/logos/');
+
     // 2. 경로의 시작부분 슬래시 제거 (기초 경로와 중복 방지)
     normalizedPath = normalizedPath.startsWith('/') ? normalizedPath.slice(1) : normalizedPath;
 
     let resolved: string;
 
-    if (externalUrl) {
-        // [PHASE 1] External CDN Support
+    if (externalUrl && !isCoreUI) {
+        // [PHASE 1] External CDN Support (Large Assets)
         const host = externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`;
         resolved = `${host}${normalizedPath}`;
     } else {
-        // [DEFAULT] Vite's BASE_URL (예: '/' 또는 '/NexusSphere/')
+        // [DEFAULT] Vite's BASE_URL (Core UI Assets stored locally)
         const baseUrl = import.meta.env.BASE_URL || '/';
         const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
         resolved = `${base}${normalizedPath}`;
