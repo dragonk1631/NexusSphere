@@ -127,30 +127,32 @@ export class SongListRenderer {
         ctx.restore();
 
         // ── Scrollbar ──
-        const scrollbarW = layout.scrollbarW;
-        const scrollbarX = listX + listW - scrollbarW - (8 * sf);
-        const scrollbarY = listInnerY + 6 * sf;
-        const scrollbarTrackH = layout.scrollbarTrackH;
+        if (state.songList.length > visibleCount) {
+            const scrollbarW = layout.scrollbarW;
+            const scrollbarX = listX + listW - scrollbarW - (8 * sf);
+            const scrollbarY = listInnerY + 6 * sf;
+            const scrollbarTrackH = layout.scrollbarTrackH;
 
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath(); ctx.rect(scrollbarX, scrollbarY, scrollbarW, scrollbarTrackH); ctx.fill(); // Rect is faster than roundRect
-        ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.35)`;
-        ctx.lineWidth = 1 * sf;
-        ctx.stroke();
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.beginPath(); ctx.rect(scrollbarX, scrollbarY, scrollbarW, scrollbarTrackH); ctx.fill();
+            ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.35)`;
+            ctx.lineWidth = 1 * sf;
+            ctx.stroke();
 
-        const thumbH = Math_max(scrollbarTrackH * (visibleCount / Math_max(1, state.songList.length)), 40 * sf);
-        const scrollRange = scrollbarTrackH - thumbH;
-        const scrollProgress = state.songList.length > 1 ? state.selectedSongIndex / (state.songList.length - 1) : 0;
-        const thumbY = scrollbarY + (scrollProgress * scrollRange);
+            // Cap thumb height to track height and ensure a minimum size
+            const thumbH = Math_min(scrollbarTrackH, Math_max(scrollbarTrackH * (visibleCount / state.songList.length), 40 * sf));
+            const scrollRange = scrollbarTrackH - thumbH;
+            const scrollProgress = state.songList.length > 1 ? state.selectedSongIndex / (state.songList.length - 1) : 0;
+            const thumbY = scrollbarY + (scrollProgress * scrollRange);
 
-        ctx.save();
-        // Cheap Glow: Solid opaque color instead of shadowBlur
-        ctx.fillStyle = c1;
-        ctx.beginPath(); ctx.roundRect(scrollbarX, thumbY, scrollbarW, thumbH, 4 * sf); ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1 * sf;
-        ctx.stroke();
-        ctx.restore();
+            ctx.save();
+            ctx.fillStyle = c1;
+            ctx.beginPath(); ctx.roundRect(scrollbarX, thumbY, scrollbarW, thumbH, 4 * sf); ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1 * sf;
+            ctx.stroke();
+            ctx.restore();
+        }
 
         // ── Render Toast ──
         if (state.toastMessage) {
