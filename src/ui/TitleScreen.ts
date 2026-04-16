@@ -2,6 +2,7 @@ import { ScreenUtils } from '../core/utils/ScreenUtils';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 import { ThemeManager } from '../core/ThemeManager';
 import { AssetLoader } from '../core/asset/AssetLoader';
+import { OfflineDownloadManager } from '../core/asset/OfflineDownloadManager';
 
 export class TitleScreen {
     private container: HTMLDivElement;
@@ -19,11 +20,17 @@ export class TitleScreen {
     private progress: number = 0;
     private status: string = "";
     private bgImage: HTMLImageElement | null = null;
+    private readyPromise: Promise<void>;
+    private resolveReady!: () => void;
 
     constructor(onStart: () => void) {
         this.onStart = onStart;
         this.container = document.createElement('div');
         this.container.id = 'title-screen';
+
+        this.readyPromise = new Promise(resolve => {
+            this.resolveReady = resolve;
+        });
 
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d', { alpha: true }) as CanvasRenderingContext2D;
@@ -40,10 +47,27 @@ export class TitleScreen {
         const showUI = () => {
             requestAnimationFrame(() => {
                 this.container.style.opacity = '1';
+                this.resolveReady();
             });
         };
 
-        const bgPath = 'assets/images/ui/loading_bg.png';
+        // 1. Adaptive Background Selection
+        const vault = OfflineDownloadManager.getInstance();
+        const isSyncDone = (localStorage.getItem('nexus-vault-sync-v1') === 'done');
+        
+        let bgPath = 'assets/images/ui/loading_bg.png';
+        if (isSyncDone) {
+            const theme = ThemeManager.getInstance().getCurrentTheme();
+            if (theme.bgImage) {
+                bgPath = theme.bgImage;
+                console.log(`[TitleScreen] Warm boot detected. Using theme background: ${bgPath}`);
+            }
+        } else {
+            console.log(`[TitleScreen] Cold boot detected. Using generic loading background.`);
+            // When not synced, we are definitely syncing.
+            this.isSyncing = true; 
+        }
+
         AssetLoader.getInstance().loadImage(bgPath).then(img => {
             this.bgImage = img;
             showUI();
@@ -88,8 +112,12 @@ export class TitleScreen {
 
     public setProgress(p: number) {
         this.progress = Math.max(0, Math.min(1, p));
-        // Force isSyncing = true if we have any active progress that's not 0 or 1
-        this.isSyncing = (this.progress > 0.001 && this.progress < 0.999);
+        // Refined threshold: isSyncing is false only if strictly 100% (1.0)
+        this.isSyncing = (this.progress < 0.999);
+    }
+    
+    public waitForReady(): Promise<void> {
+        return this.readyPromise;
     }
 
     public setStatus(text: string) {
@@ -113,7 +141,7 @@ export class TitleScreen {
             #title-screen {
                 position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
                 z-index: 10000; cursor: pointer; user-select: none;
-                background-color: #000;
+                background-color: transparent;
             }
             #title-screen canvas {
                 display: block; width: 100%; height: 100%;
@@ -234,8 +262,10 @@ export class TitleScreen {
         const theme = ThemeManager.getInstance().getCurrentTheme();
         ctx.clearRect(0, 0, w, h);
 
-        // 1. Draw Cinematic Background
-        if (this.bgImage) {
+        // 1. Draw Cinematic Background (ONLY during cold boot sync)
+        // Note: During warm boot, the global BackgroundRenderer handles this behind the transparent overlay.
+        const isSyncDone = (localStorage.getItem('nexus-vault-sync-v1') === 'done');
+        if (!isSyncDone && this.bgImage) {
             const imgAspect = this.bgImage.width / this.bgImage.height;
             const screenAspect = w / h;
             let drawW, drawH, drawX, drawY;
@@ -263,31 +293,35 @@ export class TitleScreen {
         ctx.fillText('NEXUS CORE v1.0.0', 25, 30);
         ctx.restore();
 
-        // 3. Main Logo (Always Rendered at original position with a balanced "Deep Pulse" effect)
+        // 3. Main Logo (Always Rendered with a high-fidelity Rhythmic Kick-Drum Pulse)
         if (this.fontReady) this.preRenderLogo();
         
-        // Balanced speed for a rhythmic feel
-        const cycleTempo = 1.3; 
-        const rawSin = Math.sin(time * cycleTempo);
-        const prevRawSin = Math.sin((time - 0.016) * cycleTempo);
-        const interpolatedRawSin = prevRawSin + (rawSin - prevRawSin) * lastAlpha;
+        // Rhythmic Timing: 12 BPM for a deep, organic breathing cycle (5 seconds per breath)
+        const bpm = 12;
+        const beatDuration = 60 / bpm;
+        const phase = (time % beatDuration) / beatDuration;
         
-        // Use a more dynamic wave for the pulse
-        const glowFactor = (Math.sin(interpolatedRawSin * Math.PI / 1.5) * 0.5 + 0.5);
+        // Deep Breathing Curve: Smooth sine-based expansion and contraction
+        // We use sin^2 or a shaped sine to make the transition at the peaks/valleys even smoother
+        const breathingFactor = Math.pow(Math.sin(phase * Math.PI), 2.0);
+        
+        // Combine with a very subtle high-frequency shimmer for a "living" feel
+        const shimmer = Math.sin(time * 2.0) * 0.02;
+        const glowFactor = breathingFactor + shimmer;
 
         if (this.logoCache) {
             ctx.save();
             ctx.translate(w / 2, h * 0.4); 
             
-            // Subtle Scale Pulse (1.0 to 1.04)
-            const scaleFactor = 1.0 + (glowFactor * 0.04);
+            // Atmospheric Expansion: Smooth breathing scale (up to 1.25x)
+            const scaleFactor = 1.0 + (glowFactor * 0.25);
             ctx.scale(scaleFactor, scaleFactor);
 
             ctx.globalCompositeOperation = 'lighter';
-            // Dramatic shadow alpha and blur variation
-            const shadowAlpha = Math.floor((0.3 + glowFactor * 0.6) * 255).toString(16).padStart(2, '0');
+            // Smoothly varying shadow and glow synced with the breathing
+            const shadowAlpha = Math.floor((0.2 + glowFactor * 0.7) * 255).toString(16).padStart(2, '0');
             ctx.shadowColor = theme.color2 + shadowAlpha;
-            ctx.shadowBlur = 20 + glowFactor * 100; // Expanded blur range
+            ctx.shadowBlur = 40 + glowFactor * 160; 
             ctx.drawImage(this.logoCache, -w / 2, -h * 0.4);
             
             ctx.globalCompositeOperation = 'source-over';

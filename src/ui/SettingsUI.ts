@@ -680,22 +680,65 @@ export class SettingsUI {
                         padding-top: 12px;
                         border-top: 1px solid rgba(255,255,255,0.1);
                     }
+
+                    .dev-option-row {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        width: 100%;
+                        gap: 15px;
+                        padding: 8px 0;
+                    }
+
+                    .dev-option-label {
+                        font-family: 'Outfit';
+                        font-size: 1rem;
+                        font-weight: 800;
+                        color: rgba(255,255,255,0.85);
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+
+                    .dev-action-btn {
+                        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+                        border: 2px solid #fff;
+                        color: #fff;
+                        padding: 6px 16px;
+                        border-radius: 8px;
+                        font-family: 'Black Han Sans', sans-serif;
+                        font-size: 0.9rem;
+                        cursor: pointer;
+                        transition: 0.2s;
+                        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+                        box-shadow: 0 4px 12px rgba(255, 65, 108, 0.3);
+                    }
+                    .dev-action-btn:hover {
+                        transform: scale(1.05);
+                        filter: brightness(1.2);
+                        box-shadow: 0 0 20px rgba(255, 65, 108, 0.6);
+                    }
+                    .dev-action-btn:active { transform: scale(0.95); }
                 </style>
 
                 <div class="dev-options-box">
-                    <div class="dev-header-row">
-                        <h3 class="dev-label">DEVELOPER OPTIONS</h3>
-                        <div class="dev-status-wrapper">
-                            <span class="dev-status-text">SHOW FPS MONITOR</span>
-                            <label class="nexus-switch">
-                                <input type="checkbox" id="check-show-fps" ${showFps ? 'checked' : ''}>
-                                <span class="nexus-slider"></span>
-                            </label>
-                        </div>
+                    <h3 class="dev-label">DEVELOPER OPTIONS</h3>
+                    
+                    <div class="dev-option-row">
+                        <span class="dev-option-label">FPS MONITOR</span>
+                        <label class="nexus-switch">
+                            <input type="checkbox" id="check-show-fps" ${showFps ? 'checked' : ''}>
+                            <span class="nexus-slider"></span>
+                        </label>
                     </div>
+
+                    <div class="dev-option-row">
+                        <span class="dev-option-label">STORAGE MANAGEMENT</span>
+                        <button class="dev-action-btn" id="btn-force-reset">PURGE & RELOAD</button>
+                    </div>
+
                     <p class="dev-desc">
-                        * 개발자 옵션을 활성화하면 프레임률(FPS), 지터, 시스템 부하 등 주요 성능 지표를 실시간으로 모니터링할 수 있습니다. 
-                        기기 성능에 최적화된 설정을 찾는 데 유용합니다.
+                        * 개발자 옵션은 엔진 성능을 모니터링하거나 비정상적인 캐시 상태를 강제로 초기화할 때 사용합니다. 
+                        PURGE 액션 실행 시 모든 곡 데이터와 설정이 소거되므로 주의하십시오.
                     </p>
                 </div>
             `;
@@ -704,11 +747,59 @@ export class SettingsUI {
             fpsCheck?.addEventListener('change', (e) => {
                 const checked = (e.target as HTMLInputElement).checked;
                 localStorage.setItem('nexus_show_fps', checked.toString());
-                // Dispatch event for main.ts to react
                 window.dispatchEvent(new CustomEvent('nexus-setting-changed', { 
                     detail: { key: 'nexus_show_fps', value: checked } 
                 }));
             });
+
+            const resetBtn = container.querySelector('#btn-force-reset');
+            resetBtn?.addEventListener('click', () => this.handleForceReset());
+        }
+    }
+
+    private async handleForceReset(): Promise<void> {
+        const msg = "주의: 모든 게임 데이터(다운로드된 곡, 커스텀 설정, 점수)가 완전히 삭제됩니다.\n캐시 오염이나 자산 누락 문제를 해결하기 위해 엔진을 초기 수렴 상태로 되돌리시겠습니까?";
+        if (!confirm(msg)) return;
+
+        const loading = LoadingOverlay.getInstance();
+        loading.show("PURGING ALL ENGINE DATA...");
+        loading.updateProgress(0.3);
+
+        try {
+            // 1. Clear Service Worker Caches
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+            }
+            loading.updateProgress(0.6);
+
+            // 2. Clear LocalStorage / SessionStorage
+            localStorage.clear();
+            sessionStorage.clear();
+            loading.updateProgress(0.8);
+
+            // 3. Clear IndexedDB (BinaryVault)
+            // Note: We attempt to delete all discovered DBs if the browser supports it
+            if ('indexedDB' in window && (window.indexedDB as any).databases) {
+                const dbs = await (window.indexedDB as any).databases();
+                for (const db of dbs) {
+                    if (db.name) window.indexedDB.deleteDatabase(db.name);
+                }
+            } else {
+                // Fallback: Delete known DB names if databases() is not available
+                window.indexedDB.deleteDatabase('BinaryVault');
+                window.indexedDB.deleteDatabase('LocalSongStorage');
+            }
+            
+            loading.updateProgress(1.0);
+            
+            // Allow some time for the final progress display
+            await new Promise(r => setTimeout(r, 500));
+            window.location.reload();
+        } catch (e) {
+            console.error("[SettingsUI] Purge failed:", e);
+            loading.hide();
+            alert("초기화 과정 중 오류가 발생했습니다. 브라우저 설정에서 직접 데이터를 지워주세요.");
         }
     }
 
