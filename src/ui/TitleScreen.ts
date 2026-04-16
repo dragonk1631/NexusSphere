@@ -2,7 +2,6 @@ import { ScreenUtils } from '../core/utils/ScreenUtils';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 import { ThemeManager } from '../core/ThemeManager';
 import { AssetLoader } from '../core/asset/AssetLoader';
-import { OfflineDownloadManager } from '../core/asset/OfflineDownloadManager';
 
 export class TitleScreen {
     private container: HTMLDivElement;
@@ -52,7 +51,6 @@ export class TitleScreen {
         };
 
         // 1. Adaptive Background Selection
-        const vault = OfflineDownloadManager.getInstance();
         const isSyncDone = (localStorage.getItem('nexus-vault-sync-v1') === 'done');
         
         let bgPath = 'assets/images/ui/loading_bg.png';
