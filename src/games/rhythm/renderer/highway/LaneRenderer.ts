@@ -221,7 +221,7 @@ export class LaneRenderer {
             const textX = cache.getX(lane + textBias, iconY, state) + glitch;
             const iconSize = cache.getWidth(iconY, state) * 0.40;
 
-            this.drawSecuritySeal(ctx, centerIconX, iconY, iconSize, pulse);
+            this.drawSecuritySeal(ctx, centerIconX, iconY, iconSize);
 
             // --- 4. PROFESSIONAL TYPOGRAPHY: LOCKED ---
             ctx.textAlign = 'center';
@@ -246,7 +246,7 @@ export class LaneRenderer {
     /**
      * Draws a high-fidelity, glowing "No-Entry" security seal.
      */
-    private drawSecuritySeal(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, pulse: number): void {
+    private drawSecuritySeal(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
         ctx.save();
         ctx.translate(x, y);
 
