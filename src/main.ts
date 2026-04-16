@@ -211,15 +211,14 @@ const startApp = async () => {
   const loading = LoadingOverlay.getInstance();
   loading.show("INITIALIZING NEXUS SPHERE...");
   
-  // Wait for initial theme background
+  // Wait for initial theme background assets (Shaders, etc)
   await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
-  
-  loading.hide();
 
   // Register the global interaction handler for ALL platforms (audio unlock + fullscreen)
   setupGlobalInteraction();
 
   if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
+    loading.hide(); // Hide for mobile start screen as it has its own UI
     new MobileStartScreen(() => {
       // MobileStartScreen tap IS the first user gesture — unlock audio immediately
       globalAudioEngine.resume(); // Unlock primary engine
@@ -227,13 +226,14 @@ const startApp = async () => {
       showTitle();
     });
   } else {
-    showTitle();
+    await showTitle();
+    loading.hide();
   }
 };
 
 import { SystemInitializer } from './core/SystemInitializer';
 
-const showTitle = () => {
+const showTitle = async () => {
   // 1. Start background initialization immediately
   const initPromise = SystemInitializer.getInstance().run((p, status) => {
     if (titleScreen) {
@@ -263,6 +263,9 @@ const showTitle = () => {
     mainMenu = new MainMenu(handleGameStart);
     mainMenu.show();
   });
+
+  // Wait for TitleScreen to be visually ready (background loaded)
+  await titleScreen.waitForReady();
 };
 
 startApp();
