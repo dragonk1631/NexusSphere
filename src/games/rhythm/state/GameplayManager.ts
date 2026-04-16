@@ -29,6 +29,7 @@ export class GameplayManager {
     private _lastNoteIndex = 0;
     private _effectiveStartTime = 0;
     private _comboAnim = 0;
+    private _judgmentAnim = 0;
     private _endGameTimer = 0;
     private _lastCombo = 0;
     private _muteEnforceCounter = 0;
@@ -63,6 +64,7 @@ export class GameplayManager {
     public get preGameTimer(): number { return this._preGameTimer; }
     public get comboAnim(): number { return this._comboAnim; }
     public set comboAnim(val: number) { this._comboAnim = val; }
+    public get judgmentAnim(): number { return this._judgmentAnim; }
     public get muteEnforceCounter(): number { return this._muteEnforceCounter; }
     public set muteEnforceCounter(val: number) { this._muteEnforceCounter = val; }
     public get lastNoteIndex(): number { return this._lastNoteIndex; }
@@ -86,6 +88,7 @@ export class GameplayManager {
         this._lastNoteIndex = 0;
         this._effectiveStartTime = 0;
         this._comboAnim = 0;
+        this._judgmentAnim = 0;
         this._endGameTimer = 0;
         this._lastCombo = 0;
         this._muteEnforceCounter = 0;
@@ -114,12 +117,17 @@ export class GameplayManager {
         this._endGameTimer = 0;
         this._lastCombo = 0;
         this._comboAnim = 0;
+        this._judgmentAnim = 0;
         this._needsForceSync = true;
         this._resumeCountdown = 0;
     }
     
     public forceNextSync(): void {
         this._needsForceSync = true;
+    }
+
+    public triggerJudgmentAnim(): void {
+        this._judgmentAnim = 1.0;
     }
 
     public update(delta: number, currentTime: number, _horizonY: number, hitLineY: number, laneBottomWidth: number, getPerspectiveX: (lane: number, y: number) => number, getPerspectiveWidth: (y: number) => number): void {
@@ -172,6 +180,11 @@ export class GameplayManager {
         if (this._comboAnim > 0) {
             this._comboAnim -= delta * 0.005;
             if (this._comboAnim < 0) this._comboAnim = 0;
+        }
+
+        if (this._judgmentAnim > 0) {
+            this._judgmentAnim -= delta * 0.006; // Slightly faster decay for judgments
+            if (this._judgmentAnim < 0) this._judgmentAnim = 0;
         }
 
         const currentCombo = this.scoreManager.getCombo();
