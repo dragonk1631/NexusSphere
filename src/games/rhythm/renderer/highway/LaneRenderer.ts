@@ -160,18 +160,16 @@ export class LaneRenderer {
     }
 
     /**
-     * Renders a high-fidelity "Chained Seal" effect for unused 4K lanes.
-     * PERFORMANCE-FIRST: All logic batches geometric draws into single paths.
+     * Renders a sophisticated "Cyber-Security Seal" for inactive 4K lanes.
+     * Replaces the old chain effect with a high-fidelity holographic barrier.
      */
     public renderCyberDashboard(ctx: CanvasRenderingContext2D, state: HighwayRenderState, cache: PerspectiveCache): void {
         if (state.keyMode !== 4) return;
 
         const lockedLanes = [0, state.laneCount - 1]; 
         const borderY = Math.round(state.height * HIT_LINE_Y_RATIO);
-        
-        ctx.save();
-        
-        const pulse = (Math.sin(state.cachedNow * 0.004) + 1) * 0.5;
+        const pulse = (Math.sin(state.cachedNow * 0.003) + 1) * 0.5;
+        const glitch = Math.random() > 0.98 ? 1.5 : 0; // Occasional digital flicker
 
         for (const lane of lockedLanes) {
             const tlX = cache.getX(lane, state.horizonY, state);
@@ -179,82 +177,122 @@ export class LaneRenderer {
             const blX = cache.getX(lane, borderY, state);
             const brX = cache.getX(lane + 1, borderY, state);
 
-            // 1. Heavy Vignette Foundation
-            const grad = ctx.createLinearGradient(0, state.horizonY, 0, borderY);
-            grad.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
-            grad.addColorStop(0.5, 'rgba(10, 5, 20, 0.7)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
-            ctx.fillStyle = grad;
+            ctx.save();
+            
+            // --- 1. PREMIUM BACKGROUND: Frosted Cyber-Glass ---
+            const bgGrad = ctx.createLinearGradient(0, state.horizonY, 0, borderY);
+            bgGrad.addColorStop(0, '#0a0505');
+            bgGrad.addColorStop(0.5, '#1a0a0a');
+            bgGrad.addColorStop(1, '#0f0505');
+            
+            ctx.fillStyle = bgGrad;
+            ctx.globalAlpha = 0.85;
             ctx.beginPath();
             ctx.moveTo(tlX, state.horizonY); ctx.lineTo(trX, state.horizonY); ctx.lineTo(brX, borderY); ctx.lineTo(blX, borderY);
             ctx.fill();
 
-            // 2. Sealed Chain Mesh (Procedural)
+            // --- 2. HOLOGRAPHIC GRID: Dynamic Hex/Tech Texture ---
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(tlX, state.horizonY); ctx.lineTo(trX, state.horizonY); ctx.lineTo(brX, borderY); ctx.lineTo(blX, borderY);
             ctx.clip();
-
-            // Criss-Cross Chains
-            this.drawPerspectiveChain(ctx, tlX, state.horizonY, brX, borderY, 12);
-            this.drawPerspectiveChain(ctx, trX, state.horizonY, blX, borderY, 12);
             
-            // Vertical Tension Chain
-            const midTopX = (tlX + trX) / 2;
-            const midBotX = (blX + brX) / 2;
-            this.drawPerspectiveChain(ctx, midTopX, state.horizonY, midBotX, borderY, 16);
+            ctx.strokeStyle = `rgba(255, 50, 50, ${0.05 + pulse * 0.05})`;
+            ctx.lineWidth = 1;
+            const gridSize = 40;
+            for (let y = state.horizonY; y < borderY; y += gridSize) {
+                const ratio = (y - state.horizonY) / (borderY - state.horizonY);
+                const curW = tlX + (blX - tlX) * ratio;
+                const endW = trX + (brX - trX) * ratio;
+                ctx.beginPath(); ctx.moveTo(curW, y); ctx.lineTo(endW, y); ctx.stroke();
+            }
+            ctx.restore();
 
-            // 3. Warning Decals (Soft Pulse)
-            ctx.globalAlpha = 0.2 + pulse * 0.3;
-            ctx.fillStyle = '#ff3300';
-            ctx.font = '900 24px "Orbitron"';
+            // --- 3. HIGH-FIDELITY SEAL ICON: Procedural "No Entry" Hologram ---
+            // Position at lower-middle for maximum visibility (75% depth)
+            const iconY = state.horizonY + (borderY - state.horizonY) * 0.7 + (Math.sin(state.cachedNow * 0.002) * 8);
+            
+            // [LAYOUT OPTIMIZATION] Individually tune icon and text for perspective balance
+            // Text stays biased outward (0.28/0.72) for playability; Icon moves even closer to center (0.46/0.54).
+            const textBias = lane === 0 ? 0.28 : 0.72;
+            const iconBias = lane === 0 ? 0.46 : 0.54;
+            
+            const centerIconX = cache.getX(lane + iconBias, iconY, state) + glitch;
+            const textX = cache.getX(lane + textBias, iconY, state) + glitch;
+            const iconSize = cache.getWidth(iconY, state) * 0.40;
+
+            this.drawSecuritySeal(ctx, centerIconX, iconY, iconSize, pulse);
+
+            // --- 4. PROFESSIONAL TYPOGRAPHY: LOCKED ---
             ctx.textAlign = 'center';
-            const textY = borderY - 100;
-            ctx.fillText('LOCKED', midBotX, textY);
+            ctx.textBaseline = 'middle';
             
+            // Primary Warning
+            const textAlpha = 0.6 + pulse * 0.4;
+            
+            ctx.fillStyle = `rgba(255, 80, 80, ${textAlpha})`;
+            ctx.font = '900 14px "Orbitron"'; 
+            ctx.fillText('LOCKED', textX, iconY + iconSize + 25);
+            
+            // Secondary Meta-info (Commercial Detail)
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.15 + pulse * 0.05})`;
+            ctx.font = '600 8px "Rajdhani"'; // Reduced from 10px
+            ctx.fillText(`LANE_SECURE_ID: 0x${(lane + 1).toString(16).toUpperCase()}FF`, centerIconX, iconY + iconSize + 42);
+
             ctx.restore();
         }
-
-        ctx.restore();
     }
 
-    private drawPerspectiveChain(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, size: number): void {
-        const segments = 15;
-        const dx = (x2 - x1) / segments;
-        const dy = (y2 - y1) / segments;
+    /**
+     * Draws a high-fidelity, glowing "No-Entry" security seal.
+     */
+    private drawSecuritySeal(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, pulse: number): void {
+        ctx.save();
+        ctx.translate(x, y);
 
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
+        // 1. Outer Glow
+        const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 1.2);
+        glow.addColorStop(0, 'rgba(255, 0, 0, 0.2)');
+        glow.addColorStop(1, 'rgba(255, 0, 0, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(0, 0, size * 1.2, 0, Math.PI * 2); ctx.fill();
 
-        for (let i = 0; i <= segments; i++) {
-            const px = x1 + dx * i;
-            const py = y1 + dy * i;
-            const currentSize = size * (0.4 + (i / segments) * 0.6); // Perspective scaling
+        // 2. Main Red Circle (Deep Gradient)
+        const circleGrad = ctx.createRadialGradient(0, -size*0.2, 0, 0, 0, size);
+        circleGrad.addColorStop(0, '#ff4d4d');
+        circleGrad.addColorStop(1, '#990000');
+        ctx.fillStyle = circleGrad;
+        ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI * 2); ctx.fill();
 
-            ctx.save();
-            ctx.translate(px, py);
-            ctx.rotate(Math.atan2(dy, dx));
+        // 3. Inner Glossy Rim
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, size - 3, 0, Math.PI * 2); ctx.stroke();
 
-            // Link Outer Shadow
-            ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-            ctx.lineWidth = currentSize * 0.8;
-            ctx.strokeRect(-currentSize/2, -currentSize/4, currentSize, currentSize/2);
+        // 4. THE BAR (No-Entry Sign)
+        const barW = size * 1.3;
+        const barH = size * 0.38;
+        
+        // Bar Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.roundRect(-barW/2 + 2, -barH/2 + 2, barW, barH, 8); ctx.fill();
 
-            // Iron Link Base
-            const grad = ctx.createLinearGradient(0, -currentSize/2, 0, currentSize/2);
-            grad.addColorStop(0, '#555555');
-            grad.addColorStop(0.5, '#222222');
-            grad.addColorStop(1, '#111111');
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = currentSize * 0.4;
-            ctx.strokeRect(-currentSize/2, -currentSize/4, currentSize, currentSize/2);
+        // Main Bar (High-Contrast White)
+        const barGrad = ctx.createLinearGradient(0, -barH/2, 0, barH/2);
+        barGrad.addColorStop(0, '#ffffff');
+        barGrad.addColorStop(1, '#e0e0e0');
+        ctx.fillStyle = barGrad;
+        ctx.beginPath();
+        ctx.roundRect(-barW/2, -barH/2, barW, barH, 8);
+        ctx.fill();
 
-            // Metallic Highlight
-            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-            ctx.lineWidth = currentSize * 0.1;
-            ctx.strokeRect(-currentSize/2 + 1, -currentSize/4 + 1, currentSize - 2, currentSize/2 - 2);
+        // 5. Digital Interference / Tech Details
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-barW * 0.4, 0); ctx.lineTo(barW * 0.4, 0);
+        ctx.stroke();
 
-            ctx.restore();
-        }
+        ctx.restore();
     }
 }

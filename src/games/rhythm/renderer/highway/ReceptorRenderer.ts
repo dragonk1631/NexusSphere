@@ -68,24 +68,47 @@ export class ReceptorRenderer {
                 ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
                 ctx.restore();
 
-                // Draw small crossing chains over the receptor v57
+                // Draw sophisticated crossing chains over the receptor
                 ctx.save();
-                ctx.strokeStyle = '#222222';
-                ctx.lineWidth = 4;
+                const xPadding = drawW * 0.22;
+                const yPadding = drawH * 0.22;
+                const xLeft = drawX + xPadding;
+                const xRight = drawX + drawW - xPadding;
+                const yTop = physicsY + yPadding;
+                const yBottom = physicsY + drawH - yPadding;
+
+                // 1. Heavy Black Shadow for depth (creates a 'cut-out' or heavy emboss feel)
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 6;
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 9;
+                ctx.lineCap = 'round';
                 ctx.beginPath();
-                ctx.moveTo(drawX, physicsY); ctx.lineTo(drawX + drawW, physicsY + drawH);
-                ctx.moveTo(drawX + drawW, physicsY); ctx.lineTo(drawX, physicsY + drawH);
-                ctx.stroke();
-                
-                // Metallic detailing on the cross
-                ctx.strokeStyle = '#555555';
-                ctx.lineWidth = 1.5;
+                ctx.moveTo(xLeft, yTop); ctx.lineTo(xRight, yBottom);
+                ctx.moveTo(xRight, yTop); ctx.lineTo(xLeft, yBottom);
                 ctx.stroke();
 
-                ctx.font = '900 10px "Orbitron"';
-                ctx.fillStyle = '#ff3300';
+                // 2. Main Red/Dark Gradient Cross
+                const pulse = (Math.sin(state.cachedNow * 0.003) + 1) * 0.5;
+                const crossGrad = ctx.createLinearGradient(xLeft, yTop, xRight, yBottom);
+                crossGrad.addColorStop(0, '#ff3333');
+                crossGrad.addColorStop(0.5, '#770000');
+                crossGrad.addColorStop(1, '#ff3333');
+                
+                ctx.shadowBlur = 0; // Reset shadow for core
+                ctx.strokeStyle = crossGrad;
+                ctx.lineWidth = 5.5;
+                ctx.stroke();
+                
+                // 3. High-Intensity Highlight
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                ctx.font = '900 11px "Orbitron"';
+                ctx.fillStyle = `rgba(255, 80, 80, ${0.4 + pulse * 0.4})`;
                 ctx.textAlign = 'center';
-                ctx.fillText('SEALED', centerLaneX, physicsY + drawH/2);
+                ctx.fillText('LOCKED', centerLaneX, physicsY + drawH + 12);
                 ctx.restore();
             } else {
                 // Hit Animation Glow (Optional, Mobile Optimized)
