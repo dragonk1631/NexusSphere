@@ -572,8 +572,8 @@ export class HUDRenderer {
         ctx.translate(x, y);
         ctx.scale(scale, scale);
 
-        // [글로벌 정책] 미니멀리즘을 위해 32px로 최종 조정
-        ctx.font = '900 italic 32px "Orbitron", sans-serif';
+        // [글로벌 정책] 최적의 미니멀리즘을 위해 28px로 최종 수렴
+        ctx.font = '900 italic 28px "Orbitron", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
