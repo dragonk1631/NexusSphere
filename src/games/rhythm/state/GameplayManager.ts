@@ -160,6 +160,7 @@ export class GameplayManager {
                     this.scoreManager.addScore(10);
                     note.accumulatedHoldTime -= tickInterval;
                     this._comboAnim = 0.5;
+                    this._judgmentAnim = 0.5; // Sync judgment pulse with combo tick
                 }
 
                 // Tick 2: Visual Effects (Particles & Theme-specific hit effects)
