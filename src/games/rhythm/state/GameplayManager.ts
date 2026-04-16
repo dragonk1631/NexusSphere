@@ -165,7 +165,8 @@ export class GameplayManager {
                     note.accumulatedHoldTime -= tickInterval;
                     this._comboAnim = 0.5;
                     this._judgmentAnim = 0.6; // Stronger sync for hold ticks
-                    this.judgmentSystem.refreshLastJudgmentTime(currentTime); // KEEP LABEL ALIVE
+                    // CRITICAL: Use performance.now() to sync with the HUD's aging logic
+                    this.judgmentSystem.refreshLastJudgmentTime(performance.now()); 
                 }
 
                 // Tick 2: Visual Effects (Particles & Theme-specific hit effects)

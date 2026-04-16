@@ -531,7 +531,7 @@ export class HUDRenderer {
         
         // Use interpolationAlpha for sub-frame aging
         const age = (state.cachedNow + interpolationAlpha * (1000/60)) - judgment.time;
-        if (age > JUDGMENT_DURATION) return;
+        if (age > JUDGMENT_DURATION && !state.isHolding) return;
 
         const alpha = 1 - (age / JUDGMENT_DURATION);
         const x = state.width / 2;
