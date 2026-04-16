@@ -172,7 +172,7 @@ export class LegacyNoteFactory {
         };
 
         const getHand = (lane: number): 'left' | 'right' => {
-            if (laneCount === 4) return lane < 2 ? 'left' : 'right';
+            if (laneCount === 4) return lane <= 2 ? 'left' : 'right';
             return lane < 3 ? 'left' : 'right';
         };
 
