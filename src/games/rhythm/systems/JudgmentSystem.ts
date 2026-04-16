@@ -202,6 +202,12 @@ export class JudgmentSystem {
         return this.lastJudgment;
     }
 
+    public refreshLastJudgmentTime(time: number): void {
+        if (this.lastJudgment && this.lastJudgment.value !== Judgment.MISS) {
+            this.lastJudgment.time = time;
+        }
+    }
+
     public getLatency(): number {
         return this.outputLatencyMs;
     }

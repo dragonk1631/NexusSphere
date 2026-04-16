@@ -13,6 +13,7 @@ export interface HUDRenderState {
     height: number;
     comboAnim: number;
     judgmentAnim: number;
+    isHolding: boolean;
     lastJudgment: { text: string, color: string, time: number, value: Judgment } | null;
     cachedNow: number;
     isMobile: boolean;
@@ -530,7 +531,7 @@ export class HUDRenderer {
         
         // Use interpolationAlpha for sub-frame aging
         const age = (state.cachedNow + interpolationAlpha * (1000/60)) - judgment.time;
-        if (age > JUDGMENT_DURATION) return;
+        if (age > JUDGMENT_DURATION && !state.isHolding) return;
 
         const alpha = 1 - (age / JUDGMENT_DURATION);
         const x = state.width / 2;
@@ -554,19 +555,25 @@ export class HUDRenderer {
         // Beat Pulse: Peaks sharply at 1 on beat, decays smoothly
         const beatPulse = Math.max(0, 1 - beatPhase);
         
+        // [Persistence] If holding, keep alpha high to prevent jittering during redraws
+        let effectiveAlpha = alpha;
+        if (state?.isHolding && effectiveAlpha < 0.8) {
+            effectiveAlpha = 0.8;
+        }
+        
         // Final Scale combining:
         // 1. Standard Fade-out (alpha 1 -> 0)
         // 2. Initial Popup Spike (judgmentAnim 1 -> 0)
         // 3. Rhythmic Beat Pulse (beatPulse 1 -> 0)
-        const scale = (0.9 + alpha * 0.25) * (1 + judgmentAnim * 0.22) * (1 + beatPulse * 0.04);
+        const scale = (0.9 + effectiveAlpha * 0.25) * (1 + judgmentAnim * 0.35) * (1 + beatPulse * 0.08);
         
         ctx.save();
-        ctx.globalAlpha = Math.max(0, alpha * (0.85 + judgmentAnim * 0.15));
+        ctx.globalAlpha = Math.max(0, effectiveAlpha * (0.85 + judgmentAnim * 0.15));
         ctx.translate(x, y);
         ctx.scale(scale, scale);
 
-        // [글로벌 정책] 대형 화면에서도 압도적인 가독성을 제공하도록 44px로 상향 조정
-        ctx.font = '900 italic 44px "Orbitron", sans-serif';
+        // [글로벌 정책] 최적의 미니멀리즘을 위해 28px로 최종 수렴
+        ctx.font = '900 italic 28px "Orbitron", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
@@ -577,7 +584,7 @@ export class HUDRenderer {
         ctx.strokeText(text, 0, 0);
 
         // 2. 테마 색상 기반 네온 효과 (Intensifies with judgment pulse)
-        ctx.shadowBlur = 10 + judgmentAnim * 15 + beatPulse * 5;
+        ctx.shadowBlur = 10 + judgmentAnim * 20 + beatPulse * 8;
         ctx.shadowColor = color;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;

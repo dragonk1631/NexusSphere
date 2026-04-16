@@ -71,6 +71,10 @@ export class GameplayManager {
     public get resumeCountdown(): number { return this._resumeCountdown; }
     public set resumeCountdown(val: number) { this._resumeCountdown = val; }
 
+    public isHoldingAnyLane(): boolean {
+        return this._holdingLanes.some(lane => lane !== null);
+    }
+
     public setHoldingLane(lane: number, note: VisualNote | null): void {
         this._holdingLanes[lane] = note;
     }
@@ -160,6 +164,9 @@ export class GameplayManager {
                     this.scoreManager.addScore(10);
                     note.accumulatedHoldTime -= tickInterval;
                     this._comboAnim = 0.5;
+                    this._judgmentAnim = 0.6; // Stronger sync for hold ticks
+                    // CRITICAL: Use performance.now() to sync with the HUD's aging logic
+                    this.judgmentSystem.refreshLastJudgmentTime(performance.now()); 
                 }
 
                 // Tick 2: Visual Effects (Particles & Theme-specific hit effects)
@@ -183,13 +190,15 @@ export class GameplayManager {
         }
 
         if (this._judgmentAnim > 0) {
-            this._judgmentAnim -= delta * 0.006; // Slightly faster decay for judgments
+            this._judgmentAnim -= delta * 0.005; // Unified decay rate with comboAnim
             if (this._judgmentAnim < 0) this._judgmentAnim = 0;
         }
 
         const currentCombo = this.scoreManager.getCombo();
         if (currentCombo > this._lastCombo) {
             this._comboAnim = 1.0;
+            // Optionally boost pulse on regular combo increase if not already high
+            if (this._judgmentAnim < 0.5) this._judgmentAnim = 0.5;
         }
         this._lastCombo = currentCombo;
 
