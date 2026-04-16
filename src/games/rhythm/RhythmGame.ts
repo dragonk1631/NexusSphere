@@ -575,6 +575,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         hud.width = width;
         hud.height = height;
         hud.comboAnim = this.gameplayManager.comboAnim;
+        hud.judgmentAnim = this.gameplayManager.judgmentAnim;
         hud.lastJudgment = this.judgmentSystem.getLastJudgment();
         hud.isMobile = this.isMobile;
         
@@ -704,6 +705,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         const color = this.themeStrategy.getColorForJudgment(j);
 
         this.judgmentSystem.setJudgment(judgmentText, color, this.currentFrameTime, j);
+        this.gameplayManager.triggerJudgmentAnim();
         this.scoreManager.addHit(100, j);
 
         if (j !== Judgment.MISS) {

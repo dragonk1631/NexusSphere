@@ -12,6 +12,7 @@ export interface HUDRenderState {
     width: number;
     height: number;
     comboAnim: number;
+    judgmentAnim: number;
     lastJudgment: { text: string, color: string, time: number, value: Judgment } | null;
     cachedNow: number;
     isMobile: boolean;
@@ -540,17 +541,27 @@ export class HUDRenderer {
             const color = theme.getColorForJudgment(judgment.value);
             theme.renderJudgmentText(ctx, judgment.text, color, alpha, x, y);
         } else {
-            this.renderDefaultJudgmentText(ctx, judgment.text, judgment.color, alpha, x, y);
+            this.renderDefaultJudgmentText(ctx, judgment.text, judgment.color, alpha, x, y, state);
         }
     }
 
     /**
      * [통합 렌더링 로직] 모든 테마에서 동일하게 적용되는 판정 문자 디자인
      */
-    private renderDefaultJudgmentText(ctx: CanvasRenderingContext2D, text: string, color: string, alpha: number, x: number, y: number): void {
-        const scale = 0.9 + alpha * 0.25;
+    private renderDefaultJudgmentText(ctx: CanvasRenderingContext2D, text: string, color: string, alpha: number, x: number, y: number, state?: HUDRenderState): void {
+        const judgmentAnim = state?.judgmentAnim || 0;
+        const beatPhase = state?.beatPhase || 0;
+        // Beat Pulse: Peaks sharply at 1 on beat, decays smoothly
+        const beatPulse = Math.max(0, 1 - beatPhase);
+        
+        // Final Scale combining:
+        // 1. Standard Fade-out (alpha 1 -> 0)
+        // 2. Initial Popup Spike (judgmentAnim 1 -> 0)
+        // 3. Rhythmic Beat Pulse (beatPulse 1 -> 0)
+        const scale = (0.9 + alpha * 0.25) * (1 + judgmentAnim * 0.22) * (1 + beatPulse * 0.04);
+        
         ctx.save();
-        ctx.globalAlpha = Math.max(0, alpha * 0.85);
+        ctx.globalAlpha = Math.max(0, alpha * (0.85 + judgmentAnim * 0.15));
         ctx.translate(x, y);
         ctx.scale(scale, scale);
 
@@ -565,8 +576,8 @@ export class HUDRenderer {
         ctx.lineJoin = 'round';
         ctx.strokeText(text, 0, 0);
 
-        // 2. 테마 색상 기반 네온 효과
-        ctx.shadowBlur = 10;
+        // 2. 테마 색상 기반 네온 효과 (Intensifies with judgment pulse)
+        ctx.shadowBlur = 10 + judgmentAnim * 15 + beatPulse * 5;
         ctx.shadowColor = color;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
