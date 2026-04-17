@@ -37,6 +37,7 @@ function prepareLocal() {
     console.log('📦 Step 1: Synchronizing local metadata...');
     try {
         execSync('node scripts/sync_song_list.mjs', { stdio: 'inherit' });
+        execSync('node scripts/analyze_audio_levels.mjs', { stdio: 'inherit' });
         execSync('node scripts/generate_assets_manifest.js', { stdio: 'inherit' });
         execSync('node scripts/generate_bundle.mjs', { stdio: 'inherit' });
     } catch (e) {

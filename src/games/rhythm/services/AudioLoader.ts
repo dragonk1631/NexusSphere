@@ -106,7 +106,7 @@ export class AudioLoader {
             
             // Priority 2: Smart Guessing Fallback (For legacy/vast library support)
             if (!mp3Path && !midiUrl.startsWith('file_')) {
-                mp3Path = `assets/audio/mp3/${midiName}.mp3`;
+                mp3Path = await al.findAudioPath(midiName) || `assets/audio/mp3/${midiName}.mp3`;
             }
 
             if (mp3Path) {

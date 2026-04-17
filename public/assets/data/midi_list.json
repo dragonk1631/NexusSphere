@@ -30,16 +30,40 @@
     "duration": 70
   },
   {
+    "name": "옥빛_바다_무도회 (MP3)",
+    "url": "assets/audio/generated_midi/옥빛_바다_무도회.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "정상을_향해_더_높이 (MP3)",
+    "url": "assets/audio/generated_midi/정상을_향해_더_높이.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
     "name": "터키행진곡",
     "url": "assets/audio/midi/터키행진곡.mid",
     "bpm": 255,
     "duration": 46
   },
   {
+    "name": "After_the_Last_Hit (MP3)",
+    "url": "assets/audio/generated_midi/After_the_Last_Hit.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
     "name": "Ballade Pour Adeline",
     "url": "assets/audio/midi/ballade-pour-adeline.mid",
     "bpm": 68,
     "duration": 162
+  },
+  {
+    "name": "Before_The_Game_Starts (MP3)",
+    "url": "assets/audio/generated_midi/Before_The_Game_Starts.mid",
+    "bpm": 120,
+    "duration": 0
   },
   {
     "name": "Begining",
@@ -180,6 +204,12 @@
     "duration": 146
   },
   {
+    "name": "Keys_by_the_Hearth (MP3)",
+    "url": "assets/audio/generated_midi/Keys_by_the_Hearth.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
     "name": "KiminoEgao1 (MP3)",
     "url": "assets/audio/generated_midi/KiminoEgao1.mid",
     "bpm": 120,
@@ -210,6 +240,12 @@
     "duration": 247
   },
   {
+    "name": "Paper_Lanterns_Rising (MP3)",
+    "url": "assets/audio/generated_midi/Paper_Lanterns_Rising.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
     "name": "Parodius Twinbees Theme",
     "url": "assets/audio/midi/Parodius_-_Twinbees_Theme.mid",
     "bpm": 160,
@@ -220,6 +256,12 @@
     "url": "assets/audio/midi/Pirates of the Caribbean - He's a Pirate (1).mid",
     "bpm": 200,
     "duration": 78
+  },
+  {
+    "name": "Platinum_Gates (MP3)",
+    "url": "assets/audio/generated_midi/Platinum_Gates.mid",
+    "bpm": 120,
+    "duration": 0
   },
   {
     "name": "Popntwinbee Staffroll",
@@ -300,6 +342,36 @@
     "duration": 165
   },
   {
+    "name": "Vector_Override (MP3)",
+    "url": "assets/audio/generated_midi/Vector_Override.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "Waltz for Lily - King & Prince (128k) (MP3)",
+    "url": "assets/audio/generated_midi/Waltz for Lily - King & Prince (128k).mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "Westbound_at_Sunset (MP3)",
+    "url": "assets/audio/generated_midi/Westbound_at_Sunset.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "What We Got ～奇跡はきみと～ - Disney - Topic (128k) (MP3)",
+    "url": "assets/audio/generated_midi/What We Got ～奇跡はきみと～ - Disney - Topic (128k).mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "Where_Iron_Meets_the_Ember (MP3)",
+    "url": "assets/audio/generated_midi/Where_Iron_Meets_the_Ember.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
     "name": "Your Smiling Face (MP3)",
     "url": "assets/audio/generated_midi/Your Smiling Face.mid",
     "bpm": 120,
@@ -324,8 +396,26 @@
     "duration": 98
   },
   {
+    "name": "イイじゃん - M!LK (128k) (MP3)",
+    "url": "assets/audio/generated_midi/イイじゃん - M!LK (128k).mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "カリスマックス - Snow Man (128k) (MP3)",
+    "url": "assets/audio/generated_midi/カリスマックス - Snow Man (128k).mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
     "name": "そばにいるから (MP3)",
     "url": "assets/audio/generated_midi/そばにいるから.mid",
+    "bpm": 120,
+    "duration": 0
+  },
+  {
+    "name": "ブラザービート - Snow Man (128k) (MP3)",
+    "url": "assets/audio/generated_midi/ブラザービート - Snow Man (128k).mid",
     "bpm": 120,
     "duration": 0
   }

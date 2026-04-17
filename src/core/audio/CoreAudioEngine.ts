@@ -220,7 +220,7 @@ export class CoreAudioEngine {
         }
     }
 
-    public async loadHybrid(midiBuffer: ArrayBuffer, audioData: AudioBuffer | HTMLAudioElement): Promise<void> {
+    public async loadHybrid(midiBuffer: ArrayBuffer, audioData: AudioBuffer | HTMLAudioElement, normalizationGain?: number): Promise<void> {
         await this.loadMidi(midiBuffer);
         
         if (audioData instanceof AudioBuffer) {
@@ -229,25 +229,48 @@ export class CoreAudioEngine {
             this.isStreamingMode = false;
             
             // AUTOMATED NORMALIZATION (Phase 4)
-            const peakValue = this.scanPeakAmplitude(audioData);
-            const targetPeak = 0.707; // -3dB
-            this.autoNormalizationGain = peakValue > 0 ? targetPeak / peakValue : 1.0;
+            if (normalizationGain !== undefined) {
+                this.autoNormalizationGain = normalizationGain;
+                AudioEngineLogger.info(`[CoreAudioEngine] Using pre-calculated normalization: ${normalizationGain}`);
+            } else {
+                const peakValue = this.scanPeakAmplitude(audioData);
+                const targetPeak = 0.707; // -3dB
+                this.autoNormalizationGain = peakValue > 0 ? targetPeak / peakValue : 1.0;
+                AudioEngineLogger.info(`[CoreAudioEngine] Scanned normalization: ${this.autoNormalizationGain.toFixed(3)}`);
+            }
         } else {
             this.mp3Buffer = null;
             this.streamingPlayer = audioData;
             this.isStreamingMode = true;
-            this.autoNormalizationGain = 1.0; // Streaming normalization is harder, default to 1
             
+            // Apply external normalization for streaming if provided
+            this.autoNormalizationGain = normalizationGain !== undefined ? normalizationGain : 1.0;
+            if (normalizationGain !== undefined) {
+                AudioEngineLogger.info(`[CoreAudioEngine] Using pre-calculated normalization for streaming: ${normalizationGain}`);
+            }
+
             // Route streaming player through mixer
             if (this.bgmSource) this.bgmSource.disconnect();
             this.bgmSource = this.ctx.createMediaElementSource(audioData);
             this.bgmSource.connect(this.mp3GainNode);
+
+            // [LOOP FIX] Support looping for streaming previews
+            audioData.onended = () => {
+                if (this.isPreviewLoop && this.isHybridMode && this.isStreamingMode) {
+                    AudioEngineLogger.info("[CoreAudioEngine] Looping streaming preview...");
+                    // Restart from the current sequencer time or 0
+                    this.seek(this.sequencer?.currentTime || 0);
+                    this.play();
+                }
+            };
         }
 
         this.isHybridMode = true;
         
-        // Cap the gain to prevent extreme clipping for very quiet tracks
-        if (this.autoNormalizationGain > 3.0) this.autoNormalizationGain = 3.0;
+        // Cap the gain to prevent extreme clipping for very quiet tracks (Dynamic mode only)
+        if (normalizationGain === undefined && this.autoNormalizationGain > 3.0) {
+            this.autoNormalizationGain = 3.0;
+        }
 
         this.updateHybridGain();
     }
@@ -382,22 +405,30 @@ export class CoreAudioEngine {
      */
     private startSyncMonitor(): void {
         this.stopSyncMonitor();
+        const monitorStartTime = Date.now();
         
         const monitor = () => {
             if (!this.isPlaying() || !this.streamingPlayer || !this.isStreamingMode) return;
+
+            // [IMPROVED] 안정화 유예 시간: 재생 시작 후 1.5초간은 브라우저의 내부 Seek가 안정화되기를 기다립니다.
+            // 초반 1~2초 끊김 현상의 핵심 원인인 '초기 상태에서의 과도한 보정'을 방지합니다.
+            if (Date.now() - monitorStartTime < 1500) {
+                this.syncMonitorId = requestAnimationFrame(monitor);
+                return;
+            }
 
             const masterTime = this.getPreciseTime();
             const audioTime = this.streamingPlayer.currentTime;
             const drift = Math.abs(masterTime - audioTime);
 
-            // [CRITICAL] 10ms 이상의 오차가 발생하면 리엔커 보정 실시
-            if (drift > 0.010) {
+            // [OPTIMIZED] 보정 임계치를 10ms에서 35ms로 상향 조정하여 불필요한 미세 보정 버벅임을 최소화합니다.
+            if (drift > 0.035) {
                 // AudioContext(masterTime)는 고정되어 있으며 판정의 기준이 됨.
                 // 스트리밍 오디오(audioTime)를 마스터 타임에 맞게 강제 정렬.
                 this.streamingPlayer.currentTime = masterTime;
                 
-                if (drift > 0.050) { // 50ms 이상의 심각한 지연 발견 시 로그
-                    AudioEngineLogger.warn(`[SyncMonitor] Heavy drift detected: ${Math.round(drift * 1000)}ms. Re-anchoring...`);
+                if (drift > 0.100) { // 100ms 이상의 심각한 지연 발견 시 로그
+                    AudioEngineLogger.warn(`[SyncMonitor] Significant drift detected: ${Math.round(drift * 1000)}ms. Re-anchoring...`);
                 }
             }
 
