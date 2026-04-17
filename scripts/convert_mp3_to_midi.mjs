@@ -10,7 +10,9 @@ const __dirname = path.dirname(__filename);
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const MP3_DIR  = path.join(PROJECT_ROOT, 'public/assets/audio/mp3');
+const THEME_DIR = path.join(PROJECT_ROOT, 'public/assets/audio/ui/themes');
 const MIDI_DIR = path.join(PROJECT_ROOT, 'public/assets/audio/generated_midi');
+const TEMP_STEMS_DIR = path.join(PROJECT_ROOT, 'temp_stems');
 const PY_SCRIPT = path.join(__dirname, 'analyze_beats.py');
 
 // ============================================================
@@ -21,7 +23,10 @@ function analyzeWithLibrosa(mp3Path) {
         let stdout = '';
         let stderr = '';
 
-        const py = spawn('py', [PY_SCRIPT, mp3Path], {
+        // Create temp stems dir if not exists
+        if (!fs.existsSync(TEMP_STEMS_DIR)) fs.mkdirSync(TEMP_STEMS_DIR, { recursive: true });
+
+        const py = spawn('py', [PY_SCRIPT, mp3Path, TEMP_STEMS_DIR], {
             stdio: ['ignore', 'pipe', 'pipe']
         });
 
@@ -49,10 +54,21 @@ function analyzeWithLibrosa(mp3Path) {
 }
 
 // ============================================================
+// Helper to find all MP3 files recursively
+// ============================================================
+function findMp3Files(dir) {
+    if (!fs.existsSync(dir)) return [];
+    const entries = fs.readdirSync(dir, { withFileTypes: true, recursive: true });
+    return entries
+        .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.mp3'))
+        .map(e => path.join(e.parentPath || e.path, e.name));
+}
+
+// ============================================================
 // Main pipeline
 // ============================================================
 async function main() {
-    console.log('=== NexusSphere Beat Engine v9.0 (librosa Backend) ===\n');
+    console.log('=== NexusSphere Beat Engine v10.0 (Auto-Cleanup Enabled) ===\n');
     const args  = process.argv.slice(2);
     const force = args.includes('--force') || args.includes('-f');
 
@@ -63,14 +79,20 @@ async function main() {
 
     if (!fs.existsSync(MIDI_DIR)) fs.mkdirSync(MIDI_DIR, { recursive: true });
 
-    const files = fs.readdirSync(MP3_DIR)
-        .filter(f => f.toLowerCase().endsWith('.mp3'));
+    // Collect all MP3 files from both base MP3 dir and Theme BGM dir
+    console.log(`[Scan] Searching for MP3s in:\n  - ${MP3_DIR}\n  - ${THEME_DIR}`);
+    const mp3Paths = [
+        ...findMp3Files(MP3_DIR),
+        ...findMp3Files(THEME_DIR)
+    ];
+
+    console.log(`[Scan] Found ${mp3Paths.length} candidates.`);
 
     let processed = 0, skipped = 0;
 
-    for (const file of files) {
+    for (const mp3Path of mp3Paths) {
+        const file     = path.basename(mp3Path);
         const base     = path.basename(file, '.mp3');
-        const mp3Path  = path.join(MP3_DIR, file);
         const midiPath = path.join(MIDI_DIR, `${base}.mid`);
 
         if (fs.existsSync(midiPath) && !force) {
@@ -80,7 +102,8 @@ async function main() {
         }
 
         console.log(`\n[Processing] ${file}`);
-        console.log(`  Analyzing with librosa (HPSS + onset_detect)...`);
+        console.log(`  Path: ${mp3Path}`);
+        console.log(`  Analyzing with librosa + Demucs (Temp: ${TEMP_STEMS_DIR})...`);
 
         try {
             const data = await analyzeWithLibrosa(mp3Path);
@@ -163,11 +186,27 @@ async function main() {
 
             fs.writeFileSync(midiPath, Buffer.from(midi.toArray()));
             console.log(`  [✓] → ${base}.mid`);
+            
+            // --- Cleanup Stems ---
+            const stemPath = path.join(TEMP_STEMS_DIR, 'htdemucs', base);
+            if (fs.existsSync(stemPath)) {
+                console.log(`  [Cleanup] Removing temporary stems: ${stemPath}`);
+                fs.rmSync(stemPath, { recursive: true, force: true });
+            }
+
             processed++;
 
         } catch (e) {
             console.error(`  [✗] ${file}: ${e.message}`);
         }
+    }
+
+    // Final cleanup of the temp directory if empty or as requested
+    if (fs.existsSync(TEMP_STEMS_DIR)) {
+        console.log(`\n[Final Cleanup] Removing temp directory: ${TEMP_STEMS_DIR}`);
+        try {
+            fs.rmSync(TEMP_STEMS_DIR, { recursive: true, force: true });
+        } catch (e) {}
     }
 
     console.log(`\n=== Done: ${processed} generated, ${skipped} skipped ===`);

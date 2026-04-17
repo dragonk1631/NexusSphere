@@ -256,28 +256,38 @@ export class MenuManager {
 
                 const midiName = decodeURI(currentSong.url).split('/').pop()?.replace(/\.mid$/i, '') || 'test';
                 
-                // [PRIORITY] 1. Snippet Preview (10s) -> 2. Full MP3 Fallback
-                const previewPath = (currentSong as any).previewUrl || `assets/audio/mp3/previews/${midiName}.mp3`;
-                const fullPath = (currentSong as any).audioUrl || `assets/audio/mp3/${midiName}.mp3`;
-                
+                // [TRANSITION] Prioritize Full MP3 for high-fidelity previews (Streaming)
                 const al = AssetLoader.getInstance();
-                let actualPath = fullPath;
-                if (await al.checkAssetExists(previewPath)) {
-                    actualPath = previewPath;
+                
+                // Try smart path resolution for full MP3 first
+                let actualPath = (currentSong as any).audioUrl || await al.findAudioPath(currentSong.name);
+                
+                // Fallback to legacy preview path only if necessary
+                if (!actualPath) {
+                    const previewPath = (currentSong as any).previewUrl || `assets/audio/mp3/previews/${midiName}.mp3`;
+                    if (await al.checkAssetExists(previewPath)) {
+                        actualPath = previewPath;
+                    }
                 }
                 
-                if (await al.checkAssetExists(actualPath)) {
+                if (actualPath && await al.checkAssetExists(actualPath)) {
                     if (previewId !== this.currentPreviewId) return;
-                    const mp3Buffer = await al.loadAudio(actualPath);
+                    
+                    // Use STREAMING for full MP3 previews (Low memory, fast start)
+                    const player = al.loadAudioStreaming(actualPath);
                     if (previewId !== this.currentPreviewId) return;
-                    await this.audioEngine.loadHybrid(buffer, mp3Buffer);
+                    await this.audioEngine.loadHybrid(buffer, player, (currentSong as any).normalizationGain);
                 } else {
                     if (previewId !== this.currentPreviewId) return;
                     await this.audioEngine.loadMidi(buffer);
                 }
 
                 if (previewId !== this.currentPreviewId) return;
-                this.audioEngine.startPreciseTime(0);
+
+                // Set initial seek point for preview (Support theme/song highlight)
+                const startOff = (currentSong as any).previewStart || 0;
+                this.audioEngine.seek(startOff);
+
                 this.audioEngine.setPreviewLoop(true);
                 this.previewMidi = parsedMidi;
                 this.audioEngine.play();

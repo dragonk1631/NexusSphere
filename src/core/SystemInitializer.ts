@@ -60,6 +60,19 @@ export class SystemInitializer {
                 await vault.installLibrary(this.officialSongs, (p, status) => {
                     report(0.1 + (p * 0.6), status);
                 });
+
+                // [IMPORTANT] Sync 완료 후 최신 매니페스트와 곡 목록을 다시 로드하여 즉시 반영합니다.
+                report(0.68, "Updating Catalog after Sync...");
+                await al.loadManifest(true);
+                const manifestAfterSync = al.getManifest();
+                if (manifestAfterSync) vault.setKnownAssets(manifestAfterSync);
+
+                const resRetry = await vault.vaultFetch('assets/data/official_songs.json');
+                if (resRetry.ok) {
+                    const dataRetry = await resRetry.json();
+                    this.officialSongs = dataRetry.map((s: any) => ({ ...s, isCustom: false }));
+                    console.log(`[SystemInitializer] Catalog updated after sync: ${this.officialSongs.length} songs.`);
+                }
             } else {
                 report(0.7, "Library Sync Verified.");
             }
@@ -112,7 +125,7 @@ export class SystemInitializer {
 
         // B. MP3 Discovery (Proactive normalization check)
         // Explicit audioUrl이 있다면 그것을 우선적으로 확인합니다.
-        const audioPath = song.audioUrl || `assets/audio/mp3/${song.name}.mp3`;
+        const audioPath = song.audioUrl || await al.findAudioPath(song.name) || `assets/audio/mp3/${song.name}.mp3`;
         const audioExists = await al.checkAssetExists(audioPath);
         if (audioExists) {
             (song as any).hasAudio = true;

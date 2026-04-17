@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 import librosa
 import numpy as np
 
-def analyze(mp3_path):
+def analyze(mp3_path, out_dir=None):
     # --- 1. Load audio (mono, 22050 Hz) ---
     sr = 22050
     y, _ = librosa.load(mp3_path, mono=True, sr=sr)
@@ -24,7 +24,11 @@ def analyze(mp3_path):
     
     mp3_abspath = os.path.abspath(mp3_path)
     base_name = os.path.splitext(os.path.basename(mp3_abspath))[0]
-    out_dir = os.path.join(os.path.dirname(mp3_abspath), "demucs_out")
+    
+    if out_dir is None:
+        out_dir = os.path.join(os.path.dirname(mp3_abspath), "demucs_out")
+    else:
+        out_dir = os.path.abspath(out_dir)
     
     print(f"  [AI] Separating stems with HTDemucs v4 for {base_name}...", file=sys.stderr)
     try:
@@ -461,7 +465,10 @@ if __name__ == '__main__':
         print(json.dumps({"error": "No input file specified"}))
         sys.exit(1)
     try:
-        analyze(sys.argv[1])
+        if len(sys.argv) > 2:
+            analyze(sys.argv[1], sys.argv[2])
+        else:
+            analyze(sys.argv[1])
     except Exception as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         sys.exit(1)
