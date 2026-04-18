@@ -37,6 +37,12 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_SCORE_SECRET: ${{ secrets.VITE_SCORE_SECRET }}
+          VITE_ASSET_EXTERNAL_URL: ${{ secrets.VITE_ASSET_EXTERNAL_URL }}
+          VITE_ASSET_VERSION: ${{ secrets.VITE_ASSET_VERSION }}
+          NODE_ENV: production
 
       - name: List build output (Diagnostics)
         run: ls -R dist
