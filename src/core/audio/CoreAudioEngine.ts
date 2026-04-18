@@ -39,6 +39,8 @@ export class CoreAudioEngine {
     private userMetadataVolume: number = 1.0;
     private isPreviewLoop: boolean = false;
     private syncMonitorId: number | null = null;
+    private lastHardCorrectionTime: number = 0;
+    private basePlaybackRate: number = 1.0;
 
     // Internal State
     private isReady: boolean = false;
@@ -129,13 +131,13 @@ export class CoreAudioEngine {
                 }
 
                 if (sfLoaded) {
-                    this.sequencer = new Sequencer(this.synth as any) as ISequencer;
+                    this.sequencer = new Sequencer(this.synth as any) as unknown as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = true;
                     AudioEngineLogger.info("Vault: Engine Ready with SoundFont.");
                 } else {
                     AudioEngineLogger.warn("Vault: All SoundFont load attempts failed. Running in silent mode.");
-                    this.sequencer = new Sequencer(this.synth as any) as ISequencer;
+                    this.sequencer = new Sequencer(this.synth as any) as unknown as ISequencer;
                     this.isReady = true;
                     this.isSoundFontLoaded = false;
                 }
@@ -187,7 +189,7 @@ export class CoreAudioEngine {
             this.sequencer = null;
         }
 
-        this.sequencer = new Sequencer(this.synth as any) as ISequencer;
+        this.sequencer = new Sequencer(this.synth as any) as unknown as ISequencer;
         this.timer.reset();
 
         // Add Diagnostics
@@ -406,29 +408,81 @@ export class CoreAudioEngine {
     private startSyncMonitor(): void {
         this.stopSyncMonitor();
         const monitorStartTime = Date.now();
+        let lastFrameTime = performance.now();
         
         const monitor = () => {
             if (!this.isPlaying() || !this.streamingPlayer || !this.isStreamingMode) return;
 
-            // [IMPROVED] 안정화 유예 시간: 재생 시작 후 1.5초간은 브라우저의 내부 Seek가 안정화되기를 기다립니다.
-            // 초반 1~2초 끊김 현상의 핵심 원인인 '초기 상태에서의 과도한 보정'을 방지합니다.
-            if (Date.now() - monitorStartTime < 1500) {
+            const nowPerf = performance.now();
+            const frameDelta = nowPerf - lastFrameTime;
+            lastFrameTime = nowPerf;
+
+            const audioTime = this.streamingPlayer.currentTime;
+
+            // 1. [HEARTBEAT] Main Thread Overload Detection
+            // If the frame took > 100ms, the main thread was blocked. 
+            // In this case, we MUST silent re-anchor the clock to the audio time
+            // instead of forcing the audio to seek (which causes stutter).
+            if (frameDelta > 100) {
+                AudioEngineLogger.info(`[SyncMonitor] Lag Spike detected (${Math.round(frameDelta)}ms). Silent Re-anchoring...`);
+                this.timer.reAnchor(audioTime, audioTime);
+                this.syncMonitorId = requestAnimationFrame(monitor);
+                return;
+            }
+
+            // [IMPROVED] Stabilization Grace Period
+            // Expansion: 1.0s -> 2.0s to allow Clerk/Auth background tasks to settle.
+            if (Date.now() - monitorStartTime < 2000) {
                 this.syncMonitorId = requestAnimationFrame(monitor);
                 return;
             }
 
             const masterTime = this.getPreciseTime();
-            const audioTime = this.streamingPlayer.currentTime;
-            const drift = Math.abs(masterTime - audioTime);
+            const drift = masterTime - audioTime; // Positive = Audio is behind, Negative = Audio is ahead
+            const absDrift = Math.abs(drift);
 
-            // [OPTIMIZED] 보정 임계치를 10ms에서 35ms로 상향 조정하여 불필요한 미세 보정 버벅임을 최소화합니다.
-            if (drift > 0.035) {
-                // AudioContext(masterTime)는 고정되어 있으며 판정의 기준이 됨.
-                // 스트리밍 오디오(audioTime)를 마스터 타임에 맞게 강제 정렬.
-                this.streamingPlayer.currentTime = masterTime;
-                
-                if (drift > 0.100) { // 100ms 이상의 심각한 지연 발견 시 로그
-                    AudioEngineLogger.warn(`[SyncMonitor] Significant drift detected: ${Math.round(drift * 1000)}ms. Re-anchoring...`);
+            // 2. TIERED CORRECTION (Visual Follows Audio)
+            const now = Date.now();
+            
+            // Level 1: < 20ms -> Perfect (Ignore)
+            if (absDrift < 0.020) {
+                this.timer.setVisualOffset(0);
+                this.restorePlaybackRate();
+            } 
+            // Level 2: 20~50ms -> Visual Offset (Nudge notes, don't touch audio)
+            else if (absDrift < 0.050) {
+                this.timer.setVisualOffset(-drift); // Nudge renderer time to match audio
+                this.restorePlaybackRate();
+            }
+            // Level 3: 50~100ms -> Dynamic Rate Adjustment (Micro-tuning)
+            else if (absDrift < 0.100) {
+                this.timer.setVisualOffset(0);
+                // Adjust speed by ±1.0% to catch up/slow down
+                const adj = drift > 0 ? 1.01 : 0.99;
+                this.streamingPlayer.playbackRate = this.basePlaybackRate * adj;
+                if (this.mp3SourceNode) this.mp3SourceNode.playbackRate.value = this.basePlaybackRate * adj;
+            }
+            // Level 4: > 100ms -> Emergency Sync
+            else {
+                // [COOLDOWN] Prevent repeated corrections within 1.5s
+                if (now - this.lastHardCorrectionTime > 1500) {
+                    this.lastHardCorrectionTime = now;
+                    
+                    // [SILENT STRATEGY] 
+                    // If we are in MENU mode (streaming preview), ALWAYS silent re-anchor.
+                    // If we are in ACTIVE GAMEPLAY, we might still want to seek if the gap is massive,
+                    // but for now, prioritizing audio fluidness over frame precision.
+                    if (this.isPreviewLoop || absDrift < 0.3) {
+                        AudioEngineLogger.info(`[SyncMonitor] Drift (${Math.round(absDrift * 1000)}ms). Silent Re-anchor.`);
+                        this.timer.reAnchor(audioTime, audioTime);
+                    } else {
+                        // Massive drift in gameplay (>300ms) - still Seek as last resort
+                        AudioEngineLogger.warn(`[SyncMonitor] Critical drift (${Math.round(absDrift * 1000)}ms). Hard Seek.`);
+                        this.streamingPlayer.currentTime = masterTime;
+                    }
+
+                    this.timer.setVisualOffset(0);
+                    this.restorePlaybackRate();
                 }
             }
 
@@ -436,6 +490,14 @@ export class CoreAudioEngine {
         };
         
         this.syncMonitorId = requestAnimationFrame(monitor);
+    }
+
+    private restorePlaybackRate(): void {
+        if (!this.streamingPlayer) return;
+        if (Math.abs(this.streamingPlayer.playbackRate - this.basePlaybackRate) > 0.001) {
+            this.streamingPlayer.playbackRate = this.basePlaybackRate;
+            if (this.mp3SourceNode) this.mp3SourceNode.playbackRate.value = this.basePlaybackRate;
+        }
     }
 
     private stopSyncMonitor(): void {
@@ -559,7 +621,12 @@ export class CoreAudioEngine {
     }
 
     public isBGMPlaying(): boolean {
-        return !!this.bgmPlayer && !this.bgmPlayer.paused;
+        // [STABILITY] Expanded definition of "BGM" to include MIDI sequencer and streaming players
+        // This ensures callers correctly identify if ANY game audio is active.
+        return (!!this.bgmPlayer && !this.bgmPlayer.paused) || 
+               (!!this.sequencer && this.sequencer.playing) || 
+               (!!this.streamingPlayer && !this.streamingPlayer.paused) ||
+               (!!this.mp3SourceNode); // mp3SourceNode exists only while playing
     }
 
     public pause(): void {
@@ -580,7 +647,7 @@ export class CoreAudioEngine {
                 // HARD RESET: Fully destroy and recreate the sequencer to clear internal SpessaSynth state
                 try { this.sequencer.eventHandler.removeEvent("songEnded", "engine-song-end"); } catch (e) {}
                 const currentMidi = (this.sequencer as any).midiData?.binary;
-                this.sequencer = new Sequencer(this.synth as any) as ISequencer;
+                this.sequencer = new Sequencer(this.synth as any) as unknown as ISequencer;
                 if (currentMidi) {
                      this.sequencer.loadNewSongList([{ binary: currentMidi }]);
                      this.sequencer.pause();
@@ -626,11 +693,15 @@ export class CoreAudioEngine {
     }
 
     public setPlaybackRate(rate: number): void {
+        this.basePlaybackRate = rate;
         if (this.sequencer) {
             this.sequencer.playbackRate = rate;
         }
         if (this.mp3SourceNode) {
             this.mp3SourceNode.playbackRate.value = rate;
+        }
+        if (this.streamingPlayer) {
+            this.streamingPlayer.playbackRate = rate;
         }
     }
 

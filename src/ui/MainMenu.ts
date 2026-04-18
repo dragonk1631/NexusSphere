@@ -2,6 +2,8 @@ import { UIManager } from '../core/ui/UIManager';
 import { SettingsUI } from './SettingsUI';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 import { ThemeManager } from '../core/ThemeManager';
+import { RankingUI } from './RankingUI';
+import { AuthService } from '../services/auth/AuthService';
 
 export class MainMenu {
     private ui: UIManager;
@@ -82,10 +84,10 @@ export class MainMenu {
 
                 /* ── DESIGN TOKENS ── */
                 :root {
-                    --mm-blur: 16px; /* Slightly deeper blur v53 */
-                    --mm-glass-bg: rgba(0, 0, 0, 0.45); /* Darker/More solid base v53 */
-                    --mm-glass-border: rgba(255, 255, 255, 0.25); /* Stronger edges v53 */
-                    --mm-text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+                    --mm-blur: 10px; /* Optimized v54: Lower blur saves CPU/GPU during transitions */
+                    --mm-glass-bg: rgba(0, 0, 0, 0.55); /* Darker base to maintain glass look with lower blur */
+                    --mm-glass-border: rgba(255, 255, 255, 0.2); 
+                    --mm-text-shadow: 0 2px 8px rgba(0,0,0,0.9);
                 }
 
                 /* ── ANIMATIONS ── */
@@ -149,6 +151,31 @@ export class MainMenu {
                 }
                 .mm-currency-badge.gold { border-color: rgba(255,210,80,0.4); background: rgba(255,190,0,0.1); }
                 .mm-currency-badge.gem { border-color: rgba(130,180,255,0.4); background: rgba(80,130,255,0.1); }
+                
+                /* ── AUTH BADGE ── */
+                .mm-auth-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: clamp(4px, 1vh, 8px) clamp(10px, 2vw, 20px);
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid var(--mm-glass-border);
+                    border-radius: 999px;
+                    backdrop-filter: blur(var(--mm-blur));
+                    cursor: pointer;
+                    transition: 0.3s;
+                    pointer-events: auto;
+                }
+                .mm-auth-badge:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+                .mm-auth-avatar {
+                    width: clamp(24px, 3.5vh, 32px);
+                    height: clamp(24px, 3.5vh, 32px);
+                    border-radius: 50%;
+                    background: #555;
+                    border: 2px solid #00ffcc;
+                    object-fit: cover;
+                }
+                .mm-auth-name { font-size: 0.85rem; font-weight: 800; color: white; }
 
                 /* ── BGM BADGE ── */
                 .mm-bgm-badge {
@@ -351,7 +378,10 @@ export class MainMenu {
                         </div>
                     </div>
                 </div>
-                <div class="mm-hud-right" style="justify-self: end; display: flex; gap: clamp(8px, 1vw, 20px);">
+                <div class="mm-hud-right" style="justify-self: end; display: flex; gap: clamp(8px, 1vw, 20px); align-items: center;">
+                    <div id="mm-auth-container">
+                        <!-- Auth content will be injected here -->
+                    </div>
                     <div class="mm-currency-badge gold">🪙 1,000</div>
                     <div class="mm-currency-badge gem">💎 50</div>
                 </div>
@@ -423,7 +453,8 @@ export class MainMenu {
 
         this.attachListeners();
         
-        // Initialize BGM Text and subscribe
+        // Auth and BGM initialization
+        this.updateAuthUI();
         this.updateBGMText();
         if (this.themeUnsubscribe) this.themeUnsubscribe();
         this.themeUnsubscribe = ThemeManager.getInstance().subscribe(() => {
@@ -442,6 +473,7 @@ export class MainMenu {
         });
         document.getElementById('btn-ranking')?.addEventListener('click', () => {
             console.log('Ranking clicked');
+            this.showRanking();
         });
         document.getElementById('btn-collection')?.addEventListener('click', () => {
             console.log('Collection clicked');
@@ -467,6 +499,54 @@ export class MainMenu {
             this.currentLang = 'ja';
             this.show();
         });
+
+        // Auth listeners
+        document.getElementById('mm-auth-container')?.addEventListener('click', async () => {
+            const auth = AuthService.getInstance();
+            if (auth.isSignedIn()) {
+                // User menu could go here, or just sign out for now
+                if (confirm('Do you want to sign out?')) {
+                    await auth.signOut();
+                    this.updateAuthUI();
+                }
+            } else {
+                await auth.openSignIn();
+                // Note: clerk will redirect, this might need more robust handling
+            }
+        });
+    }
+
+    private updateAuthUI(): void {
+        const container = document.getElementById('mm-auth-container');
+        if (!container) return;
+
+        const auth = AuthService.getInstance();
+        if (auth.isSignedIn()) {
+            const name = auth.getUserName();
+            const clerk = auth.getClerk();
+            const avatar = clerk?.user?.imageUrl || '';
+            
+            container.innerHTML = `
+                <div class="mm-auth-badge">
+                    <img src="${avatar}" class="mm-auth-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                    <span class="mm-auth-name">${name}</span>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `
+                <div class="mm-auth-badge">
+                    <span class="mm-auth-name">SIGN IN</span>
+                </div>
+            `;
+        }
+    }
+
+    private async showRanking(): Promise<void> {
+        this.hide();
+        const ranking = new RankingUI(() => {
+            this.show();
+        });
+        await ranking.show();
     }
 
     private updateBGMText(): void {
