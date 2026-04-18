@@ -75,6 +75,14 @@ export default defineConfig(({ command }) => ({
         strictPort: true,
         hmr: {
             // HTTPS 환경에서의 HMR 안정성을 위해 설정을 원래대로 복구하거나 자동으로 맡깁니다.
+        },
+        proxy: {
+            // [BACKEND BRIDGE] Route all /api calls to the local Cloudflare Functions worker
+            '/api': {
+                target: 'http://localhost:8788',
+                changeOrigin: true,
+                secure: false,
+            }
         }
     },
     build: {

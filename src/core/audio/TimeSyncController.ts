@@ -73,4 +73,8 @@ export class TimeSyncController {
     }
 
     public getIsPlaying() { return this.isPlaying; }
+
+    public setVisualOffset(offset: number) {
+        this.smoothClock.setVisualOffset(offset);
+    }
 }

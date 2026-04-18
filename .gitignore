@@ -11,6 +11,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.env
+.env.*
 *.local
 public/assets_bundle.zip
 
@@ -33,4 +35,8 @@ pretrained_models/
 **/demucs_out/
 test_bp.py
 out.json
-out2.json
+
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+*.sqlite

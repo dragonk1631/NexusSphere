@@ -1,4 +1,4 @@
-import { AudioEngineLogger } from './AudioEngineLogger';
+
 
 /**
  * SmoothClock: A professional-grade synthesized clock for rhythm games.
@@ -9,9 +9,9 @@ import { AudioEngineLogger } from './AudioEngineLogger';
 export class SmoothClock {
     private lastPerfTime: number = 0;
     private lastReportedTime: number = 0;
-    private initialStartTime: number = 0;
     private audioAnchor: number = 0;
     private perfAnchor: number = 0;
+    private visualOffset: number = 0; // [NEW] For Level 2 correction
     private isPlaying: boolean = false;
     private playbackRate: number = 1;
 
@@ -24,12 +24,12 @@ export class SmoothClock {
     public start(startTime: number = 0, audioAnchor: number = 0) {
         this.lastPerfTime = performance.now();
         this.lastReportedTime = startTime;
-        this.initialStartTime = startTime;
         this.audioAnchor = audioAnchor;
         this.perfAnchor = this.lastPerfTime;
         this.isPlaying = true;
         this.firstMoveDetected = false;
         this.startWaitTime = 0;
+        this.visualOffset = 0;
     }
 
     public stop() {
@@ -37,10 +37,10 @@ export class SmoothClock {
     }
 
     public reAnchor(startTime: number, audioAnchor: number) {
-        this.initialStartTime = startTime;
         this.audioAnchor = audioAnchor;
         this.perfAnchor = performance.now();
-        this.firstMoveDetected = true; // Manual re-anchor counts as movement
+        this.lastReportedTime = startTime;
+        this.firstMoveDetected = true;
     }
 
     public update(rawAudioTime: number): number {
@@ -50,58 +50,52 @@ export class SmoothClock {
         const delta = (now - this.lastPerfTime) / 1000;
         this.lastPerfTime = now;
 
-        // 1. PINPOINT DETECTION: Capture the exact moment the hardware/sequencer starts moving
+        // 1. PINPOINT DETECTION: Capture the starting movement
         if (!this.firstMoveDetected) {
-            // Check if the signal has moved AT ALL from the anchor, 
-            // or if we have a valid non-zero report while anchored at 0.
             const hasMoved = rawAudioTime !== this.audioAnchor || (this.audioAnchor === 0 && rawAudioTime > 0.0001);
 
             if (hasMoved) {
-                // Audio signal started! Lock our precision stopwatch to this moment.
                 this.audioAnchor = rawAudioTime;
                 this.perfAnchor = now;
                 this.firstMoveDetected = true;
             } else {
-                // Still waiting for signal. To avoid permanent freeze, use a much tighter 0.1s safety timeout
-                // for modern browsers, as 5.0s was causing user-perceived 'Stall' bugs.
                 this.startWaitTime += delta;
                 if (this.startWaitTime > 0.1) {
                     this.firstMoveDetected = true;
                     this.perfAnchor = now;
-                    AudioEngineLogger.warn(`SmoothClock: Audio signal stall detected. Breaking wait.`);
                 }
-                return this.initialStartTime;
+                return this.lastReportedTime;
             }
         }
 
-        // 2. LINEAR PRECISION: Time = Anchor + (HighResElapsedTime * Rate)
-        const elapsed = (now - this.perfAnchor) / 1000;
-        const preciseTime = this.audioAnchor + (elapsed * this.playbackRate);
-
-        // 3. DRIFT MONITORING: Track divergence between performance.now and AudioContext
-        const drift = Math.abs(preciseTime - rawAudioTime);
-        const hasSignalMoved = rawAudioTime !== this.lastRawHardwareTime;
-        this.lastRawHardwareTime = rawAudioTime;
-
-        if (drift > 0.1 && this.firstMoveDetected && (now % 1000 < 20) && hasSignalMoved) { // Log occasionally (approx every 1s)
-            AudioEngineLogger.metric('SYNC', `Drift detected: ${(drift * 1000).toFixed(1)}ms offset.`);
-            
-            // PROFESSIONAL SAFETY: If drift is catastrophic (>200ms), perform an emergency re-anchor
-            if (drift > 0.2) {
-                // Silently re-anchor for catastrophic drift to keep the console clean for the user
-                this.reAnchor(rawAudioTime, rawAudioTime);
-                return rawAudioTime;
-            }
+        // 2. ABSOLUTE AUDIO SYNC: Time = rawAudioTime + (timeSinceLastHardwareReport * Rate)
+        // High-res interpolation for micro-jitter between hardware reports.
+        const timeSinceHardware = (now - this.perfAnchor) / 1000;
+        
+        // [Visual Follows Audio] 
+        // We use the rawAudioTime reported by the hardware/context as the base,
+        // and only interpolate locally using performance.now to keep it smooth between frames.
+        
+        // If the signal hasn't changed, we can interpolate.
+        // If the signal HAS changed, we update our local anchor.
+        if (rawAudioTime !== this.lastRawHardwareTime) {
+            this.audioAnchor = rawAudioTime;
+            this.perfAnchor = now;
+            this.lastRawHardwareTime = rawAudioTime;
         }
 
-        this.lastReportedTime = preciseTime;
-        return preciseTime;
+        const interpolatedTime = this.audioAnchor + (timeSinceHardware * this.playbackRate) + this.visualOffset;
+
+        this.lastReportedTime = interpolatedTime;
+        return interpolatedTime;
+    }
+
+    public setVisualOffset(offset: number) {
+        this.visualOffset = offset;
     }
 
     public setPlaybackRate(rate: number) {
         if (this.playbackRate !== rate) {
-            // Re-anchor on rate change to keep precision
-            this.initialStartTime = this.lastReportedTime;
             this.audioAnchor = this.lastReportedTime;
             this.perfAnchor = performance.now();
             this.playbackRate = rate;

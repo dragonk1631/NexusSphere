@@ -29,6 +29,7 @@ export interface ISequencer {
     play(): void;
     pause(): void;
     stop?(): void;
+    playing?: boolean;
     currentTime: number;
     duration: number;
     playbackRate: number;

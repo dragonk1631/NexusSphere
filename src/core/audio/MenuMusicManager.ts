@@ -15,6 +15,7 @@ export class MenuMusicManager {
     private audio: HTMLAudioElement | null = null;
     private isTransitioning: boolean = false;
     private latestBgmUrl: string | null = null;
+    private currentAbortController: AbortController | null = null;
 
     private constructor() {
         // Subscribe to theme changes for automatic BGM switching
@@ -95,13 +96,20 @@ export class MenuMusicManager {
             return;
         }
 
+        // [NEW] Abort previous transition if any
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+        }
+        this.currentAbortController = new AbortController();
+        const signal = this.currentAbortController.signal;
+
         // If a transition is already in progress, the latestBgmUrl update above 
         // will be picked up by the 'finally' block of the existing transition.
         if (this.isTransitioning) return;
 
         // If switching songs while playing, handle cross-fade
         if (this.isPlaying && this.audio && urlToPlay && !this.audio.src.includes(urlToPlay)) {
-            await this.crossFadeTo(urlToPlay);
+            await this.crossFadeTo(urlToPlay, signal);
             this.currentContext = context;
             return;
         }
@@ -122,24 +130,26 @@ export class MenuMusicManager {
         }
     }
 
-    private async crossFadeTo(newUrl: string): Promise<void> {
+    private async crossFadeTo(newUrl: string, signal: AbortSignal): Promise<void> {
         if (!this.audio || this.isTransitioning) return;
         this.isTransitioning = true;
         
         const player = this.audio;
         const targetVol = 0.75;
-        const fadeTime = 800; 
+        const fadeTime = 400; // REDUCED for faster response
         
         try {
             // 1. Fade OUT
-            const fadeOutSteps = 15;
+            const fadeOutSteps = 10;
             const volStep = player.volume / fadeOutSteps;
             for (let i = 0; i < fadeOutSteps; i++) {
+                if (signal.aborted) throw new DOMException('Aborted by new request', 'AbortError');
                 player.volume = Math.max(0, player.volume - volStep);
                 await new Promise(r => setTimeout(r, fadeTime / (fadeOutSteps * 2)));
             }
             
             player.pause();
+            if (signal.aborted) throw new DOMException('Aborted by new request', 'AbortError');
             
             // [Hardening] 오프라인 대응: Vault 확인
             const vault = (window as any).OfflineDownloadManager?.getInstance() || null;
@@ -179,12 +189,14 @@ export class MenuMusicManager {
             });
 
             await player.play();
+            if (signal.aborted) throw new DOMException('Aborted by new request', 'AbortError');
             
             // 2. Fade IN
-            const fadeInSteps = 15;
+            const fadeInSteps = 10;
             const inStep = targetVol / fadeInSteps;
             player.volume = 0;
             for (let i = 0; i < fadeInSteps; i++) {
+                if (signal.aborted) throw new DOMException('Aborted by new request', 'AbortError');
                 player.volume = Math.min(targetVol, player.volume + inStep);
                 await new Promise(r => setTimeout(r, fadeTime / (fadeInSteps * 2)));
             }

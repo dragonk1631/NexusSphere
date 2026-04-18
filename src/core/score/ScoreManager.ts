@@ -1,4 +1,6 @@
 import { Judgment } from '../../games/rhythm/types/GameTypes';
+import { CryptoUtils } from '../system/CryptoUtils';
+import { AuthService } from '../../services/auth/AuthService';
 export interface ScoreRecord {
     score: number;
     maxCombo: number;
@@ -13,6 +15,7 @@ export class ScoreManager {
     private maxCombo: number = 0;
     private score: number = 0;
     private isTestMode: boolean = false;
+    private isServerDown: boolean = false; // [NEW] Circuit breaker for 404s
 
     // Health System
     private health: number = 100;
@@ -164,7 +167,7 @@ export class ScoreManager {
 
     // --- Persistence Methods ---
 
-    public saveHighScore(songId: string): boolean {
+    public async saveHighScore(songId: string): Promise<boolean> {
         const newRecord: ScoreRecord = {
             score: Math.floor(this.score),
             maxCombo: this.maxCombo,
@@ -174,14 +177,83 @@ export class ScoreManager {
         };
 
         const existing = this.highScores[songId];
+        let isNewRecord = false;
 
         // Save if no existing record OR new score is higher
         if (!existing || newRecord.score > existing.score) {
             this.highScores[songId] = newRecord;
             this.save();
-            return true; // New Record!
+            isNewRecord = true;
         }
-        return false;
+
+        // --- Server Sync ---
+        const auth = AuthService.getInstance();
+        if (auth.isSignedIn()) {
+            await this.uploadScoreToServer(songId, newRecord);
+        }
+
+        return isNewRecord;
+    }
+
+    private async uploadScoreToServer(songId: string, record: ScoreRecord): Promise<void> {
+        if (this.isServerDown) return; // Skip if we already know server is 404
+
+        try {
+            const auth = AuthService.getInstance();
+            const userId = auth.getUserId();
+            const userName = auth.getUserName();
+            
+            const nonce = CryptoUtils.generateNonce();
+            const secret = import.meta.env.VITE_SCORE_SECRET || 'temporary_secret_key';
+            
+            // HMAC 서명에 userName 포함 (순서 중요: userId:userName:songId:score:accuracy:nonce)
+            const message = `${userId}:${userName}:${songId}:${record.score}:${record.accuracy.toFixed(2)}:${nonce}`;
+            const signature = await CryptoUtils.signMessage(message, secret);
+
+            const payload = { 
+                userId, 
+                userName, // 실제 이름 추가
+                songId, 
+                score: record.score, 
+                accuracy: record.accuracy, 
+                maxCombo: record.maxCombo, 
+                nonce, 
+                signature 
+            };
+
+            const response = await fetch('/api/scores/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                if (response.status === 404) this.isServerDown = true; // Trip the circuit
+                console.debug('[ScoreManager] 서버 점수 전송 실패 (오프라인/404):', response.status);
+            } else {
+                console.log('[ScoreManager] 서버 점수 전송 성공');
+            }
+        } catch (e) {
+            this.isServerDown = true;
+            console.debug('[ScoreManager] 서버 전송 중 오류 발생 (네트워크 차단됨)');
+        }
+    }
+
+    /**
+     * [OFFLINE] Local ranking data retrieval for RankingUI fallback
+     */
+    public getLocalRanking(): any[] {
+        // Convert map to sorted array
+        return Object.entries(this.highScores)
+            .map(([songId, record]) => ({
+                display_name: 'Local Player',
+                score: record.score,
+                accuracy: record.accuracy,
+                max_combo: record.maxCombo,
+                timestamp: new Date(record.timestamp).toISOString(),
+                songId: songId
+            }))
+            .sort((a, b) => b.score - a.score);
     }
 
     public getHighScore(songId: string): ScoreRecord | null {

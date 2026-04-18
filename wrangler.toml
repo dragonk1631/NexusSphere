@@ -1,0 +1,13 @@
+name = "nexussphere"
+pages_build_output_dir = "dist" # Vite 빌드 결과물 경로
+
+# Cloudflare D1 데이터베이스 바인딩 설정
+[[d1_databases]]
+binding = "DB" # 코드 내에서 env.DB로 접근하는 이름
+database_name = "nexussphere-db"
+database_id = "ee31c5dc-db48-463a-9e18-955cef244cc9"
+
+# 개발 환경 설정
+[dev]
+port = 8788
+ip = "localhost"

@@ -18,6 +18,7 @@ export class AudioLoader {
     private loadingPromise: Promise<void> | null = null;
     private audioEngine: CoreAudioEngine;
     private storage = new LocalSongStorage();
+    private currentAbortController: AbortController | null = null;
 
     constructor(audioEngine: CoreAudioEngine) {
         this.audioEngine = audioEngine;
@@ -33,10 +34,20 @@ export class AudioLoader {
      * Loads the MIDI and beatmap for the given URL or transition data.
      */
     public async load(midiUrl: string, isTestMode: boolean, transitionData: TransitionData | null): Promise<void> {
-        // Prevent concurrent identical loads
-        if (this.loadingPromise) return this.loadingPromise;
+        // [NEW] Abort previous load if any
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+        }
+        this.currentAbortController = new AbortController();
+        const signal = this.currentAbortController.signal;
 
         this.loadingPromise = (async () => {
+            // [NEW] Optional Debounce for non-test loads (like previews)
+            if (!isTestMode) {
+                await new Promise(r => setTimeout(r, 50));
+                if (signal.aborted) return;
+            }
+
             console.log("[AudioLoader] Loading assets...");
 
             // Reset current data

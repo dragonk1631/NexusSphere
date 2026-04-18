@@ -14,6 +14,7 @@ import { LoadingOverlay } from './games/rhythm/renderer/LoadingOverlay';
 import { PerformanceMonitor } from './core/utils/PerformanceMonitor';
 import { AudioEngineLogger } from './core/audio/AudioEngineLogger';
 import { MobileFullscreenExitScreen } from './ui/MobileFullscreenExitScreen';
+import { AuthService } from './services/auth/AuthService';
 
 
 // Initialize Global Managers
@@ -211,6 +212,9 @@ const startApp = async () => {
   const loading = LoadingOverlay.getInstance();
   loading.show("INITIALIZING NEXUS SPHERE...");
   
+  // Initialize Auth Service
+  await AuthService.getInstance().init();
+
   // Wait for initial theme background assets (Shaders, etc)
   await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
 

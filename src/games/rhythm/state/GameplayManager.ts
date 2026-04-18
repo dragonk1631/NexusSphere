@@ -218,6 +218,11 @@ export class GameplayManager {
      * Handles audio synchronization and time tracking.
      */
     public syncTime(judgmentLatency: number, lastRenderTime: number, _delta: number = 16): number {
+        // [STABILITY] If the song is already over (navigating to result), stop advancing engine time
+        if (this._endGameTimer > 0) {
+            return lastRenderTime;
+        }
+
         if (this._preGameTimer > 0) {
             // Pinpoint Fix formula: (Start Point - Latency) - Remaining Countdown
             // This ensures a mathematically identical hand-off when music starts.
@@ -227,6 +232,11 @@ export class GameplayManager {
         if (!this._isAudioStarted) {
             this.startAudio();
             return (this._effectiveStartTime * 1000) - judgmentLatency;
+        }
+
+        // [STABILITY] If audio is paused or unexpectedly stopped, do not calculate drift
+        if (!this.audioEngine.isPlaying()) {
+            return lastRenderTime;
         }
 
         const rawTime = this.audioEngine.getPreciseTime() * 1000;
