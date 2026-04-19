@@ -1,5 +1,4 @@
 import { Judgment } from '../../games/rhythm/types/GameTypes';
-import { CryptoUtils } from '../system/CryptoUtils';
 import { AuthService } from '../../services/auth/AuthService';
 export interface ScoreRecord {
     score: number;
@@ -177,7 +176,6 @@ export class ScoreManager {
 
     public setTotalXP(xp: number): void {
         this.totalXP = xp;
-        const ExperienceSystem = (window as any).ExperienceSystem; // Safety if not imported
         // We'll use the static class we created earlier
     }
 
