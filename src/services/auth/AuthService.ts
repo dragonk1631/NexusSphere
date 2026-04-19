@@ -81,7 +81,21 @@ export class AuthService {
     }
 
     public getUserName(): string {
-        return this.clerk?.user?.fullName || 'Guest';
+        if (!this.clerk?.user) return 'Guest';
+        
+        let displayName = this.clerk.user.username;
+        
+        if (!displayName && this.clerk.user.emailAddresses && this.clerk.user.emailAddresses.length > 0) {
+            displayName = this.clerk.user.emailAddresses[0].emailAddress;
+        }
+
+        if (!displayName) return 'Guest';
+
+        if (displayName.includes('@')) {
+            displayName = displayName.split('@')[0];
+        }
+
+        return displayName;
     }
 
     public async openSignIn(): Promise<void> {

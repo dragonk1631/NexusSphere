@@ -30,6 +30,41 @@ export async function ensureTables(db: D1Database) {
         `),
         db.prepare(`
             CREATE INDEX IF NOT EXISTS idx_scores_user ON user_scores(user_id)
+        `),
+        // [v2] Persistent User Stats
+        db.prepare(`
+            CREATE TABLE IF NOT EXISTS user_stats_v2 (
+                user_id TEXT PRIMARY KEY,
+                level INTEGER DEFAULT 1,
+                exp INTEGER DEFAULT 0,
+                total_play_time INTEGER DEFAULT 0,
+                total_score INTEGER DEFAULT 0,
+                total_notes_hit INTEGER DEFAULT 0,
+                max_combo INTEGER DEFAULT 0,
+                avg_accuracy REAL DEFAULT 0,
+                play_count INTEGER DEFAULT 0,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `),
+        // [v2] Composite Key Song Records
+        db.prepare(`
+            CREATE TABLE IF NOT EXISTS user_song_records_v2 (
+                user_id TEXT,
+                song_id TEXT,
+                key_mode INTEGER,
+                difficulty TEXT,
+                high_score INTEGER DEFAULT 0,
+                max_combo INTEGER DEFAULT 0,
+                best_accuracy REAL DEFAULT 0,
+                best_grade TEXT DEFAULT 'F',
+                play_count INTEGER DEFAULT 0,
+                clear_count INTEGER DEFAULT 0,
+                last_played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, song_id, key_mode, difficulty)
+            )
+        `),
+        db.prepare(`
+            CREATE INDEX IF NOT EXISTS idx_user_song_records_user ON user_song_records_v2(user_id)
         `)
     ]);
 }

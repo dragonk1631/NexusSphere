@@ -50,7 +50,8 @@ export class SongInfoPanelRenderer {
         const scoreW = unitW * 2 + gap; // Combined width for score
         const otherW = unitW;
 
-        const record = state.scoreManager?.getHighScore(currentSong.url);
+        const currentDifficulty = state.difficultyOptions[state.selectedDifficultyIndex] || 'NORMAL';
+        const record = state.scoreManager?.getHighScore(currentSong.url, state.keyMode, currentDifficulty);
         const hasRecord = !!record;
         
         const scoreStr = hasRecord ? record.score.toString().padStart(7, '0') : "-------";

@@ -3,6 +3,7 @@ import { SettingsUI } from './SettingsUI';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 import { ThemeManager } from '../core/ThemeManager';
 import { RankingUI } from './RankingUI';
+import { CollectionUI } from './CollectionUI';
 import { AuthService } from '../services/auth/AuthService';
 
 export class MainMenu {
@@ -477,6 +478,7 @@ export class MainMenu {
         });
         document.getElementById('btn-collection')?.addEventListener('click', () => {
             console.log('Collection clicked');
+            this.showCollection();
         });
         document.getElementById('btn-settings')?.addEventListener('click', () => {
             this.hideMenuOnly();
@@ -547,6 +549,20 @@ export class MainMenu {
             this.show();
         });
         await ranking.show();
+    }
+
+    private async showCollection(): Promise<void> {
+        const auth = AuthService.getInstance();
+        if (!auth.isSignedIn()) {
+            alert('Please sign in to view your Collection.');
+            return;
+        }
+
+        this.hide();
+        const collection = new CollectionUI(() => {
+            this.show();
+        });
+        await collection.show();
     }
 
     private updateBGMText(): void {

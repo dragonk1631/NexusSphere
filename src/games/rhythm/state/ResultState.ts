@@ -7,9 +7,14 @@ import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
  */
 export class ResultState extends BaseGameState {
     public readonly id = GameState.RESULT;
+    private backgroundUrl: string | null = null;
 
     public enter(): void {
         this.game.isNavigating = false; // Reset guard
+
+        // Get current song background
+        const currentSong = this.game.menuManager.getCurrentSong();
+        this.backgroundUrl = currentSong?.backgroundUrl || null;
         
         try {
             this.game.audioEngine.stopBGM(false); 
@@ -30,7 +35,7 @@ export class ResultState extends BaseGameState {
     public update(_delta: number): void { }
 
     public render(ctx: CanvasRenderingContext2D, alpha: number): void {
-        this.game.resultRenderer.render(ctx, this.game.canvas.width, this.game.canvas.height, this.game.scoreManager, alpha);
+        this.game.resultRenderer.render(ctx, this.game.canvas.width, this.game.canvas.height, this.game.scoreManager, this.backgroundUrl, alpha);
     }
 
     public onKeyDown(code: string): void {

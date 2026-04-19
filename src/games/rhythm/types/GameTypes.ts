@@ -36,6 +36,7 @@ export interface SongEntry {
     url: string;
     audioUrl?: string; // Explicit MP3 path to avoid guessing
     beatmapUrl?: string; // Explicit JSON path to avoid guessing
+    backgroundUrl?: string; // Dynamic theme background URL
     bpm?: number;
     duration?: number;
     noteCount?: number;

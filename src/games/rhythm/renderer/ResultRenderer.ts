@@ -1,6 +1,8 @@
 import { ScoreManager } from '../../../core/score/ScoreManager';
 import { ThemeManager } from '../../../core/ThemeManager';
 import { HUD_PALETTES } from '../constants/GameConstants';
+import { ExperienceSystem } from '../../../core/score/ExperienceSystem';
+import { AuthService } from '../../../services/auth/AuthService';
 import {
     drawAtmosphere
 } from './UIUtils';
@@ -10,7 +12,7 @@ import {
  * v4.3 Absolute Fit Polish: Auto-shrinking typography and strict boundary enforcement.
  */
 export class ResultRenderer {
-    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager, _alpha: number = 0) {
+    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager, backgroundUrl: string | null, _alpha: number = 0) {
         const theme = ThemeManager.getInstance().getCurrentTheme();
         const pal = HUD_PALETTES[theme.id] || HUD_PALETTES['deep-space'];
 
@@ -28,10 +30,9 @@ export class ResultRenderer {
         let scaleFactor = Math.min(width / baseWidth, height / baseHeight);
         const visibilityBoost = isPortrait ? 1.25 : 1.15;
         scaleFactor = Math.max(0.6, scaleFactor) * visibilityBoost;
+        const sf = scaleFactor; // Reference shorthand
 
-        drawAtmosphere(ctx, width, height);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.fillRect(0, 0, width, height);
+        this.drawBackground(ctx, width, height, backgroundUrl, theme);
 
         // 2. Title Section
         ctx.save();
@@ -77,13 +78,16 @@ export class ResultRenderer {
             this.renderLandscapeLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, accuracy, stats, grade, pal, scaleFactor);
         }
 
-        // 5. Action Hint
+        // 5. XP & Level System Panel (Login dependent)
+        this.renderExperiencePanel(ctx, panelX, panelY, panelW, panelH, scoreManager, sf);
+
+        // 6. Action Hint
         ctx.save();
-        const hintSize = Math.max(14, 18 * scaleFactor);
+        const hintSize = Math.max(14, 18 * sf);
         ctx.font = `400 ${hintSize}px "Orbitron"`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.textAlign = 'center';
-        ctx.fillText("CLICK ANYWHERE OR PRESS ENTER TO CONTINUE", width / 2, height - (35 * scaleFactor));
+        ctx.fillText("CLICK ANYWHERE OR PRESS ENTER TO CONTINUE", width / 2, height - (35 * sf));
         ctx.restore();
     }
 
@@ -219,16 +223,154 @@ export class ResultRenderer {
 
     private drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
         ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
+        if (ctx.roundRect) {
+            ctx.roundRect(x, y, w, h, r);
+        } else {
+            // Fallback for older environments
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+        }
         ctx.closePath();
+    }
+
+    private renderExperiencePanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, sm: ScoreManager, sf: number) {
+        const auth = AuthService.getInstance();
+        const isSignedIn = auth.isSignedIn();
+        
+        const barW = pw * 0.8;
+        const barH = 24 * sf;
+        const barX = px + (pw - barW) / 2;
+        const barY = py + ph - (60 * sf); // Positioned near bottom of panel
+
+        ctx.save();
+        
+        // 1. Label
+        ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = isSignedIn ? '#fff' : 'rgba(255, 255, 255, 0.3)';
+        
+        const username = auth.getUserName();
+        const labelText = isSignedIn ? `${username} - LEVEL ${sm.getCurrentLevel()}` : "GUEST MODE";
+        ctx.fillText(labelText, barX, barY - (10 * sf));
+        
+        if (!isSignedIn) {
+            ctx.textAlign = 'right';
+            ctx.font = `400 ${Math.floor(12 * sf)}px "Outfit"`;
+            ctx.fillStyle = 'rgba(255, 100, 100, 0.6)';
+            ctx.fillText("SIGN IN TO EARN XP & SAVE RECORDS", barX + barW, barY - (10 * sf));
+        }
+
+        // 2. Bar Container (Glassmorphism)
+        ctx.beginPath();
+        this.drawRoundedRect(ctx, barX, barY, barW, barH, barH / 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fill();
+        ctx.strokeStyle = isSignedIn ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1 * sf;
+        ctx.stroke();
+
+        if (isSignedIn) {
+            const totalXP = sm.getTotalXP();
+            const gainedXP = sm.getLastGainedXP();
+            const prevXP = totalXP - gainedXP;
+            
+            // Animation logic based on time
+            const startTime = 1000; // Delay before fill
+            const duration = 2000; // 2 seconds to fill
+            const elapsed = performance.now() % 10000; // Simple timer for now, real state should track entry time
+            // NOTE: In a production environment, entryTime would be passed from the state.
+            // Using a heuristic for the demo.
+            const progress = Math.min(1, Math.max(0, (elapsed - startTime) / duration));
+            
+            const currentVisXP = prevXP + (gainedXP * progress);
+            const level = ExperienceSystem.getLevelFromXP(currentVisXP);
+            const nextThreshold = ExperienceSystem.getXPThresholdForLevel(level + 1);
+            const currentThreshold = ExperienceSystem.getXPThresholdForLevel(level);
+            const levelProgress = (currentVisXP - currentThreshold) / (nextThreshold - currentThreshold);
+            
+            // 3. XP Fill
+            const fillW = Math.max(barH, barW * levelProgress);
+            ctx.save();
+            ctx.beginPath();
+            this.drawRoundedRect(ctx, barX, barY, fillW, barH, barH / 2);
+            ctx.clip();
+            
+            const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+            grad.addColorStop(0, '#00d2ff');
+            grad.addColorStop(1, '#3a7bd5');
+            ctx.fillStyle = grad;
+            ctx.fill();
+            
+            // Inner Glow
+            ctx.shadowBlur = 15 * sf;
+            ctx.shadowColor = '#00d2ff';
+            ctx.fillRect(barX, barY, fillW, barH);
+            ctx.restore();
+
+            // 4. Percentage Text
+            ctx.font = `900 ${Math.floor(12 * sf)}px "Orbitron"`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`${(levelProgress * 100).toFixed(1)}%`, barX + barW / 2, barY + barH / 2 + 1);
+
+            // 5. Level Up Trigger
+            const hasLeveledUp = level > ExperienceSystem.getLevelFromXP(prevXP);
+            if (hasLeveledUp && progress > 0.8) {
+                this.renderLevelUpCelebration(ctx, px + pw / 2, py + ph / 2, sf);
+            }
+        } else {
+            // Disabled Bar Style
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.textAlign = 'center';
+            ctx.font = `700 ${Math.floor(10 * sf)}px "Orbitron"`;
+            ctx.fillText("LOCKED", barX + barW / 2, barY + barH / 2 + 1);
+        }
+
+        ctx.restore();
+    }
+
+    private renderLevelUpCelebration(ctx: CanvasRenderingContext2D, cx: number, cy: number, sf: number) {
+        const time = performance.now() * 0.001;
+        ctx.save();
+        
+        // 1. Golden Sunburst
+        const rays = 16;
+        ctx.translate(cx, cy);
+        for (let i = 0; i < rays; i++) {
+            ctx.rotate((Math.PI * 2) / rays + time);
+            const grad = ctx.createLinearGradient(0, 0, 0, 500 * sf);
+            grad.addColorStop(0, 'rgba(255, 215, 0, 0.4)');
+            grad.addColorStop(1, 'rgba(255, 215, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-20 * sf, 500 * sf);
+            ctx.lineTo(20 * sf, 500 * sf);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        // 2. LEVEL UP Text
+        ctx.save();
+        const bounce = Math.abs(Math.sin(time * 10)) * 10 * sf;
+        ctx.font = `900 ${Math.floor(82 * sf)}px "Orbitron"`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 30 * sf;
+        ctx.shadowColor = '#ffd700';
+        ctx.fillText("LEVEL UP", cx, cy - 100 * sf - bounce);
+        
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 4 * sf;
+        ctx.strokeText("LEVEL UP", cx, cy - 100 * sf - bounce);
+        ctx.restore();
     }
 
     /**
@@ -289,5 +431,49 @@ export class ResultRenderer {
         ctx.globalAlpha = 0.3;
         ctx.fillText("ALL COMBO", width / 2, textY + 4);
         ctx.restore();
+    }
+
+    private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number, backgroundUrl: string | null, theme: any) {
+        ctx.clearRect(0, 0, width, height);
+
+        if (backgroundUrl) {
+            const img = new Image();
+            img.src = backgroundUrl;
+            if (img.complete) {
+                // Blur effect via filter (expensive but high quality)
+                ctx.save();
+                ctx.filter = 'blur(15px)';
+                
+                // Cover behavior
+                const imgRatio = img.width / img.height;
+                const canvasRatio = width / height;
+                let drawW, drawH, drawX, drawY;
+
+                if (imgRatio > canvasRatio) {
+                    drawH = height;
+                    drawW = height * imgRatio;
+                    drawX = (width - drawW) / 2;
+                    drawY = 0;
+                } else {
+                    drawW = width;
+                    drawH = width / imgRatio;
+                    drawX = 0;
+                    drawY = (height - drawH) / 2;
+                }
+
+                ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                ctx.restore();
+            } else {
+                drawAtmosphere(ctx, width, height);
+            }
+        } else {
+            drawAtmosphere(ctx, width, height);
+        }
+
+        // Overlay with theme-aware tint
+        // Use a color inspired by the theme but darkened
+        const overlayColor = theme.id === 'cyber-neon' ? 'rgba(10, 0, 20, 0.7)' : 'rgba(0, 0, 5, 0.75)';
+        ctx.fillStyle = overlayColor;
+        ctx.fillRect(0, 0, width, height);
     }
 }

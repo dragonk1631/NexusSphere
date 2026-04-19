@@ -84,7 +84,11 @@ export class PlayingState extends BaseGameState {
                 } else {
                     game.setState(GameState.RESULT);
                     if (game.scoreManager) {
-                        game.scoreManager.saveHighScore(game.menuManager.getCurrentSong().url);
+                        game.scoreManager.saveHighScore(
+                            game.menuManager.getCurrentSong().url,
+                            game.menuManager.getKeyMode(),
+                            game.menuManager.getCurrentDifficulty()
+                        );
                     }
                 }
             }, 'fade');
