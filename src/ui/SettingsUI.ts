@@ -1,5 +1,6 @@
 import { UIManager } from '../core/ui/UIManager';
 import { ThemeManager } from '../core/ThemeManager';
+import { EconomyManager } from '../core/score/EconomyManager';
 import { NoteSkinManager } from '../core/NoteSkinManager';
 import { RenderCache } from '../games/rhythm/graphics/RenderCache';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
@@ -21,9 +22,8 @@ export class SettingsUI {
     }
 
     public async show(): Promise<void> {
-        // 1. Show global loading overlay immediately (covers the whole screen)
+        // 1. Get loading overlay (Main Menu has already shown it)
         const loading = LoadingOverlay.getInstance();
-        loading.show("PREPARING SETTINGS..."); 
         loading.updateProgress(0);
 
         // 2. Pre-create shell but keep hidden/transparent
@@ -34,13 +34,13 @@ export class SettingsUI {
         // 3. Batch load ALL thumbnails & background state before displaying shell
         try {
             await this.preLoadAllAssets((progress) => {
-                loading.updateProgress(progress); // Assuming preLoadAllAssets now returns 0.0-1.0
+                loading.updateProgress(progress); 
             });
         } catch (e) {
             console.error("[SettingsUI] Pre-load failed", e);
         }
 
-        // 4. Everything is ready, show UI and hide loading
+        // 4. Everything is ready, show UI
         this.updateTabContentUI();
         MenuMusicManager.getInstance().playMusic('options');
 
@@ -49,7 +49,7 @@ export class SettingsUI {
                 root.style.transition = 'opacity 0.4s ease-out';
                 root.style.opacity = '1';
             }
-            loading.hide();
+            // MainMenu will handle hiding the loading overlay
         });
     }
 
@@ -80,15 +80,17 @@ export class SettingsUI {
                     height: 90vh;
                     display: flex; flex-direction: column;
                     position: relative;
-                    --header-btn-height: clamp(50px, 6.5vh, 70px); /* Unified Height v38 */
+                    gap: 20px; /* Enhanced Breathing Space between header and panel v42 */
+                    --header-btn-height: clamp(50px, 6.5vh, 70px); 
                 }
 
 
                 /* Header Area (v37 Alignment) */
                 .settings-header {
                     display: flex; justify-content: space-between; align-items: flex-end;
-                    padding-right: 0; /* Align with panel right edge v37 */
-                    gap: 30px; /* Space between tabs and return v37 */
+                    padding: 10px 0 0 0; /* Add top padding to header v42 */
+                    padding-right: 0;
+                    gap: 30px; 
                 }
 
 
@@ -347,6 +349,27 @@ export class SettingsUI {
                     overflow: hidden;
                 }
 
+                /* Locked Theme HUD v99 */
+                .theme-btn.locked {
+                    filter: grayscale(0.8) brightness(0.4);
+                }
+                .theme-btn.locked:hover {
+                    filter: grayscale(0.2) brightness(0.7);
+                    transform: scale(1.02);
+                }
+                .lock-badge {
+                    position: absolute; top: 50%; left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0,0,0,0.8);
+                    padding: 8px 15px; border-radius: 20px;
+                    border: 2px solid #ffd700;
+                    color: #ffd700; font-family: 'Black Han Sans';
+                    font-size: 0.9rem; pointer-events: none;
+                    display: flex; flex-direction: column; align-items: center;
+                    z-index: 10;
+                }
+
+
                 /* Sliders & Rows (Technika Gothic v24) */
                 .setting-row {
                     display: flex; justify-content: space-between; align-items: center;
@@ -515,6 +538,43 @@ export class SettingsUI {
         });
     }
 
+    private attachThemeListeners(container: HTMLElement): void {
+        const themeManager = ThemeManager.getInstance();
+        const economy = EconomyManager.getInstance();
+
+        container.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const themeId = btn.getAttribute('data-theme');
+                if (!themeId) return;
+
+                const isLocked = btn.classList.contains('locked');
+                
+                if (isLocked) {
+                    const price = parseInt(btn.getAttribute('data-price') || '0');
+                    const confirmMsg = `이 테마를 ${price.toLocaleString()} 코인으로 구매하시겠습니까?`;
+                    if (confirm(confirmMsg)) {
+                        const result = economy.purchaseTheme(themeId, price);
+                        alert(result.message);
+                        if (result.success) {
+                            // Update UI immediately
+                            this.renderActiveTabContent(container);
+                            // Apply theme
+                            themeManager.setTheme(themeId);
+                        }
+                    }
+                    return;
+                }
+
+                // Normal selection
+                themeManager.setTheme(themeId);
+                
+                // Update active states
+                container.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+    }
+
     /** Refresh or render the content for the currently active tab */
     private renderActiveTabContent(container: HTMLElement): void {
         const themeManager = ThemeManager.getInstance();
@@ -524,12 +584,23 @@ export class SettingsUI {
         const renderCache = RenderCache.getInstance();
 
         if (this.activeTab === 'theme') {
+            const economy = EconomyManager.getInstance();
             const themes = themeManager.getAllThemes();
-            const themesHtml = themes.map(t => {
-                // Since we pre-loaded, this will be instant from memory
+            const themesHtml = themes.map((t, idx) => {
                 const url = renderCache.getBackgroundPreviewUrlLocal(t.id);
+                const isOwned = economy.isThemeOwned(t.id);
+                const price = (idx === 0) ? 0 : (idx < 7 ? 1000 : 2000); // Only first theme is free
                 
                 let innerHtml = `<span class="theme-name">${t.name}</span>`;
+                if (!isOwned) {
+                    innerHtml += `
+                        <div class="lock-badge">
+                            <span style="font-size: 1.2rem;">🔒</span>
+                            <span>${price.toLocaleString()} Coin</span>
+                        </div>
+                    `;
+                }
+
                 if (t.id === 'marchen') {
                     const sparkles = Array.from({ length: 8 }).map((_) => {
                         const top = Math.random() * 80 + 10;
@@ -544,8 +615,9 @@ export class SettingsUI {
                 const bgStyle = url ? `background-image: url(${url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
 
                 return `
-                <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''}" 
+                <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
                         data-theme="${t.id}"
+                        data-price="${price}"
                         style="${bgStyle} border-color: ${t.color3}; background-size: cover; background-position: center; background-repeat: no-repeat;">
                     ${innerHtml}
                 </button>
@@ -818,23 +890,6 @@ export class SettingsUI {
         document.getElementById('btn-back')?.addEventListener('click', () => {
             this.destroy();
             this.onAction('back');
-        });
-    }
-
-    private attachThemeListeners(container: HTMLElement): void {
-        container.querySelectorAll('.theme-btn:not(.skin-btn)').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const target = e.currentTarget as HTMLElement;
-                const themeId = target.getAttribute('data-theme');
-                const themeManager = ThemeManager.getInstance();
-                const currentThemeId = themeManager.getCurrentTheme().id;
-                
-                if (themeId && themeId !== currentThemeId) {
-                    void this.switchWithLoading("CHANGING THEME...", () => {
-                        themeManager.setTheme(themeId);
-                    });
-                }
-            });
         });
     }
 

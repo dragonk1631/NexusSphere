@@ -97,13 +97,18 @@ export class NoteFactory {
                     const isPrimary = (targetTrackIdx !== null && trackIndex === targetTrackIdx);
                     const isDrum = track.isDrum || (track.name?.toLowerCase().includes('drums'));
                     
+                    // [Hardening] Include secondary melody/harmony tracks for HARD to fill sparseness.
+                    // We check if current track is in the top 3 ranked candidates.
+                    const isSecondary = !isPrimary && !isDrum && 
+                                       diffManager.shouldIncludeSecondaryTracks() && 
+                                       autoMap && Array.from(autoMap.values()).slice(1, 4).includes(trackIndex);
+
                     let shouldAccept = false;
-                    
                     if (isPrimary) {
                         shouldAccept = true;
                     } else if (isDrum && diffManager.shouldIncludeDrums()) {
                         shouldAccept = true;
-                    } else if (!isDrum && diffManager.shouldIncludeExtraTracks()) {
+                    } else if (isSecondary || (!isDrum && diffManager.shouldIncludeExtraTracks())) {
                         shouldAccept = true;
                     }
 

@@ -5,6 +5,8 @@ import { ThemeManager } from '../core/ThemeManager';
 import { RankingUI } from './RankingUI';
 import { CollectionUI } from './CollectionUI';
 import { AuthService } from '../services/auth/AuthService';
+import { EconomyManager } from '../core/score/EconomyManager';
+import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 
 export class MainMenu {
     private ui: UIManager;
@@ -150,8 +152,8 @@ export class MainMenu {
                     color: white;
                     pointer-events: auto; /* Enable touch ONLY on badges v63 */
                 }
-                .mm-currency-badge.gold { border-color: rgba(255,210,80,0.4); background: rgba(255,190,0,0.1); }
-                .mm-currency-badge.gem { border-color: rgba(130,180,255,0.4); background: rgba(80,130,255,0.1); }
+                .mm-currency-badge.gold { border-color: rgba(255,210,80,0.4); background: rgba(255,190,0,0.1); color: #ffd700; }
+                .mm-currency-badge.gem { border-color: rgba(130,180,255,0.4); background: rgba(80,130,255,0.1); color: #82b4ff; }
                 
                 /* ── AUTH BADGE ── */
                 .mm-auth-badge {
@@ -379,12 +381,8 @@ export class MainMenu {
                         </div>
                     </div>
                 </div>
-                <div class="mm-hud-right" style="justify-self: end; display: flex; gap: clamp(8px, 1vw, 20px); align-items: center;">
-                    <div id="mm-auth-container">
-                        <!-- Auth content will be injected here -->
-                    </div>
-                    <div class="mm-currency-badge gold">🪙 1,000</div>
-                    <div class="mm-currency-badge gem">💎 50</div>
+                <div class="mm-hud-right" style="justify-self: end; display: flex; gap: clamp(8px, 1vw, 20px); align-items: center;" id="mm-currency-container">
+                    <!-- Currency content will be injected here -->
                 </div>
             </div>
         `;
@@ -456,6 +454,7 @@ export class MainMenu {
         
         // Auth and BGM initialization
         this.updateAuthUI();
+        this.updateCurrencyUI();
         this.updateBGMText();
         if (this.themeUnsubscribe) this.themeUnsubscribe();
         this.themeUnsubscribe = ThemeManager.getInstance().subscribe(() => {
@@ -477,12 +476,13 @@ export class MainMenu {
             this.showRanking();
         });
         document.getElementById('btn-collection')?.addEventListener('click', () => {
-            console.log('Collection clicked');
             this.showCollection();
         });
         document.getElementById('btn-settings')?.addEventListener('click', () => {
-            this.hideMenuOnly();
-            this.showSettings();
+            this.navigateWithTransition('Opening Settings...', async () => {
+                this.hideMenuOnly();
+                this.showSettings();
+            });
         });
 
         // Language switchers
@@ -502,20 +502,42 @@ export class MainMenu {
             this.show();
         });
 
-        // Auth listeners
-        document.getElementById('mm-auth-container')?.addEventListener('click', async () => {
-            const auth = AuthService.getInstance();
-            if (auth.isSignedIn()) {
-                // User menu could go here, or just sign out for now
-                if (confirm('Do you want to sign out?')) {
-                    await auth.signOut();
-                    this.updateAuthUI();
+        // Auth listeners (using delegation for dynamic #mm-auth-container)
+        document.getElementById('mm-currency-container')?.addEventListener('click', async (e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('#mm-auth-container')) {
+                const auth = AuthService.getInstance();
+                if (auth.isSignedIn()) {
+                    if (confirm('Do you want to sign out?')) {
+                        await auth.signOut();
+                        this.updateCurrencyUI();
+                    }
+                } else {
+                    await auth.openSignIn();
                 }
-            } else {
-                await auth.openSignIn();
-                // Note: clerk will redirect, this might need more robust handling
             }
         });
+    }
+
+    private updateCurrencyUI(): void {
+        const container = document.getElementById('mm-currency-container');
+        if (!container) return;
+
+        const auth = AuthService.getInstance();
+        const economy = EconomyManager.getInstance();
+        const isSignedIn = auth.isSignedIn();
+
+        // Always keep mm-auth-container so updateAuthUI can render the SIGN IN button
+        container.innerHTML = `
+            <div id="mm-auth-container"></div>
+            ${isSignedIn ? `
+                <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
+                <div class="mm-currency-badge gem">💎 ${economy.getJewels().toLocaleString()}</div>
+            ` : ''}
+        `;
+        
+        // Re-inject auth UI (Avatar/Name or SIGN IN button)
+        this.updateAuthUI();
     }
 
     private updateAuthUI(): void {
@@ -544,11 +566,13 @@ export class MainMenu {
     }
 
     private async showRanking(): Promise<void> {
-        this.hide();
-        const ranking = new RankingUI(() => {
-            this.show();
+        await this.navigateWithTransition('Fetching Rankings...', async () => {
+            this.hide();
+            const ranking = new RankingUI(() => {
+                this.show();
+            });
+            await ranking.show();
         });
-        await ranking.show();
     }
 
     private async showCollection(): Promise<void> {
@@ -558,11 +582,29 @@ export class MainMenu {
             return;
         }
 
-        this.hide();
-        const collection = new CollectionUI(() => {
-            this.show();
+        await this.navigateWithTransition('Synchronizing Data...', async () => {
+            this.hide();
+            const collection = new CollectionUI(() => {
+                this.show();
+            });
+            await collection.show();
         });
-        await collection.show();
+    }
+
+    private async navigateWithTransition(status: string, targetFn: () => Promise<void>): Promise<void> {
+        const loading = LoadingOverlay.getInstance();
+        loading.show(status);
+        
+        // Wait for the overlay to fully cover the screen (animation duration)
+        await new Promise(r => setTimeout(r, 450));
+        
+        try {
+            await targetFn();
+        } finally {
+            // Give the NEW UI a moment to be in the DOM
+            await new Promise(r => setTimeout(r, 100));
+            loading.hide();
+        }
     }
 
     private updateBGMText(): void {
@@ -583,7 +625,7 @@ export class MainMenu {
         this.settingsUI = new SettingsUI((action) => {
             if (action === 'back') {
                 this.settingsUI?.destroy();
-                this.show(); // This will re-create/re-show both HUD and Menu
+                this.show(); 
             }
         });
         this.settingsUI.show();

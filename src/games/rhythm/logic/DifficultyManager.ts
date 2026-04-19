@@ -18,15 +18,15 @@ export class DifficultyManager {
     
     private lastAcceptedTick: number = -99999;
     private easyMinGap: number = 0;
-    private normalMinGap: number = 0;
     private holdThresholdMs: number = 0;
 
     constructor(difficulty: string, context: DifficultyContext) {
         this.rawDifficulty = difficulty;
         this.context = context;
         this.effectiveDifficulty = this.calculateEffectiveDifficulty();
+        
+        // Hard has no density throttle, relying only on monophonic chord suppression.
         this.easyMinGap = this.calculateEasyMinGap();
-        this.normalMinGap = this.easyMinGap / 2; // Normal allows 2x density of Easy
         this.holdThresholdMs = (60000 / this.context.bpm) * 0.75;
     }
 
@@ -71,15 +71,18 @@ export class DifficultyManager {
      * Determines if a note should be accepted based on density limits and difficulty rules.
      */
     public shouldAcceptNote(note: QuantizedNote): boolean {
-        // 1. NORMAL Difficulty Density Throttle (Apply to AI Melody)
-        if (this.context.isAiGenerated && this.effectiveDifficulty === 'NORMAL') {
+        // [16th Note Cap] Uniformly enforce a minimum gap of 1/16 for ALL difficulties if isAiGenerated.
+        // This ensures the charts are tight (fun) but never exceed the user's requested 16-bit speed.
+        if (this.context.isAiGenerated) {
+            const minAllowedGap = this.context.ppq / 4; // Exactly 1/16th note
             const tickDiff = note.quantizedStartTick - this.lastAcceptedTick;
-            if (tickDiff > 0 && tickDiff < this.normalMinGap) {
+
+            if (tickDiff > 0 && tickDiff < minAllowedGap) {
                 return false;
             }
         }
 
-        // 2. EASY Throttle
+        // Additional EASY Throttle (Stricter than 1/16)
         if (this.effectiveDifficulty === 'EASY') {
             const tickDiff = note.quantizedStartTick - this.lastAcceptedTick;
             if (tickDiff > 0 && tickDiff < this.easyMinGap) {
@@ -138,7 +141,8 @@ export class DifficultyManager {
             const mSet = new Set<number>();
             if (track) {
                 track.notes.forEach(note => {
-                    if (note.velocity < 13) return;
+                    // [Hardening] Lower threshold (13 -> 5)
+                    if (note.velocity < 5) return;
                     const mIdx = Math.floor(note.ticks / (ppq * 4));
                     mSet.add(mIdx);
                 });
@@ -176,5 +180,12 @@ export class DifficultyManager {
 
     public shouldIncludeExtraTracks(): boolean {
         return this.effectiveDifficulty === 'EXTREME';
+    }
+
+    /**
+     * In Hard difficulty, we include a few more secondary melody tracks to fill the "sparse" gaps.
+     */
+    public shouldIncludeSecondaryTracks(): boolean {
+        return this.effectiveDifficulty === 'HARD';
     }
 }

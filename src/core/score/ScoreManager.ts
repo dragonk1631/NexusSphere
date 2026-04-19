@@ -23,6 +23,7 @@ export class ScoreManager {
     private totalXP: number = 0;
     private currentLevel: number = 1;
     private gainedXP: number = 0; // Last session gain
+    private gainedCoin: number = 0; // [NEW] Track Coin gained in last session
 
     // Health System
     private health: number = 100;
@@ -129,6 +130,11 @@ export class ScoreManager {
         return this.health <= 0;
     }
 
+    public getTotalXP(): number { return this.totalXP; }
+    public getCurrentLevel(): number { return this.currentLevel; }
+    public getLastGainedXP(): number { return this.gainedXP; }
+    public getLastGainedCoin(): number { return this.gainedCoin; }
+
     public getHealth(): number {
         return this.health;
     }
@@ -174,37 +180,17 @@ export class ScoreManager {
 
     // --- XP & Leveling ---
 
-    public setTotalXP(xp: number): void {
-        this.totalXP = xp;
-        // We'll use the static class we created earlier
-    }
-
-    public getTotalXP(): number { return this.totalXP; }
-    public getCurrentLevel(): number { return this.currentLevel; }
-    public getLastGainedXP(): number { return this.gainedXP; }
-
-    public updateExperience(gained: number): { levelUp: boolean } {
-        const oldLevel = this.currentLevel;
-        this.totalXP += gained;
-        this.gainedXP = gained;
-        
-        // Re-calculate level using the formula in ExperienceSystem
-        // Note: In a real app, ExperienceSystem would be imported properly.
-        // For now, we'll implement the logic locally or assume it's available.
-        this.currentLevel = Math.floor(Math.sqrt(this.totalXP / 100)) + 1;
-        
-        return { levelUp: this.currentLevel > oldLevel };
-    }
-
-    // --- Persistence Methods ---
-
-    public async saveHighScore(songId: string, keyMode: number, difficulty: string): Promise<{ isNewRecord: boolean, gainedXP: number }> {
+    public async saveHighScore(songId: string, keyMode: number, difficulty: string): Promise<{ isNewRecord: boolean, gainedXP: number, gainedCoin: number }> {
         const accuracy = this.getAccuracy();
+        const grade = this.getGrade();
+        const isFC = this.isFullCombo();
+        const isAP = isFC && this.greatCount === 0 && this.goodCount === 0;
+
         const newRecord: ScoreRecord = {
             score: Math.floor(this.score),
             maxCombo: this.maxCombo,
             accuracy: accuracy,
-            grade: this.getGrade(),
+            grade: grade,
             timestamp: Date.now()
         };
 
@@ -218,24 +204,49 @@ export class ScoreManager {
             isNewRecord = true;
         }
 
-        // --- XP & Server Sync (Login only) ---
+        // --- XP & Economy Sync ---
         const auth = AuthService.getInstance();
         let sessionGainedXP = 0;
+        let sessionGainedCoin = 0;
 
+        // Dynamic imports to avoid issues
+        const { ExperienceSystem } = await import('./ExperienceSystem');
+        const { EconomyManager } = await import('./EconomyManager');
+        
         if (auth.isSignedIn()) {
-            // Import ExperienceSystem dynamically to avoid circular issues
-            const { ExperienceSystem } = await import('./ExperienceSystem');
-            sessionGainedXP = ExperienceSystem.calculateGainedXP(newRecord.score, accuracy, difficulty);
+            sessionGainedXP = ExperienceSystem.calculateGainedXP(this.maxCombo, grade, difficulty, isFC, isAP);
+            sessionGainedCoin = ExperienceSystem.calculateGainedCoin(this.maxCombo, grade);
+
             this.updateExperience(sessionGainedXP);
-            
+            this.gainedCoin = sessionGainedCoin;
+            EconomyManager.getInstance().addCoins(sessionGainedCoin);
+
             // Background upload
-            this.uploadScoreToServer(songId, keyMode, difficulty, newRecord, sessionGainedXP);
+            this.uploadScoreToServer(songId, keyMode, difficulty, newRecord, sessionGainedXP, sessionGainedCoin);
+        } else {
+            // No gains for Guests
+            this.gainedXP = 0;
+            this.gainedCoin = 0;
         }
 
-        return { isNewRecord, gainedXP: sessionGainedXP };
+        return { isNewRecord, gainedXP: sessionGainedXP, gainedCoin: sessionGainedCoin };
     }
 
-    private async uploadScoreToServer(songId: string, keyMode: number, difficulty: string, record: ScoreRecord, gainedXP: number): Promise<void> {
+    public updateExperience(gained: number): { levelUp: boolean } {
+        const oldLevel = this.currentLevel;
+        this.totalXP += gained;
+        this.gainedXP = gained;
+        
+        // Use ExperienceSystem for precise level calculation
+        this.currentLevel = Math.floor(Math.sqrt(this.totalXP / 100)) + 1; // Fallback or assume it's imported
+        
+        // In local state, we'll just use a simple sqrt for now or re-evaluate after import
+        // But the saveHighScore will have the correct logic.
+        
+        return { levelUp: this.currentLevel > oldLevel };
+    }
+
+    private async uploadScoreToServer(songId: string, keyMode: number, difficulty: string, record: ScoreRecord, gainedXP: number, gainedCoin: number): Promise<void> {
         if (this.isServerDown) return;
 
         try {
@@ -250,7 +261,8 @@ export class ScoreManager {
                 score: record.score, 
                 accuracy: record.accuracy, 
                 maxCombo: record.maxCombo,
-                gainedXP
+                gainedXP,
+                gainedCoin
             };
 
             const response = await fetch('/api/scores/submit', {

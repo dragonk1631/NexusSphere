@@ -77,8 +77,8 @@ export class MelodyAnalyzer {
         const analyzedTracks: TrackStats[] = [];
 
         statsMap.forEach(stats => {
-            // Filter ghost notes early to match NoteFactory logic (threshold 13)
-            stats.notes = stats.notes.filter(n => n.velocity >= 13);
+            // [Hardening] Lower threshold (13 -> 5) to include expressive ghost notes
+            stats.notes = stats.notes.filter(n => n.velocity >= 5);
 
             if (stats.notes.length < 5) return; // Keep low-density channels if they are clean
 

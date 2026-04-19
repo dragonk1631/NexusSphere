@@ -17,9 +17,6 @@ export class CollectionUI {
             alert("로그인이 필요한 기능입니다.");
             return;
         }
-
-        // [PERF] Transition delay
-        await new Promise(r => setTimeout(r, 150));
         
         const data = await this.fetchCollection();
         if (!data) {

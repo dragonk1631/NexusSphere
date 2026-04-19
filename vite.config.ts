@@ -74,7 +74,9 @@ export default defineConfig(({ command }) => ({
         port: 5173, // 기존 배치 파일과의 호환성을 위해 5173으로 복구합니다.
         strictPort: true,
         hmr: {
-            // HTTPS 환경에서의 HMR 안정성을 위해 설정을 원래대로 복구하거나 자동으로 맡깁니다.
+            protocol: 'wss',
+            host: 'localhost',
+            port: 5173
         },
         proxy: {
             // [BACKEND BRIDGE] Route all /api calls to the local Cloudflare Functions worker

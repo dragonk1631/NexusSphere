@@ -2,6 +2,7 @@ import { ScoreManager } from '../../../core/score/ScoreManager';
 import { ThemeManager } from '../../../core/ThemeManager';
 import { HUD_PALETTES } from '../constants/GameConstants';
 import { ExperienceSystem } from '../../../core/score/ExperienceSystem';
+import { EconomyManager } from '../../../core/score/EconomyManager';
 import { AuthService } from '../../../services/auth/AuthService';
 import {
     drawAtmosphere
@@ -244,6 +245,9 @@ export class ResultRenderer {
         const auth = AuthService.getInstance();
         const isSignedIn = auth.isSignedIn();
         
+        // --- 1. LOGIN GATE: Hide panel if not signed in ---
+        if (!isSignedIn) return;
+
         const barW = pw * 0.8;
         const barH = 24 * sf;
         const barX = px + (pw - barW) / 2;
@@ -254,18 +258,27 @@ export class ResultRenderer {
         // 1. Label
         ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
         ctx.textAlign = 'left';
-        ctx.fillStyle = isSignedIn ? '#fff' : 'rgba(255, 255, 255, 0.3)';
+        ctx.fillStyle = '#fff';
         
         const username = auth.getUserName();
-        const labelText = isSignedIn ? `${username} - LEVEL ${sm.getCurrentLevel()}` : "GUEST MODE";
+        const level = sm.getCurrentLevel();
+        const title = ExperienceSystem.getPlayerTitle(level);
+        const labelText = `[${title}] ${username} - LEVEL ${level}`;
         ctx.fillText(labelText, barX, barY - (10 * sf));
         
-        if (!isSignedIn) {
-            ctx.textAlign = 'right';
-            ctx.font = `400 ${Math.floor(12 * sf)}px "Outfit"`;
-            ctx.fillStyle = 'rgba(255, 100, 100, 0.6)';
-            ctx.fillText("SIGN IN TO EARN XP & SAVE RECORDS", barX + barW, barY - (10 * sf));
-        }
+        // --- 2. Economy Info Display (Coin) ---
+        const economy = EconomyManager.getInstance();
+        const totalCoins = economy.getCoins();
+        const gainedCoin = sm.getLastGainedCoin();
+        
+        ctx.textAlign = 'right';
+        ctx.font = `900 ${Math.floor(14 * sf)}px "Orbitron"`;
+        ctx.fillStyle = '#ffd700'; // Golden for Coin
+        ctx.fillText(`+${gainedCoin} Coin`, barX + barW, barY - (28 * sf));
+        
+        ctx.font = `600 ${Math.floor(12 * sf)}px "Outfit"`;
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.6)';
+        ctx.fillText(`TOTAL: ${totalCoins.toLocaleString()} Coin`, barX + barW, barY - (10 * sf));
 
         // 2. Bar Container (Glassmorphism)
         ctx.beginPath();

@@ -19,8 +19,6 @@ export class RankingUI {
     }
 
     public async show(songId?: string): Promise<void> {
-        // [PERF] Add 100ms delay to let the menu transition and audio start settle
-        await new Promise(r => setTimeout(r, 100));
         const data = await this.fetchRanking(songId);
         
         const styles = `

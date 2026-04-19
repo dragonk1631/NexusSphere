@@ -106,8 +106,9 @@ export class LaneAllocator {
 
                             // Update Busy State
                             const isHold = (note as any).isHold;
-                            // Add a small 60-tick buffer (approx 1/16th beat) so notes don't spawn exactly as the hold ends
-                            const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
+                            // [Tightness] Reduced buffer for chords/streams to prevent note skipping on fast sequences.
+                            const buffer = (difficulty === 'EXTREME' || difficulty === 'HARD') ? 10 : 30;
+                            const duration = isHold ? ((note.durationTicks || 10) + buffer) : 10;
                             laneBusyUntil[lane] = tick + duration; // Mark busy until end of note
 
                             result.push({ ...note, lane, isProcessed: false } as VisualNote);
@@ -183,8 +184,10 @@ export class LaneAllocator {
 
                     // Update Busy State
                     const isHold = (note as any).isHold;
-                    // Add a small 60-tick buffer (approx 1/16th beat) so notes don't spawn exactly as the hold ends
-                    const duration = isHold ? ((note.durationTicks || 10) + 60) : 10;
+                    // [Tightness] Reduced buffer for single notes. 
+                    // High difficulties need near-zero latency between notes on the same lane.
+                    const buffer = (difficulty === 'EXTREME' || difficulty === 'HARD') ? 10 : 30;
+                    const duration = isHold ? ((note.durationTicks || 10) + buffer) : 10;
                     laneBusyUntil[lane] = tick + duration;
 
                     result.push({ ...note, lane, isProcessed: false } as VisualNote);

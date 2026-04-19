@@ -35,6 +35,7 @@ export class AssetLoader {
             const finalSrc = URL.createObjectURL(blob);
             return new Promise((resolve, reject) => {
                 const img = new Image();
+                // [Hardening] Explicit CORS for blob sources to ensure consistency across browsers
                 img.crossOrigin = "anonymous";
                 img.onload = () => {
                     this.imageCache.set(path, img);
@@ -110,7 +111,8 @@ export class AssetLoader {
                     vault.vaultFetch(url).catch(() => {});
                     resolve(buffer);
                 } else {
-                    reject(new Error(error));
+                    console.error(`[AssetLoader] Worker load failed for: ${url}`, error);
+                    reject(new Error(`Worker Failed: ${error}`));
                 }
                 worker.terminate();
             };

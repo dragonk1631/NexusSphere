@@ -46,12 +46,15 @@ export function resolveAssetPath(path: string): string {
 
     let resolved: string;
 
-    if (externalUrl && !isCoreUI) {
-        // [PHASE 1] External CDN Support (Large Assets)
+    const isDev = import.meta.env.DEV;
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (externalUrl && !isCoreUI && !(isDev && isLocalhost)) {
+        // [PHASE 1] External CDN Support (Production only or specified environment)
         const host = externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`;
         resolved = `${host}${normalizedPath}`;
     } else {
-        // [DEFAULT] Vite's BASE_URL (Core UI Assets stored locally)
+        // [DEFAULT] Vite's BASE_URL (Core UI or Local Dev)
         const baseUrl = import.meta.env.BASE_URL || '/';
         const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
         resolved = `${base}${normalizedPath}`;
