@@ -404,36 +404,22 @@ export class CoreAudioEngine {
     /**
      * [PHASE 3] Re-Anchor (Sync Correction) Logic
      * 오디오 스트리밍 타임과 절대적인 AudioContext 타임의 오차를 감시합니다.
+     * v3.1: 프레임 드랍 방지를 위해 rAF 대신 setInterval(250ms)을 사용합니다.
      */
     private startSyncMonitor(): void {
         this.stopSyncMonitor();
         const monitorStartTime = Date.now();
-        let lastFrameTime = performance.now();
         
         const monitor = () => {
-            if (!this.isPlaying() || !this.streamingPlayer || !this.isStreamingMode) return;
-
-            const nowPerf = performance.now();
-            const frameDelta = nowPerf - lastFrameTime;
-            lastFrameTime = nowPerf;
-
-            const audioTime = this.streamingPlayer.currentTime;
-
-            // 1. [HEARTBEAT] Main Thread Overload Detection
-            // If the frame took > 100ms, the main thread was blocked. 
-            // In this case, we MUST silent re-anchor the clock to the audio time
-            // instead of forcing the audio to seek (which causes stutter).
-            if (frameDelta > 100) {
-                AudioEngineLogger.info(`[SyncMonitor] Lag Spike detected (${Math.round(frameDelta)}ms). Silent Re-anchoring...`);
-                this.timer.reAnchor(audioTime, audioTime);
-                this.syncMonitorId = requestAnimationFrame(monitor);
+            if (!this.isPlaying() || !this.streamingPlayer || !this.isStreamingMode) {
+                this.stopSyncMonitor();
                 return;
             }
 
+            const audioTime = this.streamingPlayer.currentTime;
+
             // [IMPROVED] Stabilization Grace Period
-            // Expansion: 1.0s -> 2.0s to allow Clerk/Auth background tasks to settle.
             if (Date.now() - monitorStartTime < 2000) {
-                this.syncMonitorId = requestAnimationFrame(monitor);
                 return;
             }
 
@@ -468,12 +454,8 @@ export class CoreAudioEngine {
                 if (now - this.lastHardCorrectionTime > 1500) {
                     this.lastHardCorrectionTime = now;
                     
-                    // [SILENT STRATEGY] 
-                    // If we are in MENU mode (streaming preview), ALWAYS silent re-anchor.
-                    // If we are in ACTIVE GAMEPLAY, we might still want to seek if the gap is massive,
-                    // but for now, prioritizing audio fluidness over frame precision.
                     if (this.isPreviewLoop || absDrift < 0.3) {
-                        AudioEngineLogger.info(`[SyncMonitor] Drift (${Math.round(absDrift * 1000)}ms). Silent Re-anchor.`);
+                        AudioEngineLogger.debug(`[SyncMonitor] Drift (${Math.round(absDrift * 1000)}ms). Silent Re-anchor.`);
                         this.timer.reAnchor(audioTime, audioTime);
                     } else {
                         // Massive drift in gameplay (>300ms) - still Seek as last resort
@@ -485,11 +467,10 @@ export class CoreAudioEngine {
                     this.restorePlaybackRate();
                 }
             }
-
-            this.syncMonitorId = requestAnimationFrame(monitor);
         };
         
-        this.syncMonitorId = requestAnimationFrame(monitor);
+        // 250ms (4Hz) is plenty for drift correction and saves main thread budget
+        this.syncMonitorId = setInterval(monitor, 250) as any;
     }
 
     private restorePlaybackRate(): void {
@@ -502,7 +483,7 @@ export class CoreAudioEngine {
 
     private stopSyncMonitor(): void {
         if (this.syncMonitorId !== null) {
-            cancelAnimationFrame(this.syncMonitorId);
+            clearInterval(this.syncMonitorId);
             this.syncMonitorId = null;
         }
     }

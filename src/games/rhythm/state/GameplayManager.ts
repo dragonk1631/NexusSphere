@@ -10,8 +10,8 @@ import type { TransitionData } from '../../../core/GameTransition';
  * Configuration for the Lag Gating logic to prevent visual teleportation.
  */
 const LAG_GATE_CONFIG = {
-    MAX_DRIFT_MS: 100,
-    MAX_STEP_MS: 33,
+    MAX_DRIFT_MS: 150, // PLL의 수렴 범위를 고려하여 100ms -> 150ms로 완화
+    MAX_STEP_MS: 50,  // 33ms(30fps)에서 50ms(20fps)로 완화하여 급격한 끊김 감소
     MIN_STEP_MS: 16
 } as const;
 
