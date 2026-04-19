@@ -63,52 +63,92 @@ export class ReceptorRenderer {
             
             if (isLocked) {
                 ctx.save();
-                ctx.globalAlpha = 0.4;
-                ctx.filter = 'grayscale(100%) contrast(1.2)';
+                
+                // 1. Dimm and Grayscale the base receptor
+                ctx.globalAlpha = 0.25;
+                ctx.filter = 'grayscale(100%) brightness(0.6) contrast(1.1)';
                 ctx.drawImage(receptorImg, drawX, physicsY, drawW, drawH);
                 ctx.restore();
 
-                // Draw sophisticated crossing chains over the receptor
+                // 2. DRAW UNIFIED SECURITY OVERLAY (X + LOCKED)
                 ctx.save();
-                const xPadding = drawW * 0.22;
-                const yPadding = drawH * 0.22;
-                const xLeft = drawX + xPadding;
-                const xRight = drawX + drawW - xPadding;
-                const yTop = physicsY + yPadding;
-                const yBottom = physicsY + drawH - yPadding;
-
-                // 1. Heavy Black Shadow for depth (creates a 'cut-out' or heavy emboss feel)
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-                ctx.shadowBlur = 6;
-                ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 9;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
-                ctx.moveTo(xLeft, yTop); ctx.lineTo(xRight, yBottom);
-                ctx.moveTo(xRight, yTop); ctx.lineTo(xLeft, yBottom);
-                ctx.stroke();
-
-                // 2. Main Red/Dark Gradient Cross
                 const pulse = (Math.sin(state.cachedNow * 0.003) + 1) * 0.5;
-                const crossGrad = ctx.createLinearGradient(xLeft, yTop, xRight, yBottom);
-                crossGrad.addColorStop(0, '#ff3333');
-                crossGrad.addColorStop(0.5, '#770000');
-                crossGrad.addColorStop(1, '#ff3333');
+                const xMargin = drawW * 0.25;
+                const yMargin = drawH * 0.25;
                 
-                ctx.shadowBlur = 0; // Reset shadow for core
-                ctx.strokeStyle = crossGrad;
-                ctx.lineWidth = 5.5;
+                // --- 2a. THE 'X' MARK (Neon Hazard Style) ---
+                ctx.strokeStyle = `rgba(255, 50, 50, ${0.4 + pulse * 0.4})`;
+                ctx.lineWidth = 6;
+                ctx.lineCap = 'round';
+                
+                ctx.beginPath();
+                ctx.moveTo(drawX + xMargin, physicsY + yMargin);
+                ctx.lineTo(drawX + drawW - xMargin, physicsY + drawH - yMargin);
+                ctx.moveTo(drawX + drawW - xMargin, physicsY + yMargin);
+                ctx.lineTo(drawX + xMargin, physicsY + drawH - yMargin);
                 ctx.stroke();
-                
-                // 3. High-Intensity Highlight
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+
+                // Core Highlight for X
+                ctx.strokeStyle = '#ffffff';
+                ctx.globalAlpha = 0.3 + pulse * 0.2;
                 ctx.lineWidth = 1.2;
                 ctx.stroke();
 
-                ctx.font = '900 11px "Orbitron"';
-                ctx.fillStyle = `rgba(255, 80, 80, ${0.4 + pulse * 0.4})`;
+                // --- 2b. 'LOCKED' TEXT & FORBIDDEN SYMBOL (Integrated Minimalist Design) ---
+                // Move text INSIDE the receptor area for a unified sleek look
+                const textY = physicsY + (drawH / 2);
+                
+                // --- SUBTLE FORBIDDEN ICON (Extra-Large Scale) ---
+                ctx.save();
+                ctx.translate(centerLaneX, textY);
+                ctx.globalAlpha = 0.2; 
+                ctx.strokeStyle = '#ff3333';
+                ctx.lineWidth = 2.5; 
+                const iconSize = 32; // Further scaled up
+                ctx.beginPath();
+                ctx.arc(0, 0, iconSize, 0, Math.PI * 2);
+                ctx.moveTo(-iconSize * 0.7, -iconSize * 0.7);
+                ctx.lineTo(iconSize * 0.7, iconSize * 0.7);
+                ctx.stroke();
+
+                // --- PROCEDURAL LOCK ICON (Doubled Size) ---
+                // Drawing a significant, bold lock icon centered over the receptor
+                ctx.save();
+                ctx.globalAlpha = 0.5 + pulse * 0.3;
+                ctx.translate(0, -10); // Offset adjusted for larger scale
+                ctx.fillStyle = '#ff8888';
+                ctx.strokeStyle = '#ff8888';
+                ctx.lineWidth = 3; // Thicker shackle
+                
+                // 1. Lock Body (Doubled: 10->20 wide, 8->16 high)
+                ctx.beginPath();
+                ctx.roundRect(-10, 0, 20, 16, 4); 
+                ctx.fill();
+                
+                // 2. Lock Shackle (Doubled: Radius 3.5 -> 7)
+                ctx.beginPath();
+                ctx.arc(0, 0, 7, Math.PI, 0); 
+                ctx.stroke();
+                
+                // 3. Keyhole Detail (Doubled: 1.2 -> 2.4)
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(0, 8, 2.5, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+
+                ctx.restore();
+
+                ctx.font = '900 12px "Orbitron"';
                 ctx.textAlign = 'center';
-                ctx.fillText('LOCKED', centerLaneX, physicsY + drawH + 12);
+                ctx.textBaseline = 'middle';
+                
+                // Shadow for Legibility
+                ctx.fillStyle = '#000000';
+                ctx.fillText('LOCKED', centerLaneX + 1, textY + 1);
+
+                // Main Text (Red Pulse)
+                ctx.fillStyle = `rgba(255, 100, 100, ${0.8 + pulse * 0.2})`;
+                ctx.fillText('LOCKED', centerLaneX, textY);
+                
                 ctx.restore();
             } else {
                 // Hit Animation Glow (Optional, Mobile Optimized)

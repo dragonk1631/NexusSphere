@@ -210,88 +210,34 @@ export class LaneRenderer {
 
             // --- 3. HIGH-FIDELITY SEAL ICON: Procedural "No Entry" Hologram ---
             // Position at lower-middle for maximum visibility (75% depth)
-            const iconY = state.horizonY + (borderY - state.horizonY) * 0.7 + (Math.sin(state.cachedNow * 0.002) * 8);
-            
-            // [LAYOUT OPTIMIZATION] Individually tune icon and text for perspective balance
-            // Text stays biased outward (0.28/0.72) for playability; Icon moves even closer to center (0.46/0.54).
-            const textBias = lane === 0 ? 0.28 : 0.72;
+            const iconY = state.horizonY + (borderY - state.horizonY) * 0.7;
             const iconBias = lane === 0 ? 0.46 : 0.54;
-            
             const centerIconX = cache.getX(lane + iconBias, iconY, state) + glitch;
-            const textX = cache.getX(lane + textBias, iconY, state) + glitch;
-            const iconSize = cache.getWidth(iconY, state) * 0.40;
+            const iconSize = cache.getWidth(iconY, state) * 0.35;
 
-            this.drawSecuritySeal(ctx, centerIconX, iconY, iconSize);
-
-            // --- 4. PROFESSIONAL TYPOGRAPHY: LOCKED ---
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            // Primary Warning
-            const textAlpha = 0.6 + pulse * 0.4;
-            
-            ctx.fillStyle = `rgba(255, 80, 80, ${textAlpha})`;
-            ctx.font = '900 14px "Orbitron"'; 
-            ctx.fillText('LOCKED', textX, iconY + iconSize + 25);
-            
-            // Secondary Meta-info (Commercial Detail)
-            ctx.fillStyle = `rgba(255, 255, 255, ${0.15 + pulse * 0.05})`;
-            ctx.font = '600 8px "Rajdhani"'; // Reduced from 10px
-            ctx.fillText(`LANE_SECURE_ID: 0x${(lane + 1).toString(16).toUpperCase()}FF`, centerIconX, iconY + iconSize + 42);
+            // Render a very subtle, minimal seal background for atmosphere
+            this.drawMinimalSeal(ctx, centerIconX, iconY, iconSize, pulse);
 
             ctx.restore();
         }
     }
 
     /**
-     * Draws a high-fidelity, glowing "No-Entry" security seal.
+     * Draws a subtle, high-tech background seal for locked lanes.
      */
-    private drawSecuritySeal(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+    private drawMinimalSeal(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, pulse: number): void {
         ctx.save();
         ctx.translate(x, y);
+        ctx.globalAlpha = 0.2 + pulse * 0.1;
 
-        // 1. Outer Glow
-        const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 1.2);
-        glow.addColorStop(0, 'rgba(255, 0, 0, 0.2)');
-        glow.addColorStop(1, 'rgba(255, 0, 0, 0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(0, 0, size * 1.2, 0, Math.PI * 2); ctx.fill();
-
-        // 2. Main Red Circle (Deep Gradient)
-        const circleGrad = ctx.createRadialGradient(0, -size*0.2, 0, 0, 0, size);
-        circleGrad.addColorStop(0, '#ff4d4d');
-        circleGrad.addColorStop(1, '#990000');
-        ctx.fillStyle = circleGrad;
-        ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI * 2); ctx.fill();
-
-        // 3. Inner Glossy Rim
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 0, size - 3, 0, Math.PI * 2); ctx.stroke();
-
-        // 4. THE BAR (No-Entry Sign)
-        const barW = size * 1.3;
-        const barH = size * 0.38;
-        
-        // Bar Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.roundRect(-barW/2 + 2, -barH/2 + 2, barW, barH, 8); ctx.fill();
-
-        // Main Bar (High-Contrast White)
-        const barGrad = ctx.createLinearGradient(0, -barH/2, 0, barH/2);
-        barGrad.addColorStop(0, '#ffffff');
-        barGrad.addColorStop(1, '#e0e0e0');
-        ctx.fillStyle = barGrad;
-        ctx.beginPath();
-        ctx.roundRect(-barW/2, -barH/2, barW, barH, 8);
-        ctx.fill();
-
-        // 5. Digital Interference / Tech Details
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        // Subtle glowing ring
+        ctx.strokeStyle = '#ff3333';
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(-barW * 0.4, 0); ctx.lineTo(barW * 0.4, 0);
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI * 2); ctx.stroke();
+
+        // Very faint core
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.05)';
+        ctx.fill();
 
         ctx.restore();
     }

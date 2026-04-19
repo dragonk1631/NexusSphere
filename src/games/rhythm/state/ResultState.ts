@@ -8,11 +8,14 @@ import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
 export class ResultState extends BaseGameState {
     public readonly id = GameState.RESULT;
     private backgroundUrl: string | null = null;
+    private currentPhase: 'SCORE' | 'EXP' = 'SCORE';
+    private enterTime: number = 0;
 
     public enter(): void {
-        this.game.isNavigating = false; // Reset guard
+        this.game.isNavigating = false; 
+        this.currentPhase = 'SCORE';
+        this.enterTime = performance.now();
 
-        // Get current song background
         const currentSong = this.game.menuManager.getCurrentSong();
         this.backgroundUrl = currentSong?.backgroundUrl || null;
         
@@ -35,16 +38,36 @@ export class ResultState extends BaseGameState {
     public update(_delta: number): void { }
 
     public render(ctx: CanvasRenderingContext2D, alpha: number): void {
-        this.game.resultRenderer.render(ctx, this.game.canvas.width, this.game.canvas.height, this.game.scoreManager, this.backgroundUrl, alpha);
+        const elapsed = performance.now() - this.enterTime;
+        this.game.resultRenderer.render(
+            ctx, 
+            this.game.canvas.width, 
+            this.game.canvas.height, 
+            this.game.scoreManager, 
+            this.backgroundUrl, 
+            alpha,
+            this.currentPhase,
+            elapsed
+        );
     }
 
     public onKeyDown(code: string): void {
         if (code === 'Enter' || code === 'Space' || code === 'Escape') {
-            this.game.backToSongSelection();
+            this.handleNavigation();
         }
     }
 
     public onPointerDown(_x: number, _y: number): void {
-        this.game.backToSongSelection();
+        this.handleNavigation();
+    }
+
+    private handleNavigation(): void {
+        if (this.currentPhase === 'SCORE') {
+            this.currentPhase = 'EXP';
+            // Use CHEER gently as CLICK isn't in the registry yet
+            this.game.audioEngine.playSFX(ASSET_PATHS.AUDIO.UI.CHEER, 0.2);
+        } else {
+            this.game.backToSongSelection();
+        }
     }
 }

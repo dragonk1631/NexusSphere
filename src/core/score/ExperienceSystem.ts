@@ -56,8 +56,7 @@ export class ExperienceSystem {
 
     /**
      * Converts total XP to a level
-     * Formula: XP Threshold = 100 * (Level^1.5 + Level^2)
-     * Using an iterative approach for precision since it's not a simple sqrt anymore.
+     * New Balance: 40 * (L-1)^2 + 40 * (L-1)
      */
     public static getLevelFromXP(totalXP: number): number {
         if (totalXP <= 0) return 1;
@@ -65,19 +64,48 @@ export class ExperienceSystem {
         let level = 1;
         while (this.getXPThresholdForLevel(level + 1) <= totalXP) {
             level++;
-            if (level >= 999) break; // Safety cap
+            if (level >= 999) break; 
         }
         return level;
     }
 
     /**
      * Gets the total XP required to reach a specific level
-     * Formula: XP = 100 * ((L-1)^1.5 + (L-1)^2)
+     * Formula: XP = 40 * ((L-1)^2 + (L-1))
+     * L=2: 40*(1+1) = 80
+     * L=3: 40*(4+2) = 240
+     * L=4: 40*(9+3) = 480
      */
     public static getXPThresholdForLevel(level: number): number {
         if (level <= 1) return 0;
         const L = level - 1;
-        return Math.floor(100 * (Math.pow(L, 1.5) + Math.pow(L, 2)));
+        return Math.floor(40 * (L * L + L));
+    }
+
+    /**
+     * Returns a detailed breakdown of gained XP for the result screen.
+     */
+    public static calculateXPBreakdown(maxCombo: number, grade: string, difficulty: string, isFC: boolean, isAP: boolean) {
+        const diffWeight = this.getDifficultyWeight(difficulty);
+        const rankWeight = this.getRankWeight(grade);
+        
+        const baseClearingXP = this.BASE_CLEAR_XP;
+        const comboBonus = Math.floor(maxCombo * this.COMBO_XP_FACTOR);
+        const subTotal = (baseClearingXP + comboBonus) * diffWeight;
+        const totalWithRank = Math.floor(subTotal * rankWeight);
+        
+        let achievementBonus = 0;
+        if (isAP) achievementBonus = 150;
+        else if (isFC) achievementBonus = 50;
+
+        return {
+            base: baseClearingXP,
+            comboBonus: comboBonus,
+            difficultyMultiplier: diffWeight,
+            rankMultiplier: rankWeight,
+            achievementBonus: achievementBonus,
+            total: totalWithRank + achievementBonus
+        };
     }
 
     /**
@@ -107,10 +135,12 @@ export class ExperienceSystem {
      * Returns a player title based on level
      */
     public static getPlayerTitle(level: number): string {
-        if (level >= 100) return "안티그라비티 킹";
-        if (level >= 50) return "공허의 마스터";
-        if (level >= 25) return "넥서스의 조율자";
-        if (level >= 10) return "리듬의 탐색자";
-        return "시작하는 여행자";
+        if (level >= 99) return "무한의 지배자";
+        if (level >= 80) return "코스믹 마스터";
+        if (level >= 60) return "안티그라비티 킹";
+        if (level >= 40) return "은하의 연주자";
+        if (level >= 20) return "공허의 탐구자";
+        if (level >= 10) return "성급한 여행자";
+        return "낯선 방문객";
     }
 }

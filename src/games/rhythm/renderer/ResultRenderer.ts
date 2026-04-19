@@ -2,7 +2,6 @@ import { ScoreManager } from '../../../core/score/ScoreManager';
 import { ThemeManager } from '../../../core/ThemeManager';
 import { HUD_PALETTES } from '../constants/GameConstants';
 import { ExperienceSystem } from '../../../core/score/ExperienceSystem';
-import { EconomyManager } from '../../../core/score/EconomyManager';
 import { AuthService } from '../../../services/auth/AuthService';
 import {
     drawAtmosphere
@@ -13,7 +12,7 @@ import {
  * v4.3 Absolute Fit Polish: Auto-shrinking typography and strict boundary enforcement.
  */
 export class ResultRenderer {
-    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager, backgroundUrl: string | null, _alpha: number = 0) {
+    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager, backgroundUrl: string | null, _alpha: number = 0, phase: 'SCORE' | 'EXP' = 'SCORE', elapsed: number = 0) {
         const theme = ThemeManager.getInstance().getCurrentTheme();
         const pal = HUD_PALETTES[theme.id] || HUD_PALETTES['deep-space'];
 
@@ -31,7 +30,7 @@ export class ResultRenderer {
         let scaleFactor = Math.min(width / baseWidth, height / baseHeight);
         const visibilityBoost = isPortrait ? 1.25 : 1.15;
         scaleFactor = Math.max(0.6, scaleFactor) * visibilityBoost;
-        const sf = scaleFactor; // Reference shorthand
+        const sf = scaleFactor; 
 
         this.drawBackground(ctx, width, height, backgroundUrl, theme);
 
@@ -72,15 +71,17 @@ export class ResultRenderer {
         ctx.stroke();
         ctx.restore();
 
-        // 4. Content Layout Navigation
+        // 4. Content Layout Navigation (SCORE Phase)
         if (isPortrait) {
             this.renderPortraitLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, accuracy, stats, grade, pal, scaleFactor);
         } else {
             this.renderLandscapeLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, accuracy, stats, grade, pal, scaleFactor);
         }
 
-        // 5. XP & Level System Panel (Login dependent)
-        this.renderExperiencePanel(ctx, panelX, panelY, panelW, panelH, scoreManager, sf);
+        // 5. XP & Level System Panel (EXP Phase Popup)
+        if (phase === 'EXP') {
+            this.renderXPPopup(ctx, width, height, scoreManager, sf, elapsed);
+        }
 
         // 6. Action Hint
         ctx.save();
@@ -88,7 +89,8 @@ export class ResultRenderer {
         ctx.font = `400 ${hintSize}px "Orbitron"`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.textAlign = 'center';
-        ctx.fillText("CLICK ANYWHERE OR PRESS ENTER TO CONTINUE", width / 2, height - (35 * sf));
+        const hintText = phase === 'SCORE' ? "CLICK TO VIEW EXPERIENCE" : "CLICK ANYWHERE TO CONTINUE";
+        ctx.fillText(hintText, width / 2, height - (35 * sf));
         ctx.restore();
     }
 
@@ -241,109 +243,148 @@ export class ResultRenderer {
         ctx.closePath();
     }
 
-    private renderExperiencePanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, sm: ScoreManager, sf: number) {
+    private renderXPPopup(ctx: CanvasRenderingContext2D, width: number, height: number, sm: ScoreManager, sf: number, elapsed: number) {
         const auth = AuthService.getInstance();
-        const isSignedIn = auth.isSignedIn();
-        
-        // --- 1. LOGIN GATE: Hide panel if not signed in ---
-        if (!isSignedIn) return;
+        if (!auth.isSignedIn()) return;
 
-        const barW = pw * 0.8;
-        const barH = 24 * sf;
-        const barX = px + (pw - barW) / 2;
-        const barY = py + ph - (60 * sf); // Positioned near bottom of panel
+        const popupW = Math.min(width * 0.9, 800 * sf);
+        const popupH = Math.min(height * 0.9, 500 * sf);
+        const px = (width - popupW) / 2;
+        const py = (height - popupH) / 2;
+
+        // 1. Dark Backdrop Blur Layer
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+
+        // 2. Main XP Glass Frame
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 20, 35, 0.95)';
+        ctx.strokeStyle = '#00d2ff';
+        ctx.lineWidth = 3 * sf;
+        ctx.shadowBlur = 40 * sf;
+        ctx.shadowColor = '#00d2ff33';
+        this.drawRoundedRect(ctx, px, py, popupW, popupH, 30 * sf);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        // 3. Header: EXP GAINED
+        ctx.save();
+        const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `900 ${Math.floor(42 * sf)}px "Orbitron"`;
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = (20 + pulse * 10) * sf;
+        ctx.shadowColor = '#00d2ff';
+        ctx.fillText("EXPERIENCE GAINED", width / 2, py + (60 * sf));
+        ctx.restore();
+
+        // 4. XP Breakdown Details (Table Style)
+        const breakdownX = px + (40 * sf);
+        let breakdownY = py + (120 * sf);
+        const bRowH = 32 * sf;
+        const bValX = px + popupW - (40 * sf);
+
+        const isFC = sm.isFullCombo();
+        const isAP = sm.getAccuracy() === 100;
+        const bd = ExperienceSystem.calculateXPBreakdown(sm.getMaxCombo(), sm.getGrade(), 'HARD', isFC, isAP);
+
+        const rows = [
+            { label: "BASE CLEAR XP", val: `+${bd.base}` },
+            { label: "COMBO BONUS", val: `+${bd.comboBonus}` },
+            { label: "DIFFICULTY MULTIPLIER", val: `x${bd.difficultyMultiplier.toFixed(2)}` },
+            { label: "GRADE MULTIPLIER", val: `x${bd.rankMultiplier.toFixed(2)}` }
+        ];
+
+        if (bd.achievementBonus > 0) {
+            rows.push({ label: isAP ? "ALL PERFECT BONUS" : "FULL COMBO BONUS", val: `+${bd.achievementBonus}` });
+        }
 
         ctx.save();
-        
-        // 1. Label
-        ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#fff';
-        
-        const username = auth.getUserName();
-        const level = sm.getCurrentLevel();
-        const title = ExperienceSystem.getPlayerTitle(level);
-        const labelText = `[${title}] ${username} - LEVEL ${level}`;
-        ctx.fillText(labelText, barX, barY - (10 * sf));
-        
-        // --- 2. Economy Info Display (Coin) ---
-        const economy = EconomyManager.getInstance();
-        const totalCoins = economy.getCoins();
-        const gainedCoin = sm.getLastGainedCoin();
-        
-        ctx.textAlign = 'right';
-        ctx.font = `900 ${Math.floor(14 * sf)}px "Orbitron"`;
-        ctx.fillStyle = '#ffd700'; // Golden for Coin
-        ctx.fillText(`+${gainedCoin} Coin`, barX + barW, barY - (28 * sf));
-        
-        ctx.font = `600 ${Math.floor(12 * sf)}px "Outfit"`;
-        ctx.fillStyle = 'rgba(255, 215, 0, 0.6)';
-        ctx.fillText(`TOTAL: ${totalCoins.toLocaleString()} Coin`, barX + barW, barY - (10 * sf));
+        rows.forEach((row, i) => {
+            const alpha = Math.min(1, Math.max(0, (elapsed - (200 * i)) / 500));
+            ctx.globalAlpha = alpha;
+            ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.textAlign = 'left';
+            ctx.fillText(row.label, breakdownX, breakdownY + (bRowH * i));
+            
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'right';
+            ctx.fillText(row.val, bValX, breakdownY + (bRowH * i));
+        });
+        ctx.restore();
 
-        // 2. Bar Container (Glassmorphism)
+        // 5. Total XP Earned Accent
+        ctx.save();
+        ctx.font = `900 ${Math.floor(28 * sf)}px "Orbitron"`;
+        ctx.fillStyle = '#00d2ff';
+        ctx.textAlign = 'center';
+        ctx.fillText(`TOTAL GAINED: ${bd.total} XP`, width / 2, breakdownY + (rows.length * bRowH) + (30 * sf));
+        ctx.restore();
+
+        // 6. Central XP Bar
+        const barW = popupW * 0.85;
+        const barH = 34 * sf;
+        const barX = px + (popupW - barW) / 2;
+        const barY = py + popupH - (110 * sf);
+
+        const totalXP = sm.getTotalXP();
+        const gainedXP = bd.total;
+        const prevXP = totalXP - gainedXP;
+        
+        // Animation over Phase 2 entry
+        const animDelay = 1000;
+        const animDur = 2500;
+        const progress = Math.min(1, Math.max(0, (elapsed - animDelay) / animDur));
+        
+        const currentVisXP = prevXP + (gainedXP * progress);
+        const level = ExperienceSystem.getLevelFromXP(currentVisXP);
+        const nextThreshold = ExperienceSystem.getXPThresholdForLevel(level + 1);
+        const currentThreshold = ExperienceSystem.getXPThresholdForLevel(level);
+        const levelProgress = (currentVisXP - currentThreshold) / (nextThreshold - currentThreshold);
+
+        // Bar Container
+        ctx.save();
         ctx.beginPath();
         this.drawRoundedRect(ctx, barX, barY, barW, barH, barH / 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
         ctx.fill();
-        ctx.strokeStyle = isSignedIn ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)';
-        ctx.lineWidth = 1 * sf;
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
         ctx.stroke();
 
-        if (isSignedIn) {
-            const totalXP = sm.getTotalXP();
-            const gainedXP = sm.getLastGainedXP();
-            const prevXP = totalXP - gainedXP;
-            
-            // Animation logic based on time
-            const startTime = 1000; // Delay before fill
-            const duration = 2000; // 2 seconds to fill
-            const elapsed = performance.now() % 10000; // Simple timer for now, real state should track entry time
-            // NOTE: In a production environment, entryTime would be passed from the state.
-            // Using a heuristic for the demo.
-            const progress = Math.min(1, Math.max(0, (elapsed - startTime) / duration));
-            
-            const currentVisXP = prevXP + (gainedXP * progress);
-            const level = ExperienceSystem.getLevelFromXP(currentVisXP);
-            const nextThreshold = ExperienceSystem.getXPThresholdForLevel(level + 1);
-            const currentThreshold = ExperienceSystem.getXPThresholdForLevel(level);
-            const levelProgress = (currentVisXP - currentThreshold) / (nextThreshold - currentThreshold);
-            
-            // 3. XP Fill
-            const fillW = Math.max(barH, barW * levelProgress);
-            ctx.save();
-            ctx.beginPath();
-            this.drawRoundedRect(ctx, barX, barY, fillW, barH, barH / 2);
-            ctx.clip();
-            
-            const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-            grad.addColorStop(0, '#00d2ff');
-            grad.addColorStop(1, '#3a7bd5');
-            ctx.fillStyle = grad;
-            ctx.fill();
-            
-            // Inner Glow
-            ctx.shadowBlur = 15 * sf;
-            ctx.shadowColor = '#00d2ff';
-            ctx.fillRect(barX, barY, fillW, barH);
-            ctx.restore();
+        // XP Fill
+        const fillW = Math.max(barH, barW * levelProgress);
+        ctx.save();
+        ctx.beginPath();
+        this.drawRoundedRect(ctx, barX, barY, fillW, barH, barH / 2);
+        ctx.clip();
+        
+        const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+        grad.addColorStop(0, '#00d2ff');
+        grad.addColorStop(1, '#3a7bd5');
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.restore();
 
-            // 4. Percentage Text
-            ctx.font = `900 ${Math.floor(12 * sf)}px "Orbitron"`;
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#fff';
-            ctx.fillText(`${(levelProgress * 100).toFixed(1)}%`, barX + barW / 2, barY + barH / 2 + 1);
+        // Info Text
+        ctx.font = `900 ${Math.floor(18 * sf)}px "Orbitron"`;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`LEVEL ${level}`, barX + (10 * sf), barY - (12 * sf));
 
-            // 5. Level Up Trigger
-            const hasLeveledUp = level > ExperienceSystem.getLevelFromXP(prevXP);
-            if (hasLeveledUp && progress > 0.8) {
-                this.renderLevelUpCelebration(ctx, px + pw / 2, py + ph / 2, sf);
-            }
-        } else {
-            // Disabled Bar Style
-            ctx.fillStyle = 'rgba(255,255,255,0.1)';
-            ctx.textAlign = 'center';
-            ctx.font = `700 ${Math.floor(10 * sf)}px "Orbitron"`;
-            ctx.fillText("LOCKED", barX + barW / 2, barY + barH / 2 + 1);
+        ctx.textAlign = 'right';
+        ctx.font = `700 ${Math.floor(14 * sf)}px "Outfit"`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(`${currentThreshold} / ${nextThreshold} XP`, barX + barW - (10 * sf), barY - (12 * sf));
+
+        // Level Up Trigger
+        const prevLevel = ExperienceSystem.getLevelFromXP(prevXP);
+        if (level > prevLevel && progress > 0.4) {
+            this.renderLevelUpCelebration(ctx, width / 2, height / 2, sf);
         }
 
         ctx.restore();
@@ -354,35 +395,35 @@ export class ResultRenderer {
         ctx.save();
         
         // 1. Golden Sunburst
-        const rays = 16;
+        const rays = 24;
         ctx.translate(cx, cy);
         for (let i = 0; i < rays; i++) {
-            ctx.rotate((Math.PI * 2) / rays + time);
-            const grad = ctx.createLinearGradient(0, 0, 0, 500 * sf);
-            grad.addColorStop(0, 'rgba(255, 215, 0, 0.4)');
+            ctx.rotate((Math.PI * 2) / rays + time * 0.5);
+            const grad = ctx.createLinearGradient(0, 0, 0, 800 * sf);
+            grad.addColorStop(0, 'rgba(255, 215, 0, 0.5)');
             grad.addColorStop(1, 'rgba(255, 215, 0, 0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.lineTo(-20 * sf, 500 * sf);
-            ctx.lineTo(20 * sf, 500 * sf);
+            ctx.lineTo(-30 * sf, 800 * sf);
+            ctx.lineTo(30 * sf, 800 * sf);
             ctx.fill();
         }
         ctx.restore();
 
         // 2. LEVEL UP Text
         ctx.save();
-        const bounce = Math.abs(Math.sin(time * 10)) * 10 * sf;
-        ctx.font = `900 ${Math.floor(82 * sf)}px "Orbitron"`;
+        const bounce = Math.abs(Math.sin(time * 12)) * 15 * sf;
+        ctx.font = `900 ${Math.floor(110 * sf)}px "Orbitron"`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
-        ctx.shadowBlur = 30 * sf;
+        ctx.shadowBlur = 50 * sf;
         ctx.shadowColor = '#ffd700';
-        ctx.fillText("LEVEL UP", cx, cy - 100 * sf - bounce);
+        ctx.fillText("LEVEL UP!", cx, cy - (50 * sf) - bounce);
         
         ctx.strokeStyle = '#ffd700';
-        ctx.lineWidth = 4 * sf;
-        ctx.strokeText("LEVEL UP", cx, cy - 100 * sf - bounce);
+        ctx.lineWidth = 6 * sf;
+        ctx.strokeText("LEVEL UP!", cx, cy - (50 * sf) - bounce);
         ctx.restore();
     }
 

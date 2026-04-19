@@ -71,10 +71,10 @@ export class DifficultyManager {
      * Determines if a note should be accepted based on density limits and difficulty rules.
      */
     public shouldAcceptNote(note: QuantizedNote): boolean {
-        // [16th Note Cap] Uniformly enforce a minimum gap of 1/16 for ALL difficulties if isAiGenerated.
-        // This ensures the charts are tight (fun) but never exceed the user's requested 16-bit speed.
+        // [Test Plan] Unified 32-bit Gap (ppq/8)
+        // Allowing up to 32nd note streams to see if it restores the "fun" while filtering only extreme noise.
         if (this.context.isAiGenerated) {
-            const minAllowedGap = this.context.ppq / 4; // Exactly 1/16th note
+            const minAllowedGap = this.context.ppq / 8; // Exactly 1/32nd note (60 ticks at 480 PPQ)
             const tickDiff = note.quantizedStartTick - this.lastAcceptedTick;
 
             if (tickDiff > 0 && tickDiff < minAllowedGap) {
