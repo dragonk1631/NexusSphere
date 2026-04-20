@@ -34,12 +34,17 @@ export class ResultRenderer {
             MISS: '#FF8000'     // Orange
         };
 
-        // 1. Universal Scaling Factor
+        // 1. Universal Scaling Factor (Refined for extreme aspect ratios)
         const isPortrait = height > width;
+        const aspectRatio = width / height;
         const baseWidth = isPortrait ? 400 : 1200;
         const baseHeight = isPortrait ? 800 : 800;
 
         let scaleFactor = Math.min(width / baseWidth, height / baseHeight);
+        
+        // [POLISH] Adaptive Clamp: Reduce scale slightly on extremely thin/wide screens to ensure content fits
+        if (aspectRatio > 2.0 || aspectRatio < 0.5) scaleFactor *= 0.9;
+        
         const visibilityBoost = isPortrait ? 1.25 : 1.15;
         scaleFactor = Math.max(0.6, scaleFactor) * visibilityBoost;
         const sf = scaleFactor; 
@@ -47,30 +52,33 @@ export class ResultRenderer {
         // [POLISH] Do NOT clearRect here. Let the engine's background (Blurred cover art) show through the 0.7 alpha panels.
         // this.drawBackground(ctx, width, height, song?.backgroundUrl || null, sf);
 
-        // 2. TECH HEADER (Top-Right "RESULT")
+        // 2. TECH HEADER (Top-Right "RESULT" - Safe Area Aware)
         ctx.save();
-        const headerX = width * 0.95;
-        const headerY = Math.max(40, height * 0.05);
+        const headerPadding = 20 * sf;
+        const headerX = width - headerPadding;
+        const headerY = Math.max(40, height * 0.04);
+        
+        // Ensure header doesn't overlap the main panel boundary
         ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
         
         // Small tech lines
-        ctx.strokeStyle = pal.scorePanel;
+        ctx.strokeStyle = this.getGradeColor(grade);
         ctx.lineWidth = 2 * sf;
         ctx.beginPath();
         ctx.moveTo(headerX, headerY + (45 * sf));
-        ctx.lineTo(headerX - (150 * sf), headerY + (45 * sf));
+        ctx.lineTo(headerX - (120 * sf), headerY + (45 * sf));
         ctx.stroke();
 
         ctx.font = `900 ${Math.floor(42 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
         ctx.shadowBlur = 15 * sf;
-        ctx.shadowColor = pal.scorePanel;
+        ctx.shadowColor = this.getGradeColor(grade);
         ctx.fillText("RESULT", headerX, headerY);
         
-        ctx.font = `400 ${Math.floor(12 * sf)}px "Orbitron"`;
+        ctx.font = `400 ${Math.floor(10 * sf)}px "Orbitron"`;
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText("OVER RAPID SYSTEM / CORE ENGINE v4.5", headerX, headerY + (50 * sf));
+        ctx.fillText("OVER RAPID SYSTEM / CORE ENGINE v4.5C", headerX, headerY + (50 * sf));
         ctx.restore();
 
         // [NEW] ALL COMBO Celebration Layer
@@ -134,35 +142,38 @@ export class ResultRenderer {
 
     private renderLandscapeLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, score: number, maxCombo: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string) {
         const colW = pw / 3;
-        const margin = 20 * sf;
+        const margin = 30 * sf; // [AIR-FLOW] Increased horizontal margin between columns
+        
+        // Content area excludes the bottom action area to prevent overlaps
+        const footerH = 100 * sf;
+        const contentH = ph - footerH - margin;
 
         // --- Left Column: Song Info & Album Art ---
         const leftX = px + margin;
-        this.renderSongSection(ctx, leftX, py + margin, colW - margin * 2, ph - margin * 2, song, sf, pal.scorePanel, difficultyLabel);
+        this.renderSongSection(ctx, leftX, py + margin, colW - margin * 2, contentH, song, sf, this.getGradeColor(grade), difficultyLabel);
 
         // --- Center Column: Rank & Score ---
         const centerX = px + colW;
-        this.renderRankSection(ctx, centerX + margin, py + margin, colW - margin * 2, ph - margin * 2, grade, score, pal, sf, stats);
+        this.renderRankSection(ctx, centerX + margin, py + margin, colW - margin * 2, contentH, grade, score, pal, sf, stats);
 
         // --- Right Column: Stats ---
         const rightX = px + colW * 2;
-        this.renderStatsSection(ctx, rightX + margin, py + margin, colW - margin * 2, ph - margin * 2, stats, maxCombo, judgeColors, pal, sf);
+        this.renderStatsSection(ctx, rightX + margin, py + margin, colW - margin * 2, contentH, stats, maxCombo, judgeColors, pal, sf);
 
-        // --- Bottom Row: Rewards & Buttons ---
-        const bottomY = py + ph - (80 * sf);
-        this.renderRewardBar(ctx, px + margin, bottomY, pw * 0.6, 60 * sf, sf, pal.scorePanel);
-        this.renderActionButtons(ctx, px + pw - (380 * sf), bottomY, 360 * sf, 60 * sf, sf, pal.scorePanel);
+        // --- Bottom Row: Rewards & Buttons (Anchored to the absolute bottom area) ---
+        const bottomY = py + ph - (75 * sf);
+        this.renderRewardBar(ctx, px + margin, bottomY, pw * 0.6, 60 * sf, sf, this.getGradeColor(grade));
+        this.renderActionButtons(ctx, px + pw - (380 * sf), bottomY, 360 * sf, 60 * sf, sf, this.getGradeColor(grade));
     }
 
     private renderSongSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, song: SongEntry | null, sf: number, accent: string, difficultyLabel: string) {
         ctx.save();
-        // 1. Tech Border for consistency with other columns
-        this.drawTechBorder(ctx, x, y, w, h * 0.75, accent, sf);
+        this.drawTechBorder(ctx, x, y, w, h, accent, sf);
         
-        const innerMargin = 15 * sf;
-        const artSize = Math.min(w - innerMargin * 2, h * 0.4);
+        const innerMargin = 20 * sf; // Increased inner padding
+        const artSize = Math.min(w - innerMargin * 2, h * 0.38); // [AIR-FLOW] Slightly smaller art for more text room
         const artX = x + (w - artSize) / 2;
-        const artY = y + (45 * sf);
+        const artY = y + (50 * sf);
 
         // 2. Album Art Case
         ctx.save();
@@ -200,29 +211,34 @@ export class ResultRenderer {
 
         ctx.textAlign = 'center';
         
-        // Title (Dynamic reduction for long titles)
-        const maxTitleW = w - innerMargin * 2;
-        let titleSize = Math.floor(24 * sf);
+        // Title (Strict Absolute Fit: Shrink to prevent any border clash)
+        const maxTitleW = w - innerMargin * 1.5;
+        let titleSize = Math.floor(22 * sf);
         ctx.font = `900 ${titleSize}px "Orbitron"`;
-        while(ctx.measureText(title).width > maxTitleW && titleSize > 14 * sf) {
-            titleSize--;
+        while(ctx.measureText(title).width > maxTitleW && titleSize > 10 * sf) {
+            titleSize -= 0.5;
             ctx.font = `900 ${titleSize}px "Orbitron"`;
         }
         ctx.fillStyle = '#fff';
         ctx.fillText(title, centerX, textY);
         
-        // Artist
-        ctx.font = `400 ${Math.floor(16 * sf)}px "Orbitron"`;
+        // Artist (Strict Absolute Fit)
+        let artistSize = Math.floor(14 * sf);
+        ctx.font = `400 ${artistSize}px "Orbitron"`;
+        while(ctx.measureText(artist).width > maxTitleW && artistSize > 8 * sf) {
+            artistSize -= 0.5;
+            ctx.font = `400 ${artistSize}px "Orbitron"`;
+        }
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText(artist, centerX, textY + (25 * sf));
+        ctx.fillText(artist, centerX, textY + (titleSize < 16 * sf ? 18 * sf : 22 * sf));
 
-        // Difficulty & Level (Styled Badge)
+        // [POLISH] Difficulty & Level (Now safely placed inside the container)
         const totalNotes = (song as any)?.noteCount || 500;
         const duration = (song as any)?.duration || 120;
         const nps = totalNotes / (duration || 60);
         let level = song?.difficulty || Math.floor(Math.max(1, Math.min(20, nps * 1.5)));
 
-        const diffY = textY + (60 * sf);
+        const diffY = textY + (50 * sf);
         ctx.font = `900 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#ff4757';
         ctx.fillText(`${difficultyLabel}  -  Lv.${level}`, centerX, diffY);
@@ -252,13 +268,21 @@ export class ResultRenderer {
             ctx.fill();
         }
         
-        // Abbreviated Title
+        // Abbreviated Title (Improved for non-spaced titles like Korean)
         ctx.globalAlpha = 1;
         ctx.font = `900 ${Math.floor(size * 0.2)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const abbr = title.split(' ').map(w => w[0]).join('').substring(0, 3).toUpperCase();
+        
+        const nameParts = title.split(' ');
+        let abbr = '';
+        if (nameParts.length > 1) {
+            abbr = nameParts.map(w => w[0]).join('').substring(0, 3).toUpperCase();
+        } else {
+            // Unspaced titles: Take first 2 characters
+            abbr = title.substring(0, 2).toUpperCase();
+        }
         ctx.fillText(abbr, x + size / 2, y + size / 2);
         
         // Tech Grid overlay
@@ -274,10 +298,11 @@ export class ResultRenderer {
 
     private renderRankSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, grade: string, score: number, pal: any, sf: number, stats: any) {
         ctx.save();
-        this.drawTechBorder(ctx, x, y, w, h * 0.75, pal.scorePanel, sf);
+        const accent = this.getGradeColor(grade);
+        this.drawTechBorder(ctx, x, y, w, h, accent, sf);
         
         const centerX = x + w / 2;
-        const centerY = y + h * 0.35;
+        const centerY = y + h * 0.4;
 
         // Label
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
@@ -291,32 +316,32 @@ export class ResultRenderer {
         ctx.font = `900 ${Math.floor(180 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
         ctx.shadowBlur = 60 * sf;
-        ctx.shadowColor = pal.scorePanel;
+        ctx.shadowColor = accent;
         ctx.fillText(grade, centerX, centerY);
         
         // Score
         ctx.font = `900 ${Math.floor(52 * sf)}px "Orbitron"`;
         ctx.shadowBlur = 20 * sf;
         const scoreStr = Math.floor(score).toString().padStart(7, '0');
-        ctx.fillText(scoreStr, centerX, y + h * 0.62);
+        ctx.fillText(scoreStr, centerX, y + h * 0.72);
         
-        // NEW RECORD - Improved Position (Centered Badge above score)
-        if (stats.perfect > (stats.totalNotes || 0) * 0.95 || score > 0) { // Logic placeholder
+        // NEW RECORD - Improved Position (Anchored below Score)
+        if (stats.perfect > (stats.totalNotes || 0) * 0.9 || score > 0) {
             ctx.save();
             ctx.font = `900 ${Math.floor(14 * sf)}px "Orbitron"`;
             const badgeW = ctx.measureText("NEW RECORD!").width + 20 * sf;
             const badgeX = centerX - badgeW / 2;
-            const badgeY = y + h * 0.52;
+            const badgeY = y + h * 0.82;
             
-            ctx.fillStyle = 'rgba(0, 210, 255, 0.2)';
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
             ctx.beginPath();
             this.drawRoundedRect(ctx, badgeX, badgeY - 14 * sf, badgeW, 20 * sf, 4 * sf);
             ctx.fill();
-            ctx.strokeStyle = '#00d2ff';
+            ctx.strokeStyle = '#ffd700';
             ctx.lineWidth = 1;
             ctx.stroke();
             
-            ctx.fillStyle = '#00d2ff';
+            ctx.fillStyle = '#ffd700';
             ctx.textAlign = 'center';
             ctx.fillText("NEW RECORD!", centerX, badgeY);
             ctx.restore();
@@ -326,18 +351,16 @@ export class ResultRenderer {
 
     private renderStatsSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, stats: any, maxCombo: number, colors: any, pal: any, sf: number) {
         ctx.save();
-        // [POLISH] Fixed height boundary to prevent MAX COMBO from touching the bottom border
-        const borderH = Math.min(h, 320 * sf);
+        // [AIR-FLOW] Border covers the main stat area with clear bottom breathing room
+        const borderH = Math.min(h, 340 * sf);
         this.drawTechBorder(ctx, x, y, w, borderH, pal.scorePanel, sf);
 
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = pal.scorePanel;
         ctx.textAlign = 'left';
-        ctx.fillText("JUDGE", x + (15 * sf), y + (25 * sf));
+        ctx.fillText("JUDGE", x + (20 * sf), y + (28 * sf));
 
-        const startY = y + (70 * sf);
-        const rowH = 45 * sf;
-        
+        const startY = y + (75 * sf);
         const rows = [
             { label: "PERFECT", val: stats.perfect, color: colors.PERFECT },
             { label: "GREAT", val: stats.great, color: colors.GREAT },
@@ -345,16 +368,25 @@ export class ResultRenderer {
             { label: "MISS", val: stats.miss, color: colors.MISS },
             { label: "MAX COMBO", val: maxCombo, color: '#fff' }
         ];
+        
+        // [AIR-FLOW] Dynamic row spacing based on available height
+        const availableH = borderH - (85 * sf);
+        const rowH = Math.min(48 * sf, availableH / rows.length);
 
         rows.forEach((row, i) => {
-            ctx.font = `900 ${Math.floor(22 * sf)}px "Orbitron"`;
+            const rowY = startY + i * rowH;
+            
+            // Label (Slightly smaller for better hierarchy)
+            ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
             ctx.fillStyle = row.color;
             ctx.textAlign = 'left';
-            ctx.fillText(row.label, x + (25 * sf), startY + i * rowH);
+            ctx.fillText(row.label, x + (25 * sf), rowY);
             
+            // Value (Larger and bolder numerical emphasis)
+            ctx.font = `900 ${Math.floor(24 * sf)}px "Orbitron"`;
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'right';
-            ctx.fillText(row.val.toString(), x + w - (25 * sf), startY + i * rowH);
+            ctx.fillText(row.val.toString(), x + w - (25 * sf), rowY);
         });
         ctx.restore();
     }
@@ -426,14 +458,24 @@ export class ResultRenderer {
         ctx.restore();
     }
 
+    private getGradeColor(grade: string): string {
+        const g = grade.toUpperCase();
+        if (g.includes('S')) return '#FFD700'; // Golden
+        if (g.includes('A')) return '#00FFCC'; // Cyan
+        if (g.includes('B')) return '#AAFF00'; // Lime
+        if (g.includes('C')) return '#FF8800'; // Orange
+        return '#FF4444'; // Red for D/F
+    }
+
     private renderPortraitLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, maxCombo: number, accuracy: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string, score: number) {
         const centerX = px + pw / 2;
+        const rankColor = this.getGradeColor(grade);
 
         // [POLISH] Reduced Rank size and shifted slightly to prevent clashing with metadata
-        this.drawGrade(ctx, grade, centerX, py + ph * 0.18, sf * 1.0, pal.scorePanel);
+        this.drawGrade(ctx, grade, centerX, py + ph * 0.18, sf * 1.0, rankColor);
         
         // NEW RECORD - Added Portrait Support (Centered above Accuracy)
-        if (accuracy > 95 || score > 0) { // Logic matches renderRankSection
+        if (accuracy > 90 || score > 0) {
             ctx.save();
             ctx.font = `900 ${Math.floor(12 * sf)}px "Orbitron"`;
             const badgeW = ctx.measureText("NEW RECORD!").width + 16 * sf;
@@ -454,7 +496,7 @@ export class ResultRenderer {
             ctx.restore();
         }
 
-        this.drawAccuracy(ctx, accuracy, centerX, py + ph * 0.38, sf * 1.05, pal.scorePanel);
+        this.drawAccuracy(ctx, accuracy, centerX, py + ph * 0.38, sf * 1.05, rankColor);
 
         // Portrait specific difficulty info
         const totalNotes = (song as any)?.noteCount || 500;
