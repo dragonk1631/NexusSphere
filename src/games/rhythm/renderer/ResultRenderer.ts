@@ -80,9 +80,10 @@ export class ResultRenderer {
 
         // 3. Main Frame Geometry (Landscape Optimized 3-Column)
         const panelW = isPortrait ? width * 0.94 : width * 0.92;
-        const panelH = isPortrait ? height * 0.78 : height * 0.72;
+        const panelH = isPortrait ? height * 0.82 : height * 0.72; // Increased portrait height slightly
         const panelX = (width - panelW) / 2;
-        const panelY = (height - panelH) / 2 + (15 * scaleFactor);
+        // Shift panel slightly lower in portrait to avoid clashing with RESULT header
+        const panelY = (height - panelH) / 2 + (isPortrait ? 40 * scaleFactor : 15 * scaleFactor);
 
         // Glassmorphism Panel (Polish: More transparent + Multi-layer glow)
         ctx.save();
@@ -110,7 +111,7 @@ export class ResultRenderer {
 
         // 4. Content Layout Navigation (SCORE Phase)
         if (isPortrait) {
-            this.renderPortraitLayout(ctx, panelX, panelY, panelW, panelH, maxCombo, accuracy, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel);
+            this.renderPortraitLayout(ctx, panelX, panelY, panelW, panelH, maxCombo, accuracy, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel, score);
         } else {
             this.renderLandscapeLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel);
         }
@@ -325,7 +326,9 @@ export class ResultRenderer {
 
     private renderStatsSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, stats: any, maxCombo: number, colors: any, pal: any, sf: number) {
         ctx.save();
-        this.drawTechBorder(ctx, x, y, w, h * 0.75, pal.scorePanel, sf);
+        // [POLISH] Fixed height boundary to prevent MAX COMBO from touching the bottom border
+        const borderH = Math.min(h, 320 * sf);
+        this.drawTechBorder(ctx, x, y, w, borderH, pal.scorePanel, sf);
 
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = pal.scorePanel;
@@ -423,11 +426,35 @@ export class ResultRenderer {
         ctx.restore();
     }
 
-    private renderPortraitLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, maxCombo: number, accuracy: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string) {
+    private renderPortraitLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, maxCombo: number, accuracy: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string, score: number) {
         const centerX = px + pw / 2;
 
-        this.drawGrade(ctx, grade, centerX, py + ph * 0.2, sf * 1.1, pal.scorePanel);
-        this.drawAccuracy(ctx, accuracy, centerX, py + ph * 0.38, sf * 1.1, pal.scorePanel);
+        // [POLISH] Reduced Rank size and shifted slightly to prevent clashing with metadata
+        this.drawGrade(ctx, grade, centerX, py + ph * 0.18, sf * 1.0, pal.scorePanel);
+        
+        // NEW RECORD - Added Portrait Support (Centered above Accuracy)
+        if (accuracy > 95 || score > 0) { // Logic matches renderRankSection
+            ctx.save();
+            ctx.font = `900 ${Math.floor(12 * sf)}px "Orbitron"`;
+            const badgeW = ctx.measureText("NEW RECORD!").width + 16 * sf;
+            const badgeX = centerX - badgeW / 2;
+            const badgeY = py + ph * 0.31; // Positioned between Grade and Accuracy
+            
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
+            ctx.beginPath();
+            this.drawRoundedRect(ctx, badgeX, badgeY - 12 * sf, badgeW, 18 * sf, 3 * sf);
+            ctx.fill();
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            ctx.fillStyle = '#ffd700';
+            ctx.textAlign = 'center';
+            ctx.fillText("NEW RECORD!", centerX, badgeY);
+            ctx.restore();
+        }
+
+        this.drawAccuracy(ctx, accuracy, centerX, py + ph * 0.38, sf * 1.05, pal.scorePanel);
 
         // Portrait specific difficulty info
         const totalNotes = (song as any)?.noteCount || 500;
@@ -438,10 +465,10 @@ export class ResultRenderer {
         ctx.font = `900 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#ff4757';
         ctx.textAlign = 'center';
-        ctx.fillText(`${difficultyLabel} Lv.${level}`, centerX, py + ph * 0.45);
+        ctx.fillText(`${difficultyLabel} Lv.${level}`, centerX, py + ph * 0.46);
 
-        const startY = py + ph * 0.55;
-        this.renderStatsSection(ctx, centerX - pw * 0.45, startY, pw * 0.9, ph * 0.4, stats, maxCombo, judgeColors, pal, sf);
+        const tableY = py + ph * 0.52;
+        this.renderStatsSection(ctx, centerX - pw * 0.45, tableY, pw * 0.9, ph * 0.45, stats, maxCombo, judgeColors, pal, sf);
     }
 
     private drawGrade(ctx: CanvasRenderingContext2D, grade: string, x: number, y: number, sf: number, color: string) {
