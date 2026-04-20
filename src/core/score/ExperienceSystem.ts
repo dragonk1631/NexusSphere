@@ -1,3 +1,5 @@
+import { DJClassSystem } from '../progression/DJClassSystem';
+
 /**
  * ExperienceSystem - Handles XP calculation, NC (Nexus Credits) earnings, and Leveling logic.
  * Formula (XP): [(BasePart + ComboPart) * DifficultyWeight * RankWeight] + AchievementBonus
@@ -132,15 +134,9 @@ export class ExperienceSystem {
     }
 
     /**
-     * Returns a player title based on level
+     * Returns a player title based on level (DJ Class)
      */
     public static getPlayerTitle(level: number): string {
-        if (level >= 99) return "무한의 지배자";
-        if (level >= 80) return "코스믹 마스터";
-        if (level >= 60) return "안티그라비티 킹";
-        if (level >= 40) return "은하의 연주자";
-        if (level >= 20) return "공허의 탐구자";
-        if (level >= 10) return "성급한 여행자";
-        return "낯선 방문객";
+        return DJClassSystem.getClassInfo(level).name;
     }
 }

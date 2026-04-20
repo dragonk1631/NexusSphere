@@ -1,10 +1,15 @@
 import { UIManager } from '../core/ui/UIManager';
 import { AuthService } from '../services/auth/AuthService';
 import { ExperienceSystem } from '../core/score/ExperienceSystem';
+import { DJClassSystem } from '../core/progression/DJClassSystem';
 
 export class CollectionUI {
     private ui: UIManager;
     private onClose: () => void;
+    
+    private currentKeyMode: number = 4;
+    private currentDifficulty: string = 'NORMAL';
+    private cachedData: any = null;
 
     constructor(onClose: () => void) {
         this.ui = UIManager.getInstance();
@@ -23,233 +28,323 @@ export class CollectionUI {
             this.onClose();
             return;
         }
-
-        try {
-            const { stats, rankCounts, recentRecords } = data;
-            const level = stats?.level || 1;
-            const totalXP = stats?.exp || 0;
-            const progress = ExperienceSystem.getLevelProgress(totalXP);
-            const xpToNext = ExperienceSystem.getXPToNextLevel(totalXP);
-
-            this.renderModal(auth, level, totalXP, progress, xpToNext, stats, rankCounts, recentRecords);
-        } catch (e) {
-            console.error("Collection Render Error:", e);
-            alert("데이터를 표시하는 중 오류가 발생했습니다.");
-            this.hide();
-            this.onClose();
-        }
+        this.cachedData = data;
+        this.render();
     }
 
-    private renderModal(auth: AuthService, level: number, totalXP: number, progress: number, xpToNext: number, stats: any, rankCounts: any[], recentRecords: any[]) {
+    private render() {
+        const auth = AuthService.getInstance();
+        const { stats, rankCounts, records } = this.cachedData;
+        
+        const level = stats?.level || 1;
+        const totalXP = stats?.exp || 0;
+        this.renderModal(auth, level, totalXP, stats, rankCounts, records);
+        this.attachEventListeners();
+    }
+
+    private renderModal(auth: AuthService, level: number, totalXP: number, stats: any, rankCounts: any[], records: any[]) {
+        const classInfo = DJClassSystem.getClassInfo(level);
+        
+        // Helper to make SVG IDs unique for this render instance to prevent collision
+        const makeUniqueSVG = (svg: string, postfix: string) => {
+            return svg.replace(/id="([^"]+)"/g, `id="$1-${postfix}"`)
+                      .replace(/url\(#([^)]+)\)/g, `url(#$1-${postfix})`);
+        };
+
+        const themeCyan = '#00ffff';
+        const darkCyan = '#008888';
+        const bgBlack = 'rgba(5, 12, 12, 0.55)';
+
         const styles = `
             <style>
+                @import url('https://fonts.googleapis.com/css2?family=Goldman:wght@400;700&family=Outfit:wght@400;700;900&display=swap');
+                
                 .col-overlay {
-                    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-                    display: flex; align-items: center; justify-content: center;
-                    z-index: 1000; backdrop-filter: blur(15px);
-                    animation: mm-fadeIn 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+                    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+                    display: flex; align-items: flex-end; justify-content: center;
+                    z-index: 1500; animation: mm-fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                    padding-bottom: 25px;
                 }
+                
                 .col-modal {
-                    width: clamp(400px, 90vw, 1000px);
-                    max-height: 85vh;
-                    background: rgba(15, 15, 20, 0.95);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 40px;
+                    width: min(1200px, 98vw); 
+                    height: calc(100vh - 120px);
+                    background: ${bgBlack}; 
+                    border: 3px solid ${themeCyan};
+                    border-radius: 12px;
                     display: flex; flex-direction: column;
-                    box-shadow: 0 40px 120px rgba(0,0,0,1);
-                    overflow: hidden;
-                    font-family: 'Outfit', sans-serif;
-                    color: white;
+                    box-shadow: 0 0 35px rgba(0, 255, 255, 0.2), inset 0 0 25px rgba(0, 255, 255, 0.1); 
+                    overflow: hidden; font-family: 'Outfit', sans-serif; color: white;
+                    backdrop-filter: blur(35px) saturate(180%);
+                    position: relative;
                 }
+
+                /* SECTION HUD */
+                .col-section {
+                    position: relative;
+                    border: 2px solid ${themeCyan};
+                    border-radius: 10px;
+                    background: rgba(0, 30, 30, 0.2);
+                    box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.05);
+                    margin-top: 15px;
+                }
+                
+                .col-sec-tag {
+                    position: absolute; top: -14px; left: 15px;
+                    background: linear-gradient(180deg, ${themeCyan}, ${darkCyan});
+                    padding: 3px 22px; border-radius: 5px;
+                    font-family: 'Goldman', cursive; font-size: 0.85rem; font-weight: 700;
+                    color: #000; text-transform: uppercase; letter-spacing: 2px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.4); border: 1.5px solid #fff;
+                }
+
+                /* HEADER HUD */
                 .col-header {
-                    padding: 40px;
-                    background: linear-gradient(135deg, rgba(0, 210, 255, 0.1), rgba(58, 123, 213, 0.1));
-                    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                    padding: 20px 35px; border-bottom: 2px solid rgba(0, 255, 255, 0.3);
                     display: flex; justify-content: space-between; align-items: center;
+                    background: linear-gradient(180deg, rgba(0, 255, 255, 0.15), transparent);
                 }
                 .col-profile { display: flex; align-items: center; gap: 20px; }
-                .col-level-badge {
-                    width: 80px; height: 80px; background: #3a7bd5;
-                    border-radius: 20px; display: flex; flex-direction: column;
-                    align-items: center; justify-content: center;
-                    box-shadow: 0 0 30px rgba(58, 123, 213, 0.4);
+                .col-avatar {
+                    width: 60px; height: 60px; border: 3px solid ${themeCyan};
+                    border-radius: 10px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+                    overflow: hidden; background: #000;
                 }
-                .col-level-val { font-size: 2.2rem; font-weight: 900; line-height: 1; }
-                .col-level-lbl { font-size: 0.7rem; font-weight: 900; opacity: 0.8; }
+                .col-avatar img { width: 100%; height: 100%; object-fit: cover; }
+                .col-username { font-size: 1.6rem; font-weight: 950; color: #fff; text-shadow: 0 0 15px ${themeCyan}; text-transform: uppercase; letter-spacing: -0.5px; }
+                
+                .col-progression { display: flex; align-items: center; gap: 30px; }
+                .col-level-val { 
+                    font-size: 3.6rem; font-weight: 700; color: #fff;
+                    font-family: 'Goldman', cursive; line-height: 0.9;
+                    text-shadow: 0 0 30px ${themeCyan};
+                }
+                .col-class-info { display: flex; flex-direction: column; align-items: flex-end; }
+                .col-class-name { font-size: 1.1rem; font-weight: 900; color: ${classInfo.color}; letter-spacing: 1.5px; text-transform: uppercase; text-shadow: 0 0 15px ${classInfo.bgGlow}; }
+                .col-xp-bar-heavy { 
+                    width: 160px; height: 12px; background: rgba(0,0,0,0.6); 
+                    border: 2px solid ${themeCyan}; border-radius: 3px; margin-top: 8px; overflow: hidden;
+                }
+                .col-xp-fill-heavy { height: 100%; background: linear-gradient(90deg, ${darkCyan}, ${themeCyan}); }
 
-                .col-user-info h2 { margin: 0; font-size: 1.8rem; font-weight: 900; }
-                .col-exp-container { width: 300px; margin-top: 10px; }
-                .col-exp-bar {
-                    height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;
-                }
-                .col-exp-fill {
-                    height: 100%; background: linear-gradient(to right, #00d2ff, #3a7bd5);
-                    box-shadow: 0 0 10px #00d2ff;
-                }
-                .col-exp-text { font-size: 0.75rem; opacity: 0.5; margin-top: 5px; }
-
-                .col-content {
-                    flex: 1; overflow-y: auto; padding: 40px;
-                    display: grid; grid-template-columns: 1fr 1fr; gap: 40px;
-                }
-
-                .col-section-title {
-                    font-size: 1.1rem; font-weight: 900; margin-bottom: 20px;
-                    display: flex; align-items: center; gap: 10px;
-                }
-                .col-section-title::before { content: ''; width: 4px; height: 18px; background: #00d2ff; border-radius: 2px; }
-
-                .col-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-                .col-stat-card {
-                    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
-                    padding: 20px; border-radius: 20px; transition: 0.3s;
-                }
-                .col-stat-card:hover { background: rgba(255,255,255,0.06); transform: translateY(-3px); }
-                .col-stat-val { font-size: 1.5rem; font-weight: 900; color: #00d2ff; }
-                .col-stat-lbl { font-size: 0.75rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; }
-
-                .col-rank-list { display: flex; gap: 10px; justify-content: space-around; }
-                .col-rank-item { text-align: center; }
-                .col-rank-badge {
-                    width: 50px; height: 50px; border-radius: 12px;
+                /* EMBLEM UI RESTORATION */
+                .col-emblem-wrap { 
+                    position: relative; width: 80px; height: 80px; 
                     display: flex; align-items: center; justify-content: center;
-                    font-weight: 900; font-size: 1.2rem; margin-bottom: 5px;
-                }
-                .rb-sp { background: #ffea00; color: #000; box-shadow: 0 0 15px rgba(255,234,0,0.3); }
-                .rb-s { background: #f9ca24; color: #000; }
-                .rb-a { background: #6ab04c; }
-                .rb-b { background: #4834d4; }
-                .rb-c { background: #eb4d4b; }
-
-                .col-recent-list { display: flex; flex-direction: column; gap: 10px; }
-                .col-recent-item {
-                    display: flex; justify-content: space-between; align-items: center;
-                    padding: 12px 20px; background: rgba(255,255,255,0.02); border-radius: 15px;
-                }
-                .col-recent-info { display: flex; align-items: center; gap: 15px; }
-                .col-recent-grade { font-weight: 900; color: #00d2ff; width: 30px; }
-                .col-recent-name { font-weight: 600; font-size: 0.95rem; }
-                .col-recent-meta { font-size: 0.7rem; opacity: 0.4; }
-
-                .col-footer { padding: 30px; text-align: center; border-top: 1px solid rgba(255, 255, 255, 0.05); }
-                .col-close-btn {
-                    padding: 14px 60px; background: #3a7bd5; border: none;
-                    border-radius: 999px; color: white; font-weight: 900;
                     cursor: pointer; transition: 0.3s;
                 }
-                .col-close-btn:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(58, 123, 213, 0.5); }
+                .col-emblem-wrap:hover { transform: scale(1.1) rotate(5deg); }
+                .col-emblem-frame { position: absolute; inset: 0; color: ${classInfo.color}; filter: drop-shadow(0 0 15px ${classInfo.bgGlow}); }
+                .col-emblem-icon { position: relative; width: 38px; height: 38px; filter: drop-shadow(0 0 8px #fff); }
+
+                /* FILTER BAR & TABS */
+                .col-filter-bar {
+                    padding: 12px 35px; display: flex; justify-content: space-between; align-items: center;
+                    background: rgba(0, 15, 15, 0.5); border-bottom: 2px solid rgba(0, 255, 255, 0.2);
+                }
+                .col-tab-group { display: flex; gap: 6px; background: rgba(0,0,0,0.4); padding: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
+                .col-tab {
+                    padding: 7px 20px; font-size: 0.85rem; font-weight: 900; cursor: pointer;
+                    color: rgba(255,255,255,0.4); border-radius: 6px; transition: 0.2s;
+                    text-transform: uppercase; font-family: 'Goldman', cursive; border: 1.5px solid transparent;
+                }
+                
+                /* VIBRANT TAB THEMES */
+                .col-tab.active[data-val="4"], .col-tab.active[data-val="6"] { background: linear-gradient(180deg, #00ffff, #008888); color: #000; box-shadow: 0 0 15px #00ffff; border-color: #fff; }
+                .col-tab.active[data-val="EASY"] { background: linear-gradient(180deg, #2ecc71, #27ae60); color: #000; box-shadow: 0 0 15px #2ecc71; border-color: #fff; }
+                .col-tab.active[data-val="NORMAL"] { background: linear-gradient(180deg, #3498db, #2980b9); color: #000; box-shadow: 0 0 15px #3498db; border-color: #fff; }
+                .col-tab.active[data-val="HARD"] { background: linear-gradient(180deg, #e74c3c, #c0392b); color: #fff; box-shadow: 0 0 15px #e74c3c; border-color: #fff; }
+                .col-tab.active[data-val="EXPERT"] { background: linear-gradient(180deg, #9b59b6, #8e44ad); color: #fff; box-shadow: 0 0 15px #9b59b6; border-color: #fff; }
+
+                .col-btn-heavy {
+                    padding: 10px 35px; font-family: 'Goldman', cursive; font-size: 1.1rem; font-weight: 700;
+                    border: 3px solid #fff; border-radius: 10px; cursor: pointer; transition: 0.2s;
+                    color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+                    background: linear-gradient(180deg, #ff4757, #990000); box-shadow: 0 4px 12px rgba(255, 71, 87, 0.4);
+                }
+
+                /* CONTENT HUD */
+                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 380px; gap: 30px; overflow: hidden; }
+                
+                .stats-grid-heavy { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 25px 20px; }
+                .stat-box-heavy { background: rgba(0,0,0,0.5); border: 2px solid rgba(0, 255, 255, 0.25); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
+                .stat-box-heavy.wide { grid-column: span 2; border-color: ${themeCyan}; background: rgba(0, 255, 255, 0.05); }
+                .stat-v { font-size: 2.2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
+                .stat-l { font-size: 0.75rem; opacity: 0.55; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 1px; }
+
+                /* RANK COLORS */
+                .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
+                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 85px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; }
+                .grade-item-heavy:hover { border-color: ${themeCyan}; transform: translateY(-4px); background: rgba(0, 255, 255, 0.08); }
+                
+                .gt-h { font-family: 'Goldman'; font-size: 1.8rem; color: #fff; font-weight: 700; }
+                .gt-h.s_plus { color: #f1c40f; text-shadow: 0 0 20px #f1c40f, 0 0 40px rgba(241, 196, 15, 0.4); }
+                .gt-h.s { color: #00ffff; text-shadow: 0 0 15px #00ffff; }
+                .gt-h.a { color: #2ecc71; text-shadow: 0 0 15px #2ecc71; }
+                .gt-h.b { color: #3498db; text-shadow: 0 0 15px #3498db; }
+                .gc-h { font-size: 0.85rem; font-weight: 900; color: #fff; opacity: 0.6; margin-top: 4px; }
+
+                /* LOG HUD */
+                .perf-scroll { flex: 1; height: 100%; padding: 25px 15px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+                .perf-scroll::-webkit-scrollbar { width: 14px; }
+                .perf-scroll::-webkit-scrollbar-thumb { background: linear-gradient(180deg, ${themeCyan}, ${darkCyan}); border: 3px solid #000; border-radius: 7px; }
+
+                .perf-item { display: flex; align-items: center; padding: 12px 18px; background: rgba(255,255,255,0.04); border-radius: 8px; transition: 0.2s; border: 2px solid transparent; }
+                .perf-item:hover { background: rgba(0, 255, 255, 0.1); border-color: ${themeCyan}; transform: translateX(8px); }
+
+                @media (max-height: 800px) {
+                    .col-modal { height: 96vh; }
+                    .col-level-val { font-size: 2.8rem; }
+                    .col-username { font-size: 1.3rem; }
+                    .col-emblem-wrap { width: 65px; height: 65px; }
+                }
             </style>
         `;
 
-        const rankMap: Record<string, number> = {};
-        if (rankCounts) {
-            rankCounts.forEach((rc: any) => rankMap[rc.best_grade] = rc.count);
-        }
+        const currentRankStats = rankCounts.find(rc => rc.key_mode === this.currentKeyMode && rc.difficulty === this.currentDifficulty) || {};
+        const filteredRecords = records.filter(r => r.key_mode === this.currentKeyMode && r.difficulty === this.currentDifficulty)
+                                       .sort((a,b) => new Date(b.last_played_at).getTime() - new Date(a.last_played_at).getTime());
 
         const html = `
             ${styles}
             <div class="col-overlay">
                 <div class="col-modal">
+                    <!-- MAIN HUD HEADER -->
                     <div class="col-header">
                         <div class="col-profile">
-                            <div class="col-level-badge">
-                                <span class="col-level-val">${level}</span>
-                                <span class="col-level-lbl">LEVEL</span>
+                            <div class="col-avatar">
+                                <img src="${auth.getClerk()?.user?.imageUrl || ''}" alt="AVATAR">
                             </div>
-                            <div class="col-user-info">
-                                <h2>${auth.getUserName()}</h2>
-                                <div class="col-exp-container">
-                                    <div class="col-exp-bar">
-                                        <div class="col-exp-fill" style="width: ${progress * 100}%"></div>
-                                    </div>
-                                    <div class="col-exp-text">NEXT LEVEL: ${Math.floor(xpToNext).toLocaleString()} XP</div>
+                            <div>
+                                <div class="col-username">${auth.getUserName()}</div>
+                                <div style="font-size: 0.75rem; opacity: 0.5; font-weight: 800; margin-top: 5px; letter-spacing: 1.5px; color: ${themeCyan}; text-transform: uppercase;">NEXUS SYSTEM SYNCED // USER_ID: ${auth.getClerk()?.user?.id?.slice(0, 8)}</div>
+                            </div>
+                        </div>
+                        <div class="col-progression">
+                            <div class="col-level-val">LV.${level}</div>
+                            <div class="col-class-info">
+                                <div class="col-class-name">${classInfo.name}</div>
+                                <div class="col-xp-bar-heavy">
+                                    <div class="col-xp-fill-heavy" style="width: ${ExperienceSystem.getLevelProgress(totalXP) * 100}%"></div>
+                                </div>
+                                <div style="font-size: 0.75rem; opacity: 0.6; margin-top: 8px; font-weight: 900; letter-spacing: 0.5px;">
+                                    ${Math.floor(totalXP).toLocaleString()} / ${ExperienceSystem.getXPThresholdForLevel(level + 1).toLocaleString()} XP
                                 </div>
                             </div>
-                        </div>
-                        <div style="text-align: right">
-                            <div style="font-size: 0.8rem; opacity: 0.4; letter-spacing: 2px;">NEXUS COLLECTION</div>
-                            <div style="font-size: 1.2rem; font-weight: 900; color: #00d2ff;">SYNCHRONIZED</div>
+                            <div class="col-emblem-wrap" id="emblem-trigger">
+                                <div class="col-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'main')}</div>
+                                <div class="col-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'main')}</div>
+                            </div>
                         </div>
                     </div>
-                    
+
+                    <!-- HUD FILTER BOX -->
+                    <div class="col-filter-bar">
+                        <div style="display: flex; gap: 15px;">
+                            <div class="col-tab-group" id="key-tabs">
+                                <div class="col-tab ${this.currentKeyMode === 4 ? 'active' : ''}" data-val="4">4 KEYS</div>
+                                <div class="col-tab ${this.currentKeyMode === 6 ? 'active' : ''}" data-val="6">6 KEYS</div>
+                            </div>
+                            <div class="col-tab-group" id="diff-tabs">
+                                <div class="col-tab ${this.currentDifficulty === 'EASY' ? 'active' : ''}" data-val="EASY">EASY</div>
+                                <div class="col-tab ${this.currentDifficulty === 'NORMAL' ? 'active' : ''}" data-val="NORMAL">NORMAL</div>
+                                <div class="col-tab ${this.currentDifficulty === 'HARD' ? 'active' : ''}" data-val="HARD">HARD</div>
+                                <div class="col-tab ${this.currentDifficulty === 'EXPERT' ? 'active' : ''}" data-val="EXPERT">EXPERT</div>
+                            </div>
+                        </div>
+                        <button class="col-btn-heavy" id="close-col">BACK</button>
+                    </div>
+
+                    <!-- HUD MAIN CONTENT -->
                     <div class="col-content">
-                        <!-- Left Pillar: Statistics -->
-                        <div>
-                            <div class="col-section-title">GLOBAL STATISTICS</div>
-                            <div class="col-stats-grid">
-                                <div class="col-stat-card">
-                                    <div class="col-stat-val">${(stats?.play_count ?? 0).toLocaleString()}</div>
-                                    <div class="col-stat-lbl">Total Plays</div>
-                                </div>
-                                <div class="col-stat-card">
-                                    <div class="col-stat-val">${(stats?.total_score ?? 0).toLocaleString()}</div>
-                                    <div class="col-stat-lbl">Cumulative Score</div>
-                                </div>
-                                <div class="col-stat-card">
-                                    <div class="col-stat-val">${(stats?.max_combo ?? 0).toLocaleString()}</div>
-                                    <div class="col-stat-lbl">Record Combo</div>
-                                </div>
-                                <div class="col-stat-card">
-                                    <div class="col-stat-val">${ExperienceSystem.getLevelFromXP(totalXP)}</div>
-                                    <div class="col-stat-lbl">Rank Level</div>
-                                </div>
-                            </div>
-
-                            <div class="col-section-title" style="margin-top: 35px;">GRADE DISTRIBUTION</div>
-                            <div class="col-rank-list">
-                                <div class="col-rank-item">
-                                    <div class="col-rank-badge rb-sp">S+</div>
-                                    <div class="col-stat-lbl">${rankMap['S+'] || 0}</div>
-                                </div>
-                                <div class="col-rank-item">
-                                    <div class="col-rank-badge rb-s">S</div>
-                                    <div class="col-stat-lbl">${rankMap['S'] || 0}</div>
-                                </div>
-                                <div class="col-rank-item">
-                                    <div class="col-rank-badge rb-a">A</div>
-                                    <div class="col-stat-lbl">${rankMap['A'] || 0}</div>
-                                </div>
-                                <div class="col-rank-item">
-                                    <div class="col-rank-badge rb-b">B</div>
-                                    <div class="col-stat-lbl">${rankMap['B'] || 0}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right Pillar: Recent History -->
-                        <div>
-                            <div class="col-section-title">RECENT ACHIEVEMENTS</div>
-                            <div class="col-recent-list">
-                                ${recentRecords?.length > 0 ? recentRecords.map((r: any) => `
-                                    <div class="col-recent-item">
-                                        <div class="col-recent-info">
-                                            <div class="col-recent-grade">${r.best_grade}</div>
-                                            <div>
-                                                <div class="col-recent-name">${r.song_id?.split('/').pop().replace('.mid','')}</div>
-                                                <div class="col-recent-meta">${r.key_mode}K ${r.difficulty}</div>
-                                            </div>
-                                        </div>
-                                        <div style="text-align: right">
-                                            <div style="font-weight: 700;">${(r.high_score ?? 0).toLocaleString()}</div>
-                                            <div class="col-recent-meta">${(r.best_accuracy ?? 0).toFixed(1)}%</div>
-                                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 25px;">
+                            <!-- ACHIEVEMENTS SECTION -->
+                            <div class="col-section">
+                                <div class="col-sec-tag">Operational Stats</div>
+                                <div class="stats-grid-heavy">
+                                    <div class="stat-box-heavy">
+                                        <div class="stat-v">${currentRankStats.fc_count || 0}</div>
+                                        <div class="stat-l">Full Combo</div>
                                     </div>
-                                `).join('') : '<div style="opacity: 0.3; text-align: center; padding: 40px;">No records yet. Start playing!</div>'}
+                                    <div class="stat-box-heavy">
+                                        <div class="stat-v">${currentRankStats.ap_count || 0}</div>
+                                        <div class="stat-l">All Perfect</div>
+                                    </div>
+                                    <div class="stat-box-heavy wide">
+                                        <div class="stat-v" style="font-size: 3rem;">${(stats.total_score || 0).toLocaleString()}</div>
+                                        <div class="stat-l">Total Accumulated Experience Score</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PERFORMANCE DISTRIBUTION SECTION -->
+                            <div class="col-section">
+                                <div class="col-sec-tag">Performance Rating</div>
+                                <div class="grade-grid-heavy">
+                                    <div class="grade-item-heavy"><div class="gt-h s_plus">S+</div><div class="gc-h">${currentRankStats.rank_s_plus || 0}</div></div>
+                                    <div class="grade-item-heavy"><div class="gt-h s">S</div><div class="gc-h">${currentRankStats.rank_s || 0}</div></div>
+                                    <div class="grade-item-heavy"><div class="gt-h a">A</div><div class="gc-h">${currentRankStats.rank_a || 0}</div></div>
+                                    <div class="grade-item-heavy"><div class="gt-h b">B</div><div class="gc-h">${currentRankStats.rank_b || 0}</div></div>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="col-footer">
-                        <button class="col-close-btn" id="close-col">DISMISS</button>
+                        <!-- MISSION LOGS SECTION -->
+                        <div class="col-section" style="display: flex; flex-direction: column;">
+                            <div class="col-sec-tag">Mission Archive Log</div>
+                            <div class="perf-scroll">
+                                ${filteredRecords.length > 0 ? filteredRecords.map(r => `
+                                    <div class="perf-item">
+                                        <div class="pi-grade ${r.best_grade === 'S+' ? 'gt-h s_plus' : r.best_grade === 'S' ? 'gt-h s' : r.best_grade === 'A' ? 'gt-h a' : r.best_grade === 'B' ? 'gt-h b' : 'gt-h'}">${r.best_grade}</div>
+                                        <div class="pi-info">
+                                            <div class="pi-name">${r.song_id?.split('/').pop().replace('.mid','').replace('.mp3','')}</div>
+                                            <div class="pi-meta">COMBO ${r.max_combo} | ACCURACY ${(r.best_accuracy || 0).toFixed(2)}%</div>
+                                        </div>
+                                        <div class="pi-score">${(r.high_score || 0).toLocaleString()}</div>
+                                    </div>
+                                `).join('') : '<div style="opacity: 0.3; text-align: center; padding-top: 15rem; font-weight: 900; font-size: 1.2rem; letter-spacing: 2px;">NO RECENT ANALYTICS</div>'}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
 
         this.ui.createOverlay('collection-ui', html);
+    }
+
+    private attachEventListeners() {
+        const guide = document.getElementById('class-guide');
+
+        // Close Main Modal
         document.getElementById('close-col')?.addEventListener('click', () => {
             this.hide();
             this.onClose();
+        });
+
+        // Toggle Class Guide
+        document.getElementById('emblem-trigger')?.addEventListener('click', () => {
+            guide?.classList.add('active');
+        });
+
+        document.getElementById('close-guide')?.addEventListener('click', () => {
+            guide?.classList.remove('active');
+        });
+
+        const keyTabs = document.querySelectorAll('#key-tabs .col-tab');
+        keyTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.currentKeyMode = parseInt((tab as HTMLElement).dataset.val || '4');
+                this.render();
+            });
+        });
+
+        const diffTabs = document.querySelectorAll('#diff-tabs .col-tab');
+        diffTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.currentDifficulty = (tab as HTMLElement).dataset.val || 'NORMAL';
+                this.render();
+            });
         });
     }
 
@@ -258,10 +353,10 @@ export class CollectionUI {
             const auth = AuthService.getInstance();
             const token = await auth.getClerk()?.session?.getToken();
             
-            const response = await fetch('/api/user/collection', {
+            const response = await fetch('/api/user/sync', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (!response.ok) throw new Error("Fetch failed");
+            if (!response.ok) throw new Error("Sync failed");
             return await response.json();
         } catch (e) {
             console.error(e);

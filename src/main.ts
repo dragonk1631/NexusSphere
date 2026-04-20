@@ -215,6 +215,13 @@ const startApp = async () => {
   // Initialize Auth Service
   try {
     await AuthService.getInstance().init();
+    
+    // [CLOUD-SYNC] Restore user stats and high scores immediately if signed in
+    const auth = AuthService.getInstance();
+    if (auth.isSignedIn()) {
+        const { ScoreManager } = await import('./core/score/ScoreManager');
+        await ScoreManager.getInstance().syncWithServer();
+    }
   } catch (e) {
     console.error("[main] Failed to initialize AuthService. Proceeding as Guest.", e);
   }

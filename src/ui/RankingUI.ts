@@ -24,21 +24,24 @@ export class RankingUI {
         const styles = `
             <style>
                 .ranking-overlay {
-                    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+                    position: fixed; inset: 0; background: rgba(0,0,0,0.2);
                     display: flex; align-items: center; justify-content: center;
-                    z-index: 1000; backdrop-filter: blur(10px);
+                    z-index: 150; 
                     animation: mm-fadeIn 0.3s ease-out;
                 }
                 .ranking-modal {
                     width: clamp(350px, 80vw, 800px);
-                    max-height: 80vh;
-                    background: rgba(20, 20, 25, 0.9);
+                    max-height: 75vh;
+                    margin-top: 60px; /* Offset for HUD */
+                    background: rgba(20, 20, 25, 0.7);
                     border: 1px solid rgba(255, 255, 255, 0.1);
                     border-radius: 30px;
                     display: flex; flex-direction: column;
                     box-shadow: 0 30px 100px rgba(0,0,0,0.8);
                     overflow: hidden;
                     font-family: 'Outfit', sans-serif;
+                    backdrop-filter: blur(25px);
+                    -webkit-backdrop-filter: blur(25px);
                 }
                 .ranking-header {
                     padding: 30px;

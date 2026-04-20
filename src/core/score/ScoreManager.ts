@@ -1,5 +1,7 @@
 import { Judgment } from '../../games/rhythm/types/GameTypes';
 import { AuthService } from '../../services/auth/AuthService';
+import { ExperienceSystem } from './ExperienceSystem';
+
 export interface ScoreRecord {
     score: number;
     maxCombo: number;
@@ -202,12 +204,59 @@ export class ScoreManager {
     }
 
     // --- XP & Leveling ---
+    
+    /**
+     * [CLOUD-SYNC] Restore all records and progression from the server
+     */
+    public async syncWithServer(): Promise<void> {
+        const auth = AuthService.getInstance();
+        if (!auth.isSignedIn()) return;
+
+        try {
+            const token = await auth.getClerk()?.session?.getToken();
+            if (!token) return;
+
+            const response = await fetch('/api/user/sync', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    // 1. Sync Profile Stats
+                    const stats = data.stats;
+                    this.totalXP = stats.exp || 0;
+                    this.currentLevel = stats.level || 1;
+                    
+                    // 2. Sync High Scores
+                    if (data.records) {
+                        data.records.forEach((r: any) => {
+                            const key = `${r.song_id}:${r.key_mode}:${r.difficulty}`;
+                            this.highScores[key] = {
+                                score: r.high_score,
+                                maxCombo: r.max_combo,
+                                accuracy: r.best_accuracy,
+                                grade: r.best_grade,
+                                timestamp: new Date(r.last_played_at).getTime()
+                            };
+                        });
+                    }
+                    
+                    // 3. Save to Local Storage for offline persistence
+                    this.save();
+                    console.info('[ScoreManager] Cloud data synchronized successfully.');
+                }
+            }
+        } catch (e) {
+            console.error('[ScoreManager] Failed to sync with server:', e);
+        }
+    }
 
     public async saveHighScore(songId: string, keyMode: number, difficulty: string): Promise<{ isNewRecord: boolean, gainedXP: number, gainedCoin: number }> {
         const accuracy = this.getAccuracy();
         const grade = this.getGrade();
         const isFC = this.isFullCombo();
-        const isAP = isFC && this.greatCount === 0 && this.goodCount === 0;
+        const isAP = isFC && (this.greatCount + this.goodCount) === 0;
 
         const newRecord: ScoreRecord = {
             score: Math.floor(this.score),
@@ -244,10 +293,9 @@ export class ScoreManager {
             this.gainedCoin = sessionGainedCoin;
             EconomyManager.getInstance().addCoins(sessionGainedCoin);
 
-            // Background upload
-            this.uploadScoreToServer(songId, keyMode, difficulty, newRecord, sessionGainedXP, sessionGainedCoin);
+            // Background upload (Enhanced with all professional stats)
+            this.uploadScoreToServer(songId, keyMode, difficulty, newRecord, sessionGainedXP, sessionGainedCoin, isFC, isAP);
         } else {
-            // No gains for Guests
             this.gainedXP = 0;
             this.gainedCoin = 0;
         }
@@ -261,22 +309,23 @@ export class ScoreManager {
         this.gainedXP = gained;
         
         // Use ExperienceSystem for precise level calculation
-        this.currentLevel = Math.floor(Math.sqrt(this.totalXP / 100)) + 1; // Fallback or assume it's imported
-        
-        // In local state, we'll just use a simple sqrt for now or re-evaluate after import
-        // But the saveHighScore will have the correct logic.
+        this.currentLevel = ExperienceSystem.getLevelFromXP(this.totalXP);
         
         return { levelUp: this.currentLevel > oldLevel };
     }
 
-    private async uploadScoreToServer(songId: string, keyMode: number, difficulty: string, record: ScoreRecord, gainedXP: number, gainedCoin: number): Promise<void> {
+    private async uploadScoreToServer(
+        songId: string, keyMode: number, difficulty: string, 
+        record: ScoreRecord, gainedXP: number, gainedCoin: number,
+        isFC: boolean, isAP: boolean
+    ): Promise<void> {
         if (this.isServerDown) return;
 
         try {
             const auth = AuthService.getInstance();
-            // Get Clerk JWT for secure authentication
             const token = await auth.getClerk()?.session?.getToken();
             
+            // Enrich payload with all data for Migration 0003
             const payload = { 
                 songId, 
                 keyMode,
@@ -285,7 +334,16 @@ export class ScoreManager {
                 accuracy: record.accuracy, 
                 maxCombo: record.maxCombo,
                 gainedXP,
-                gainedCoin
+                gainedCoin,
+                grade: record.grade,
+                isFC,
+                isAP,
+                perfect: this.perfectCount,
+                great: this.greatCount,
+                good: this.goodCount,
+                miss: this.missCount,
+                nickname: auth.getUserName(),
+                avatarUrl: auth.getClerk()?.user?.imageUrl
             };
 
             const response = await fetch('/api/scores/submit', {

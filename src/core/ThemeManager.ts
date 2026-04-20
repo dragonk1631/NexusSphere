@@ -346,5 +346,12 @@ export class ThemeManager {
         root.style.setProperty('--theme-grid', theme.gridColor);
         root.style.setProperty('--theme-bubble-start', theme.bubblePulseGrad[0]);
         root.style.setProperty('--theme-bubble-end', theme.bubblePulseGrad[1]);
+
+        // Semantic Colors
+        root.style.setProperty('--diff-easy', theme.semantic.levelEasy);
+        root.style.setProperty('--diff-normal', theme.semantic.levelNormal);
+        root.style.setProperty('--diff-hard', theme.semantic.levelHard);
+        root.style.setProperty('--diff-expert', theme.semantic.levelExpert);
+        root.style.setProperty('--mode-opt', theme.semantic.modeOption);
     }
 }

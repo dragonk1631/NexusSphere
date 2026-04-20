@@ -18,6 +18,10 @@ function decodeJWT(token: string): any {
     }
 }
 
+/**
+ * Full Sync API: Fetches everything about the user to restore their state
+ * (Profile, High Scores, Rank Counts)
+ */
 export const onRequestGet: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
     
@@ -36,24 +40,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
         const userId = decoded.sub;
 
-        // Parallel fetch for Professional Collection Data
+        // Fetch everything in parallel
         const [stats, records, rankCounts] = await Promise.all([
             env.DB.prepare('SELECT * FROM user_stats_v2 WHERE user_id = ?').bind(userId).first(),
             env.DB.prepare('SELECT * FROM user_song_records_v2 WHERE user_id = ?').bind(userId).all(),
             env.DB.prepare('SELECT * FROM user_rank_stats WHERE user_id = ?').bind(userId).all()
         ]);
 
-        const defaultStats = {
-            user_id: userId,
-            level: 1,
-            exp: 0,
-            play_count: 0,
-            total_score: 0,
-            max_combo: 0
-        };
-
         return new Response(JSON.stringify({
-            stats: stats || defaultStats,
+            success: true,
+            stats: stats || { user_id: userId, level: 1, exp: 0, play_count: 0 },
             records: records.results || [],
             rankCounts: rankCounts.results || []
         }), {
