@@ -52,46 +52,45 @@ export class ResultRenderer {
         // [POLISH] Do NOT clearRect here. Let the engine's background (Blurred cover art) show through the 0.7 alpha panels.
         // this.drawBackground(ctx, width, height, song?.backgroundUrl || null, sf);
 
-        // 2. TECH HEADER (Top-Right "RESULT" - Safe Area Aware)
+        // 2. Main Frame Geometry (Landscape Optimized 3-Column)
+        const panelW = isPortrait ? width * 0.94 : width * 0.92;
+        const panelH = isPortrait ? height * 0.82 : height * 0.72;
+        const panelX = (width - panelW) / 2;
+        const panelY = (height - panelH) / 2 + (isPortrait ? 40 * scaleFactor : 15 * scaleFactor);
+
+        // 3. TECH HEADER (Top-Right "RESULT" - Snapped to Panel Right Edge)
         ctx.save();
-        const headerPadding = 20 * sf;
-        const headerX = width - headerPadding;
-        const headerY = Math.max(40, height * 0.04);
         
-        // Ensure header doesn't overlap the main panel boundary
+        // [POLISH] Align headerX perfectly with the main panel's right border
+        const headerX = panelX + panelW;
+        // [POLISH] Safety Clamp: Ensure at least 50px from top and 30px above panel
+        const headerY = Math.max(50 * sf, panelY - 30 * sf); 
+        
         ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
+        ctx.textBaseline = 'bottom'; 
         
-        // Small tech lines
         ctx.strokeStyle = this.getGradeColor(grade);
         ctx.lineWidth = 2 * sf;
         ctx.beginPath();
-        ctx.moveTo(headerX, headerY + (45 * sf));
-        ctx.lineTo(headerX - (120 * sf), headerY + (45 * sf));
+        ctx.moveTo(headerX, headerY - (5 * sf));
+        ctx.lineTo(headerX - (100 * sf), headerY - (5 * sf));
         ctx.stroke();
 
         ctx.font = `900 ${Math.floor(42 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
         ctx.shadowBlur = 15 * sf;
         ctx.shadowColor = this.getGradeColor(grade);
-        ctx.fillText("RESULT", headerX, headerY);
+        ctx.fillText("RESULT", headerX, headerY - (5 * sf)); // Reduced text-to-line gap
         
         ctx.font = `400 ${Math.floor(10 * sf)}px "Orbitron"`;
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText("OVER RAPID SYSTEM / CORE ENGINE v4.5C", headerX, headerY + (50 * sf));
+        ctx.fillText("OVER RAPID SYSTEM / CORE ENGINE v4.5C", headerX, headerY + (12 * sf)); 
         ctx.restore();
 
         // [NEW] ALL COMBO Celebration Layer
         if (scoreManager.isFullCombo()) {
             this.renderCelebration(ctx, width, height);
         }
-
-        // 3. Main Frame Geometry (Landscape Optimized 3-Column)
-        const panelW = isPortrait ? width * 0.94 : width * 0.92;
-        const panelH = isPortrait ? height * 0.82 : height * 0.72; // Increased portrait height slightly
-        const panelX = (width - panelW) / 2;
-        // Shift panel slightly lower in portrait to avoid clashing with RESULT header
-        const panelY = (height - panelH) / 2 + (isPortrait ? 40 * scaleFactor : 15 * scaleFactor);
 
         // Glassmorphism Panel (Polish: More transparent + Multi-layer glow)
         ctx.save();
@@ -162,7 +161,11 @@ export class ResultRenderer {
 
         // --- Bottom Row: Rewards & Buttons (Anchored to the absolute bottom area) ---
         const bottomY = py + ph - (75 * sf);
-        this.renderRewardBar(ctx, px + margin, bottomY, pw * 0.6, 60 * sf, sf, this.getGradeColor(grade));
+        
+        // [POLISH] Sync Reward table width with the right border of the center (Score) column
+        const rewardW = (colW * 2) - margin * 1.5; 
+        this.renderRewardBar(ctx, px + margin, bottomY, rewardW, 60 * sf, sf, this.getGradeColor(grade));
+        
         this.renderActionButtons(ctx, px + pw - (380 * sf), bottomY, 360 * sf, 60 * sf, sf, this.getGradeColor(grade));
     }
 
@@ -302,7 +305,6 @@ export class ResultRenderer {
         this.drawTechBorder(ctx, x, y, w, h, accent, sf);
         
         const centerX = x + w / 2;
-        const centerY = y + h * 0.4;
 
         // Label
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
@@ -313,25 +315,26 @@ export class ResultRenderer {
         // Grade
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = `900 ${Math.floor(180 * sf)}px "Orbitron"`;
+        // [POLISH] Grouped and Centered: Increased gap from header and refined size
+        ctx.font = `900 ${Math.floor(135 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
         ctx.shadowBlur = 60 * sf;
         ctx.shadowColor = accent;
-        ctx.fillText(grade, centerX, centerY);
+        ctx.fillText(grade, centerX, y + h * 0.45);
         
         // Score
-        ctx.font = `900 ${Math.floor(52 * sf)}px "Orbitron"`;
+        ctx.font = `900 ${Math.floor(40 * sf)}px "Orbitron"`; // Reduced size for better grouping balance
         ctx.shadowBlur = 20 * sf;
         const scoreStr = Math.floor(score).toString().padStart(7, '0');
-        ctx.fillText(scoreStr, centerX, y + h * 0.72);
+        ctx.fillText(scoreStr, centerX, y + h * 0.70);
         
-        // NEW RECORD - Improved Position (Anchored below Score)
+        // NEW RECORD - Improved Position (Adjusted for grouped centering)
         if (stats.perfect > (stats.totalNotes || 0) * 0.9 || score > 0) {
             ctx.save();
             ctx.font = `900 ${Math.floor(14 * sf)}px "Orbitron"`;
             const badgeW = ctx.measureText("NEW RECORD!").width + 20 * sf;
             const badgeX = centerX - badgeW / 2;
-            const badgeY = y + h * 0.82;
+            const badgeY = y + h * 0.88;
             
             ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
             ctx.beginPath();
@@ -351,9 +354,8 @@ export class ResultRenderer {
 
     private renderStatsSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, stats: any, maxCombo: number, colors: any, pal: any, sf: number) {
         ctx.save();
-        // [AIR-FLOW] Border covers the main stat area with clear bottom breathing room
-        const borderH = Math.min(h, 340 * sf);
-        this.drawTechBorder(ctx, x, y, w, borderH, pal.scorePanel, sf);
+        // [POLISH] Border height now matches the other panels for a unified silhouette
+        this.drawTechBorder(ctx, x, y, w, h, pal.scorePanel, sf);
 
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = pal.scorePanel;
@@ -369,9 +371,9 @@ export class ResultRenderer {
             { label: "MAX COMBO", val: maxCombo, color: '#fff' }
         ];
         
-        // [AIR-FLOW] Dynamic row spacing based on available height
-        const availableH = borderH - (85 * sf);
-        const rowH = Math.min(48 * sf, availableH / rows.length);
+        // [AIR-FLOW] Dynamic row spacing based on available height (Maximum separation)
+        const availableH = h - (110 * sf);
+        const rowH = Math.min(54 * sf, availableH / (rows.length - 0.2));
 
         rows.forEach((row, i) => {
             const rowY = startY + i * rowH;
