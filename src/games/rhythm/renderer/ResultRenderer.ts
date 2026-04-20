@@ -198,11 +198,11 @@ export class ResultRenderer {
         }
         ctx.restore();
 
-        // 3. Metadata Header
+        // 3. Metadata Header (Centered for Unification)
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = accent;
-        ctx.textAlign = 'left';
-        ctx.fillText("TRACK INFO", x + (15 * sf), y + (25 * sf));
+        ctx.textAlign = 'center';
+        ctx.fillText("TRACK INFO", x + w/2, y + (25 * sf));
 
         // 4. Grouped Metadata Block
         const textY = artY + artSize + (35 * sf);
@@ -306,11 +306,11 @@ export class ResultRenderer {
         
         const centerX = x + w / 2;
 
-        // Label
+        // Label (Centered for Unification)
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = pal.scorePanel;
-        ctx.textAlign = 'left';
-        ctx.fillText("SCORE & RANK", x + (15 * sf), y + (25 * sf));
+        ctx.textAlign = 'center';
+        ctx.fillText("SCORE & RANK", centerX, y + (25 * sf));
 
         // Grade
         ctx.textAlign = 'center';
@@ -359,8 +359,8 @@ export class ResultRenderer {
 
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = pal.scorePanel;
-        ctx.textAlign = 'left';
-        ctx.fillText("JUDGE", x + (20 * sf), y + (28 * sf));
+        ctx.textAlign = 'center';
+        ctx.fillText("JUDGE", x + w/2, y + (28 * sf));
 
         const startY = y + (75 * sf);
         const rows = [
@@ -377,18 +377,19 @@ export class ResultRenderer {
 
         rows.forEach((row, i) => {
             const rowY = startY + i * rowH;
+            const centerX = x + w / 2;
             
-            // Label (Slightly smaller for better hierarchy)
-            ctx.font = `700 ${Math.floor(16 * sf)}px "Orbitron"`;
+            // Label (Grouped Center)
+            ctx.font = `700 ${Math.floor(14 * sf)}px "Orbitron"`;
             ctx.fillStyle = row.color;
-            ctx.textAlign = 'left';
-            ctx.fillText(row.label, x + (25 * sf), rowY);
-            
-            // Value (Larger and bolder numerical emphasis)
-            ctx.font = `900 ${Math.floor(24 * sf)}px "Orbitron"`;
-            ctx.fillStyle = '#fff';
             ctx.textAlign = 'right';
-            ctx.fillText(row.val.toString(), x + w - (25 * sf), rowY);
+            ctx.fillText(row.label, centerX - (10 * sf), rowY);
+            
+            // Value (Numerical Emphasis - Grouped Center)
+            ctx.font = `900 ${Math.floor(22 * sf)}px "Orbitron"`;
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'left';
+            ctx.fillText(row.val.toString(), centerX + (10 * sf), rowY);
         });
         ctx.restore();
     }
@@ -396,17 +397,20 @@ export class ResultRenderer {
     private renderRewardBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, sf: number, accent: string) {
         ctx.save();
         this.drawTechBorder(ctx, x, y, w, h, accent, sf);
+        
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const centerX = x + w / 2;
+
+        // Header Title
         ctx.font = `900 ${Math.floor(16 * sf)}px "Orbitron"`;
         ctx.fillStyle = accent;
-        ctx.fillText("REWARD", x + (15 * sf), y + h / 2 + (6 * sf));
+        ctx.fillText("REWARD", centerX, y + h * 0.3);
         
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 2 * sf;
-        ctx.beginPath(); ctx.moveTo(x + (100 * sf), y + (10 * sf)); ctx.lineTo(x + (100 * sf), y + h - (10 * sf)); ctx.stroke();
-        
+        // Reward Content (Centered below header)
         ctx.font = `700 ${Math.floor(14 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
-        ctx.fillText("FULL COMBO +50 / PERFECT CLEAR +200", x + (120 * sf), y + h / 2 + (6 * sf));
+        ctx.fillText("FULL COMBO +50 / PERFECT CLEAR +200", centerX, y + h * 0.7);
         ctx.restore();
     }
 
