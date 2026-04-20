@@ -50,16 +50,33 @@ export class AuthService {
             script.onload = async () => {
                 const Clerk = (window as any).Clerk;
                 try {
+                    const baseUrl = import.meta.env.BASE_URL;
+                    // Standardize the redirect URL to be the current site origin + base path (stripping hashes/params)
+                    const redirectUrl = window.location.origin + (baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+                    
+                    console.log(`[AuthService] Initializing with Redirect URL: ${redirectUrl}`);
+
                     await Clerk.load({
                         appearance: {
-                            baseTheme: undefined // 테마 커스터마이징 가능
-                        }
+                            baseTheme: undefined 
+                        },
+                        // Fix 404 on GH Pages by explicitly defining the sub-path
+                        afterSignInUrl: redirectUrl,
+                        afterSignUpUrl: redirectUrl,
+                        signInUrl: redirectUrl,
+                        signUpUrl: redirectUrl
                     });
+                    
                     this.clerk = Clerk;
                     console.log('[AuthService] Official Clerk SDK loaded successfully.');
                     resolve();
                 } catch (e) {
-                    reject(e);
+                    console.error('----------------------------------------------------');
+                    console.error('[AuthService] CRITICAL AUTH INITIALIZATION ERROR:');
+                    console.error(e);
+                    console.error('----------------------------------------------------');
+                    // We resolve instead of reject to allow the app to boot in GUEST mode
+                    resolve(); 
                 }
             };
             

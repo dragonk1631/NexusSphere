@@ -213,7 +213,11 @@ const startApp = async () => {
   loading.show("INITIALIZING NEXUS SPHERE...");
   
   // Initialize Auth Service
-  await AuthService.getInstance().init();
+  try {
+    await AuthService.getInstance().init();
+  } catch (e) {
+    console.error("[main] Failed to initialize AuthService. Proceeding as Guest.", e);
+  }
 
   // Wait for initial theme background assets (Shaders, etc)
   await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
@@ -264,6 +268,14 @@ const showTitle = async () => {
     titleScreen = null;
     
     loading.hide();
+    
+    // [STABILITY] Enable history guard ONLY after auth processing and title interaction are done.
+    // We add a small delay to ensure Clerk has finished its URL cleanup (replaceState) to avoid SecurityErrors.
+    setTimeout(() => {
+        console.log("[main] Activating History Guard...");
+        enableHistoryGuard();
+    }, 500);
+    
     mainMenu = new MainMenu(handleGameStart);
     mainMenu.show();
   });
@@ -279,7 +291,6 @@ const initMobile = () => {
   if (ScreenUtils.isMobile()) {
     if (ScreenUtils.isStandalone()) {
       setupGlobalInteraction();
-      enableHistoryGuard();
     }
 
     // Initial size update

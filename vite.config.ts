@@ -75,7 +75,6 @@ export default defineConfig(({ command }) => ({
         strictPort: true,
         hmr: {
             protocol: 'wss',
-            host: 'localhost',
             port: 5173
         },
         proxy: {
