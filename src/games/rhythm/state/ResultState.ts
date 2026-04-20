@@ -7,7 +7,6 @@ import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
  */
 export class ResultState extends BaseGameState {
     public readonly id = GameState.RESULT;
-    private backgroundUrl: string | null = null;
     private currentPhase: 'SCORE' | 'EXP' = 'SCORE';
     private enterTime: number = 0;
 
@@ -15,10 +14,6 @@ export class ResultState extends BaseGameState {
         this.game.isNavigating = false; 
         this.currentPhase = 'SCORE';
         this.enterTime = performance.now();
-
-        const currentSong = this.game.menuManager.getCurrentSong();
-        this.backgroundUrl = currentSong?.backgroundUrl || null;
-        
         try {
             this.game.audioEngine.stopBGM(false); 
             this.game.audioEngine.playBGM(ASSET_PATHS.AUDIO.UI.RESULT, true, 0.5);
@@ -39,19 +34,24 @@ export class ResultState extends BaseGameState {
 
     public render(ctx: CanvasRenderingContext2D, alpha: number): void {
         const elapsed = performance.now() - this.enterTime;
+        const currentSong = this.game.menuManager.getCurrentSong();
+        const difficultyLabel = this.game.currentDifficulty || 'NORMAL';
+
         this.game.resultRenderer.render(
             ctx, 
             this.game.canvas.width, 
             this.game.canvas.height, 
             this.game.scoreManager, 
-            this.backgroundUrl, 
+            currentSong, 
             alpha,
             this.currentPhase,
-            elapsed
+            elapsed,
+            difficultyLabel,
+            this.game.audioEngine
         );
     }
 
-    public onKeyDown(code: string): void {
+    public onKeyDown(code: string, _modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void {
         if (code === 'Enter' || code === 'Space' || code === 'Escape') {
             this.handleNavigation();
         }
@@ -64,6 +64,7 @@ export class ResultState extends BaseGameState {
     private handleNavigation(): void {
         if (this.currentPhase === 'SCORE') {
             this.currentPhase = 'EXP';
+            this.enterTime = performance.now(); // Reset timer for cinematic sequencing
             // Use CHEER gently as CLICK isn't in the registry yet
             this.game.audioEngine.playSFX(ASSET_PATHS.AUDIO.UI.CHEER, 0.2);
         } else {

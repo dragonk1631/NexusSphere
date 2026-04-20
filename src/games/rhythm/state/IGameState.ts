@@ -20,7 +20,7 @@ export interface IGameState {
     render(ctx: CanvasRenderingContext2D, alpha: number): void;
 
     /** Input Handling: Key Press */
-    onKeyDown(code: string): void;
+    onKeyDown(code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void;
 
     /** Input Handling: Pointer Down */
     onPointerDown(x: number, y: number): void;

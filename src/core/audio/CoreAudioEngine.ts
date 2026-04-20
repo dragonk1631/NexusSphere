@@ -601,6 +601,29 @@ export class CoreAudioEngine {
         });
     }
 
+    /**
+     * Plays a high-reliability synthetic tick sound using Web Audio Oscillator.
+     * Guaranteed to work even if SoundFonts or Assets are still loading.
+     */
+    public triggerTick(volume: number = 0.3): void {
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        osc.type = 'sine'; // Clean tech blip
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+        
+        gain.gain.setValueAtTime(volume, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.1);
+    }
+
     public isBGMPlaying(): boolean {
         // [STABILITY] Expanded definition of "BGM" to include MIDI sequencer and streaming players
         // This ensures callers correctly identify if ANY game audio is active.

@@ -162,6 +162,29 @@ export class ScoreManager {
         this.isTestMode = enabled;
     }
 
+    /**
+     * [DEBUG] Force All Perfect & Full Combo status immediately
+     */
+    public forceFullCombo(): void {
+        const total = this.totalChartNotes > 0 ? this.totalChartNotes : 500;
+        this.totalChartNotes = total;
+        this.perfectCount = total;
+        this.greatCount = 0;
+        this.goodCount = 0;
+        this.missCount = 0;
+        this.maxCombo = total;
+        this.currentCombo = total;
+        this.health = this.maxHealth;
+        
+        // Calculate a perfect score based on total notes
+        // Standard formula: sum(base * (1 + min(combo, 50) * 0.1))
+        let simulatedScore = 0;
+        for (let i = 1; i <= total; i++) {
+            simulatedScore += 100 * (1 + Math.min(i, 50) * 0.1);
+        }
+        this.score = Math.floor(simulatedScore);
+    }
+
     public getCombo(): number {
         return this.currentCombo;
     }

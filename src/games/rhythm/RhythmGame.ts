@@ -640,8 +640,8 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.currentStateObj.onPointerUp(x, y);
     };
 
-    public onMenuKey = (code: string) => {
-        this.currentStateObj.onKeyDown(code);
+    public onMenuKey = (code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }) => {
+        this.currentStateObj.onKeyDown(code, modifiers);
     };
 
     public backToSongSelection() {
@@ -681,11 +681,16 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     public onGameOverPointer = (x: number, y: number) => {
         this.currentStateObj.onPointerDown(x, y);
     };
-    public onGameOverKey = (code: string) => {
-        this.currentStateObj.onKeyDown(code);
+    public onGameOverKey = (code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }) => {
+        this.currentStateObj.onKeyDown(code, modifiers);
     };
-    public onResultKey = (code: string) => {
-        this.currentStateObj.onKeyDown(code);
+
+    public onResultKey = (code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }) => {
+        this.currentStateObj.onKeyDown(code, modifiers);
+    };
+
+    public onPlayingKey = (code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }) => {
+        this.currentStateObj.onKeyDown(code, modifiers);
     };
     public onResultPointer = (x: number, y: number) => {
         this.currentStateObj.onPointerDown(x, y);

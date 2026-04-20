@@ -34,7 +34,7 @@ export class MenuState extends BaseGameState {
         this.game.menuRenderer.render(ctx, this.game.menuRenderState, alpha);
     }
 
-    public onKeyDown(code: string): void {
+    public onKeyDown(code: string, _modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void {
         if (this.game.isTestMode && code === 'Enter' || code === 'Space') {
             // Logic handled in RhythmGame for now, but good to keep in mind
         }

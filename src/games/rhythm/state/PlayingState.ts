@@ -106,9 +106,29 @@ export class PlayingState extends BaseGameState {
         game.renderGameplay(ctx, width, height, renderAlpha);
     }
 
-    public onKeyDown(code: string): void {
+    public onKeyDown(code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void {
         if (code === 'Escape') {
             this.game.setState(GameState.PAUSED);
+        }
+
+        // Developer Debug: Instant Full Combo (Shift + Alt + F)
+        if (code === 'KeyF' && modifiers.shift && modifiers.alt) {
+            console.log("[PlayingState:Debug] Force Full Combo triggered.");
+            this.game.scoreManager.forceFullCombo();
+            
+            // Bypass song completion logic and jump straight to result transition
+            if (!this.game.isNavigating) {
+                this.game.isNavigating = true;
+                this.game.audioEngine.stop();
+                this.game.transitionSystem.start(() => {
+                    this.game.setState(GameState.RESULT);
+                    this.game.scoreManager.saveHighScore(
+                        this.game.menuManager.getCurrentSong()?.url || 'debug',
+                        this.game.menuManager.getKeyMode(),
+                        this.game.menuManager.getCurrentDifficulty()
+                    );
+                }, 'fade');
+            }
         }
     }
 

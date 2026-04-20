@@ -26,7 +26,7 @@ export class PausedState extends BaseGameState {
         game.pauseRenderer.render(ctx, game.pauseRenderState, alpha);
     }
 
-    public onKeyDown(code: string): void {
+    public onKeyDown(code: string, _modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void {
         const game = this.game;
         if (code === 'Escape') {
             game.gameplayManager.resumeCountdown = 3.0; // Professional Resume Only

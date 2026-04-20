@@ -24,7 +24,7 @@ export class GameOverState extends BaseGameState {
         this.game.gameOverRenderer.render(ctx, this.game.gameOverRenderState, alpha);
     }
 
-    public onKeyDown(code: string): void {
+    public onKeyDown(code: string, _modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void {
         if (code === 'Enter') {
             this.game.handleRetry();
         } else if (code === 'Escape') {

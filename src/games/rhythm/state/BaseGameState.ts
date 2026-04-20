@@ -22,7 +22,7 @@ export abstract class BaseGameState implements IGameState {
     public render(_ctx: CanvasRenderingContext2D, _alpha: number): void { }
 
     // Default implementations for input handlers (do nothing)
-    public onKeyDown(_code: string): void { }
+    public onKeyDown(_code: string, _modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void { }
     public onPointerDown(_x: number, _y: number): void { }
     public onPointerMove(_x: number, _y: number): void { }
     public onPointerUp(_x: number, _y: number): void { }

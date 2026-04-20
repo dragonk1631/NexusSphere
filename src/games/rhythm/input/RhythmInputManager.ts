@@ -11,10 +11,11 @@ export interface IGameInputHandler {
     onMenuPointerDown(x: number, y: number): void;
     onMenuPointerMove(x: number, y: number): void;
     onMenuPointerUp(x: number, y: number): void;
-    onMenuKey(code: string): void;
+    onMenuKey(code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void;
     onGameOverPointer(x: number, y: number): void;
-    onGameOverKey(code: string): void;
-    onResultKey(code: string): void;
+    onGameOverKey(code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void;
+    onResultKey(code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void;
+    onPlayingKey(code: string, modifiers: { shift: boolean, alt: boolean, ctrl: boolean }): void;
     onWheel(deltaY: number): void;
     onFileDrop(files: FileList): void;
     isInputBlocked(): boolean;
@@ -87,7 +88,10 @@ export class RhythmInputManager {
             const state = this.handler.getCurrentState();
             const code = e.code;
 
+            const modifiers = { shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey };
+
             if (state === GameState.PLAYING) {
+                this.handler.onPlayingKey(code, modifiers);
                 if (this.handler.isInputBlocked()) return; // Professional Lock
                 const lane = this.getLaneFromKey(code);
                 if (lane !== -1 && !this.keyState[lane]) {
@@ -95,11 +99,11 @@ export class RhythmInputManager {
                     this.handler.onLanePress(lane, e.timeStamp);
                 }
             } else if (state === GameState.MENU || state === GameState.PAUSED) {
-                this.handler.onMenuKey(code);
+                this.handler.onMenuKey(code, modifiers);
             } else if (state === GameState.GAMEOVER) {
-                this.handler.onGameOverKey(code);
+                this.handler.onGameOverKey(code, modifiers);
             } else if (state === GameState.RESULT) {
-                this.handler.onResultKey(code);
+                this.handler.onResultKey(code, modifiers);
             }
         };
 
@@ -187,7 +191,7 @@ export class RhythmInputManager {
                 else if (type === 'up') this.handler.onMenuPointerUp(x, y);
             } else if (type === 'down') {
                 if (state === GameState.GAMEOVER) this.handler.onGameOverPointer(x, y);
-                else if (state === GameState.RESULT) this.handler.onResultKey('Enter'); // Result touch maps to continue
+                else if (state === GameState.RESULT) this.handler.onResultKey('Enter', { shift: false, alt: false, ctrl: false }); // Result touch maps to continue
             }
         };
 
