@@ -173,12 +173,28 @@ export class ResultRenderer {
         ctx.save();
         this.drawTechBorder(ctx, x, y, w, h, accent, sf);
         
-        const innerMargin = 20 * sf; // Increased inner padding
-        const artSize = Math.min(w - innerMargin * 2, h * 0.38); // [AIR-FLOW] Slightly smaller art for more text room
-        const artX = x + (w - artSize) / 2;
-        const artY = y + (50 * sf);
+        // 1. Fixed Header
+        ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
+        ctx.fillStyle = accent;
+        ctx.textAlign = 'center';
+        const headerY = y + (25 * sf);
+        ctx.fillText("TRACK INFO", x + w/2, headerY);
 
-        // 2. Album Art Case
+        // 2. Centered Content Block Calculation
+        const innerMargin = 20 * sf;
+        const artSize = Math.min(w - innerMargin * 2, h * 0.40);
+        const titleBaseSize = Math.floor(26 * sf); // [POLISH] Increased base size
+        const artistBaseSize = Math.floor(16 * sf);
+        const levelBaseSize = Math.floor(20 * sf);
+        const gap = 15 * sf;
+        
+        const totalContentH = artSize + gap + titleBaseSize + (gap/2) + artistBaseSize + gap + levelBaseSize;
+        const contentStartY = headerY + (25 * sf) + (h - (headerY - y) - (25 * sf) - totalContentH) / 2;
+
+        const artX = x + (w - artSize) / 2;
+        const artY = contentStartY;
+
+        // 3. Album Art
         ctx.save();
         ctx.shadowBlur = 20 * sf;
         ctx.shadowColor = accent;
@@ -198,53 +214,42 @@ export class ResultRenderer {
         }
         ctx.restore();
 
-        // 3. Metadata Header (Centered for Unification)
-        ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
-        ctx.fillStyle = accent;
-        ctx.textAlign = 'center';
-        ctx.fillText("TRACK INFO", x + w/2, y + (25 * sf));
-
-        // 4. Grouped Metadata Block
-        const textY = artY + artSize + (35 * sf);
-        const centerX = x + w / 2;
+        // 4. Metadata Block (Centered below art)
         const fullName = song?.name || "Unknown Track";
         const parts = fullName.split(' - ');
         const artist = parts.length > 1 ? parts[0] : "Various Artists";
         const title = (parts.length > 1 ? parts.slice(1).join(' - ') : fullName).replace('.mp3', '');
+        const centerX = x + w / 2;
+        const textY = artY + artSize + (35 * sf);
 
         ctx.textAlign = 'center';
         
-        // Title (Strict Absolute Fit: Shrink to prevent any border clash)
+        // Title (Strict Absolute Fit Loop)
         const maxTitleW = w - innerMargin * 1.5;
-        let titleSize = Math.floor(22 * sf);
+        let titleSize = titleBaseSize;
         ctx.font = `900 ${titleSize}px "Orbitron"`;
-        while(ctx.measureText(title).width > maxTitleW && titleSize > 10 * sf) {
+        while(ctx.measureText(title).width > maxTitleW && titleSize > 12 * sf) {
             titleSize -= 0.5;
             ctx.font = `900 ${titleSize}px "Orbitron"`;
         }
         ctx.fillStyle = '#fff';
         ctx.fillText(title, centerX, textY);
         
-        // Artist (Strict Absolute Fit)
-        let artistSize = Math.floor(14 * sf);
+        // Artist (Strict Absolute Fit Loop)
+        let artistSize = artistBaseSize;
         ctx.font = `400 ${artistSize}px "Orbitron"`;
-        while(ctx.measureText(artist).width > maxTitleW && artistSize > 8 * sf) {
+        while(ctx.measureText(artist).width > maxTitleW && artistSize > 10 * sf) {
             artistSize -= 0.5;
             ctx.font = `400 ${artistSize}px "Orbitron"`;
         }
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText(artist, centerX, textY + (titleSize < 16 * sf ? 18 * sf : 22 * sf));
+        ctx.fillText(artist, centerX, textY + titleSize * 0.8 + (10 * sf));
 
-        // [POLISH] Difficulty & Level (Now safely placed inside the container)
-        const totalNotes = (song as any)?.noteCount || 500;
-        const duration = (song as any)?.duration || 120;
-        const nps = totalNotes / (duration || 60);
-        let level = song?.difficulty || Math.floor(Math.max(1, Math.min(20, nps * 1.5)));
-
-        const diffY = textY + (50 * sf);
-        ctx.font = `900 ${Math.floor(18 * sf)}px "Orbitron"`;
+        // Difficulty & Level
+        const levelY = textY + titleSize + artistSize + (25 * sf);
+        ctx.font = `900 ${levelBaseSize}px "Orbitron"`;
         ctx.fillStyle = '#ff4757';
-        ctx.fillText(`${difficultyLabel}  -  Lv.${level}`, centerX, diffY);
+        ctx.fillText(`${difficultyLabel}  -  Lv.${song?.difficulty || 1}`, centerX, levelY);
         
         ctx.restore();
     }
@@ -354,15 +359,16 @@ export class ResultRenderer {
 
     private renderStatsSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, stats: any, maxCombo: number, colors: any, pal: any, sf: number) {
         ctx.save();
-        // [POLISH] Border height now matches the other panels for a unified silhouette
         this.drawTechBorder(ctx, x, y, w, h, pal.scorePanel, sf);
 
+        // 1. Fixed Header
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = pal.scorePanel;
         ctx.textAlign = 'center';
-        ctx.fillText("JUDGE", x + w/2, y + (28 * sf));
+        const headerY = y + (28 * sf);
+        ctx.fillText("JUDGE", x + w/2, headerY);
 
-        const startY = y + (75 * sf);
+        // 2. Centered Body Calculation
         const rows = [
             { label: "PERFECT", val: stats.perfect, color: colors.PERFECT },
             { label: "GREAT", val: stats.great, color: colors.GREAT },
@@ -371,25 +377,39 @@ export class ResultRenderer {
             { label: "MAX COMBO", val: maxCombo, color: '#fff' }
         ];
         
-        // [AIR-FLOW] Dynamic row spacing based on available height (Maximum separation)
-        const availableH = h - (110 * sf);
-        const rowH = Math.min(54 * sf, availableH / (rows.length - 0.2));
+        const labelSize = Math.floor(18 * sf); // [POLISH] Enlarged base labels
+        const valSize = Math.floor(32 * sf);   // [POLISH] Enlarged base numericals
+        const rowH = Math.min(65 * sf, (h - (headerY - y) - (40 * sf)) / rows.length);
+        const totalRowsH = rows.length * rowH;
+        
+        const startY = headerY + (30 * sf) + (h - (headerY - y) - (30 * sf) - totalRowsH) / 2;
 
         rows.forEach((row, i) => {
             const rowY = startY + i * rowH;
             const centerX = x + w / 2;
+            const innerMargin = 30 * sf;
             
-            // Label (Grouped Center)
-            ctx.font = `700 ${Math.floor(14 * sf)}px "Orbitron"`;
+            // Label (Grouped Center - Fixed Boundary Check)
+            let currentLabelSize = labelSize;
+            ctx.font = `700 ${currentLabelSize}px "Orbitron"`;
+            while(ctx.measureText(row.label).width > (w/2 - innerMargin) && currentLabelSize > 10 * sf) {
+                currentLabelSize -= 0.5;
+                ctx.font = `700 ${currentLabelSize}px "Orbitron"`;
+            }
             ctx.fillStyle = row.color;
             ctx.textAlign = 'right';
-            ctx.fillText(row.label, centerX - (10 * sf), rowY);
+            ctx.fillText(row.label, centerX - (10 * sf), rowY + (valSize/4));
             
-            // Value (Numerical Emphasis - Grouped Center)
-            ctx.font = `900 ${Math.floor(22 * sf)}px "Orbitron"`;
+            // Value (Numerical Emphasis - Fixed Boundary Check)
+            let currentValSize = valSize;
+            ctx.font = `900 ${currentValSize}px "Orbitron"`;
+            while(ctx.measureText(row.val.toString()).width > (w/2 - innerMargin) && currentValSize > 12 * sf) {
+                currentValSize -= 0.5;
+                ctx.font = `900 ${currentValSize}px "Orbitron"`;
+            }
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'left';
-            ctx.fillText(row.val.toString(), centerX + (10 * sf), rowY);
+            ctx.fillText(row.val.toString(), centerX + (10 * sf), rowY + (valSize/4));
         });
         ctx.restore();
     }
