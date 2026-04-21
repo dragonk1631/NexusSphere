@@ -206,70 +206,6 @@ export class CollectionUI {
                 .perf-item { display: flex; align-items: center; padding: 12px 18px; background: rgba(255,255,255,0.04); border-radius: 8px; transition: 0.2s; border: 2px solid transparent; }
                 .perf-item:hover { background: rgba(0, 255, 255, 0.1); border-color: ${themeCyan}; transform: translateX(8px); }
 
-                @media (max-height: 500px) {
-                    .col-overlay { padding-bottom: 0; align-items: stretch; }
-                    .col-modal { 
-                        height: 100dvh; 
-                        border-radius: 0; 
-                        width: 100vw;
-                        overflow-y: auto; /* Fallback for very small screens */
-                    }
-                    .col-header { 
-                        padding: 6px 15px; 
-                        border-bottom: 1px solid rgba(0, 255, 255, 0.2); 
-                        flex-shrink: 0;
-                    }
-                    .col-profile { gap: 10px; }
-                    .col-avatar { width: 28px; height: 28px; border-width: 1.5px; }
-                    .col-username { font-size: 0.85rem; }
-                    .col-progression { gap: 12px; }
-                    .col-level-val { font-size: 1.6rem; }
-                    .col-class-name { font-size: 0.65rem; }
-                    .col-xp-bar-heavy { width: 60px; height: 4px; margin-top: 2px; }
-                    .col-emblem-wrap { width: 38px; height: 38px; }
-                    .col-emblem-icon { width: 18px; height: 18px; }
-                    
-                    .col-title-bar { padding: 3px 15px; font-size: 0.55rem; letter-spacing: 2px; }
-                    .col-filter-bar { padding: 4px 15px; flex-shrink: 0; min-height: auto; }
-                    .col-tab { padding: 3px 8px; font-size: 0.6rem; }
-                    .col-btn-heavy { padding: 4px 12px; font-size: 0.75rem; border-width: 1.5px; }
-                    
-                    .col-content { 
-                        display: grid; 
-                        grid-template-columns: 1.15fr 1fr; 
-                        padding: 8px 12px; 
-                        gap: 12px; 
-                        overflow: visible; /* Let the modal handle scrolling if needed */
-                        flex-shrink: 0;
-                        min-height: auto;
-                    }
-                    .col-left-stats { display: flex; flex-direction: column; gap: 4px; }
-                    .col-right-logs { display: flex; flex-direction: column; }
-                    
-                    .col-section { margin-top: 6px; }
-                    .col-sec-tag { font-size: 0.5rem; padding: 1px 6px; top: -6px; letter-spacing: 0.5px; }
-                    .stats-grid-heavy { padding: 8px 4px; gap: 4px; }
-                    .stat-box-heavy { padding: 3px; border-width: 1px; }
-                    .stat-v { font-size: 1rem; }
-                    .stat-l { font-size: 0.5rem; margin-top: 0px; }
-                    .stat-box-heavy.wide .stat-v { font-size: 1.2rem !important; }
-
-                    .grade-grid-heavy { padding: 4px; gap: 3px; }
-                    .grade-item-heavy { height: 32px; border-width: 1px; }
-                    .gt-h { font-size: 0.9rem; }
-                    .gc-h { font-size: 0.55rem; margin-top: -3px; }
-                    
-                    .perf-scroll { height: auto !important; padding: 4px; overflow: visible; min-height: 200px; }
-                }
-
-                @media (max-height: 800px) {
-                    .col-modal { height: 96vh; }
-                    .col-level-val { font-size: 2.8rem; }
-                    .col-username { font-size: 1.3rem; }
-                    .col-emblem-wrap { width: 65px; height: 65px; }
-                }
-
-                /* MOBILE RESPONSIVE HUD v2 */
                 @media (max-width: 900px) {
                     .col-overlay { padding-bottom: 0; align-items: stretch; }
                     .col-modal { 
@@ -324,6 +260,58 @@ export class CollectionUI {
                     .col-modal {
                         animation: mm-slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
                     }
+                }
+
+                /* 
+                   ULTRA-LANDSCAPE OPTIMIZATION (Priority High)
+                   This MUST come after max-width to override it for landscape mobile devices.
+                */
+                @media (max-height: 500px) {
+                    .col-overlay { padding-bottom: 0; align-items: stretch; }
+                    .col-modal { 
+                        height: 100dvh !important; 
+                        border-radius: 0; 
+                        width: 100vw !important;
+                        overflow-y: auto !important; 
+                        display: block !important; /* Switch to natural flow for scrollability */
+                    }
+                    .col-title-bar { position: sticky; top: 0; z-index: 10; padding: 3px 15px; font-size: 0.55rem; }
+                    .col-header { 
+                        padding: 6px 15px; 
+                        flex-direction: row !important;
+                        justify-content: space-between;
+                        gap: 15px;
+                    }
+                    .col-avatar { width: 28px; height: 28px; }
+                    .col-username { font-size: 0.85rem; }
+                    .col-level-val { font-size: 1.6rem; }
+                    .col-class-name { font-size: 0.65rem; }
+                    .col-xp-bar-heavy { display: none; } /* Hide bar to save space */
+                    .col-emblem-wrap { width: 32px; height: 32px; }
+                    
+                    .col-filter-bar { 
+                        position: sticky; top: 22px; z-index: 10; 
+                        padding: 4px 15px; 
+                        flex-direction: row !important;
+                        height: auto;
+                    }
+                    .col-filter-bar > div { flex-direction: row !important; gap: 10px; }
+                    .col-tab { padding: 3px 8px; font-size: 0.6rem; }
+                    .col-btn-heavy { padding: 4px 12px; font-size: 0.75rem; }
+                    
+                    .col-content { 
+                        display: grid !important; 
+                        grid-template-columns: 1.15fr 1fr !important; 
+                        padding: 8px 12px !important; 
+                        gap: 12px !important; 
+                        overflow: visible !important;
+                        height: auto !important;
+                    }
+                    .col-section { margin-top: 15px !important; }
+                    .stat-v { font-size: 1.1rem; }
+                    .grade-item-heavy { height: 35px; }
+                    .gt-h { font-size: 0.9rem; }
+                    .perf-scroll { height: auto !important; min-height: 200px; overflow: visible; }
                 }
                 @keyframes mm-slideUp {
                     from { transform: translateY(100%); }
