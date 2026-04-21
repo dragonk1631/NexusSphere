@@ -11,7 +11,9 @@ import { zipSync } from 'fflate';
  */
 
 const ASSETS_DIR = path.resolve('public/assets');
-const OUTPUT_FILE = path.resolve('public/assets_bundle.zip');
+// [FIX] Cloudflare Pages 25MB 제한을 피하기 위해 public 폴더 밖(루트)에 생성합니다.
+// 이 파일은 별도로 R2 등에 업로드하여 사용해야 합니다.
+const OUTPUT_FILE = path.resolve('assets_bundle.zip');
 
 function getFilesRecursive(dir) {
     let results = [];
