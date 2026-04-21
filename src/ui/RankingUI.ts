@@ -1,5 +1,6 @@
 import { UIManager } from '../core/ui/UIManager';
 import { ScoreManager } from '../core/score/ScoreManager';
+import { ApiUtils } from '../core/utils/ApiUtils';
 
 export interface LeaderboardEntry {
     display_name: string;
@@ -138,8 +139,8 @@ export class RankingUI {
         if (RankingUI.isServerDown) return this.getLocalFallback(songId);
 
         try {
-            const url = songId ? `/api/scores?songId=${songId}` : '/api/scores/top';
-            const response = await fetch(url);
+            const apiPath = songId ? `/api/scores?songId=${songId}` : '/api/scores/top';
+            const response = await ApiUtils.fetch(apiPath);
             
             const contentType = response.headers.get('content-type');
             if (!response.ok || !contentType || !contentType.includes('application/json')) {

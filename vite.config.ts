@@ -3,9 +3,13 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
-export default defineConfig(({ command }) => ({
-    // 개발 모드에서는 루트(/), 빌드(배포) 시에는 저장소 이름을 base 경로로 설정합니다.
-    base: command === 'serve' ? '/' : '/NexusSphere/',
+export default defineConfig(({ command }) => {
+    // [ADAPTIVE BASE] Cloudflare Pages는 루트(/)를 사용하며, 깃허브 페이지는 '/NexusSphere/' 서브디렉토리를 사용합니다.
+    const isCloudflare = !!process.env.CF_PAGES || !!process.env.VITE_CF_PAGES;
+    const base = isCloudflare ? '/' : (command === 'serve' ? '/' : '/NexusSphere/');
+
+    return {
+        base,
     plugins: [
         basicSsl(), // 모바일 테스트(전체화면, 센서 등)를 위해 SSL 다시 활성화
         VitePWA({
@@ -89,4 +93,5 @@ export default defineConfig(({ command }) => ({
     build: {
         outDir: 'dist',
     }
-}));
+    }
+});

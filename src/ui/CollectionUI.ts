@@ -2,6 +2,7 @@ import { UIManager } from '../core/ui/UIManager';
 import { AuthService } from '../services/auth/AuthService';
 import { ExperienceSystem } from '../core/score/ExperienceSystem';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
+import { ApiUtils } from '../core/utils/ApiUtils';
 
 export class CollectionUI {
     private ui: UIManager;
@@ -415,12 +416,8 @@ export class CollectionUI {
             const auth = AuthService.getInstance();
             const token = await auth.getClerk()?.session?.getToken();
             
-            // [Fix] Handle production subpath (e.g., /NexusSphere/)
-            const baseUrl = import.meta.env.BASE_URL || '/';
-            const apiPath = `${baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl}/api/user/sync`.replace(/\/+/g, '/');
-            
-            console.log(`[CollectionUI] Syncing data from: ${apiPath}`);
-            const response = await fetch(apiPath, {
+            console.log(`[CollectionUI] Syncing data...`);
+            const response = await ApiUtils.fetch('/api/user/sync', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) {

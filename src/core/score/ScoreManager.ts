@@ -1,6 +1,7 @@
 import { Judgment } from '../../games/rhythm/types/GameTypes';
 import { AuthService } from '../../services/auth/AuthService';
 import { ExperienceSystem } from './ExperienceSystem';
+import { ApiUtils } from '../utils/ApiUtils';
 
 export interface ScoreRecord {
     score: number;
@@ -216,7 +217,7 @@ export class ScoreManager {
             const token = await auth.getClerk()?.session?.getToken();
             if (!token) return;
 
-            const response = await fetch('/api/user/sync', {
+            const response = await ApiUtils.fetch('/api/user/sync', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -346,7 +347,7 @@ export class ScoreManager {
                 avatarUrl: auth.getClerk()?.user?.imageUrl
             };
 
-            const response = await fetch('/api/scores/submit', {
+            const response = await ApiUtils.fetch('/api/scores/submit', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
