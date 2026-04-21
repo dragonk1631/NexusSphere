@@ -99,7 +99,11 @@ async function smartSync() {
     scan(ASSETS_DIR);
 
     for (const f of criticalFiles) {
-        const fullPath = path.join(PUBLIC_DIR, f);
+        // assets_bundle.zip is in ROOT, others are in PUBLIC_DIR
+        const fullPath = (f === 'assets_bundle.zip') 
+            ? path.join(path.resolve(PUBLIC_DIR, '..'), f)
+            : path.join(PUBLIC_DIR, f);
+            
         if (fs.existsSync(fullPath)) {
             // Force upload critical files to ensure metadata is always fresh
             uploadPromises.push(uploadFileToR2(fullPath, f));

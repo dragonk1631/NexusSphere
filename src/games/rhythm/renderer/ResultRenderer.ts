@@ -486,11 +486,10 @@ export class ResultRenderer {
 
     private getGradeColor(grade: string): string {
         const g = grade.toUpperCase();
-        if (g.includes('S')) return '#FFD700'; // Golden
-        if (g.includes('A')) return '#00FFCC'; // Cyan
-        if (g.includes('B')) return '#AAFF00'; // Lime
-        if (g.includes('C')) return '#FF8800'; // Orange
-        return '#FF4444'; // Red for D/F
+        if (g.includes('S+')) return '#f1c40f'; // Golden
+        if (g === 'S') return '#ff4757'; // Red
+        if (g.includes('A')) return '#2ecc71'; // Green
+        return '#3498db'; // Blue (Fallback for anything B and below)
     }
 
     private renderPortraitLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, maxCombo: number, accuracy: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string, score: number) {

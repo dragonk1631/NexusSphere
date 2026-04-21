@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth/AuthService';
 import { ExperienceSystem } from '../core/score/ExperienceSystem';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { ApiUtils } from '../core/utils/ApiUtils';
+import { SystemInitializer } from '../core/SystemInitializer';
 
 export class CollectionUI {
     private ui: UIManager;
@@ -10,6 +11,7 @@ export class CollectionUI {
     
     private currentKeyMode: number = 6;
     private currentDifficulty: string = 'NORMAL';
+    private currentRankFilter: string | null = null;
     private cachedData: any = null;
 
     constructor(onClose: () => void) {
@@ -36,15 +38,15 @@ export class CollectionUI {
 
     private render() {
         const auth = AuthService.getInstance();
-        const { stats, rankCounts, records } = this.cachedData;
+        const { stats, records } = this.cachedData;
         
         const level = stats?.level || 1;
         const totalXP = stats?.exp || 0;
-        this.renderModal(auth, level, totalXP, stats, rankCounts, records);
+        this.renderModal(auth, level, totalXP, stats, records);
         this.attachEventListeners();
     }
 
-    private renderModal(auth: AuthService, level: number, totalXP: number, stats: any, rankCounts: any[], records: any[]) {
+    private renderModal(auth: AuthService, level: number, totalXP: number, stats: any, records: any[]) {
         const classInfo = DJClassSystem.getClassInfo(level);
         
         // Helper to make SVG IDs unique for this render instance to prevent collision
@@ -200,14 +202,19 @@ export class CollectionUI {
 
                 /* RANK COLORS */
                 .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
-                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 85px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; }
+                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 85px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
                 .grade-item-heavy:hover { border-color: ${themeCyan}; transform: translateY(-4px); background: rgba(0, 255, 255, 0.08); }
+                .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 20px rgba(255, 255, 255, 0.2); }
+                .grade-item-heavy.active.s_plus { border-color: #f1c40f; background: rgba(241, 196, 15, 0.1); box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
+                .grade-item-heavy.active.s { border-color: #ff4757; background: rgba(255, 71, 87, 0.1); box-shadow: 0 0 20px rgba(255, 71, 87, 0.4); }
+                .grade-item-heavy.active.a { border-color: #2ecc71; background: rgba(46, 204, 113, 0.1); box-shadow: 0 0 20px rgba(46, 204, 113, 0.4); }
+                .grade-item-heavy.active.b { border-color: #3498db; background: rgba(52, 152, 219, 0.1); box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
                 
                 .gt-h { font-family: 'Goldman'; font-size: 1.8rem; color: #fff; font-weight: 700; }
                 .gt-h.s_plus { color: #f1c40f; text-shadow: 0 0 20px #f1c40f, 0 0 40px rgba(241, 196, 15, 0.4); }
-                .gt-h.s { color: #00ffff; text-shadow: 0 0 15px #00ffff; }
-                .gt-h.a { color: #2ecc71; text-shadow: 0 0 15px #2ecc71; }
-                .gt-h.b { color: #3498db; text-shadow: 0 0 15px #3498db; }
+                .gt-h.s { color: #ff4757; text-shadow: 0 0 15px rgba(255, 71, 87, 0.6); }
+                .gt-h.a { color: #2ecc71; text-shadow: 0 0 15px rgba(46, 204, 113, 0.6); }
+                .gt-h.b { color: #3498db; text-shadow: 0 0 15px rgba(52, 152, 219, 0.6); }
                 .gc-h { font-size: 0.85rem; font-weight: 900; color: #fff; opacity: 0.6; margin-top: 4px; }
 
                 /* LOG HUD */
@@ -448,9 +455,49 @@ export class CollectionUI {
             </style>
         `;
 
-        const currentRankStats = rankCounts.find(rc => rc.key_mode === this.currentKeyMode && rc.difficulty === this.currentDifficulty) || {};
-        const filteredRecords = records.filter(r => r.key_mode === this.currentKeyMode && r.difficulty === this.currentDifficulty)
-                                       .sort((a,b) => new Date(b.last_played_at).getTime() - new Date(a.last_played_at).getTime());
+        // Recalculate Rank Stats locally for perfect consistency with the list
+        // [RULE] Anything below B is treated as B
+        const relevantRecords = records.filter(r => r.key_mode === this.currentKeyMode && r.difficulty === this.currentDifficulty);
+        const localRankStats = {
+            rank_s_plus: relevantRecords.filter(r => r.best_grade === 'S+').length,
+            rank_s: relevantRecords.filter(r => r.best_grade === 'S').length,
+            rank_a: relevantRecords.filter(r => r.best_grade === 'A').length,
+            rank_b: relevantRecords.filter(r => !['S+', 'S', 'A'].includes(r.best_grade)).length
+        };
+        
+        // --- Song List Expansion Logic ---
+        const allSongs = SystemInitializer.getInstance().getVerifiedSongs();
+        
+        // Create a combined map of all songs joined with their performance records
+        let combinedRecords = allSongs.map(song => {
+            const record = records.find(r => 
+                r.song_id === song.url && 
+                r.key_mode === this.currentKeyMode && 
+                r.difficulty === this.currentDifficulty
+            );
+            return { song, record };
+        });
+
+        // Apply Rank Filter if active (B filter includes anything below B)
+        if (this.currentRankFilter) {
+            if (this.currentRankFilter === 'B') {
+                combinedRecords = combinedRecords.filter(cr => cr.record && !['S+', 'S', 'A'].includes(cr.record.best_grade));
+            } else {
+                combinedRecords = combinedRecords.filter(cr => cr.record && cr.record.best_grade === this.currentRankFilter);
+            }
+        }
+
+        // Sort: Played songs (recent first), then unplayed songs (alphabetical)
+        combinedRecords.sort((a, b) => {
+            if (a.record && !b.record) return -1;
+            if (!a.record && b.record) return 1;
+            
+            if (a.record && b.record) {
+                return new Date(b.record.last_played_at).getTime() - new Date(a.record.last_played_at).getTime();
+            }
+            
+            return a.song.name.localeCompare(b.song.name);
+        });
 
         const html = `
             ${styles}
@@ -532,12 +579,24 @@ export class CollectionUI {
 
                             <!-- PERFORMANCE DISTRIBUTION SECTION -->
                             <div class="col-section sec-grade">
-                                <div class="col-sec-tag">Performance Rating</div>
+                                <div class="col-sec-tag">Performance Rating ${this.currentRankFilter ? `(FILTER: ${this.currentRankFilter})` : ''}</div>
                                 <div class="grade-grid-heavy">
-                                    <div class="grade-item-heavy"><div class="gt-h s_plus">S+</div><div class="gc-h">${currentRankStats.rank_s_plus || 0}</div></div>
-                                    <div class="grade-item-heavy"><div class="gt-h s">S</div><div class="gc-h">${currentRankStats.rank_s || 0}</div></div>
-                                    <div class="grade-item-heavy"><div class="gt-h a">A</div><div class="gc-h">${currentRankStats.rank_a || 0}</div></div>
-                                    <div class="grade-item-heavy"><div class="gt-h b">B</div><div class="gc-h">${currentRankStats.rank_b || 0}</div></div>
+                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'S+' ? 'active s_plus' : ''}" data-rank="S+">
+                                        <div class="gt-h s_plus">S+</div>
+                                        <div class="gc-h">${localRankStats.rank_s_plus}</div>
+                                    </div>
+                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'S' ? 'active s' : ''}" data-rank="S">
+                                        <div class="gt-h s">S</div>
+                                        <div class="gc-h">${localRankStats.rank_s}</div>
+                                    </div>
+                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'A' ? 'active a' : ''}" data-rank="A">
+                                        <div class="gt-h a">A</div>
+                                        <div class="gc-h">${localRankStats.rank_a}</div>
+                                    </div>
+                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'B' ? 'active b' : ''}" data-rank="B">
+                                        <div class="gt-h b">B</div>
+                                        <div class="gc-h">${localRankStats.rank_b}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -547,16 +606,20 @@ export class CollectionUI {
                             <div class="col-section sec-logs" style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
                                 <div class="col-sec-tag">Mission Archive Log</div>
                                 <div class="perf-scroll">
-                                    ${filteredRecords.length > 0 ? filteredRecords.map(r => `
-                                        <div class="perf-item">
-                                            <div class="pi-grade ${r.best_grade === 'S+' ? 'gt-h s_plus' : r.best_grade === 'S' ? 'gt-h s' : r.best_grade === 'A' ? 'gt-h a' : r.best_grade === 'B' ? 'gt-h b' : 'gt-h'}">${r.best_grade}</div>
-                                            <div class="pi-info">
-                                                <div class="pi-name">${r.song_id?.split('/').pop().replace('.mid','').replace('.mp3','')}</div>
-                                                <div class="pi-meta">COMBO ${r.max_combo} | ACCURACY ${(r.best_accuracy || 0).toFixed(2)}%</div>
+                                    ${combinedRecords.length > 0 ? combinedRecords.map(({ song, record }) => `
+                                        <div class="perf-item" style="${!record ? 'opacity: 0.55;' : ''}">
+                                            <div class="pi-grade ${record ? (record.best_grade === 'S+' ? 'gt-h s_plus' : record.best_grade === 'S' ? 'gt-h s' : record.best_grade === 'A' ? 'gt-h a' : 'gt-h b') : 'gt-h'}" style="${!record ? 'opacity: 0.3;' : ''}">
+                                                ${record ? (['S+', 'S', 'A'].includes(record.best_grade) ? record.best_grade : 'B') : '--'}
                                             </div>
-                                            <div class="pi-score">${(r.high_score || 0).toLocaleString()}</div>
+                                            <div class="pi-info">
+                                                <div class="pi-name">${song.name}</div>
+                                                <div class="pi-meta">
+                                                    ${record ? `COMBO ${record.max_combo} | ACCURACY ${(record.best_accuracy || 0).toFixed(2)}% | PLAYS ${record.play_count || 1}` : '<span style="letter-spacing: 1px; opacity: 0.7;">NOT PLAYED</span>'}
+                                                </div>
+                                            </div>
+                                            <div class="pi-score" style="${!record ? 'opacity: 0.3;' : ''}">${record ? (record.high_score || 0).toLocaleString() : '0'}</div>
                                         </div>
-                                    `).join('') : '<div style="opacity: 0.3; text-align: center; padding: 2rem 0; font-weight: 900; font-size: 1.2rem; letter-spacing: 2px;">NO RECENT ANALYTICS</div>'}
+                                    `).join('') : '<div style="opacity: 0.3; text-align: center; padding: 2rem 0; font-weight: 900; font-size: 1.2rem; letter-spacing: 2px;">LIBRARY EMPTY</div>'}
                                 </div>
                             </div>
                         </div>
@@ -629,6 +692,19 @@ export class CollectionUI {
         diffTabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 this.currentDifficulty = (tab as HTMLElement).dataset.val || 'NORMAL';
+                this.render();
+            });
+        });
+
+        const rankFilters = document.querySelectorAll('.rank-filter');
+        rankFilters.forEach(box => {
+            box.addEventListener('click', () => {
+                const rank = (box as HTMLElement).dataset.rank || null;
+                if (this.currentRankFilter === rank) {
+                    this.currentRankFilter = null;
+                } else {
+                    this.currentRankFilter = rank;
+                }
                 this.render();
             });
         });

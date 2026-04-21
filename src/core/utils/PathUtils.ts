@@ -32,7 +32,7 @@ export function resolveAssetPath(path: string): string {
         return path;
     }
 
-    const externalUrl = import.meta.env.VITE_R2_EXTERNAL_URL;
+    const externalUrl = import.meta.env.VITE_ASSET_EXTERNAL_URL;
     const assetVersion = import.meta.env.VITE_ASSET_VERSION || '1.0.0';
     let normalizedPath = normalizePath(path);
 
@@ -46,10 +46,7 @@ export function resolveAssetPath(path: string): string {
 
     let resolved: string;
 
-    const isDev = import.meta.env.DEV;
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-    if (externalUrl && !isCoreUI && !(isDev && isLocalhost)) {
+    if (externalUrl && !isCoreUI) {
         // [PHASE 1] External CDN Support (Production only or specified environment)
         const host = externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`;
         resolved = `${host}${normalizedPath}`;

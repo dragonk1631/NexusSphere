@@ -9,6 +9,7 @@ export interface ScoreRecord {
     accuracy: number;
     grade: string; // S+, S, A, B, C, D, F
     timestamp: number;
+    playCount?: number;
 }
 
 export class ScoreManager {
@@ -102,13 +103,15 @@ export class ScoreManager {
 
     public getGrade(): string {
         const acc = this.getAccuracy();
-        if (acc >= 98) return 'S+';
-        if (acc >= 95) return 'S';
-        if (acc >= 90) return 'A';
-        if (acc >= 80) return 'B';
-        if (acc >= 70) return 'C';
-        if (acc >= 50) return 'D';
-        return 'F';
+        const isFC = this.isFullCombo();
+        // [RULE] S+ is strictly All Perfect (100% accuracy)
+        if (isFC && acc >= 100) return 'S+';
+        // [RULE] S is strictly for any other Full Combo (0 misses)
+        if (isFC) return 'S';
+        // [RULE] Any run with a Miss cannot be S or S+.
+        // Accuracy-based fallback for non-FC clears.
+        if (acc > 90) return 'A';
+        return 'B'; // Minimum rank is B
     }
 
     public getDetailedStats() {
@@ -151,14 +154,15 @@ export class ScoreManager {
     }
 
     public reset(): void {
-        this.score = 0;
-        // RELAY-COMBO: currentCombo is preserved unless a Miss occurs during gameplay.
+        this.resetCombo();
         this.maxCombo = this.currentCombo; 
         this.health = this.maxHealth;
         this.perfectCount = 0;
         this.greatCount = 0;
         this.goodCount = 0;
         this.missCount = 0;
+        // RELIANCE: totalChartNotes is managed by setTotalNotes() during song init,
+        // and should persist through this reset call.
     }
 
     public setTestMode(enabled: boolean): void {
@@ -242,6 +246,7 @@ export class ScoreManager {
                                 maxCombo: r.max_combo,
                                 accuracy: r.best_accuracy,
                                 grade: r.best_grade,
+                                playCount: r.play_count || 1,
                                 timestamp: new Date(r.last_played_at).getTime()
                             };
                         });
