@@ -250,22 +250,30 @@ export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: 
     if (rightLabel && rightValue) {
         // Render Label (Solid White for maximum clarity)
         const labelW = getCachedTextWidth(offCtx as CanvasRenderingContext2D, rightLabel);
+        const centerY = oy + headerH / 2 + 1 * sf;
+        
         offCtx.shadowBlur = 0;
-        drawTrackedText(offCtx as CanvasRenderingContext2D, rightLabel, ox + pw - 20 * sf - (labelW + 25 * sf), oy + headerH / 2 + 1 * sf, 14 * sf, 2 * sf, '#fff', 'right', 'rgba(0,0,0,0.8)');
+        drawTrackedText(offCtx as CanvasRenderingContext2D, rightLabel, ox + pw - 20 * sf - (labelW + 30 * sf), centerY, 14 * sf, 2 * sf, '#fff', 'right', 'rgba(0,0,0,0.8)');
 
-        // Render Divider //
-        drawTrackedText(offCtx as CanvasRenderingContext2D, "//", ox + pw - 20 * sf - (labelW + 5 * sf), oy + headerH / 2 + 1 * sf, 14 * sf, 2 * sf, 'rgba(255,255,255,0.4)', 'right', 'rgba(0,0,0,0.5)');
+        // Render Sleek Geometric Divider (Replacing //)
+        const divX = ox + pw - 32 * sf - labelW;
+        const divH = 12 * sf;
+        const divW = 1.5 * sf;
+        offCtx.fillStyle = `rgba(${hexToRgb(c1)}, 0.4)`;
+        offCtx.fillRect(divX, centerY - divH / 2, divW, divH);
 
-        // Render Value (High-Visibility Amber/Yellow with Intense Contrast)
+        // Render Value (High-Visibility Amber/Yellow with Precision Centering)
         const vibrantGold = '#FFEB3B'; 
-        offCtx.shadowBlur = 18 * sf; offCtx.shadowColor = 'rgba(0,0,0,1)'; // Dark shadow first for separation
+        // Offset by +1.5*sf to account for larger font cap-height centering
+        const valueY = centerY + 1.5 * sf;
+        
+        offCtx.shadowBlur = 18 * sf; offCtx.shadowColor = 'rgba(0,0,0,1)';
         offCtx.shadowOffsetX = 0; offCtx.shadowOffsetY = 2 * sf;
         
-        // Use a much brighter, separate glow
-        ctx.save();
+        offCtx.save();
         offCtx.shadowBlur = 20 * sf; offCtx.shadowColor = vibrantGold;
-        drawTrackedText(offCtx as CanvasRenderingContext2D, rightValue, ox + pw - 20 * sf, oy + headerH / 2 + 1 * sf, 24 * sf, 1 * sf, vibrantGold, 'right', '#000');
-        ctx.restore();
+        drawTrackedText(offCtx as CanvasRenderingContext2D, rightValue, ox + pw - 20 * sf, valueY, 24 * sf, 1 * sf, vibrantGold, 'right', '#000');
+        offCtx.restore();
     }
 
     // Cache the rendered off-screen canvas
