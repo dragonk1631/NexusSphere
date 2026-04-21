@@ -169,11 +169,11 @@ export function drawPremiumTypography(ctx: CanvasRenderingContext2D, text: strin
     ctx.restore();
 }
 
-export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, tabLabel: string, c1: string, c2: string, sf: number, rightLabel?: string) {
+export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, tabLabel: string, c1: string, c2: string, sf: number, rightLabel?: string, rightValue?: string) {
     // Use theme color for glass tint instead of plain white
     const alpha = VISUAL_TUNING_CONFIG.PANEL_INNER_ALPHA;
     const blurPx = VISUAL_TUNING_CONFIG.BACKDROP_BLUR;
-    const cacheKey = `v11|${pw}|${ph}|${tabLabel}|${rightLabel}|${c1}|${c2}|${sf}|${alpha}|${blurPx}`;
+    const cacheKey = `v12|${pw}|${ph}|${tabLabel}|${rightLabel}|${rightValue}|${c1}|${c2}|${sf}|${alpha}|${blurPx}`;
     const ox = 50 * sf;
     const oy = 50 * sf;
 
@@ -247,9 +247,18 @@ export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: 
     offCtx.shadowBlur = 10 * sf; offCtx.shadowColor = '#fff';
     drawTrackedText(offCtx as CanvasRenderingContext2D, tabLabel, ox + 20 * sf, oy + headerH / 2 + 1 * sf, 18 * sf, 4 * sf, '#fff', 'left', 'rgba(0,0,0,0.6)');
 
-    if (rightLabel) {
-        offCtx.shadowBlur = 8 * sf; offCtx.shadowColor = c1;
-        drawTrackedText(offCtx as CanvasRenderingContext2D, rightLabel, ox + pw - 20 * sf, oy + headerH / 2 + 1 * sf, 16 * sf, 2 * sf, '#fff', 'right', 'rgba(0,0,0,0.6)');
+    if (rightLabel && rightValue) {
+        // Render Label (Smaller, static white)
+        const labelW = getCachedTextWidth(offCtx as CanvasRenderingContext2D, rightLabel);
+        offCtx.shadowBlur = 0;
+        drawTrackedText(offCtx as CanvasRenderingContext2D, rightLabel, ox + pw - 20 * sf - (labelW + 25 * sf), oy + headerH / 2 + 1 * sf, 14 * sf, 2 * sf, 'rgba(255,255,255,0.7)', 'right', 'rgba(0,0,0,0.6)');
+
+        // Render Divider //
+        drawTrackedText(offCtx as CanvasRenderingContext2D, "//", ox + pw - 20 * sf - (labelW + 5 * sf), oy + headerH / 2 + 1 * sf, 14 * sf, 2 * sf, 'rgba(255,255,255,0.3)', 'right', 'rgba(0,0,0,0.4)');
+
+        // Render Value (Larger, Intense Glow)
+        offCtx.shadowBlur = 15 * sf; offCtx.shadowColor = c1;
+        drawTrackedText(offCtx as CanvasRenderingContext2D, rightValue, ox + pw - 20 * sf, oy + headerH / 2 + 1 * sf, 22 * sf, 1 * sf, c2, 'right', 'rgba(0,0,0,0.8)');
     }
 
     // Cache the rendered off-screen canvas

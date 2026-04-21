@@ -14,8 +14,9 @@ export class SongInfoPanelRenderer {
 
         // Unified 2.5px Blur for Info Panel
         const currentStreak = state.scoreManager?.getCombo() || 0;
-        const chainLabel = currentStreak > 0 ? `CHAIN: ${currentStreak.toLocaleString()}` : "";
-        drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf, chainLabel);
+        drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf, 
+            currentStreak > 0 ? "CHAIN" : undefined, 
+            currentStreak > 0 ? currentStreak.toLocaleString() : undefined);
 
         if (!currentSong) {
             const cx = Math.floor(padding + leftPanelWidth / 2);
