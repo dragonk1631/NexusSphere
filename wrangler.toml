@@ -11,3 +11,8 @@ database_id = "ee31c5dc-db48-463a-9e18-955cef244cc9"
 [dev]
 port = 8788
 ip = "localhost"
+
+# [ADD] 빌드 시점에 주입될 환경 변수 (Vite에서 사용)
+[vars]
+VITE_ASSET_EXTERNAL_URL = "https://pub-e2b13f93b4e14ae69e1b66d3505dd239.r2.dev"
+VITE_CF_PAGES = "true"
