@@ -209,38 +209,54 @@ function enableHistoryGuard() {
 
 // Start with Title Screen or Mobile Start Screen
 const startApp = async () => {
+  const isMobile = ScreenUtils.isMobile() && !ScreenUtils.isStandalone();
   const loading = LoadingOverlay.getInstance();
-  loading.show("INITIALIZING NEXUS SPHERE...");
   
-  // Initialize Auth Service
-  try {
-    await AuthService.getInstance().init();
-    
-    // [CLOUD-SYNC] Restore user stats and high scores immediately if signed in
-    const auth = AuthService.getInstance();
-    if (auth.isSignedIn()) {
-        const { ScoreManager } = await import('./core/score/ScoreManager');
-        await ScoreManager.getInstance().syncWithServer();
-    }
-  } catch (e) {
-    console.error("[main] Failed to initialize AuthService. Proceeding as Guest.", e);
+  // [OPTIMIZATION] On mobile, we skip the global loading overlay initially to prevent 
+  // the "half-cut" portrait canvas flicker before the full-screen request UI.
+  if (!isMobile) {
+    loading.show("INITIALIZING NEXUS SPHERE...");
   }
+  
+  // Define initialization tasks as a promise to handle mobile background loading
+  const baseInitTask = (async () => {
+    // Initialize Auth Service
+    try {
+      await AuthService.getInstance().init();
+      
+      const auth = AuthService.getInstance();
+      if (auth.isSignedIn()) {
+          const { ScoreManager } = await import('./core/score/ScoreManager');
+          await ScoreManager.getInstance().syncWithServer();
+      }
+    } catch (e) {
+      console.error("[main] Failed to initialize AuthService. Proceeding as Guest.", e);
+    }
 
-  // Wait for initial theme background assets (Shaders, etc)
-  await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
+    // Wait for initial theme background assets (Shaders, etc)
+    await BackgroundRenderer.getInstance().waitForReady((p) => {
+      if (!isMobile) loading.updateProgress(p);
+    });
+  })();
 
   // Register the global interaction handler for ALL platforms (audio unlock + fullscreen)
   setupGlobalInteraction();
 
-  if (ScreenUtils.isMobile() && !ScreenUtils.isStandalone()) {
-    loading.hide(); // Hide for mobile start screen as it has its own UI
-    new MobileStartScreen(() => {
+  if (isMobile) {
+    // On mobile, show the user-gesture request screen IMMEDIATELY
+    new MobileStartScreen(async () => {
       // MobileStartScreen tap IS the first user gesture — unlock audio immediately
       globalAudioEngine.resume(); // Unlock primary engine
       MenuMusicManager.getInstance().tryUnblock();
+      
+      // Ensure background initialization is complete before transitioning to Title
+      // (Usually fast enough that it's already done by the time the user reads the screen)
+      await baseInitTask;
       showTitle();
     });
   } else {
+    // On PC/Standalone, wait for init then show title
+    await baseInitTask;
     await showTitle();
     loading.hide();
   }

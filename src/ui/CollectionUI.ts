@@ -25,6 +25,7 @@ export class CollectionUI {
         
         const data = await this.fetchCollection();
         if (!data) {
+            alert("동기화에 실패했습니다. 네트워크 연결을 확인하거나 잠시 후 다시 시도해주세요.");
             this.onClose();
             return;
         }
@@ -198,6 +199,67 @@ export class CollectionUI {
                     .col-username { font-size: 1.3rem; }
                     .col-emblem-wrap { width: 65px; height: 65px; }
                 }
+
+                /* MOBILE RESPONSIVE HUD v2 */
+                @media (max-width: 900px) {
+                    .col-overlay { padding-bottom: 0; align-items: stretch; }
+                    .col-modal { 
+                        width: 100vw; 
+                        height: 100dvh; 
+                        border-radius: 0; 
+                        border-left: none; border-right: none;
+                    }
+                    .col-header { 
+                        flex-direction: column; 
+                        gap: 15px; 
+                        padding: 15px 20px; 
+                        align-items: flex-start;
+                    }
+                    .col-progression { 
+                        width: 100%; 
+                        justify-content: space-between; 
+                        gap: 15px;
+                        border-top: 1px solid rgba(0,255,255,0.1);
+                        padding-top: 15px;
+                    }
+                    .col-level-val { font-size: 2.2rem; }
+                    .col-class-info { align-items: flex-start; }
+                    .col-xp-bar-heavy { width: clamp(100px, 30vw, 160px); }
+                    .col-emblem-wrap { width: 60px; height: 60px; }
+                    
+                    .col-filter-bar { 
+                        flex-direction: column; 
+                        gap: 12px; 
+                        padding: 12px 20px;
+                        align-items: stretch;
+                        height: auto;
+                    }
+                    .col-filter-bar > div { flex-direction: column; gap: 8px; }
+                    .col-tab-group { overflow-x: auto; padding: 4px; display: flex; }
+                    .col-tab { padding: 6px 12px; font-size: 0.7rem; flex-shrink: 0; }
+                    
+                    .col-content { 
+                        grid-template-columns: 1fr; 
+                        padding: 20px; 
+                        overflow-y: auto;
+                        display: flex; 
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .col-section { margin-top: 20px; }
+                    .stat-box-heavy { padding: 12px; }
+                    .stat-v { font-size: 1.8rem; }
+                    .grade-grid-heavy { grid-template-columns: repeat(2, 1fr); padding: 10px; }
+                    .perf-scroll { height: auto; min-height: 300px; padding: 10px 5px; }
+                    .col-btn-heavy { padding: 8px 20px; font-size: 0.9rem; }
+                    .col-modal {
+                        animation: mm-slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                    }
+                }
+                @keyframes mm-slideUp {
+                    from { transform: translateY(100%); }
+                    to { transform: translateY(0); }
+                }
             </style>
         `;
 
@@ -353,13 +415,21 @@ export class CollectionUI {
             const auth = AuthService.getInstance();
             const token = await auth.getClerk()?.session?.getToken();
             
-            const response = await fetch('/api/user/sync', {
+            // [Fix] Handle production subpath (e.g., /NexusSphere/)
+            const baseUrl = import.meta.env.BASE_URL || '/';
+            const apiPath = `${baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl}/api/user/sync`.replace(/\/+/g, '/');
+            
+            console.log(`[CollectionUI] Syncing data from: ${apiPath}`);
+            const response = await fetch(apiPath, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (!response.ok) throw new Error("Sync failed");
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ message: 'Unknown error' }));
+                throw new Error(err.message || `HTTP ${response.status}`);
+            }
             return await response.json();
         } catch (e) {
-            console.error(e);
+            console.error("[CollectionUI] Sync failed:", e);
             return null;
         }
     }
