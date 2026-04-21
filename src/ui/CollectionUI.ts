@@ -8,7 +8,7 @@ export class CollectionUI {
     private ui: UIManager;
     private onClose: () => void;
     
-    private currentKeyMode: number = 4;
+    private currentKeyMode: number = 6;
     private currentDifficulty: string = 'NORMAL';
     private cachedData: any = null;
 
@@ -101,15 +101,17 @@ export class CollectionUI {
                     background: rgba(0, 30, 30, 0.2);
                     box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.05);
                     margin-top: 15px;
+                    overflow: hidden;
                 }
                 
                 .col-sec-tag {
-                    position: absolute; top: -14px; left: 15px;
-                    background: linear-gradient(180deg, ${themeCyan}, ${darkCyan});
-                    padding: 3px 22px; border-radius: 5px;
-                    font-family: 'Goldman', cursive; font-size: 0.85rem; font-weight: 700;
-                    color: #000; text-transform: uppercase; letter-spacing: 2px;
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.4); border: 1.5px solid #fff;
+                    width: 100%;
+                    box-sizing: border-box;
+                    background: linear-gradient(90deg, rgba(0, 255, 255, 0.4), transparent);
+                    padding: 8px 20px; 
+                    font-family: 'Goldman', cursive; font-size: 0.95rem; font-weight: 700;
+                    color: #fff; text-transform: uppercase; letter-spacing: 2px;
+                    border-bottom: 1px solid rgba(0, 255, 255, 0.3);
                 }
 
                 /* HEADER HUD */
@@ -284,16 +286,16 @@ export class CollectionUI {
 
                     /* --- FILTER BAR: Compact single row ~28px --- */
                     .col-filter-bar { 
-                        padding: 2px 12px; flex-shrink: 0; 
+                        padding: 4px 12px; flex-shrink: 0; 
                         flex-direction: row; justify-content: space-between; align-items: center;
                         background: rgba(0,15,15,0.6); border-bottom-width: 1px;
                     }
-                    .col-filter-bar > div { display: flex; flex-direction: row; gap: 6px; }
-                    .col-tab-group { padding: 1px; border-radius: 4px; gap: 2px; }
-                    .col-tab { padding: 2px 8px; font-size: 0.55rem; border-radius: 3px; border-width: 1px; }
+                    .col-filter-bar > div { display: flex; flex-direction: row; gap: 8px; }
+                    .col-tab-group { padding: 2px; border-radius: 6px; gap: 3px; }
+                    .col-tab { padding: 4px 12px; font-size: 0.65rem; border-radius: 4px; border-width: 1.5px; }
                     .col-btn-heavy { 
-                        padding: 2px 14px; font-size: 0.6rem; border-width: 2px; border-radius: 5px; 
-                        height: 22px; line-height: 16px;
+                        padding: 4px 20px; font-size: 0.75rem; border-width: 2px; border-radius: 6px; 
+                        height: 26px; line-height: 16px;
                     }
 
                     /* --- MAIN CONTENT: Two columns filling remaining height --- */
@@ -311,35 +313,36 @@ export class CollectionUI {
                     .col-left-stats .col-section { 
                         flex: 1; display: flex; flex-direction: column;
                         margin-top: 0; border-width: 1.5px; border-radius: 6px;
+                        overflow: hidden;
                     }
                     .col-sec-tag { 
-                        font-size: 0.45rem; padding: 0 5px; top: -5px; left: 8px; 
-                        height: 10px; line-height: 10px; border-radius: 3px; border-width: 1px;
-                        letter-spacing: 1px;
+                        font-size: 0.55rem; padding: 4px 10px; left: 0; top: 0; width: 100%; box-sizing: border-box;
+                        height: auto; line-height: normal; border-radius: 0; border-width: 0 0 1px 0;
+                        letter-spacing: 1px; background: linear-gradient(90deg, rgba(0, 255, 255, 0.4), transparent); color: #fff; text-shadow: 0 0 5px rgba(0,0,0,0.8);
                     }
 
                     /* Stats Grid */
                     .stats-grid-heavy { 
                         flex: 1; display: grid; grid-template-columns: 1fr 1fr;
-                        padding: 8px 6px 4px; gap: 3px; align-content: center;
+                        padding: 6px; gap: 6px; align-content: stretch;
                     }
-                    .stat-box-heavy { padding: 2px 4px; border-width: 1px; border-radius: 4px; }
-                    .stat-v { font-size: 0.95rem; }
-                    .stat-l { font-size: 0.4rem; margin-top: 0; letter-spacing: 0.5px; }
-                    .stat-box-heavy.wide .stat-v { font-size: 1rem !important; }
-                    .stat-box-heavy.wide .stat-l { font-size: 0.35rem; }
+                    .stat-box-heavy { padding: 4px; border-width: 1px; border-radius: 4px; display: flex; flex-direction: column; justify-content: center; }
+                    .stat-v { font-size: 1.2rem; }
+                    .stat-l { font-size: 0.45rem; margin-top: 0; letter-spacing: 0.5px; }
+                    .stat-box-heavy.wide .stat-v { font-size: 1.4rem !important; }
+                    .stat-box-heavy.wide .stat-l { font-size: 0.45rem; }
 
                     /* Grade Grid */
                     .grade-grid-heavy { 
                         flex: 1; display: grid; grid-template-columns: repeat(4, 1fr);
-                        padding: 10px 6px 4px; gap: 3px; align-content: center;
+                        padding: 6px; gap: 6px; align-content: stretch;
                     }
                     .grade-item-heavy { 
                         height: auto; border-width: 1px; border-radius: 4px; 
-                        padding: 2px 0; min-height: 0;
+                        padding: 4px 0; min-height: 0; flex-direction: column; display: flex; justify-content: center; align-items: center;
                     }
-                    .gt-h { font-size: 0.9rem; }
-                    .gc-h { font-size: 0.55rem; margin-top: 0; }
+                    .gt-h { font-size: 1.15rem; }
+                    .gc-h { font-size: 0.65rem; margin-top: 0; }
 
                     /* Right Column: Mission log fills full height */
                     .col-right-logs { 
@@ -351,22 +354,22 @@ export class CollectionUI {
                         margin-top: 0; overflow: hidden; border-width: 1.5px; border-radius: 6px;
                     }
                     .perf-scroll { 
-                        flex: 1; padding: 8px 6px 4px; gap: 3px; 
-                        overflow-y: auto; min-height: 0;
+                        flex: 1; padding: 6px; gap: 6px; 
+                        overflow-y: auto; min-height: 0; display: flex; flex-direction: column;
                     }
                     .perf-scroll::-webkit-scrollbar { width: 6px; }
                     .perf-scroll::-webkit-scrollbar-thumb { border: none; border-radius: 3px; }
                     
                     .perf-item { 
-                        padding: 4px 8px; border-radius: 4px; border-width: 1px;
-                        display: grid; grid-template-columns: 22px 1fr auto;
-                        gap: 8px; align-items: center;
+                        padding: 5px 10px; border-radius: 4px; border-width: 1px;
+                        display: grid; grid-template-columns: 26px 1fr auto;
+                        gap: 12px; align-items: center;
                     }
-                    .pi-grade { font-family: 'Goldman'; font-weight: 700; text-align: center; }
+                    .pi-grade { font-family: 'Goldman'; font-weight: 700; text-align: center; font-size: 1rem; }
                     .pi-info { min-width: 0; }
-                    .pi-name { font-size: 0.7rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                    .pi-meta { font-size: 0.5rem; opacity: 0.5; white-space: nowrap; }
-                    .pi-score { font-size: 0.7rem; font-family: 'Goldman'; color: ${themeCyan}; text-align: right; white-space: nowrap; }
+                    .pi-name { font-size: 0.8rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+                    .pi-meta { font-size: 0.55rem; opacity: 0.5; white-space: nowrap; line-height: 1.2; }
+                    .pi-score { font-size: 0.85rem; font-family: 'Goldman'; color: ${themeCyan}; text-align: right; white-space: nowrap; }
                 }
 
                 @keyframes mm-slideUp {
