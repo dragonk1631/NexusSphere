@@ -8,7 +8,7 @@
     "dev:host": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && vite --host --port 5173 --strictPort",
     "manifest": "node scripts/generate_assets_manifest.js && node scripts/generate_bundle.mjs",
     "previews": "node scripts/generate_previews.js",
-    "build": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && node scripts/generate_bundle.mjs && tsc && vite build",
+    "build": "node scripts/generate_previews.js && node scripts/generate_assets_manifest.js && tsc && vite build",
     "preview": "vite preview",
     "dev:server": "wrangler pages dev . --compatibility-date=2024-04-03 --d1 DB --port 8788",
     "deploy-assets": "node scripts/deploy_assets.mjs"
