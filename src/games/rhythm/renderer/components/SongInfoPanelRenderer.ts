@@ -13,7 +13,9 @@ export class SongInfoPanelRenderer {
         const { visPanelY, leftPanelWidth, visPanelH, padding } = layout;
 
         // Unified 2.5px Blur for Info Panel
-        drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf);
+        const currentStreak = state.scoreManager?.getCombo() || 0;
+        const chainLabel = currentStreak > 0 ? `CHAIN: ${currentStreak.toLocaleString()}` : "";
+        drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf, chainLabel);
 
         if (!currentSong) {
             const cx = Math.floor(padding + leftPanelWidth / 2);
