@@ -224,6 +224,13 @@ export class OfflineDownloadManager {
                 unzip(fullBuffer, async (err, unzippedData) => {
                     if (err) {
                         console.error("[Vault] Unzip error:", err);
+                        console.error("[Vault] Failed URL:", `${resolvedUrl}${separator}cb=...`);
+                        
+                        // [Diagnostic] Log first 100 bytes as text to check if it's an HTML error page
+                        const decoder = new TextDecoder();
+                        const snippet = decoder.decode(fullBuffer.slice(0, 100));
+                        console.error("[Vault] Data Snippet (First 100 bytes):", snippet);
+                        
                         resolve(false);
                         return;
                     }

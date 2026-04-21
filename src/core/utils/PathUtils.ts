@@ -32,7 +32,7 @@ export function resolveAssetPath(path: string): string {
         return path;
     }
 
-    const externalUrl = import.meta.env.VITE_ASSET_EXTERNAL_URL;
+    const externalUrl = import.meta.env.VITE_ASSET_EXTERNAL_URL || import.meta.env.VITE_R2_EXTERNAL_URL;
     const assetVersion = import.meta.env.VITE_ASSET_VERSION || '1.0.0';
     let normalizedPath = normalizePath(path);
 
