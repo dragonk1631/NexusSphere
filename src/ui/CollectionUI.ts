@@ -224,15 +224,32 @@ export class CollectionUI {
                     .col-tab { padding: 4px 10px; font-size: 0.65rem; }
                     .col-btn-heavy { padding: 6px 15px; font-size: 0.8rem; border-width: 2px; }
                     
-                    .col-content { padding: 10px 15px; gap: 10px; overflow-y: auto; display: flex; flex-direction: column; }
-                    .col-section { margin-top: 10px; }
-                    .col-sec-tag { font-size: 0.65rem; padding: 2px 12px; top: -10px; }
-                    .stats-grid-heavy { padding: 15px 10px; gap: 8px; }
-                    .stat-box-heavy { padding: 8px; }
-                    .stat-v { font-size: 1.4rem; }
-                    .grade-grid-heavy { padding: 10px; gap: 6px; }
-                    .grade-item-heavy { height: 60px; }
-                    .gt-h { font-size: 1.2rem; }
+                    .col-content { 
+                        display: grid; 
+                        grid-template-columns: 1.1fr 1fr; 
+                        padding: 10px 15px; 
+                        gap: 15px; 
+                        overflow: hidden; 
+                        flex: 1;
+                        min-height: 0;
+                    }
+                    .col-left-stats { display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+                    .col-right-logs { display: flex; flex-direction: column; overflow: hidden; }
+                    
+                    .col-section { margin-top: 10px; flex-shrink: 0; }
+                    .col-sec-tag { font-size: 0.6rem; padding: 2px 10px; top: -8px; letter-spacing: 1px; }
+                    .stats-grid-heavy { padding: 12px 8px; gap: 6px; }
+                    .stat-box-heavy { padding: 6px; }
+                    .stat-v { font-size: 1.25rem; }
+                    .stat-l { font-size: 0.6rem; margin-top: 2px; }
+                    .stat-box-heavy.wide .stat-v { font-size: 1.5rem !important; }
+
+                    .grade-grid-heavy { padding: 8px; gap: 4px; }
+                    .grade-item-heavy { height: 44px; }
+                    .gt-h { font-size: 1.1rem; }
+                    .gc-h { font-size: 0.7rem; margin-top: 0; }
+                    
+                    .perf-scroll { height: 100% !important; padding: 5px; min-height: 0; }
                 }
 
                 @media (max-height: 800px) {
@@ -367,7 +384,7 @@ export class CollectionUI {
 
                     <!-- HUD MAIN CONTENT -->
                     <div class="col-content">
-                        <div style="display: flex; flex-direction: column; gap: 25px;">
+                        <div class="col-left-stats">
                             <!-- ACHIEVEMENTS SECTION -->
                             <div class="col-section">
                                 <div class="col-sec-tag">Operational Stats</div>
@@ -400,19 +417,21 @@ export class CollectionUI {
                         </div>
 
                         <!-- MISSION LOGS SECTION -->
-                        <div class="col-section" style="display: flex; flex-direction: column;">
-                            <div class="col-sec-tag">Mission Archive Log</div>
-                            <div class="perf-scroll">
-                                ${filteredRecords.length > 0 ? filteredRecords.map(r => `
-                                    <div class="perf-item">
-                                        <div class="pi-grade ${r.best_grade === 'S+' ? 'gt-h s_plus' : r.best_grade === 'S' ? 'gt-h s' : r.best_grade === 'A' ? 'gt-h a' : r.best_grade === 'B' ? 'gt-h b' : 'gt-h'}">${r.best_grade}</div>
-                                        <div class="pi-info">
-                                            <div class="pi-name">${r.song_id?.split('/').pop().replace('.mid','').replace('.mp3','')}</div>
-                                            <div class="pi-meta">COMBO ${r.max_combo} | ACCURACY ${(r.best_accuracy || 0).toFixed(2)}%</div>
+                        <div class="col-right-logs">
+                            <div class="col-section" style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
+                                <div class="col-sec-tag">Mission Archive Log</div>
+                                <div class="perf-scroll">
+                                    ${filteredRecords.length > 0 ? filteredRecords.map(r => `
+                                        <div class="perf-item">
+                                            <div class="pi-grade ${r.best_grade === 'S+' ? 'gt-h s_plus' : r.best_grade === 'S' ? 'gt-h s' : r.best_grade === 'A' ? 'gt-h a' : r.best_grade === 'B' ? 'gt-h b' : 'gt-h'}">${r.best_grade}</div>
+                                            <div class="pi-info">
+                                                <div class="pi-name">${r.song_id?.split('/').pop().replace('.mid','').replace('.mp3','')}</div>
+                                                <div class="pi-meta">COMBO ${r.max_combo} | ACCURACY ${(r.best_accuracy || 0).toFixed(2)}%</div>
+                                            </div>
+                                            <div class="pi-score">${(r.high_score || 0).toLocaleString()}</div>
                                         </div>
-                                        <div class="pi-score">${(r.high_score || 0).toLocaleString()}</div>
-                                    </div>
-                                `).join('') : '<div style="opacity: 0.3; text-align: center; padding-top: 15rem; font-weight: 900; font-size: 1.2rem; letter-spacing: 2px;">NO RECENT ANALYTICS</div>'}
+                                    `).join('') : '<div style="opacity: 0.3; text-align: center; padding: 2rem 0; font-weight: 900; font-size: 1.2rem; letter-spacing: 2px;">NO RECENT ANALYTICS</div>'}
+                                </div>
                             </div>
                         </div>
                     </div>
