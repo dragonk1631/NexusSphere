@@ -114,6 +114,16 @@ export class CollectionUI {
                     border-bottom: 1px solid rgba(0, 255, 255, 0.3);
                 }
 
+                /* VIBRANT SECTION THEMES */
+                .sec-stats { border-color: #00d2d3; box-shadow: inset 0 0 15px rgba(0, 210, 211, 0.1); }
+                .sec-stats .col-sec-tag { background: linear-gradient(90deg, rgba(0, 210, 211, 0.5), transparent); border-bottom-color: rgba(0, 210, 211, 0.4); text-shadow: 0 0 8px rgba(0, 210, 211, 0.8); }
+
+                .sec-grade { border-color: #f368e0; box-shadow: inset 0 0 15px rgba(243, 104, 224, 0.1); }
+                .sec-grade .col-sec-tag { background: linear-gradient(90deg, rgba(243, 104, 224, 0.5), transparent); border-bottom-color: rgba(243, 104, 224, 0.4); text-shadow: 0 0 8px rgba(243, 104, 224, 0.8); }
+
+                .sec-logs { border-color: #1dd1a1; box-shadow: inset 0 0 15px rgba(29, 209, 161, 0.1); }
+                .sec-logs .col-sec-tag { background: linear-gradient(90deg, rgba(29, 209, 161, 0.5), transparent); border-bottom-color: rgba(29, 209, 161, 0.4); text-shadow: 0 0 8px rgba(29, 209, 161, 0.8); }
+
                 /* HEADER HUD */
                 .col-header {
                     padding: 20px 35px; border-bottom: 2px solid rgba(0, 255, 255, 0.3);
@@ -292,22 +302,22 @@ export class CollectionUI {
                     }
                     .col-filter-bar > div { display: flex; flex-direction: row; gap: 8px; }
                     .col-tab-group { padding: 2px; border-radius: 6px; gap: 3px; }
-                    .col-tab { padding: 4px 12px; font-size: 0.65rem; border-radius: 4px; border-width: 1.5px; }
+                    .col-tab { padding: 6px 14px; font-size: 0.75rem; border-radius: 5px; border-width: 2px; }
                     .col-btn-heavy { 
-                        padding: 4px 20px; font-size: 0.75rem; border-width: 2px; border-radius: 6px; 
-                        height: 26px; line-height: 16px;
+                        padding: 6px 24px; font-size: 0.85rem; border-width: 2px; border-radius: 6px; 
+                        height: 30px; line-height: 16px;
                     }
 
                     /* --- MAIN CONTENT: Two columns filling remaining height --- */
                     .col-content { 
                         display: flex; flex-direction: row;
-                        padding: 6px 10px 4px 10px; gap: 8px;
+                        padding: 6px 10px 4px 10px; gap: 10px;
                         flex: 1; min-height: 0; overflow: hidden;
                     }
                     
                     /* Left Column: 2 sections stacked, each taking half */
                     .col-left-stats { 
-                        flex: 1; display: flex; flex-direction: column; 
+                        flex: 4; display: flex; flex-direction: column; 
                         gap: 6px; height: 100%; min-height: 0; overflow: hidden;
                     }
                     .col-left-stats .col-section { 
@@ -318,7 +328,7 @@ export class CollectionUI {
                     .col-sec-tag { 
                         font-size: 0.55rem; padding: 4px 10px; left: 0; top: 0; width: 100%; box-sizing: border-box;
                         height: auto; line-height: normal; border-radius: 0; border-width: 0 0 1px 0;
-                        letter-spacing: 1px; background: linear-gradient(90deg, rgba(0, 255, 255, 0.4), transparent); color: #fff; text-shadow: 0 0 5px rgba(0,0,0,0.8);
+                        letter-spacing: 1px; color: #fff;
                     }
 
                     /* Stats Grid */
@@ -346,7 +356,7 @@ export class CollectionUI {
 
                     /* Right Column: Mission log fills full height */
                     .col-right-logs { 
-                        flex: 1; display: flex; flex-direction: column; 
+                        flex: 6; display: flex; flex-direction: column; 
                         height: 100%; min-height: 0; overflow: hidden;
                     }
                     .col-right-logs .col-section { 
@@ -367,9 +377,60 @@ export class CollectionUI {
                     }
                     .pi-grade { font-family: 'Goldman'; font-weight: 700; text-align: center; font-size: 1rem; }
                     .pi-info { min-width: 0; }
-                    .pi-name { font-size: 0.8rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
-                    .pi-meta { font-size: 0.55rem; opacity: 0.5; white-space: nowrap; line-height: 1.2; }
-                    .pi-score { font-size: 0.85rem; font-family: 'Goldman'; color: ${themeCyan}; text-align: right; white-space: nowrap; }
+                    .pi-name { font-size: 0.8rem; font-family: 'Outfit', sans-serif; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+                    .pi-meta { font-size: 0.55rem; font-family: 'Outfit', sans-serif; opacity: 0.7; white-space: nowrap; line-height: 1.2; }
+                    .pi-score { font-size: 0.85rem; font-family: 'Goldman'; text-align: right; white-space: nowrap; }
+                }
+
+                /* EMBLEM MODAL */
+                .emb-modal-overlay {
+                    position: absolute; inset: 0; background: rgba(0,0,0,0.85);
+                    display: none; justify-content: center; align-items: center;
+                    z-index: 2000; backdrop-filter: blur(10px);
+                    animation: mm-fadeIn 0.3s forwards;
+                }
+                .emb-modal-overlay.active { display: flex; }
+                .emb-modal {
+                    width: min(850px, 95%); max-height: 85%;
+                    background: rgba(0, 15, 15, 0.95);
+                    border: 2px solid ${themeCyan}; border-radius: 12px;
+                    display: flex; flex-direction: column; overflow: hidden;
+                    box-shadow: 0 0 40px rgba(0, 255, 255, 0.2);
+                }
+                .emb-header {
+                    padding: 15px 25px; border-bottom: 2px solid ${themeCyan};
+                    display: flex; justify-content: space-between; align-items: center;
+                    background: linear-gradient(90deg, rgba(0,255,255,0.2), transparent);
+                }
+                .emb-title { font-family: 'Goldman', cursive; font-size: 1.2rem; color: #fff; text-shadow: 0 0 10px ${themeCyan}; }
+                .emb-grid {
+                    padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                    gap: 15px; overflow-y: auto; flex: 1;
+                }
+                .emb-item {
+                    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column;
+                    align-items: center; gap: 10px; transition: 0.2s; position: relative;
+                }
+                .emb-item.locked { opacity: 0.3; filter: grayscale(100%); }
+                .emb-item.unlocked { border-color: rgba(0, 255, 255, 0.3); background: rgba(0, 255, 255, 0.05); }
+                .emb-item.unlocked:hover { transform: translateY(-5px); border-color: ${themeCyan}; box-shadow: 0 5px 15px rgba(0,255,255,0.15); }
+                .emb-item.current { border-color: #f1c40f; box-shadow: 0 0 20px rgba(241,196,15,0.2); background: rgba(241,196,15,0.05); }
+                .emb-icon-wrap { position: relative; width: 60px; height: 60px; }
+                .emb-frame, .emb-icon { position: absolute; inset: 0; width: 100%; height: 100%; }
+                .emb-name { font-family: 'Goldman', cursive; font-size: 0.75rem; text-align: center; color: #fff; line-height: 1.2; }
+                .emb-lvl { font-size: 0.65rem; font-weight: 800; color: ${themeCyan}; letter-spacing: 1px; }
+                .emb-locked-text { font-size: 0.6rem; color: #ff4757; font-weight: 900; margin-top: -5px; }
+
+                /* Mobile landscape overrides */
+                @media (max-height: 500px) and (orientation: landscape) {
+                    .emb-modal { max-height: 95%; flex-direction: row; }
+                    .emb-header { border-bottom: none; border-right: 2px solid ${themeCyan}; flex-direction: column; width: 150px; padding: 15px; }
+                    .emb-grid { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); padding: 10px; gap: 8px; }
+                    .emb-item { padding: 10px 5px; gap: 6px; }
+                    .emb-icon-wrap { width: 40px; height: 40px; }
+                    .emb-name { font-size: 0.6rem; }
+                    .emb-lvl { font-size: 0.55rem; }
                 }
 
                 @keyframes mm-slideUp {
@@ -405,6 +466,10 @@ export class CollectionUI {
                             </div>
                         </div>
                         <div class="col-progression">
+                            <div class="col-emblem-wrap" id="emblem-trigger">
+                                <div class="col-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'main')}</div>
+                                <div class="col-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'main')}</div>
+                            </div>
                             <div class="col-level-val">LV.${level}</div>
                             <div class="col-class-info">
                                 <div class="col-class-name">${classInfo.name}</div>
@@ -414,10 +479,6 @@ export class CollectionUI {
                                 <div style="font-size: 0.75rem; opacity: 0.6; margin-top: 8px; font-weight: 900; letter-spacing: 0.5px;">
                                     ${Math.floor(totalXP).toLocaleString()} / ${ExperienceSystem.getXPThresholdForLevel(level + 1).toLocaleString()} XP
                                 </div>
-                            </div>
-                            <div class="col-emblem-wrap" id="emblem-trigger">
-                                <div class="col-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'main')}</div>
-                                <div class="col-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'main')}</div>
                             </div>
                         </div>
                     </div>
@@ -443,7 +504,7 @@ export class CollectionUI {
                     <div class="col-content">
                         <div class="col-left-stats">
                             <!-- ACHIEVEMENTS SECTION -->
-                            <div class="col-section">
+                            <div class="col-section sec-stats">
                                 <div class="col-sec-tag">Operational Stats</div>
                                 <div class="stats-grid-heavy">
                                     <div class="stat-box-heavy">
@@ -462,7 +523,7 @@ export class CollectionUI {
                             </div>
 
                             <!-- PERFORMANCE DISTRIBUTION SECTION -->
-                            <div class="col-section">
+                            <div class="col-section sec-grade">
                                 <div class="col-sec-tag">Performance Rating</div>
                                 <div class="grade-grid-heavy">
                                     <div class="grade-item-heavy"><div class="gt-h s_plus">S+</div><div class="gc-h">${currentRankStats.rank_s_plus || 0}</div></div>
@@ -475,7 +536,7 @@ export class CollectionUI {
 
                         <!-- MISSION LOGS SECTION -->
                         <div class="col-right-logs">
-                            <div class="col-section" style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
+                            <div class="col-section sec-logs" style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
                                 <div class="col-sec-tag">Mission Archive Log</div>
                                 <div class="perf-scroll">
                                     ${filteredRecords.length > 0 ? filteredRecords.map(r => `
@@ -491,6 +552,34 @@ export class CollectionUI {
                                 </div>
                             </div>
                         </div>
+                        </div>
+                    </div>
+                    
+                    <!-- EMBLEM POPUP MODAL -->
+                    <div class="emb-modal-overlay" id="emblem-modal">
+                        <div class="emb-modal">
+                            <div class="emb-header">
+                                <div class="emb-title">MEDAL ARCHIVE</div>
+                                <button class="col-btn-heavy" id="close-emblem" style="margin-top: 10px;">CLOSE</button>
+                            </div>
+                            <div class="emb-grid">
+                                ${DJClassSystem.getAllClasses().map(cls => {
+                                    const isLocked = level < cls.minLevel;
+                                    const isCurrent = classInfo.id === cls.id;
+                                    return `
+                                        <div class="emb-item ${isLocked ? 'locked' : 'unlocked'} ${isCurrent ? 'current' : ''}">
+                                            <div class="emb-icon-wrap">
+                                                <div class="emb-frame" style="color: ${cls.color}; filter: drop-shadow(0 0 10px ${cls.bgGlow})">${makeUniqueSVG(cls.frameSVG, 'emb_' + cls.id)}</div>
+                                                <div class="emb-icon">${makeUniqueSVG(cls.emblemSVG, 'emb_' + cls.id)}</div>
+                                            </div>
+                                            <div class="emb-name" style="color: ${isLocked ? '#fff' : cls.color}">${cls.name}</div>
+                                            <div class="emb-lvl">LV.${cls.minLevel}</div>
+                                            ${isLocked ? `<div class="emb-locked-text">LOCKED</div>` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -500,7 +589,7 @@ export class CollectionUI {
     }
 
     private attachEventListeners() {
-        const guide = document.getElementById('class-guide');
+        const modal = document.getElementById('emblem-modal');
 
         // Close Main Modal
         document.getElementById('close-col')?.addEventListener('click', () => {
@@ -508,13 +597,13 @@ export class CollectionUI {
             this.onClose();
         });
 
-        // Toggle Class Guide
+        // Toggle Emblem Guide Modal
         document.getElementById('emblem-trigger')?.addEventListener('click', () => {
-            guide?.classList.add('active');
+            modal?.classList.add('active');
         });
 
-        document.getElementById('close-guide')?.addEventListener('click', () => {
-            guide?.classList.remove('active');
+        document.getElementById('close-emblem')?.addEventListener('click', () => {
+            modal?.classList.remove('active');
         });
 
         const keyTabs = document.querySelectorAll('#key-tabs .col-tab');
