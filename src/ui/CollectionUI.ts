@@ -206,177 +206,169 @@ export class CollectionUI {
                 .perf-item { display: flex; align-items: center; padding: 12px 18px; background: rgba(255,255,255,0.04); border-radius: 8px; transition: 0.2s; border: 2px solid transparent; }
                 .perf-item:hover { background: rgba(0, 255, 255, 0.1); border-color: ${themeCyan}; transform: translateX(8px); }
 
-                @media (max-width: 900px) {
+                /* ============================================================
+                   MOBILE PORTRAIT (Narrow width, tall screen)
+                   ============================================================ */
+                @media (max-width: 900px) and (orientation: portrait) {
                     .col-overlay { padding-bottom: 0; align-items: stretch; }
                     .col-modal { 
-                        width: 100vw; 
-                        height: 100dvh; 
-                        border-radius: 0; 
+                        width: 100vw; height: 100dvh; border-radius: 0; 
                         border-left: none; border-right: none;
+                        animation: mm-slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
                     }
-                    .col-header { 
-                        flex-direction: column; 
-                        gap: 15px; 
-                        padding: 15px 20px; 
-                        align-items: flex-start;
-                    }
-                    .col-progression { 
-                        width: 100%; 
-                        justify-content: space-between; 
-                        gap: 15px;
-                        border-top: 1px solid rgba(0,255,255,0.1);
-                        padding-top: 15px;
-                    }
+                    .col-header { flex-direction: column; gap: 15px; padding: 15px 20px; align-items: flex-start; }
+                    .col-progression { width: 100%; justify-content: space-between; gap: 15px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 15px; }
                     .col-level-val { font-size: 2.2rem; }
                     .col-class-info { align-items: flex-start; }
                     .col-xp-bar-heavy { width: clamp(100px, 30vw, 160px); }
                     .col-emblem-wrap { width: 60px; height: 60px; }
-                    
-                    .col-filter-bar { 
-                        flex-direction: column; 
-                        gap: 12px; 
-                        padding: 12px 20px;
-                        align-items: stretch;
-                        height: auto;
-                    }
+                    .col-filter-bar { flex-direction: column; gap: 12px; padding: 12px 20px; align-items: stretch; }
                     .col-filter-bar > div { flex-direction: column; gap: 8px; }
                     .col-tab-group { overflow-x: auto; padding: 4px; display: flex; }
                     .col-tab { padding: 6px 12px; font-size: 0.7rem; flex-shrink: 0; }
-                    
-                    .col-content { 
-                        grid-template-columns: 1fr; 
-                        padding: 20px; 
-                        overflow-y: auto;
-                        display: flex; 
-                        flex-direction: column;
-                        gap: 20px;
-                    }
+                    .col-content { grid-template-columns: 1fr; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
                     .col-section { margin-top: 20px; }
                     .stat-box-heavy { padding: 12px; }
                     .stat-v { font-size: 1.8rem; }
                     .grade-grid-heavy { grid-template-columns: repeat(2, 1fr); padding: 10px; }
                     .perf-scroll { height: auto; min-height: 300px; padding: 10px 5px; }
                     .col-btn-heavy { padding: 8px 20px; font-size: 0.9rem; }
-                    .col-modal {
-                        animation: mm-slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-                    }
                 }
 
-                /* 
-                   ULTRA-LANDSCAPE OPTIMIZATION (No Global Scroll - Perfect Balance)
-                */
-                @media (max-height: 500px) {
-                    .col-overlay { padding-bottom: 0; align-items: stretch; }
+                /* ============================================================
+                   MOBILE LANDSCAPE — Commercial-Quality HUD Dashboard
+                   Completely self-contained, no dependency on portrait styles.
+                   ============================================================ */
+                @media (max-height: 500px) and (orientation: landscape) {
+                    /* --- FOUNDATION --- */
+                    .col-overlay { padding: 0; align-items: stretch; justify-content: stretch; }
                     .col-modal { 
-                        height: 100dvh !important; 
-                        border-radius: 0; 
-                        width: 100vw !important;
-                        overflow: hidden !important; 
-                        display: flex !important;
-                        flex-direction: column !important;
+                        width: 100vw; height: 100dvh; border-radius: 0; 
+                        border: none; border-top: 2px solid ${themeCyan}; border-bottom: 2px solid ${themeCyan};
+                        overflow: hidden; display: flex; flex-direction: column;
                     }
-                    .col-title-bar { flex-shrink: 0; padding: 2px 15px; font-size: 0.5rem; letter-spacing: 2px; }
+
+                    /* --- TITLE BAR: 18px --- */
+                    .col-title-bar { 
+                        flex-shrink: 0; padding: 1px 12px; font-size: 0.5rem; letter-spacing: 2px; 
+                        border-bottom-color: rgba(0,255,255,0.2);
+                    }
+                    .col-title-status { width: 5px; height: 5px; }
+
+                    /* --- HEADER: Compact single row ~34px --- */
                     .col-header { 
-                        padding: 4px 15px; 
-                        flex-direction: row !important;
-                        justify-content: space-between;
-                        gap: 10px;
-                        flex-shrink: 0;
-                        min-height: auto;
+                        padding: 3px 12px; 
+                        flex-direction: row; justify-content: space-between; align-items: center;
+                        gap: 12px; flex-shrink: 0; border-bottom-width: 1px;
+                        background: linear-gradient(180deg, rgba(0,255,255,0.08), transparent);
                     }
-                    .col-avatar { width: 22px; height: 22px; }
-                    .col-username { font-size: 0.85rem; text-shadow: 0 0 10px ${themeCyan}; }
-                    .col-level-val { font-size: 1.4rem; margin-right: 5px; }
+                    .col-profile { gap: 8px; }
+                    .col-avatar { width: 26px; height: 26px; border-width: 1.5px; border-radius: 6px; }
+                    .col-username { font-size: 0.8rem; letter-spacing: 0; }
+                    /* Hide the "NEXUS SYSTEM SYNCED" subtitle on landscape */
+                    .col-username + div { display: none; }
                     
-                    /* Vertical Stack for XP info as requested */
+                    .col-progression { 
+                        gap: 12px; width: auto; border-top: none; padding-top: 0;
+                    }
+                    .col-level-val { font-size: 1.5rem; text-shadow: 0 0 15px ${themeCyan}; }
                     .col-class-info { 
-                        flex-direction: column !important; 
-                        align-items: flex-end !important; 
-                        gap: 1px !important; 
-                        justify-content: center;
+                        flex-direction: column; align-items: flex-end; gap: 1px; 
                     }
-                    .col-class-name { font-size: 0.6rem; border: 1px solid ${themeCyan}; padding: 0px 4px; border-radius: 2px; }
-                    .col-xp-bar-heavy { display: block !important; width: 85px; height: 4px; margin-top: 2px; border-width: 1px; } 
-                    
-                    .col-emblem-wrap { width: 30px; height: 30px; }
-                    
-                    /* Compact Filter Bar - Force Row */
+                    .col-class-name { font-size: 0.55rem; letter-spacing: 1px; }
+                    .col-xp-bar-heavy { width: 70px; height: 4px; margin-top: 1px; border-width: 1px; border-radius: 2px; }
+                    /* XP number text */
+                    .col-class-info > div:last-child { font-size: 0.5rem !important; margin-top: 1px !important; opacity: 0.5 !important; }
+                    .col-emblem-wrap { width: 28px; height: 28px; }
+                    .col-emblem-icon { width: 16px; height: 16px; }
+
+                    /* --- FILTER BAR: Compact single row ~28px --- */
                     .col-filter-bar { 
-                        padding: 2px 15px; 
-                        flex-shrink: 0;
-                        flex-direction: row !important;
-                        height: auto;
-                        min-height: 30px;
-                        align-items: center !important;
+                        padding: 2px 12px; flex-shrink: 0; 
+                        flex-direction: row; justify-content: space-between; align-items: center;
+                        background: rgba(0,15,15,0.6); border-bottom-width: 1px;
                     }
-                    .col-filter-bar > div { flex-direction: row !important; gap: 8px; }
-                    .col-tab-group { padding: 1px; }
-                    .col-tab { padding: 1px 6px; font-size: 0.5rem; height: 18px; line-height: 18px; }
-                    .col-btn-heavy { padding: 0 12px; font-size: 0.7rem; height: 22px; line-height: 20px; flex-shrink: 0; width: auto; margin-left: auto; }
-                    
-                    /* Split Content - Fixed Row Layout */
+                    .col-filter-bar > div { display: flex; flex-direction: row; gap: 6px; }
+                    .col-tab-group { padding: 1px; border-radius: 4px; gap: 2px; }
+                    .col-tab { padding: 2px 8px; font-size: 0.55rem; border-radius: 3px; border-width: 1px; }
+                    .col-btn-heavy { 
+                        padding: 2px 14px; font-size: 0.6rem; border-width: 2px; border-radius: 5px; 
+                        height: 22px; line-height: 16px;
+                    }
+
+                    /* --- MAIN CONTENT: Two columns filling remaining height --- */
                     .col-content { 
-                        display: flex !important; 
-                        flex-direction: row !important;
-                        padding: 4px 10px !important; 
-                        gap: 8px !important; 
-                        flex: 1 !important;
-                        min-height: 0;
-                        overflow: hidden !important;
-                    }
-                    .col-left-stats, .col-right-logs { 
-                        flex: 1; 
-                        display: flex !important; 
-                        flex-direction: column !important; 
-                        height: 100% !important; 
-                        min-height: 0;
-                        overflow: hidden;
+                        display: flex; flex-direction: row;
+                        padding: 6px 10px 4px 10px; gap: 8px;
+                        flex: 1; min-height: 0; overflow: hidden;
                     }
                     
-                    /* Adjust Left Sections to fill height */
-                    .col-left-stats .col-section { flex: 1; display: flex; flex-direction: column; }
-                    .col-left-stats .col-section:first-child { flex: 1.2; } 
-                    
-                    .col-section { 
-                        margin-top: 8px !important; 
-                        flex-shrink: 0; 
-                        padding: 0 !important;
+                    /* Left Column: 2 sections stacked, each taking half */
+                    .col-left-stats { 
+                        flex: 1; display: flex; flex-direction: column; 
+                        gap: 6px; height: 100%; min-height: 0; overflow: hidden;
+                    }
+                    .col-left-stats .col-section { 
+                        flex: 1; display: flex; flex-direction: column;
+                        margin-top: 0; border-width: 1.5px; border-radius: 6px;
                     }
                     .col-sec-tag { 
-                        font-size: 0.4rem; padding: 0px 5px; top: -5px; left: 10px; height: 10px; line-height: 10px;
+                        font-size: 0.45rem; padding: 0 5px; top: -5px; left: 8px; 
+                        height: 10px; line-height: 10px; border-radius: 3px; border-width: 1px;
+                        letter-spacing: 1px;
                     }
-                    
-                    .stats-grid-heavy { flex: 1; padding: 6px 4px; gap: 3px; }
-                    .stat-box-heavy { flex: 1; padding: 1px; }
-                    .stat-v { font-size: 0.9rem; }
-                    .stat-l { font-size: 0.4rem; margin-top: -2px; }
-                    .stat-box-heavy.wide .stat-v { font-size: 1.05rem !important; }
 
-                    .grade-grid-heavy { flex: 1; padding: 6px 4px; gap: 3px; align-content: center; }
-                    .grade-item-heavy { height: auto !important; flex: 1; flex-direction: row; gap: 6px; padding: 0 8px; }
-                    .gt-h { font-size: 0.8rem; }
+                    /* Stats Grid */
+                    .stats-grid-heavy { 
+                        flex: 1; display: grid; grid-template-columns: 1fr 1fr;
+                        padding: 8px 6px 4px; gap: 3px; align-content: center;
+                    }
+                    .stat-box-heavy { padding: 2px 4px; border-width: 1px; border-radius: 4px; }
+                    .stat-v { font-size: 0.95rem; }
+                    .stat-l { font-size: 0.4rem; margin-top: 0; letter-spacing: 0.5px; }
+                    .stat-box-heavy.wide .stat-v { font-size: 1rem !important; }
+                    .stat-box-heavy.wide .stat-l { font-size: 0.35rem; }
+
+                    /* Grade Grid */
+                    .grade-grid-heavy { 
+                        flex: 1; display: grid; grid-template-columns: repeat(4, 1fr);
+                        padding: 10px 6px 4px; gap: 3px; align-content: center;
+                    }
+                    .grade-item-heavy { 
+                        height: auto; border-width: 1px; border-radius: 4px; 
+                        padding: 2px 0; min-height: 0;
+                    }
+                    .gt-h { font-size: 0.9rem; }
                     .gc-h { font-size: 0.55rem; margin-top: 0; }
-                    
-                    /* Mission Archive Log Polish */
-                    .col-right-logs .col-section { flex: 1; height: 100%; border-color: rgba(0, 255, 255, 0.4); }
+
+                    /* Right Column: Mission log fills full height */
+                    .col-right-logs { 
+                        flex: 1; display: flex; flex-direction: column; 
+                        height: 100%; min-height: 0; overflow: hidden;
+                    }
+                    .col-right-logs .col-section { 
+                        flex: 1; display: flex; flex-direction: column;
+                        margin-top: 0; overflow: hidden; border-width: 1.5px; border-radius: 6px;
+                    }
                     .perf-scroll { 
-                        flex: 1 !important; 
-                        height: 100% !important; 
-                        padding: 2px 4px !important; 
-                        overflow-y: auto !important; 
+                        flex: 1; padding: 8px 6px 4px; gap: 3px; 
+                        overflow-y: auto; min-height: 0;
                     }
+                    .perf-scroll::-webkit-scrollbar { width: 6px; }
+                    .perf-scroll::-webkit-scrollbar-thumb { border: none; border-radius: 3px; }
+                    
                     .perf-item { 
-                        padding: 5px 8px; 
-                        display: grid !important;
-                        grid-template-columns: 20px 1fr 65px;
-                        gap: 6px;
-                        align-items: center;
+                        padding: 4px 8px; border-radius: 4px; border-width: 1px;
+                        display: grid; grid-template-columns: 22px 1fr auto;
+                        gap: 8px; align-items: center;
                     }
-                    .perf-item .gt-h { font-size: 0.75rem; text-align: center; }
-                    .perf-item .pi-name { font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
-                    .perf-item .pi-meta { font-size: 0.45rem; opacity: 0.6; }
-                    .perf-item .pi-score { font-size: 0.6rem; text-align: right; font-family: 'Goldman'; color: ${themeCyan}; }
+                    .pi-grade { font-family: 'Goldman'; font-weight: 700; text-align: center; }
+                    .pi-info { min-width: 0; }
+                    .pi-name { font-size: 0.7rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .pi-meta { font-size: 0.5rem; opacity: 0.5; white-space: nowrap; }
+                    .pi-score { font-size: 0.7rem; font-family: 'Goldman'; color: ${themeCyan}; text-align: right; white-space: nowrap; }
                 }
+
                 @keyframes mm-slideUp {
                     from { transform: translateY(100%); }
                     to { transform: translateY(0); }
