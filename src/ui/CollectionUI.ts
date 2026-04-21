@@ -66,6 +66,7 @@ export class CollectionUI {
                     display: flex; align-items: flex-end; justify-content: center;
                     z-index: 1500; animation: mm-fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
                     padding-bottom: 25px;
+                    box-sizing: border-box;
                 }
                 
                 .col-modal {
@@ -80,6 +81,17 @@ export class CollectionUI {
                     backdrop-filter: blur(35px) saturate(180%);
                     position: relative;
                 }
+
+                /* NEW PAGE TITLE BAR */
+                .col-title-bar {
+                    background: rgba(0, 255, 255, 0.1);
+                    padding: 6px 35px; border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+                    font-family: 'Goldman', cursive; font-size: 0.75rem; 
+                    letter-spacing: 4px; color: ${themeCyan}; font-weight: 700;
+                    display: flex; align-items: center; gap: 10px;
+                    text-transform: uppercase;
+                }
+                .col-title-status { width: 8px; height: 8px; background: ${themeCyan}; border-radius: 50%; box-shadow: 0 0 8px ${themeCyan}; animation: mm-pulse 1.5s infinite; }
 
                 /* SECTION HUD */
                 .col-section {
@@ -194,6 +206,35 @@ export class CollectionUI {
                 .perf-item { display: flex; align-items: center; padding: 12px 18px; background: rgba(255,255,255,0.04); border-radius: 8px; transition: 0.2s; border: 2px solid transparent; }
                 .perf-item:hover { background: rgba(0, 255, 255, 0.1); border-color: ${themeCyan}; transform: translateX(8px); }
 
+                @media (max-height: 500px) {
+                    .col-modal { height: 100dvh; border-radius: 0; }
+                    .col-header { padding: 8px 15px; border-bottom: 1px solid rgba(0, 255, 255, 0.2); }
+                    .col-profile { gap: 10px; }
+                    .col-avatar { width: 32px; height: 32px; border-width: 1.5px; }
+                    .col-username { font-size: 0.95rem; }
+                    .col-progression { gap: 15px; }
+                    .col-level-val { font-size: 1.8rem; }
+                    .col-class-name { font-size: 0.75rem; }
+                    .col-xp-bar-heavy { width: 80px; height: 6px; margin-top: 4px; }
+                    .col-emblem-wrap { width: 45px; height: 45px; }
+                    .col-emblem-icon { width: 22px; height: 22px; }
+                    
+                    .col-title-bar { padding: 4px 15px; font-size: 0.6rem; letter-spacing: 2px; }
+                    .col-filter-bar { padding: 6px 15px; }
+                    .col-tab { padding: 4px 10px; font-size: 0.65rem; }
+                    .col-btn-heavy { padding: 6px 15px; font-size: 0.8rem; border-width: 2px; }
+                    
+                    .col-content { padding: 10px 15px; gap: 10px; overflow-y: auto; display: flex; flex-direction: column; }
+                    .col-section { margin-top: 10px; }
+                    .col-sec-tag { font-size: 0.65rem; padding: 2px 12px; top: -10px; }
+                    .stats-grid-heavy { padding: 15px 10px; gap: 8px; }
+                    .stat-box-heavy { padding: 8px; }
+                    .stat-v { font-size: 1.4rem; }
+                    .grade-grid-heavy { padding: 10px; gap: 6px; }
+                    .grade-item-heavy { height: 60px; }
+                    .gt-h { font-size: 1.2rem; }
+                }
+
                 @media (max-height: 800px) {
                     .col-modal { height: 96vh; }
                     .col-level-val { font-size: 2.8rem; }
@@ -272,6 +313,12 @@ export class CollectionUI {
             ${styles}
             <div class="col-overlay">
                 <div class="col-modal">
+                    <!-- HUD TITLE BAR -->
+                    <div class="col-title-bar">
+                        <div class="col-title-status"></div>
+                        SYSTEM ARCHIVE // COLLECTION
+                    </div>
+
                     <!-- MAIN HUD HEADER -->
                     <div class="col-header">
                         <div class="col-profile">
