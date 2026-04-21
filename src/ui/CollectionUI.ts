@@ -287,25 +287,37 @@ export class CollectionUI {
                     .col-avatar { width: 22px; height: 22px; }
                     .col-username { font-size: 0.85rem; text-shadow: 0 0 10px ${themeCyan}; }
                     .col-level-val { font-size: 1.4rem; margin-right: 5px; }
-                    .col-class-info { flex-direction: row !important; align-items: center !important; gap: 10px; }
-                    .col-class-name { font-size: 0.65rem; border: 1px solid ${themeCyan}; padding: 1px 6px; border-radius: 3px; }
-                    .col-xp-bar-heavy { display: block !important; width: 60px; height: 3px; margin-top: 0; border-width: 1px; } 
-                    .col-emblem-wrap { width: 26px; height: 26px; }
                     
-                    /* Compact Filter Bar */
+                    /* Vertical Stack for XP info as requested */
+                    .col-class-info { 
+                        flex-direction: column !important; 
+                        align-items: flex-end !important; 
+                        gap: 1px !important; 
+                        justify-content: center;
+                    }
+                    .col-class-name { font-size: 0.6rem; border: 1px solid ${themeCyan}; padding: 0px 4px; border-radius: 2px; }
+                    .col-xp-bar-heavy { display: block !important; width: 85px; height: 4px; margin-top: 2px; border-width: 1px; } 
+                    
+                    .col-emblem-wrap { width: 30px; height: 30px; }
+                    
+                    /* Compact Filter Bar - Force Row */
                     .col-filter-bar { 
                         padding: 2px 15px; 
                         flex-shrink: 0;
+                        flex-direction: row !important;
                         height: auto;
-                        min-height: 28px;
+                        min-height: 30px;
+                        align-items: center !important;
                     }
+                    .col-filter-bar > div { flex-direction: row !important; gap: 8px; }
                     .col-tab-group { padding: 1px; }
                     .col-tab { padding: 1px 6px; font-size: 0.5rem; height: 18px; line-height: 18px; }
-                    .col-btn-heavy { padding: 0 8px; font-size: 0.65rem; height: 20px; line-height: 18px; }
+                    .col-btn-heavy { padding: 0 12px; font-size: 0.7rem; height: 22px; line-height: 20px; flex-shrink: 0; width: auto; margin-left: auto; }
                     
-                    /* Split Content - Fixed Left, Scrolling Right with Height Match */
+                    /* Split Content - Fixed Row Layout */
                     .col-content { 
                         display: flex !important; 
+                        flex-direction: row !important;
                         padding: 4px 10px !important; 
                         gap: 8px !important; 
                         flex: 1 !important;
@@ -318,14 +330,15 @@ export class CollectionUI {
                         flex-direction: column !important; 
                         height: 100% !important; 
                         min-height: 0;
+                        overflow: hidden;
                     }
                     
                     /* Adjust Left Sections to fill height */
                     .col-left-stats .col-section { flex: 1; display: flex; flex-direction: column; }
-                    .col-left-stats .col-section:first-child { flex: 1.2; } /* Operational stats gets bit more room */
+                    .col-left-stats .col-section:first-child { flex: 1.2; } 
                     
                     .col-section { 
-                        margin-top: 10px !important; 
+                        margin-top: 8px !important; 
                         flex-shrink: 0; 
                         padding: 0 !important;
                     }
@@ -334,7 +347,7 @@ export class CollectionUI {
                     }
                     
                     .stats-grid-heavy { flex: 1; padding: 6px 4px; gap: 3px; }
-                    .stat-box-heavy { flex: 1; padding: 2px; }
+                    .stat-box-heavy { flex: 1; padding: 1px; }
                     .stat-v { font-size: 0.9rem; }
                     .stat-l { font-size: 0.4rem; margin-top: -2px; }
                     .stat-box-heavy.wide .stat-v { font-size: 1.05rem !important; }
@@ -353,16 +366,16 @@ export class CollectionUI {
                         overflow-y: auto !important; 
                     }
                     .perf-item { 
-                        padding: 6px 10px; 
+                        padding: 5px 8px; 
                         display: grid !important;
                         grid-template-columns: 20px 1fr 65px;
-                        gap: 8px;
+                        gap: 6px;
                         align-items: center;
                     }
-                    .perf-item .gt-h { font-size: 0.8rem; text-align: center; }
-                    .perf-item .pi-name { font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
-                    .perf-item .pi-meta { font-size: 0.5rem; opacity: 0.6; }
-                    .perf-item .pi-score { font-size: 0.65rem; text-align: right; font-family: 'Goldman'; color: ${themeCyan}; }
+                    .perf-item .gt-h { font-size: 0.75rem; text-align: center; }
+                    .perf-item .pi-name { font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
+                    .perf-item .pi-meta { font-size: 0.45rem; opacity: 0.6; }
+                    .perf-item .pi-score { font-size: 0.6rem; text-align: right; font-family: 'Goldman'; color: ${themeCyan}; }
                 }
                 @keyframes mm-slideUp {
                     from { transform: translateY(100%); }
