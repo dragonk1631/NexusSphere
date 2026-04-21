@@ -11,7 +11,7 @@ import path from 'path';
 const DIST_DIR = path.resolve('dist');
 const MAX_SIZE_BYTES = 24 * 1024 * 1024; // 24MB (안전 마진 고려)
 
-function findAndDeleteLargeFiles(dir) {
+function cleanupDist(dir) {
     if (!fs.existsSync(dir)) return;
 
     const files = fs.readdirSync(dir);
@@ -21,14 +21,22 @@ function findAndDeleteLargeFiles(dir) {
         const stat = fs.statSync(fullPath);
 
         if (stat.isDirectory()) {
-            findAndDeleteLargeFiles(fullPath);
+            // [STRATEGY] R2에 이미 있는 대용량 카테고리는 dist에서 아예 삭제하여 25MB 제한 및 용량 낭비 방지
+            // 단, 초기 UI에 필요한 images/ui, logos, favicons 등은 제외함
+            const isLargeCategory = file === 'audio' || file === 'background-themes' || file === 'videos';
+            if (isLargeCategory) {
+                console.log(`[Cleanup] Removing large asset directory from dist: ${file}`);
+                fs.rmSync(fullPath, { recursive: true, force: true });
+            } else {
+                cleanupDist(fullPath);
+            }
         } else if (stat.size > MAX_SIZE_BYTES) {
-            console.log(`[Cleanup] Removing large asset: ${file} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
+            console.log(`[Cleanup] Removing large file: ${file} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
             fs.unlinkSync(fullPath);
         }
     });
 }
 
-console.log('[Cleanup] Scanning dist for files exceeding 25MB limit...');
-findAndDeleteLargeFiles(DIST_DIR);
+console.log('[Cleanup] Aggressively cleaning dist for Cloudflare Pages compatibility...');
+cleanupDist(DIST_DIR);
 console.log('[Cleanup] Done.');
