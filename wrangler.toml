@@ -14,5 +14,5 @@ ip = "localhost"
 
 # [ADD] 빌드 시점에 주입될 환경 변수 (Vite에서 사용)
 [vars]
-VITE_ASSET_EXTERNAL_URL = "https://pub-e2b13f93b4e14ae69e1b66d3505dd239.r2.dev"
+VITE_R2_EXTERNAL_URL = "https://pub-e2b13f93b4e14ae69e1b66d3505dd239.r2.dev"
 VITE_CF_PAGES = "true"
