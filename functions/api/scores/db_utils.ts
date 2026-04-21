@@ -48,6 +48,8 @@ export async function ensureTables(db: D1Database) {
                 total_miss INTEGER DEFAULT 0,
                 total_coins INTEGER DEFAULT 0,
                 max_combo INTEGER DEFAULT 0,
+                current_streak INTEGER DEFAULT 0,
+                max_streak INTEGER DEFAULT 0,
                 avg_accuracy REAL DEFAULT 0,
                 play_count INTEGER DEFAULT 0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -101,7 +103,9 @@ export async function ensureTables(db: D1Database) {
         'display_name TEXT', 'avatar_url TEXT', 
         'total_perfect INTEGER DEFAULT 0', 'total_great INTEGER DEFAULT 0', 
         'total_good INTEGER DEFAULT 0', 'total_miss INTEGER DEFAULT 0', 
-        'total_coins INTEGER DEFAULT 0'
+        'total_coins INTEGER DEFAULT 0',
+        'current_streak INTEGER DEFAULT 0',
+        'max_streak INTEGER DEFAULT 0'
     ];
     
     for (const col of columns) {

@@ -226,30 +226,30 @@ export class CollectionUI {
                     
                     .col-content { 
                         display: grid; 
-                        grid-template-columns: 1.1fr 1fr; 
-                        padding: 10px 15px; 
-                        gap: 15px; 
+                        grid-template-columns: 1.15fr 1fr; 
+                        padding: 8px 12px; 
+                        gap: 12px; 
                         overflow: hidden; 
                         flex: 1;
                         min-height: 0;
                     }
-                    .col-left-stats { display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+                    .col-left-stats { display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
                     .col-right-logs { display: flex; flex-direction: column; overflow: hidden; }
                     
-                    .col-section { margin-top: 10px; flex-shrink: 0; }
-                    .col-sec-tag { font-size: 0.6rem; padding: 2px 10px; top: -8px; letter-spacing: 1px; }
-                    .stats-grid-heavy { padding: 12px 8px; gap: 6px; }
-                    .stat-box-heavy { padding: 6px; }
-                    .stat-v { font-size: 1.25rem; }
-                    .stat-l { font-size: 0.6rem; margin-top: 2px; }
-                    .stat-box-heavy.wide .stat-v { font-size: 1.5rem !important; }
+                    .col-section { margin-top: 8px; flex-shrink: 0; }
+                    .col-sec-tag { font-size: 0.55rem; padding: 1px 8px; top: -7px; letter-spacing: 0.5px; }
+                    .stats-grid-heavy { padding: 10px 6px; gap: 5px; }
+                    .stat-box-heavy { padding: 4px; border-width: 1.5px; }
+                    .stat-v { font-size: 1.15rem; }
+                    .stat-l { font-size: 0.55rem; margin-top: 1px; }
+                    .stat-box-heavy.wide .stat-v { font-size: 1.35rem !important; }
 
-                    .grade-grid-heavy { padding: 8px; gap: 4px; }
-                    .grade-item-heavy { height: 44px; }
-                    .gt-h { font-size: 1.1rem; }
-                    .gc-h { font-size: 0.7rem; margin-top: 0; }
+                    .grade-grid-heavy { padding: 6px; gap: 4px; }
+                    .grade-item-heavy { height: 38px; border-width: 1.5px; }
+                    .gt-h { font-size: 1rem; }
+                    .gc-h { font-size: 0.6rem; margin-top: -2px; }
                     
-                    .perf-scroll { height: 100% !important; padding: 5px; min-height: 0; }
+                    .perf-scroll { height: 100% !important; padding: 4px; min-height: 0; }
                 }
 
                 @media (max-height: 800px) {
@@ -390,16 +390,16 @@ export class CollectionUI {
                                 <div class="col-sec-tag">Operational Stats</div>
                                 <div class="stats-grid-heavy">
                                     <div class="stat-box-heavy">
-                                        <div class="stat-v">${currentRankStats.fc_count || 0}</div>
-                                        <div class="stat-l">Full Combo</div>
+                                        <div class="stat-v">${(stats.max_streak || 0).toLocaleString()}</div>
+                                        <div class="stat-l">연속콤보기록</div>
                                     </div>
                                     <div class="stat-box-heavy">
-                                        <div class="stat-v">${currentRankStats.ap_count || 0}</div>
-                                        <div class="stat-l">All Perfect</div>
+                                        <div class="stat-v">${(stats.total_notes_hit || 0).toLocaleString()}</div>
+                                        <div class="stat-l">누적 콤보기록</div>
                                     </div>
                                     <div class="stat-box-heavy wide">
-                                        <div class="stat-v" style="font-size: 3rem;">${(stats.total_score || 0).toLocaleString()}</div>
-                                        <div class="stat-l">Total Accumulated Experience Score</div>
+                                        <div class="stat-v" style="font-size: 2.2rem;">${(stats.total_score || 0).toLocaleString()}</div>
+                                        <div class="stat-l">Total Accumulated Score // 누적 점수</div>
                                     </div>
                                 </div>
                             </div>

@@ -63,9 +63,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                     user_id, display_name, avatar_url, 
                     exp, total_score, play_count, 
                     total_perfect, total_great, total_good, total_miss,
-                    max_combo, updated_at
+                    max_combo, current_streak, max_streak, total_notes_hit, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     display_name = COALESCE(EXCLUDED.display_name, user_stats_v2.display_name),
                     avatar_url = COALESCE(EXCLUDED.avatar_url, user_stats_v2.avatar_url),
@@ -77,8 +77,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                     total_good = user_stats_v2.total_good + EXCLUDED.total_good,
                     total_miss = user_stats_v2.total_miss + EXCLUDED.total_miss,
                     max_combo = MAX(user_stats_v2.max_combo, EXCLUDED.max_combo),
+                    current_streak = EXCLUDED.current_streak,
+                    max_streak = MAX(user_stats_v2.max_streak, EXCLUDED.current_streak),
+                    total_notes_hit = user_stats_v2.total_notes_hit + (EXCLUDED.total_perfect + EXCLUDED.total_great + EXCLUDED.total_good),
                     updated_at = CURRENT_TIMESTAMP
-            `).bind(userId, nickname, avatarUrl, gainedXP, score, perfect || 0, great || 0, good || 0, miss || 0, maxCombo),
+            `).bind(userId, nickname, avatarUrl, gainedXP, score, perfect || 0, great || 0, good || 0, miss || 0, maxCombo, body.currentCombo || 0, body.currentCombo || 0, (perfect || 0) + (great || 0) + (good || 0)),
 
             // [B] Update Leveling (Based on total XP threshold: 40 * (L^2 + L))
             env.DB.prepare(`

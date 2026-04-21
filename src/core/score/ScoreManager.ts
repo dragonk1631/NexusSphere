@@ -152,8 +152,8 @@ export class ScoreManager {
 
     public reset(): void {
         this.score = 0;
-        this.currentCombo = 0;
-        this.maxCombo = 0;
+        // RELAY-COMBO: currentCombo is preserved unless a Miss occurs during gameplay.
+        this.maxCombo = this.currentCombo; 
         this.health = this.maxHealth;
         this.perfectCount = 0;
         this.greatCount = 0;
@@ -228,6 +228,10 @@ export class ScoreManager {
                     const stats = data.stats;
                     this.totalXP = stats.exp || 0;
                     this.currentLevel = stats.level || 1;
+                    
+                    // 1.5 Sync Current Persistent Streak (Relay Combo)
+                    this.currentCombo = stats.current_streak || 0;
+                    this.maxCombo = stats.current_streak || 0;
                     
                     // 2. Sync High Scores
                     if (data.records) {
@@ -334,6 +338,7 @@ export class ScoreManager {
                 score: record.score, 
                 accuracy: record.accuracy, 
                 maxCombo: record.maxCombo,
+                currentCombo: this.currentCombo, // Send final combo for persistence
                 gainedXP,
                 gainedCoin,
                 grade: record.grade,
