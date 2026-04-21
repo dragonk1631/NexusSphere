@@ -412,15 +412,23 @@ export class CollectionUI {
                     border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column;
                     align-items: center; gap: 10px; transition: 0.2s; position: relative;
                 }
-                .emb-item.locked { opacity: 0.3; filter: grayscale(100%); }
+                .emb-item.locked { opacity: 0.9; }
+                .emb-item.locked .emb-frame, .emb-item.locked .emb-icon { filter: grayscale(100%) brightness(0.1) drop-shadow(0 0 5px rgba(255,255,255,0.2)); }
                 .emb-item.unlocked { border-color: rgba(0, 255, 255, 0.3); background: rgba(0, 255, 255, 0.05); }
                 .emb-item.unlocked:hover { transform: translateY(-5px); border-color: ${themeCyan}; box-shadow: 0 5px 15px rgba(0,255,255,0.15); }
                 .emb-item.current { border-color: #f1c40f; box-shadow: 0 0 20px rgba(241,196,15,0.2); background: rgba(241,196,15,0.05); }
                 .emb-icon-wrap { position: relative; width: 60px; height: 60px; }
-                .emb-frame, .emb-icon { position: absolute; inset: 0; width: 100%; height: 100%; }
+                .emb-frame, .emb-icon { position: absolute; inset: 0; width: 100%; height: 100%; transition: all 0.3s; }
                 .emb-name { font-family: 'Goldman', cursive; font-size: 0.75rem; text-align: center; color: #fff; line-height: 1.2; }
+                .emb-item.locked .emb-name { color: #888 !important; }
+                .emb-item.locked .emb-lvl { filter: grayscale(100%); opacity: 0.6; }
                 .emb-lvl { font-size: 0.65rem; font-weight: 800; color: ${themeCyan}; letter-spacing: 1px; }
                 .emb-locked-text { font-size: 0.6rem; color: #ff4757; font-weight: 900; margin-top: -5px; }
+                .emb-lock-overlay {
+                    position: absolute; inset: -5px; display: flex; justify-content: center; align-items: center;
+                    background: rgba(0,0,0,0.3); border-radius: 50%; color: #ff4757; z-index: 10;
+                    backdrop-filter: blur(1px); box-shadow: 0 0 15px rgba(255, 71, 87, 0.3);
+                }
 
                 /* Mobile landscape overrides */
                 @media (max-height: 500px) and (orientation: landscape) {
@@ -571,6 +579,9 @@ export class CollectionUI {
                                             <div class="emb-icon-wrap">
                                                 <div class="emb-frame" style="color: ${cls.color}; filter: drop-shadow(0 0 10px ${cls.bgGlow})">${makeUniqueSVG(cls.frameSVG, 'emb_' + cls.id)}</div>
                                                 <div class="emb-icon">${makeUniqueSVG(cls.emblemSVG, 'emb_' + cls.id)}</div>
+                                                ${isLocked ? `<div class="emb-lock-overlay">
+                                                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                                </div>` : ''}
                                             </div>
                                             <div class="emb-name" style="color: ${isLocked ? '#fff' : cls.color}">${cls.name}</div>
                                             <div class="emb-lvl">LV.${cls.minLevel}</div>
