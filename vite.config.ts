@@ -21,7 +21,7 @@ export default defineConfig(({ command }) => {
               const distPath = path.resolve('dist');
               const maxSize = 24 * 1024 * 1024; // 24MB
 
-              const cleanup = (dir) => {
+              const cleanup = (dir: string) => {
                   if (!fs.existsSync(dir)) return;
                   const files = fs.readdirSync(dir);
                   for (const file of files) {
