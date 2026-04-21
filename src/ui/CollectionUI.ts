@@ -79,7 +79,7 @@ export class CollectionUI {
                     box-shadow: 0 0 35px rgba(0, 255, 255, 0.2), inset 0 0 25px rgba(0, 255, 255, 0.1); 
                     overflow: hidden; font-family: 'Outfit', sans-serif; color: white;
                     backdrop-filter: blur(35px) saturate(180%);
-                    position: relative;
+                    position: relative; min-height: 0;
                 }
 
                 /* NEW PAGE TITLE BAR */
@@ -207,49 +207,59 @@ export class CollectionUI {
                 .perf-item:hover { background: rgba(0, 255, 255, 0.1); border-color: ${themeCyan}; transform: translateX(8px); }
 
                 @media (max-height: 500px) {
-                    .col-modal { height: 100dvh; border-radius: 0; }
-                    .col-header { padding: 8px 15px; border-bottom: 1px solid rgba(0, 255, 255, 0.2); }
+                    .col-overlay { padding-bottom: 0; align-items: stretch; }
+                    .col-modal { 
+                        height: 100dvh; 
+                        border-radius: 0; 
+                        width: 100vw;
+                        overflow-y: auto; /* Fallback for very small screens */
+                    }
+                    .col-header { 
+                        padding: 6px 15px; 
+                        border-bottom: 1px solid rgba(0, 255, 255, 0.2); 
+                        flex-shrink: 0;
+                    }
                     .col-profile { gap: 10px; }
-                    .col-avatar { width: 32px; height: 32px; border-width: 1.5px; }
-                    .col-username { font-size: 0.95rem; }
-                    .col-progression { gap: 15px; }
-                    .col-level-val { font-size: 1.8rem; }
-                    .col-class-name { font-size: 0.75rem; }
-                    .col-xp-bar-heavy { width: 80px; height: 6px; margin-top: 4px; }
-                    .col-emblem-wrap { width: 45px; height: 45px; }
-                    .col-emblem-icon { width: 22px; height: 22px; }
+                    .col-avatar { width: 28px; height: 28px; border-width: 1.5px; }
+                    .col-username { font-size: 0.85rem; }
+                    .col-progression { gap: 12px; }
+                    .col-level-val { font-size: 1.6rem; }
+                    .col-class-name { font-size: 0.65rem; }
+                    .col-xp-bar-heavy { width: 60px; height: 4px; margin-top: 2px; }
+                    .col-emblem-wrap { width: 38px; height: 38px; }
+                    .col-emblem-icon { width: 18px; height: 18px; }
                     
-                    .col-title-bar { padding: 4px 15px; font-size: 0.6rem; letter-spacing: 2px; }
-                    .col-filter-bar { padding: 6px 15px; }
-                    .col-tab { padding: 4px 10px; font-size: 0.65rem; }
-                    .col-btn-heavy { padding: 6px 15px; font-size: 0.8rem; border-width: 2px; }
+                    .col-title-bar { padding: 3px 15px; font-size: 0.55rem; letter-spacing: 2px; }
+                    .col-filter-bar { padding: 4px 15px; flex-shrink: 0; min-height: auto; }
+                    .col-tab { padding: 3px 8px; font-size: 0.6rem; }
+                    .col-btn-heavy { padding: 4px 12px; font-size: 0.75rem; border-width: 1.5px; }
                     
                     .col-content { 
                         display: grid; 
                         grid-template-columns: 1.15fr 1fr; 
                         padding: 8px 12px; 
                         gap: 12px; 
-                        overflow: hidden; 
-                        flex: 1;
-                        min-height: 0;
+                        overflow: visible; /* Let the modal handle scrolling if needed */
+                        flex-shrink: 0;
+                        min-height: auto;
                     }
-                    .col-left-stats { display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
-                    .col-right-logs { display: flex; flex-direction: column; overflow: hidden; }
+                    .col-left-stats { display: flex; flex-direction: column; gap: 4px; }
+                    .col-right-logs { display: flex; flex-direction: column; }
                     
-                    .col-section { margin-top: 8px; flex-shrink: 0; }
-                    .col-sec-tag { font-size: 0.55rem; padding: 1px 8px; top: -7px; letter-spacing: 0.5px; }
-                    .stats-grid-heavy { padding: 10px 6px; gap: 5px; }
-                    .stat-box-heavy { padding: 4px; border-width: 1.5px; }
-                    .stat-v { font-size: 1.15rem; }
-                    .stat-l { font-size: 0.55rem; margin-top: 1px; }
-                    .stat-box-heavy.wide .stat-v { font-size: 1.35rem !important; }
+                    .col-section { margin-top: 6px; }
+                    .col-sec-tag { font-size: 0.5rem; padding: 1px 6px; top: -6px; letter-spacing: 0.5px; }
+                    .stats-grid-heavy { padding: 8px 4px; gap: 4px; }
+                    .stat-box-heavy { padding: 3px; border-width: 1px; }
+                    .stat-v { font-size: 1rem; }
+                    .stat-l { font-size: 0.5rem; margin-top: 0px; }
+                    .stat-box-heavy.wide .stat-v { font-size: 1.2rem !important; }
 
-                    .grade-grid-heavy { padding: 6px; gap: 4px; }
-                    .grade-item-heavy { height: 38px; border-width: 1.5px; }
-                    .gt-h { font-size: 1rem; }
-                    .gc-h { font-size: 0.6rem; margin-top: -2px; }
+                    .grade-grid-heavy { padding: 4px; gap: 3px; }
+                    .grade-item-heavy { height: 32px; border-width: 1px; }
+                    .gt-h { font-size: 0.9rem; }
+                    .gc-h { font-size: 0.55rem; margin-top: -3px; }
                     
-                    .perf-scroll { height: 100% !important; padding: 4px; min-height: 0; }
+                    .perf-scroll { height: auto !important; padding: 4px; overflow: visible; min-height: 200px; }
                 }
 
                 @media (max-height: 800px) {
