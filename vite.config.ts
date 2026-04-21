@@ -12,6 +12,39 @@ export default defineConfig(({ command }) => {
         base,
     plugins: [
         basicSsl(), // 모바일 테스트(전체화면, 센서 등)를 위해 SSL 다시 활성화
+        // [ADD] Cloudflare Pages 25MB 파일 제한을 피하기 위한 자동 클린업 플러그인
+        {
+          name: 'cloudflare-pages-cleanup',
+          closeBundle: async () => {
+              const fs = await import('fs');
+              const path = await import('path');
+              const distPath = path.resolve('dist');
+              const maxSize = 24 * 1024 * 1024; // 24MB
+
+              const cleanup = (dir) => {
+                  if (!fs.existsSync(dir)) return;
+                  const files = fs.readdirSync(dir);
+                  for (const file of files) {
+                      const fullPath = path.join(dir, file);
+                      const stat = fs.statSync(fullPath);
+                      if (stat.isDirectory()) {
+                          // R2에 있는 대용량 폴더는 통째로 삭제 (초기 UI 제외)
+                          if (['audio', 'background-themes', 'videos'].includes(file)) {
+                              console.log(`[Vite:Cleanup] Removing directory: ${file}`);
+                              fs.rmSync(fullPath, { recursive: true, force: true });
+                          } else {
+                              cleanup(fullPath);
+                          }
+                      } else if (stat.size > maxSize) {
+                          console.log(`[Vite:Cleanup] Removing large file: ${file} (${(stat.size / 1024 / 1024).toFixed(2)}MB)`);
+                          fs.unlinkSync(fullPath);
+                      }
+                  }
+              };
+              console.log('[Vite:Cleanup] Starting post-build cleanup for CF Pages...');
+              cleanup(distPath);
+          }
+        },
         VitePWA({
             registerType: 'autoUpdate',
             devOptions: {
