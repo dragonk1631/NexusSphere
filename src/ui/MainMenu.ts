@@ -209,9 +209,18 @@ export class MainMenu {
                 }
                 
                 /* [NEW] HUD Level & Emblem styles v67 */
+                .mm-hud-row-progression {
+                    display: flex;
+                    justify-content: flex-end;
+                    align-items: center;
+                    gap: 10px;
+                    margin-top: 6px;
+                    animation: mm-fadeInUp 0.4s ease-out both;
+                }
+
                 .mm-auth-emblem {
-                    width: clamp(20px, 3vh, 28px);
-                    height: clamp(20px, 3vh, 28px);
+                    width: clamp(22px, 3.2vh, 30px);
+                    height: clamp(22px, 3.2vh, 30px);
                     position: relative;
                     display: flex;
                     align-items: center;
@@ -222,15 +231,15 @@ export class MainMenu {
                 .mm-auth-emblem svg { width: 100%; height: 100%; }
 
                 .mm-auth-level {
-                    font-size: 0.7rem;
+                    font-size: 0.75rem;
                     font-weight: 900;
-                    background: rgba(0, 255, 204, 0.2);
+                    background: rgba(0, 255, 204, 0.15);
                     color: #00ffcc;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    border: 1px solid rgba(0, 255, 204, 0.4);
-                    margin-left: -4px;
+                    padding: 3px 10px;
+                    border-radius: 6px;
+                    border: 1px solid rgba(0, 255, 204, 0.3);
                     text-shadow: 0 0 5px rgba(0, 255, 204, 0.5);
+                    letter-spacing: 0.5px;
                 }
 
                 .mm-auth-name { 
@@ -443,8 +452,8 @@ export class MainMenu {
                         </div>
                     </div>
                 </div>
-                <div class="mm-hud-right" style="justify-self: end; display: flex; gap: clamp(8px, 1vw, 20px); align-items: center;" id="mm-currency-container">
-                    <!-- Currency content will be injected here -->
+                <div class="mm-hud-right" style="justify-self: end; display: flex; flex-direction: column; align-items: flex-end;" id="mm-currency-container">
+                    <!-- Multi-row Currency & Progression content will be injected here -->
                 </div>
             </div>
         `;
@@ -597,17 +606,41 @@ export class MainMenu {
         const economy = EconomyManager.getInstance();
         const isSignedIn = auth.isSignedIn();
 
-        // Always keep mm-auth-container so updateAuthUI can render the SIGN IN button
+        // Multi-row structure for mobile compatibility v67
         container.innerHTML = `
-            <div id="mm-auth-container"></div>
-            ${isSignedIn ? `
-                <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
-                <div class="mm-currency-badge gem">💎 ${economy.getJewels().toLocaleString()}</div>
-            ` : ''}
+            <div style="display: flex; gap: clamp(8px, 1.5vw, 15px); align-items: center;">
+                <div id="mm-auth-container"></div>
+                ${isSignedIn ? `
+                    <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
+                    <div class="mm-currency-badge gem">💎 ${economy.getJewels().toLocaleString()}</div>
+                ` : ''}
+            </div>
+            ${isSignedIn ? `<div id="mm-progression-container" class="mm-hud-row-progression"></div>` : ''}
         `;
         
-        // Re-inject auth UI (Avatar/Name or SIGN IN button)
+        // Re-inject UI parts
         this.updateAuthUI();
+        if (isSignedIn) this.updateProgressionUI();
+    }
+
+    private updateProgressionUI(): void {
+        const container = document.getElementById('mm-progression-container');
+        if (!container) return;
+
+        const sm = ScoreManager.getInstance();
+        const totalXP = sm.getTotalXP();
+        const level = ExperienceSystem.getLevelFromXP(totalXP);
+        const classInfo = DJClassSystem.getClassInfo(level);
+        
+        const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
+
+        container.innerHTML = `
+            <div class="mm-auth-emblem">
+                <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
+                <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
+            </div>
+            <span class="mm-auth-level">LV.${level}</span>
+        `;
     }
 
     private updateAuthUI(): void {
@@ -630,11 +663,6 @@ export class MainMenu {
             container.innerHTML = `
                 <div class="mm-auth-badge">
                     <img src="${avatar}" class="mm-auth-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
-                    <div class="mm-auth-emblem">
-                        <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
-                        <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
-                    </div>
-                    <span class="mm-auth-level">LV.${level}</span>
                     <span class="mm-auth-name">${name}</span>
                 </div>
             `;
