@@ -201,9 +201,22 @@ export class MenuManager {
 
     public sortSongList(): void {
         const currentSong = this.songList[this.selectedSongIndex];
-        if (this.currentSortMode === 'name') this.songList.sort((a, b) => a.name.localeCompare(b.name));
-        else if (this.currentSortMode === 'bpm') this.songList.sort((a, b) => (a.bpm || 0) - (b.bpm || 0));
-        if (currentSong) this.selectedSongIndex = Math.max(0, this.songList.findIndex(s => s.url === currentSong.url));
+        
+        // v67: Added secondary sort keys (url/name) to ensure deterministic order across all devices
+        if (this.currentSortMode === 'name') {
+            this.songList.sort((a, b) => a.name.localeCompare(b.name) || a.url.localeCompare(b.url));
+        } else if (this.currentSortMode === 'bpm') {
+            this.songList.sort((a, b) => (a.bpm || 0) - (b.bpm || 0) || a.name.localeCompare(b.name));
+        } else if (this.currentSortMode === 'duration') {
+            this.songList.sort((a, b) => (a.duration || 0) - (b.duration || 0) || a.name.localeCompare(b.name));
+        } else if (this.currentSortMode === 'noteCount') {
+            this.songList.sort((a, b) => (a.noteCount || 0) - (b.noteCount || 0) || a.name.localeCompare(b.name));
+        }
+
+        if (currentSong) {
+            const newIdx = this.songList.findIndex(s => s.url === currentSong.url);
+            this.selectedSongIndex = Math.max(0, newIdx);
+        }
     }
 
     public playPreview(): void {
@@ -370,7 +383,12 @@ export class MenuManager {
         if (x >= layout.tabAreaX && x <= layout.tabAreaX + layout.tabAreaW && y >= layout.tabAreaY && y <= layout.tabAreaY + layout.tabAreaH) {
             const tabIdx = Math.floor((x - layout.tabAreaX) / layout.tabWidth);
             const filters: Array<MenuManager['currentFilter']> = ['all', 'official', 'custom', 'favorite'];
-            if (tabIdx >= 0 && tabIdx < filters.length) { this.currentFilter = filters[tabIdx]; this.applyFilter(); return; }
+            if (tabIdx >= 0 && tabIdx < filters.length) { 
+                this.currentFilter = filters[tabIdx]; 
+                this.applyFilter(); 
+                this.playPreview(); // v67: Ensure audio/visuals sync immediately with the new filtered list
+                return; 
+            }
         }
 
         // 3. OPTIONS HEADER (SORT CYCLE)

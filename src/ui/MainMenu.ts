@@ -6,6 +6,9 @@ import { RankingUI } from './RankingUI';
 import { CollectionUI } from './CollectionUI';
 import { AuthService } from '../services/auth/AuthService';
 import { EconomyManager } from '../core/score/EconomyManager';
+import { ScoreManager } from '../core/score/ScoreManager';
+import { ExperienceSystem } from '../core/score/ExperienceSystem';
+import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 
 export class MainMenu {
@@ -204,6 +207,32 @@ export class MainMenu {
                     border: 2px solid #00ffcc;
                     object-fit: cover;
                 }
+                
+                /* [NEW] HUD Level & Emblem styles v67 */
+                .mm-auth-emblem {
+                    width: clamp(20px, 3vh, 28px);
+                    height: clamp(20px, 3vh, 28px);
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .mm-auth-emblem-frame { position: absolute; inset: -4px; opacity: 0.6; }
+                .mm-auth-emblem-icon { position: absolute; inset: 0; }
+                .mm-auth-emblem svg { width: 100%; height: 100%; }
+
+                .mm-auth-level {
+                    font-size: 0.7rem;
+                    font-weight: 900;
+                    background: rgba(0, 255, 204, 0.2);
+                    color: #00ffcc;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    border: 1px solid rgba(0, 255, 204, 0.4);
+                    margin-left: -4px;
+                    text-shadow: 0 0 5px rgba(0, 255, 204, 0.5);
+                }
+
                 .mm-auth-name { 
                     font-family: 'Black Han Sans', sans-serif;
                     font-size: 0.85rem; 
@@ -591,9 +620,21 @@ export class MainMenu {
             const clerk = auth.getClerk();
             const avatar = clerk?.user?.imageUrl || '';
             
+            const sm = ScoreManager.getInstance();
+            const totalXP = sm.getTotalXP();
+            const level = ExperienceSystem.getLevelFromXP(totalXP);
+            const classInfo = DJClassSystem.getClassInfo(level);
+            
+            const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
+            
             container.innerHTML = `
                 <div class="mm-auth-badge">
                     <img src="${avatar}" class="mm-auth-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                    <div class="mm-auth-emblem">
+                        <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
+                        <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
+                    </div>
+                    <span class="mm-auth-level">LV.${level}</span>
                     <span class="mm-auth-name">${name}</span>
                 </div>
             `;
