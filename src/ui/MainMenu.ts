@@ -10,6 +10,7 @@ import { ScoreManager } from '../core/score/ScoreManager';
 import { ExperienceSystem } from '../core/score/ExperienceSystem';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
+import { ModalUI } from './ModalUI';
 
 export class MainMenu {
     private ui: UIManager;
@@ -699,10 +700,19 @@ export class MainMenu {
             const avatar = clerk?.user?.imageUrl || '';
             
             container.onclick = async () => {
-                if (confirm('Do you want to sign out?')) {
-                    await auth.signOut();
-                    window.location.reload();
-                }
+                ModalUI.getInstance().show(
+                    'SIGN OUT',
+                    'Are you sure you want to sign out? Your data is safe on the cloud.',
+                    {
+                        confirmLabel: 'SIGN OUT',
+                        cancelLabel: 'CANCEL',
+                        type: 'warning',
+                        onConfirm: async () => {
+                            await auth.signOut();
+                            window.location.reload();
+                        }
+                    }
+                );
             };
 
             container.innerHTML = `
@@ -734,7 +744,15 @@ export class MainMenu {
     private async showCollection(): Promise<void> {
         const auth = AuthService.getInstance();
         if (!auth.isSignedIn()) {
-            alert('Please sign in to view your Collection.');
+            ModalUI.getInstance().show(
+                'AUTHENTICATION REQUIRED',
+                'Please sign in to access your personal song collection and track your progress.',
+                {
+                    confirmLabel: 'SIGN IN NOW',
+                    cancelLabel: 'LATER',
+                    onConfirm: () => auth.openSignIn()
+                }
+            );
             return;
         }
 
