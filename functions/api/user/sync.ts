@@ -41,17 +41,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         const userId = decoded.sub;
 
         // Fetch everything in parallel
-        const [stats, records, rankCounts] = await Promise.all([
+        const [stats, records, rankCounts, favorites] = await Promise.all([
             env.DB.prepare('SELECT * FROM user_stats_v2 WHERE user_id = ?').bind(userId).first(),
             env.DB.prepare('SELECT * FROM user_song_records_v2 WHERE user_id = ?').bind(userId).all(),
-            env.DB.prepare('SELECT * FROM user_rank_stats WHERE user_id = ?').bind(userId).all()
+            env.DB.prepare('SELECT * FROM user_rank_stats WHERE user_id = ?').bind(userId).all(),
+            env.DB.prepare('SELECT song_id FROM user_favorites_v2 WHERE user_id = ?').bind(userId).all()
         ]);
 
         return new Response(JSON.stringify({
             success: true,
             stats: stats || { user_id: userId, level: 1, exp: 0, play_count: 0 },
             records: records.results || [],
-            rankCounts: rankCounts.results || []
+            rankCounts: rankCounts.results || [],
+            favorites: favorites.results?.map((f: any) => f.song_id) || []
         }), {
             headers: { 
                 'Content-Type': 'application/json',

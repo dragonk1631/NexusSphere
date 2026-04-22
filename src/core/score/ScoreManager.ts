@@ -3,6 +3,8 @@ import { AuthService } from '../../services/auth/AuthService';
 import { ExperienceSystem } from './ExperienceSystem';
 import { ApiUtils } from '../utils/ApiUtils';
 
+import { EconomyManager } from './EconomyManager';
+
 export interface ScoreRecord {
     score: number;
     maxCombo: number;
@@ -42,6 +44,7 @@ export class ScoreManager {
 
     // Persistence (v2: { [songId:mode:difficulty]: ScoreRecord })
     private highScores: { [recordKey: string]: ScoreRecord } = {};
+    private favorites: Set<string> = new Set();
 
     private constructor() {
         this.load();
@@ -233,32 +236,106 @@ export class ScoreManager {
                     this.totalXP = stats.exp || 0;
                     this.currentLevel = stats.level || 1;
                     
+                    // [NEW] Sync Economy
+                    EconomyManager.getInstance().syncWithCloud(stats.total_coins || 0, stats.total_jewels || 0);
+
                     // 1.5 Sync Current Persistent Streak (Relay Combo)
                     this.currentCombo = stats.current_streak || 0;
                     this.maxCombo = stats.current_streak || 0;
                     
-                    // 2. Sync High Scores
+                    // 2. Sync High Scores (Merge with Local: Max Score Wins)
                     if (data.records) {
                         data.records.forEach((r: any) => {
                             const key = `${r.song_id}:${r.key_mode}:${r.difficulty}`;
-                            this.highScores[key] = {
-                                score: r.high_score,
-                                maxCombo: r.max_combo,
-                                accuracy: r.best_accuracy,
-                                grade: r.best_grade,
-                                playCount: r.play_count || 1,
-                                timestamp: new Date(r.last_played_at).getTime()
-                            };
+                            const serverScore = r.high_score;
+                            const localRecord = this.highScores[key];
+                            
+                            // Only update if server has a better score or no local record exists
+                            if (!localRecord || serverScore > localRecord.score) {
+                                this.highScores[key] = {
+                                    score: serverScore,
+                                    maxCombo: r.max_combo,
+                                    accuracy: r.best_accuracy,
+                                    grade: r.best_grade,
+                                    playCount: r.play_count || 1,
+                                    timestamp: new Date(r.last_played_at).getTime()
+                                };
+                            } else if (localRecord && localRecord.score > serverScore) {
+                                // [OPTIMIZATION] If local score is better, trigger a background upload to sync server
+                                console.log(`[ScoreManager] Local record for ${key} is better. Syncing to cloud...`);
+                                this.uploadScoreToServer(
+                                    r.song_id, r.key_mode, r.difficulty, 
+                                    localRecord, 0, 0, // 0 XP/Coin since it's already counted
+                                    localRecord.grade === 'S' || localRecord.grade === 'S+',
+                                    localRecord.grade === 'S+'
+                                );
+                            }
                         });
+                    }
+
+                    // 2.5 Handle Local-only Records (Records that don't exist on server yet)
+                    if (data.records) {
+                        const serverKeys = new Set(data.records.map((r: any) => `${r.song_id}:${r.key_mode}:${r.difficulty}`));
+                        Object.entries(this.highScores).forEach(([key, record]) => {
+                            if (!serverKeys.has(key)) {
+                                console.log(`[ScoreManager] Local-only record for ${key} found. Uploading...`);
+                                const [songId, modeStr, diff] = key.split(':');
+                                this.uploadScoreToServer(
+                                    songId, parseInt(modeStr), diff,
+                                    record, 0, 0,
+                                    record.grade === 'S' || record.grade === 'S+',
+                                    record.grade === 'S+'
+                                );
+                            }
+                        });
+                    }
+                    
+                    // 2.7 Sync Favorites (Cloud Favorites)
+                    if (data.favorites) {
+                        data.favorites.forEach((songId: string) => this.favorites.add(songId));
                     }
                     
                     // 3. Save to Local Storage for offline persistence
                     this.save();
                     console.info('[ScoreManager] Cloud data synchronized successfully.');
+                    
+                    // Notify any interested parties (e.g. MenuManager)
+                    window.dispatchEvent(new CustomEvent('nexus-favorites-synced'));
                 }
             }
         } catch (e) {
             console.error('[ScoreManager] Failed to sync with server:', e);
+        }
+    }
+
+    public isFavorite(songId: string): boolean {
+        return this.favorites.has(songId);
+    }
+
+    public async toggleCloudFavorite(songId: string, isFavorite: boolean): Promise<void> {
+        if (isFavorite) this.favorites.add(songId);
+        else this.favorites.delete(songId);
+
+        // Persistent save
+        this.save();
+
+        const auth = AuthService.getInstance();
+        if (!auth.isSignedIn()) return;
+
+        try {
+            const token = await auth.getClerk()?.session?.getToken();
+            if (!token) return;
+
+            await ApiUtils.fetch('/api/user/favorites/toggle', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ songId, isFavorite })
+            });
+        } catch (e) {
+            console.error('[ScoreManager] Failed to toggle cloud favorite:', e);
         }
     }
 
@@ -399,6 +476,7 @@ export class ScoreManager {
     private save(): void {
         try {
             localStorage.setItem(ScoreManager.STORAGE_KEY_V2, JSON.stringify(this.highScores));
+            localStorage.setItem('NexusSphere_Favorites_v2', JSON.stringify(Array.from(this.favorites)));
         } catch (e) {
             console.warn("Failed to save high scores:", e);
         }
@@ -413,9 +491,15 @@ export class ScoreManager {
             if (data) {
                 this.highScores = JSON.parse(data);
             }
+
+            const favData = localStorage.getItem('NexusSphere_Favorites_v2');
+            if (favData) {
+                this.favorites = new Set(JSON.parse(favData));
+            }
         } catch (e) {
             console.warn("Failed to load high scores:", e);
             this.highScores = {};
+            this.favorites = new Set();
         }
         this.health = this.maxHealth;
     }

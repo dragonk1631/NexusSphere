@@ -43,7 +43,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         // Destructure all necessary stats for professional tracking
         const { 
             songId, keyMode, difficulty, score, accuracy, maxCombo, 
-            gainedXP, grade, isFC, isAP, 
+            gainedXP, gainedCoin, grade, isFC, isAP, 
             perfect, great, good, miss,
             nickname, avatarUrl 
         } = body;
@@ -63,9 +63,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                     user_id, display_name, avatar_url, 
                     exp, total_score, play_count, 
                     total_perfect, total_great, total_good, total_miss,
-                    max_combo, current_streak, max_streak, total_notes_hit, updated_at
+                    max_combo, current_streak, max_streak, total_notes_hit, 
+                    total_coins, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     display_name = COALESCE(EXCLUDED.display_name, user_stats_v2.display_name),
                     avatar_url = COALESCE(EXCLUDED.avatar_url, user_stats_v2.avatar_url),
@@ -80,8 +81,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                     current_streak = EXCLUDED.current_streak,
                     max_streak = MAX(user_stats_v2.max_streak, EXCLUDED.current_streak),
                     total_notes_hit = user_stats_v2.total_notes_hit + (EXCLUDED.total_perfect + EXCLUDED.total_great + EXCLUDED.total_good),
+                    total_coins = user_stats_v2.total_coins + EXCLUDED.total_coins,
                     updated_at = CURRENT_TIMESTAMP
-            `).bind(userId, nickname, avatarUrl, gainedXP, score, perfect || 0, great || 0, good || 0, miss || 0, maxCombo, body.currentCombo || 0, body.currentCombo || 0, (perfect || 0) + (great || 0) + (good || 0)),
+            `).bind(userId, nickname, avatarUrl, gainedXP, score, perfect || 0, great || 0, good || 0, miss || 0, maxCombo, body.currentCombo || 0, body.currentCombo || 0, (perfect || 0) + (great || 0) + (good || 0), gainedCoin),
 
             // [B] Update Leveling (Based on total XP threshold: 40 * (L^2 + L))
             env.DB.prepare(`

@@ -68,6 +68,23 @@ export class AuthService {
                     });
                     
                     this.clerk = Clerk;
+                    
+                    // [NEW] Auth State Change Listener
+                    this.clerk.addListener(async ({ user }: any) => {
+                        if (user) {
+                            console.log('[AuthService] User signed in detected. Triggering score sync...');
+                            try {
+                                const { ScoreManager } = await import('../../core/score/ScoreManager');
+                                await ScoreManager.getInstance().syncWithServer();
+                                
+                                // Dispatch global event for UI updates
+                                window.dispatchEvent(new CustomEvent('nexus-auth-changed', { detail: { isSignedIn: true } }));
+                            } catch (e) {
+                                console.error('[AuthService] Failed to sync scores after sign-in:', e);
+                            }
+                        }
+                    });
+
                     console.log('[AuthService] Official Clerk SDK loaded successfully.');
                     resolve();
                 } catch (e) {

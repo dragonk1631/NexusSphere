@@ -91,6 +91,16 @@ export class EconomyManager {
         }
     }
 
+    /**
+     * [CLOUD-SYNC] Overwrite local balance with server-side totals.
+     */
+    public syncWithCloud(totalCoins: number, totalJewels: number): void {
+        if (!this.checkAuth()) return;
+        this.coins = totalCoins;
+        this.jewels = totalJewels;
+        this.save();
+    }
+
     private save(): void {
         if (!this.checkAuth()) return;
         try {

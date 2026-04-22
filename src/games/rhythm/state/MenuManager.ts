@@ -9,6 +9,7 @@ import { AssetLoader } from '../../../core/asset/AssetLoader';
 import { SystemInitializer } from '../../../core/SystemInitializer';
 import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
 import { OfflineDownloadManager } from '../../../core/asset/OfflineDownloadManager';
+import { ScoreManager } from '../../../core/score/ScoreManager';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -32,7 +33,6 @@ export class MenuManager {
     public currentFilter: 'all' | 'official' | 'custom' | 'favorite' = 'all';
 
     private storage = new LocalSongStorage();
-    private readonly FAVORITES_STORAGE_KEY = 'NexusSphere_Favorites_v2';
     private officialSongs: SongEntry[] = [];
     private customSongs: SongEntry[] = [];
 
@@ -59,6 +59,9 @@ export class MenuManager {
         this.audioEngine = audioEngine;
         this.callbacks = callbacks;
         this.initPromise = this.init();
+
+        // Listen for cloud sync completion to refresh favorites UI
+        window.addEventListener('nexus-favorites-synced', this.onFavoritesSynced);
     }
 
     private async init() {
@@ -68,12 +71,14 @@ export class MenuManager {
         this.sortSongList();
     }
 
+    private onFavoritesSynced = () => {
+        this.loadFavoriteStates();
+    };
+
     public loadFavoriteStates() {
         try {
-            const favoritesJson = localStorage.getItem(this.FAVORITES_STORAGE_KEY);
-            const favorites = favoritesJson ? JSON.parse(favoritesJson) : [];
-            const favoriteSet = new Set(favorites);
-            const applyTo = (list: SongEntry[]) => list.forEach(song => song.isFavorite = favoriteSet.has(song.url));
+            const sm = ScoreManager.getInstance();
+            const applyTo = (list: SongEntry[]) => list.forEach(song => song.isFavorite = sm.isFavorite(song.url));
             applyTo(this.officialSongs);
             applyTo(this.customSongs);
             this.applyFilter();
@@ -84,15 +89,12 @@ export class MenuManager {
 
     public toggleFavorite(song: SongEntry) {
         try {
-            const favoritesJson = localStorage.getItem(this.FAVORITES_STORAGE_KEY);
-            const favorites = favoritesJson ? JSON.parse(favoritesJson) : [];
-            const favoriteSet = new Set(favorites);
+            const sm = ScoreManager.getInstance();
+            const nextState = !song.isFavorite;
+            song.isFavorite = nextState;
             
-            if (favoriteSet.has(song.url)) favoriteSet.delete(song.url);
-            else favoriteSet.add(song.url);
-            
-            localStorage.setItem(this.FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(favoriteSet)));
-            song.isFavorite = !song.isFavorite;
+            // Delegate to ScoreManager for cloud sync and local persistence
+            sm.toggleCloudFavorite(song.url, nextState);
             
             // Re-apply filter if in favorite tab
             if (this.currentFilter === 'favorite') this.applyFilter();
@@ -476,5 +478,8 @@ export class MenuManager {
         localStorage.setItem(storageKey, JSON.stringify({ version: "1.3.3", metadata: { title: midiData.name, bpm: midiData.bpm, duration: midiData.duration }, measureConfig: measureMap }));
     }
 
-    public destroy(): void { this.stopPreview(); }
+    public destroy(): void { 
+        this.stopPreview(); 
+        window.removeEventListener('nexus-favorites-synced', this.onFavoritesSynced);
+    }
 }

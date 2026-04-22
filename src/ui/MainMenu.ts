@@ -166,10 +166,36 @@ export class MainMenu {
                     border-radius: 999px;
                     backdrop-filter: blur(var(--mm-blur));
                     cursor: pointer;
-                    transition: 0.3s;
+                    transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                     pointer-events: auto;
                 }
-                .mm-auth-badge:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+                .mm-auth-badge:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px) scale(1.05); }
+                
+                /* GUEST / SIGN IN Call to Action v66 */
+                .mm-auth-badge.guest {
+                    background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+                    border-color: rgba(255, 255, 255, 0.8);
+                    padding: clamp(4px, 1vh, 8px) clamp(15px, 2.5vw, 30px);
+                    box-shadow: 0 0 15px rgba(79, 172, 254, 0.4);
+                    animation: mm-auth-pulse 2.5s infinite;
+                }
+                .mm-auth-badge.guest:hover {
+                    box-shadow: 0 0 25px rgba(79, 172, 254, 0.6);
+                }
+                .mm-auth-badge.guest .mm-auth-name {
+                    font-size: 0.9rem;
+                    letter-spacing: 1.5px;
+                    color: #fff;
+                    -webkit-text-stroke: 1px rgba(0, 0, 0, 0.3);
+                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+                }
+
+                @keyframes mm-auth-pulse {
+                    0% { transform: scale(1); opacity: 0.9; }
+                    50% { transform: scale(1.05); opacity: 1; }
+                    100% { transform: scale(1); opacity: 0.9; }
+                }
+
                 .mm-auth-avatar {
                     width: clamp(24px, 3.5vh, 32px);
                     height: clamp(24px, 3.5vh, 32px);
@@ -178,7 +204,14 @@ export class MainMenu {
                     border: 2px solid #00ffcc;
                     object-fit: cover;
                 }
-                .mm-auth-name { font-size: 0.85rem; font-weight: 800; color: white; }
+                .mm-auth-name { 
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: 0.85rem; 
+                    font-weight: 900; 
+                    color: white; 
+                    text-transform: uppercase;
+                    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+                }
 
                 /* ── BGM BADGE ── */
                 .mm-bgm-badge {
@@ -460,7 +493,15 @@ export class MainMenu {
         this.themeUnsubscribe = ThemeManager.getInstance().subscribe(() => {
             this.updateBGMText();
         });
+
+        // [NEW] Listen for auth changes to update HUD/UI (using named function for cleanup)
+        window.removeEventListener('nexus-auth-changed', this.handleAuthChange);
+        window.addEventListener('nexus-auth-changed', this.handleAuthChange);
     }
+
+    private handleAuthChange = () => {
+        this.updateCurrencyUI();
+    };
 
     private attachListeners(): void {
         document.getElementById('btn-rhythm')?.addEventListener('click', () => {
@@ -558,7 +599,7 @@ export class MainMenu {
             `;
         } else {
             container.innerHTML = `
-                <div class="mm-auth-badge">
+                <div class="mm-auth-badge guest">
                     <span class="mm-auth-name">SIGN IN</span>
                 </div>
             `;
@@ -640,6 +681,7 @@ export class MainMenu {
             this.themeUnsubscribe();
             this.themeUnsubscribe = null;
         }
+        window.removeEventListener('nexus-auth-changed', this.handleAuthChange);
         this.ui.hide('main-menu');
         this.ui.hide('global-hud');
     }
