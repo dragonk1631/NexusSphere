@@ -136,6 +136,9 @@ export class MainMenu {
                 .mm-hud-left {
                     justify-self: start;
                     pointer-events: auto;
+                    display: flex;
+                    gap: clamp(6px, 1vw, 12px);
+                    align-items: center;
                 }
 
                 .mm-auth-badge {
@@ -196,23 +199,23 @@ export class MainMenu {
                 }
                 .mm-auth-badge:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px) scale(1.05); }
                 
-                /* GUEST / SIGN IN Call to Action v66 */
+                /* GUEST / SIGN IN Call to Action v67 */
                 .mm-auth-badge.guest {
                     background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
                     border-color: rgba(255, 255, 255, 0.8);
-                    padding: clamp(4px, 1vh, 8px) clamp(15px, 2.5vw, 30px);
+                    padding: 0 clamp(15px, 2.5vw, 30px);
                     box-shadow: 0 0 15px rgba(79, 172, 254, 0.4);
                     animation: mm-auth-pulse 2.5s infinite;
                 }
                 .mm-auth-badge.guest:hover {
                     box-shadow: 0 0 25px rgba(79, 172, 254, 0.6);
+                    transform: scale(1.05);
                 }
                 .mm-auth-badge.guest .mm-auth-name {
-                    font-size: 0.9rem;
-                    letter-spacing: 1.5px;
+                    font-size: 0.75rem;
+                    letter-spacing: 1px;
                     color: #fff;
-                    -webkit-text-stroke: 1px rgba(0, 0, 0, 0.3);
-                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+                    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
                 }
 
                 @keyframes mm-auth-pulse {
@@ -475,7 +478,9 @@ export class MainMenu {
         const hudHtml = `
             ${styles}
             <div class="mm-top-hud">
-                <div class="mm-hud-left" id="mm-progression-container"></div>
+                <div class="mm-hud-left" id="mm-hud-left-container">
+                    <!-- Coins and Progression will be here -->
+                </div>
                 <div class="mm-bgm-badge" id="mm-bgm-container">
                     <div class="mm-visualizer">
                         <div class="mm-vis-bar"></div>
@@ -489,8 +494,8 @@ export class MainMenu {
                         </div>
                     </div>
                 </div>
-                <div class="mm-hud-right" style="justify-self: end; display: flex; gap: clamp(6px, 1vw, 12px); align-items: center;" id="mm-currency-container">
-                    <!-- Consolidated single-row content -->
+                <div class="mm-hud-right" style="justify-self: end;" id="mm-auth-container">
+                    <!-- Auth content will be here -->
                 </div>
             </div>
         `;
@@ -636,19 +641,19 @@ export class MainMenu {
     }
 
     private updateCurrencyUI(): void {
-        const container = document.getElementById('mm-currency-container');
-        if (!container) return;
+        const leftContainer = document.getElementById('mm-hud-left-container');
+        if (!leftContainer) return;
 
         const auth = AuthService.getInstance();
         const economy = EconomyManager.getInstance();
         const isSignedIn = auth.isSignedIn();
 
-        // Currency & Account on the right v67
-        container.innerHTML = `
+        // Coins & Progression on the left v67
+        leftContainer.innerHTML = `
             ${isSignedIn ? `
                 <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
+                <div id="mm-progression-container"></div>
             ` : ''}
-            <div id="mm-auth-container"></div>
         `;
         
         this.updateAuthUI();
@@ -701,9 +706,10 @@ export class MainMenu {
                 </div>
             `;
         } else {
+            container.onclick = () => auth.openSignIn();
             container.innerHTML = `
-                <div class="mm-auth-badge guest" onclick="AuthService.getInstance().openSignIn()">
-                    <span class="mm-auth-name">SIGN IN</span>
+                <div class="mm-auth-badge guest">
+                    <span class="mm-auth-name">SIGN IN TO SYNC DATA</span>
                 </div>
             `;
         }
