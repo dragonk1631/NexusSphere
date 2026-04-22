@@ -210,47 +210,47 @@ export class MainMenu {
                     object-fit: cover;
                 }
                 
-                /* [NEW] HUD Level & Emblem styles v67 */
-                .mm-hud-row-progression {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .mm-progression-badge {
+                /* [NEW] Unified Auth Profile Badge v67 */
+                .mm-auth-badge-unified {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
-                    height: clamp(28px, 3.8vh, 34px); /* Slimmer unified height v67 */
-                    padding: 0 clamp(8px, 1.5vw, 15px);
-                    box-sizing: border-box;
-                    background: rgba(0, 0, 0, 0.5);
+                    height: clamp(28px, 3.8vh, 34px);
+                    padding: 0 clamp(8px, 1.5vw, 12px) 0 3px; /* Left padding 3px to hug avatar */
+                    background: rgba(0, 0, 0, 0.6);
                     border: 1px solid rgba(0, 255, 204, 0.3);
                     border-radius: 999px;
-                    backdrop-filter: blur(8px);
-                    -webkit-backdrop-filter: blur(8px);
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
                 }
 
-                .mm-auth-emblem {
-                    width: clamp(18px, 2.4vh, 22px);
-                    height: clamp(18px, 2.4vh, 22px);
+                .mm-auth-avatar-mini {
+                    width: clamp(22px, 3.2vh, 28px);
+                    height: clamp(22px, 3.2vh, 28px);
+                    border-radius: 50%;
+                    border: 1.5px solid #00ffcc;
+                    object-fit: cover;
+                }
+
+                .mm-auth-emblem-mini {
+                    width: clamp(16px, 2.2vh, 20px);
+                    height: clamp(16px, 2.2vh, 20px);
                     position: relative;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
                 }
                 .mm-auth-emblem-frame { position: absolute; inset: -3px; opacity: 0.5; }
                 .mm-auth-emblem-icon { position: absolute; inset: 0; }
-                .mm-auth-emblem svg { width: 100%; height: 100%; }
+                .mm-auth-emblem-mini svg { width: 100%; height: 100%; }
 
-                .mm-auth-level {
+                .mm-auth-level-mini {
                     font-size: 0.75rem;
                     font-weight: 900;
                     color: #00ffcc;
                     text-shadow: 0 0 5px rgba(0, 255, 204, 0.5);
+                    margin-left: -2px;
                 }
 
-                .mm-auth-name { display: none; } /* Hiding name as per request v67 */
+                .mm-auth-name { display: none; }
 
                 .mm-auth-name { 
                     font-family: 'Black Han Sans', sans-serif;
@@ -616,40 +616,17 @@ export class MainMenu {
         const economy = EconomyManager.getInstance();
         const isSignedIn = auth.isSignedIn();
 
-        // Consolidated Single-row structure v67
+        // Unified Single-row structure v67
         container.innerHTML = `
             <div id="mm-auth-container"></div>
             ${isSignedIn ? `
-                <div id="mm-progression-container" class="mm-hud-row-progression"></div>
                 <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
             ` : ''}
         `;
         
         this.updateAuthUI();
-        if (isSignedIn) this.updateProgressionUI();
     }
 
-    private updateProgressionUI(): void {
-        const container = document.getElementById('mm-progression-container');
-        if (!container) return;
-
-        const sm = ScoreManager.getInstance();
-        const totalXP = sm.getTotalXP();
-        const level = ExperienceSystem.getLevelFromXP(totalXP);
-        const classInfo = DJClassSystem.getClassInfo(level);
-        
-        const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
-
-        container.innerHTML = `
-            <div class="mm-progression-badge" style="border-color: ${classInfo.color}44;">
-                <div class="mm-auth-emblem">
-                    <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
-                    <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
-                </div>
-                <span class="mm-auth-level">LV.${level}</span>
-            </div>
-        `;
-    }
 
     private updateAuthUI(): void {
         const container = document.getElementById('mm-auth-container');
@@ -669,8 +646,13 @@ export class MainMenu {
             const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
             
             container.innerHTML = `
-                <div class="mm-auth-badge" style="padding: 0; border: none; background: transparent; backdrop-filter: none; display: flex; align-items: center;">
-                    <img src="${avatar}" class="mm-auth-avatar" style="width: clamp(28px, 3.8vh, 34px); height: clamp(28px, 3.8vh, 34px); border-width: 1.5px;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                <div class="mm-auth-badge-unified" style="border-color: ${classInfo.color}66; box-shadow: 0 2px 10px ${classInfo.color}33;">
+                    <img src="${avatar}" class="mm-auth-avatar-mini" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                    <div class="mm-auth-emblem-mini">
+                        <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
+                        <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
+                    </div>
+                    <span class="mm-auth-level-mini">LV.${level}</span>
                 </div>
             `;
         } else {
