@@ -1,8 +1,4 @@
-/**
- * ClerkAuth.ts - Clerk SDK 서비스 래퍼
- * 
- * NOTE: 이 서비스를 초기화하려면 .env에 VITE_CLERK_PUBLISHABLE_KEY가 필요합니다.
- */
+import { ModalUI } from '../../ui/ModalUI';
 
 export class AuthService {
     private static instance: AuthService;
@@ -141,7 +137,11 @@ export class AuthService {
 
     public async openSignIn(): Promise<void> {
         if (!this.clerk) {
-            alert('Clerk이 아직 로드되지 않았거나 키 설정이 필요합니다.');
+            ModalUI.getInstance().show(
+                'SYSTEM ERROR',
+                'Authentication service is not ready. Please check your internet connection or try again later.',
+                { type: 'error' }
+            );
             return;
         }
         this.clerk.openSignIn();
