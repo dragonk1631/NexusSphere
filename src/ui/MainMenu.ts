@@ -142,13 +142,19 @@ export class MainMenu {
                     display: inline-flex;
                     align-items: center;
                     gap: 10px;
-                    height: clamp(28px, 3.8vh, 34px);
+                    height: clamp(24px, 3.2vh, 30px); /* Slimmer height to match BGM v67 */
                     padding: 0 clamp(10px, 2vw, 20px) 0 3px;
                     background: var(--mm-glass-bg);
                     border: 1px solid var(--mm-glass-border);
                     border-radius: 999px;
                     backdrop-filter: blur(var(--mm-blur));
                     -webkit-backdrop-filter: blur(var(--mm-blur));
+                    cursor: pointer;
+                    transition: 0.2s;
+                }
+                .mm-auth-badge:hover {
+                    background: rgba(255, 255, 255, 0.15);
+                    transform: scale(1.05);
                 }
 
                 .mm-version-badge { display: none; } /* Replaced by auth info v67 */
@@ -156,7 +162,7 @@ export class MainMenu {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
-                    height: clamp(28px, 3.8vh, 34px); /* Slimmer unified height v67 */
+                    height: clamp(24px, 3.2vh, 30px); /* Unified slim height v67 */
                     padding: 0 clamp(10px, 2vw, 20px);
                     box-sizing: border-box;
                     background: var(--mm-glass-bg);
@@ -165,11 +171,11 @@ export class MainMenu {
                     backdrop-filter: blur(var(--mm-blur));
                     -webkit-backdrop-filter: blur(var(--mm-blur));
                     font-weight: 800;
-                    font-size: clamp(0.7rem, 1.5vh, 0.9rem);
-                    text-shadow: 0 2px 10px rgba(0,0,0,0.85); /* HUD Halo v56 */
+                    font-size: clamp(0.65rem, 1.4vh, 0.85rem);
+                    text-shadow: 0 2px 10px rgba(0,0,0,0.85);
                     white-space: nowrap;
                     color: white;
-                    pointer-events: auto; /* Enable touch ONLY on badges v63 */
+                    pointer-events: auto;
                 }
                 .mm-currency-badge.gold { border-color: rgba(255,210,80,0.4); background: rgba(255,190,0,0.1); color: #ffd700; }
                 .mm-currency-badge.gem { border-color: rgba(130,180,255,0.4); background: rgba(80,130,255,0.1); color: #82b4ff; }
@@ -229,7 +235,7 @@ export class MainMenu {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
-                    height: clamp(28px, 3.8vh, 34px);
+                    height: clamp(24px, 3.2vh, 30px); /* Unified slim height v67 */
                     padding: 0 clamp(8px, 1.5vw, 15px);
                     background: rgba(0, 0, 0, 0.5);
                     border: 1px solid rgba(0, 255, 204, 0.3);
@@ -286,7 +292,9 @@ export class MainMenu {
                     align-items: center;
                     justify-content: center;
                     gap: 10px;
-                    padding: clamp(4px, 1vh, 8px) clamp(12px, 2.5vw, 24px);
+                    height: clamp(24px, 3.2vh, 30px); /* Unified fixed height v67 */
+                    padding: 0 clamp(12px, 2.5vw, 24px);
+                    box-sizing: border-box;
                     background: rgba(255, 255, 255, 0.05);
                     border: 1px solid rgba(255, 255, 255, 0.1);
                     border-radius: 999px;
@@ -635,11 +643,11 @@ export class MainMenu {
         const economy = EconomyManager.getInstance();
         const isSignedIn = auth.isSignedIn();
 
-        // Currency & Progression on the right v67
+        // Currency & Progression on the right (Swapped order) v67
         container.innerHTML = `
             ${isSignedIn ? `
-                <div id="mm-progression-container"></div>
                 <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
+                <div id="mm-progression-container"></div>
             ` : ''}
         `;
         
@@ -678,10 +686,17 @@ export class MainMenu {
             const clerk = auth.getClerk();
             const avatar = clerk?.user?.imageUrl || '';
             
+            container.onclick = async () => {
+                if (confirm('Do you want to sign out?')) {
+                    await auth.signOut();
+                    window.location.reload();
+                }
+            };
+
             container.innerHTML = `
                 <div class="mm-auth-badge">
-                    <img src="${avatar}" class="mm-auth-avatar-mini" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
-                    <span class="mm-auth-name">${name}</span>
+                    <img src="${avatar}" class="mm-auth-avatar-mini" style="width: clamp(20px, 2.8vh, 26px); height: clamp(20px, 2.8vh, 26px);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                    <span class="mm-auth-name" style="font-size: clamp(0.7rem, 1.4vh, 0.85rem);">${name}</span>
                 </div>
             `;
         } else {
