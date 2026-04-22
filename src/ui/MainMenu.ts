@@ -213,9 +213,27 @@ export class MainMenu {
                     display: flex;
                     justify-content: flex-end;
                     align-items: center;
-                    gap: 10px;
-                    margin-top: 6px;
+                    margin-top: 8px;
                     animation: mm-fadeInUp 0.4s ease-out both;
+                }
+
+                .mm-progression-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: clamp(3px, 0.8vh, 6px) clamp(10px, 2vw, 20px);
+                    background: rgba(0, 0, 0, 0.65);
+                    border: 1px solid rgba(0, 255, 204, 0.4);
+                    border-radius: 999px;
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+                    transition: 0.3s;
+                }
+                .mm-progression-badge:hover {
+                    background: rgba(0, 0, 0, 0.75);
+                    border-color: rgba(0, 255, 204, 0.8);
+                    transform: translateY(-2px);
                 }
 
                 .mm-auth-emblem {
@@ -231,15 +249,18 @@ export class MainMenu {
                 .mm-auth-emblem svg { width: 100%; height: 100%; }
 
                 .mm-auth-level {
-                    font-size: 0.75rem;
+                    font-size: 0.8rem;
                     font-weight: 900;
-                    background: rgba(0, 255, 204, 0.15);
                     color: #00ffcc;
-                    padding: 3px 10px;
-                    border-radius: 6px;
-                    border: 1px solid rgba(0, 255, 204, 0.3);
-                    text-shadow: 0 0 5px rgba(0, 255, 204, 0.5);
-                    letter-spacing: 0.5px;
+                    text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
+                }
+
+                .mm-auth-class-name {
+                    font-size: 0.7rem;
+                    font-weight: 800;
+                    color: rgba(255, 255, 255, 0.7);
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
                 }
 
                 .mm-auth-name { 
@@ -635,11 +656,14 @@ export class MainMenu {
         const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
 
         container.innerHTML = `
-            <div class="mm-auth-emblem">
-                <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
-                <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
+            <div class="mm-progression-badge" style="border-color: ${classInfo.color}66; box-shadow: 0 0 15px ${classInfo.color}33;">
+                <div class="mm-auth-emblem">
+                    <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
+                    <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
+                </div>
+                <span class="mm-auth-level">LV.${level}</span>
+                <span class="mm-auth-class-name">${classInfo.name}</span>
             </div>
-            <span class="mm-auth-level">LV.${level}</span>
         `;
     }
 
