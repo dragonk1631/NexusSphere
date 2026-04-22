@@ -651,13 +651,13 @@ export class MainMenu {
         // Left side content based on auth state v67
         if (isSignedIn) {
             leftContainer.innerHTML = `
-                <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
                 <div id="mm-progression-container"></div>
+                <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
             `;
             if (this.updateProgressionUI) this.updateProgressionUI();
         } else {
             leftContainer.innerHTML = `
-                <div class="mm-auth-cta-text" style="color: rgba(255,255,255,0.6); font-size: 0.75rem; font-weight: 800; letter-spacing: 1px;">
+                <div class="mm-currency-badge" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.8); cursor: default;">
                     SIGN IN TO SYNC YOUR DATA
                 </div>
             `;
