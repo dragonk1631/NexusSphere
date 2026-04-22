@@ -648,16 +648,22 @@ export class MainMenu {
         const economy = EconomyManager.getInstance();
         const isSignedIn = auth.isSignedIn();
 
-        // Coins & Progression on the left v67
-        leftContainer.innerHTML = `
-            ${isSignedIn ? `
+        // Left side content based on auth state v67
+        if (isSignedIn) {
+            leftContainer.innerHTML = `
                 <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
                 <div id="mm-progression-container"></div>
-            ` : ''}
-        `;
+            `;
+            if (this.updateProgressionUI) this.updateProgressionUI();
+        } else {
+            leftContainer.innerHTML = `
+                <div class="mm-auth-cta-text" style="color: rgba(255,255,255,0.6); font-size: 0.75rem; font-weight: 800; letter-spacing: 1px;">
+                    SIGN IN TO SYNC YOUR DATA
+                </div>
+            `;
+        }
         
         this.updateAuthUI();
-        if (isSignedIn) this.updateProgressionUI();
     }
 
     private updateProgressionUI(): void {
@@ -709,7 +715,7 @@ export class MainMenu {
             container.onclick = () => auth.openSignIn();
             container.innerHTML = `
                 <div class="mm-auth-badge guest">
-                    <span class="mm-auth-name">SIGN IN TO SYNC DATA</span>
+                    <span class="mm-auth-name">SIGN IN</span>
                 </div>
             `;
         }
