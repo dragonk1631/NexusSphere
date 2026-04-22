@@ -94,7 +94,17 @@ export async function ensureTables(db: D1Database) {
         `),
         db.prepare(`
             CREATE INDEX IF NOT EXISTS idx_user_song_records_user ON user_song_records_v2(user_id)
-        `)
+        `),
+        // [v4] User Favorites
+        db.prepare(`
+            CREATE TABLE IF NOT EXISTS user_favorites_v2 (
+                user_id TEXT NOT NULL,
+                song_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, song_id)
+            )
+        `),
+        db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_favorites_v2(user_id)`)
     ]);
 
     // Handle ALTER TABLE for existing users (Migration 0003 safety)

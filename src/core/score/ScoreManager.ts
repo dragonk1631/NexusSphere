@@ -290,8 +290,9 @@ export class ScoreManager {
                         });
                     }
                     
-                    // 2.7 Sync Favorites (Cloud Favorites)
+                    // 2.7 Sync Favorites (Cloud Favorites) - OVERWRITE local cache with server data for consistency
                     if (data.favorites) {
+                        this.favorites.clear();
                         data.favorites.forEach((songId: string) => this.favorites.add(songId));
                     }
                     
@@ -306,6 +307,26 @@ export class ScoreManager {
         } catch (e) {
             console.error('[ScoreManager] Failed to sync with server:', e);
         }
+    }
+
+    /**
+     * Clear all user-specific data from memory and local storage.
+     * Called during logout to prevent data leaking between sessions.
+     */
+    public clearAccountData(): void {
+        console.log('[ScoreManager] Clearing user account data...');
+        this.favorites.clear();
+        this.highScores = {};
+        this.totalXP = 0;
+        this.currentLevel = 1;
+        
+        // Remove from local storage
+        localStorage.removeItem(ScoreManager.STORAGE_KEY_V2);
+        localStorage.removeItem('NexusSphere_Favorites_v2');
+        
+        // Notify UI to refresh
+        window.dispatchEvent(new CustomEvent('nexus-favorites-synced'));
+        window.dispatchEvent(new CustomEvent('nexus-auth-changed'));
     }
 
     public isFavorite(songId: string): boolean {

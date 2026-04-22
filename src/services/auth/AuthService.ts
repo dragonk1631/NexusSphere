@@ -82,6 +82,13 @@ export class AuthService {
                             } catch (e) {
                                 console.error('[AuthService] Failed to sync scores after sign-in:', e);
                             }
+                        } else {
+                            console.log('[AuthService] User signed out detected. Clearing local account cache...');
+                            try {
+                                const { ScoreManager } = await import('../../core/score/ScoreManager');
+                                ScoreManager.getInstance().clearAccountData();
+                                window.dispatchEvent(new CustomEvent('nexus-auth-changed', { detail: { isSignedIn: false } }));
+                            } catch (e) {}
                         }
                     });
 
