@@ -133,11 +133,25 @@ export class MainMenu {
                     flex-shrink: 0;
                 }
 
-                .mm-version-badge {
-                    margin-left: 0;
-                    justify-self: start; /* Anchor to the left v56 */
-                    pointer-events: auto; /* Enable touch ONLY on the badge v63 */
+                .mm-hud-left {
+                    justify-self: start;
+                    pointer-events: auto;
                 }
+
+                .mm-auth-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 10px;
+                    height: clamp(28px, 3.8vh, 34px);
+                    padding: 0 clamp(10px, 2vw, 20px) 0 3px;
+                    background: var(--mm-glass-bg);
+                    border: 1px solid var(--mm-glass-border);
+                    border-radius: 999px;
+                    backdrop-filter: blur(var(--mm-blur));
+                    -webkit-backdrop-filter: blur(var(--mm-blur));
+                }
+
+                .mm-version-badge { display: none; } /* Replaced by auth info v67 */
                 .mm-version-badge, .mm-currency-badge {
                     display: inline-flex;
                     align-items: center;
@@ -210,19 +224,18 @@ export class MainMenu {
                     object-fit: cover;
                 }
                 
-                /* [NEW] Unified Auth Profile Badge v67 */
-                .mm-auth-badge-unified {
+                /* [NEW] Progression Badge v67 */
+                .mm-progression-badge {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
                     height: clamp(28px, 3.8vh, 34px);
-                    padding: 0 clamp(8px, 1.5vw, 12px) 0 3px; /* Left padding 3px to hug avatar */
-                    background: rgba(0, 0, 0, 0.6);
+                    padding: 0 clamp(8px, 1.5vw, 15px);
+                    background: rgba(0, 0, 0, 0.5);
                     border: 1px solid rgba(0, 255, 204, 0.3);
                     border-radius: 999px;
-                    backdrop-filter: blur(12px);
-                    -webkit-backdrop-filter: blur(12px);
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
                 }
 
                 .mm-auth-avatar-mini {
@@ -247,10 +260,16 @@ export class MainMenu {
                     font-weight: 900;
                     color: #00ffcc;
                     text-shadow: 0 0 5px rgba(0, 255, 204, 0.5);
-                    margin-left: -2px;
                 }
 
-                .mm-auth-name { display: none; }
+                .mm-auth-name { 
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: 0.8rem; 
+                    font-weight: 900; 
+                    color: white; 
+                    text-transform: uppercase;
+                    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+                }
 
                 .mm-auth-name { 
                     font-family: 'Black Han Sans', sans-serif;
@@ -448,7 +467,7 @@ export class MainMenu {
         const hudHtml = `
             ${styles}
             <div class="mm-top-hud">
-                <div class="mm-version-badge">🎮 ${t.version}</div>
+                <div class="mm-hud-left" id="mm-auth-container"></div>
                 <div class="mm-bgm-badge" id="mm-bgm-container">
                     <div class="mm-visualizer">
                         <div class="mm-vis-bar"></div>
@@ -616,17 +635,38 @@ export class MainMenu {
         const economy = EconomyManager.getInstance();
         const isSignedIn = auth.isSignedIn();
 
-        // Unified Single-row structure v67
+        // Currency & Progression on the right v67
         container.innerHTML = `
-            <div id="mm-auth-container"></div>
             ${isSignedIn ? `
+                <div id="mm-progression-container"></div>
                 <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
             ` : ''}
         `;
         
-        this.updateAuthUI();
+        if (isSignedIn) this.updateProgressionUI();
     }
 
+    private updateProgressionUI(): void {
+        const container = document.getElementById('mm-progression-container');
+        if (!container) return;
+
+        const sm = ScoreManager.getInstance();
+        const totalXP = sm.getTotalXP();
+        const level = ExperienceSystem.getLevelFromXP(totalXP);
+        const classInfo = DJClassSystem.getClassInfo(level);
+        
+        const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
+
+        container.innerHTML = `
+            <div class="mm-progression-badge" style="border-color: ${classInfo.color}44;">
+                <div class="mm-auth-emblem-mini">
+                    <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
+                    <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
+                </div>
+                <span class="mm-auth-level-mini">LV.${level}</span>
+            </div>
+        `;
+    }
 
     private updateAuthUI(): void {
         const container = document.getElementById('mm-auth-container');
@@ -638,26 +678,15 @@ export class MainMenu {
             const clerk = auth.getClerk();
             const avatar = clerk?.user?.imageUrl || '';
             
-            const sm = ScoreManager.getInstance();
-            const totalXP = sm.getTotalXP();
-            const level = ExperienceSystem.getLevelFromXP(totalXP);
-            const classInfo = DJClassSystem.getClassInfo(level);
-            
-            const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
-            
             container.innerHTML = `
-                <div class="mm-auth-badge-unified" style="border-color: ${classInfo.color}66; box-shadow: 0 2px 10px ${classInfo.color}33;">
+                <div class="mm-auth-badge">
                     <img src="${avatar}" class="mm-auth-avatar-mini" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
-                    <div class="mm-auth-emblem-mini">
-                        <div class="mm-auth-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'hud')}</div>
-                        <div class="mm-auth-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'hud')}</div>
-                    </div>
-                    <span class="mm-auth-level-mini">LV.${level}</span>
+                    <span class="mm-auth-name">${name}</span>
                 </div>
             `;
         } else {
             container.innerHTML = `
-                <div class="mm-auth-badge guest">
+                <div class="mm-auth-badge guest" onclick="AuthService.getInstance().openSignIn()">
                     <span class="mm-auth-name">SIGN IN</span>
                 </div>
             `;
