@@ -142,8 +142,8 @@ export class MainMenu {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
-                    height: clamp(32px, 4.5vh, 40px); /* Unified height v67 */
-                    padding: 0 clamp(12px, 2.5vw, 24px);
+                    height: clamp(28px, 3.8vh, 34px); /* Slimmer unified height v67 */
+                    padding: 0 clamp(10px, 2vw, 20px);
                     box-sizing: border-box;
                     background: var(--mm-glass-bg);
                     border: 1px solid var(--mm-glass-border);
@@ -221,8 +221,8 @@ export class MainMenu {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
-                    height: clamp(32px, 4.5vh, 40px); /* Unified height v67 */
-                    padding: 0 clamp(10px, 1.8vw, 18px);
+                    height: clamp(28px, 3.8vh, 34px); /* Slimmer unified height v67 */
+                    padding: 0 clamp(8px, 1.5vw, 15px);
                     box-sizing: border-box;
                     background: rgba(0, 0, 0, 0.5);
                     border: 1px solid rgba(0, 255, 204, 0.3);
@@ -232,8 +232,8 @@ export class MainMenu {
                 }
 
                 .mm-auth-emblem {
-                    width: clamp(20px, 2.8vh, 26px);
-                    height: clamp(20px, 2.8vh, 26px);
+                    width: clamp(18px, 2.4vh, 22px);
+                    height: clamp(18px, 2.4vh, 22px);
                     position: relative;
                     display: flex;
                     align-items: center;
@@ -670,7 +670,7 @@ export class MainMenu {
             
             container.innerHTML = `
                 <div class="mm-auth-badge" style="padding: 0; border: none; background: transparent; backdrop-filter: none; display: flex; align-items: center;">
-                    <img src="${avatar}" class="mm-auth-avatar" style="width: clamp(32px, 4.5vh, 40px); height: clamp(32px, 4.5vh, 40px); border-width: 2px;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                    <img src="${avatar}" class="mm-auth-avatar" style="width: clamp(28px, 3.8vh, 34px); height: clamp(28px, 3.8vh, 34px); border-width: 1.5px;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
                 </div>
             `;
         } else {
