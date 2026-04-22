@@ -475,7 +475,7 @@ export class MainMenu {
         const hudHtml = `
             ${styles}
             <div class="mm-top-hud">
-                <div class="mm-hud-left" id="mm-auth-container"></div>
+                <div class="mm-hud-left" id="mm-progression-container"></div>
                 <div class="mm-bgm-badge" id="mm-bgm-container">
                     <div class="mm-visualizer">
                         <div class="mm-vis-bar"></div>
@@ -643,14 +643,15 @@ export class MainMenu {
         const economy = EconomyManager.getInstance();
         const isSignedIn = auth.isSignedIn();
 
-        // Currency & Progression on the right (Swapped order) v67
+        // Currency & Account on the right v67
         container.innerHTML = `
             ${isSignedIn ? `
                 <div class="mm-currency-badge gold">🪙 ${economy.getCoins().toLocaleString()}</div>
-                <div id="mm-progression-container"></div>
             ` : ''}
+            <div id="mm-auth-container"></div>
         `;
         
+        this.updateAuthUI();
         if (isSignedIn) this.updateProgressionUI();
     }
 
