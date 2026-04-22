@@ -142,7 +142,9 @@ export class MainMenu {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
-                    padding: clamp(4px, 1vh, 8px) clamp(12px, 2.5vw, 24px);
+                    height: clamp(32px, 4.5vh, 40px); /* Unified height v67 */
+                    padding: 0 clamp(12px, 2.5vw, 24px);
+                    box-sizing: border-box;
                     background: var(--mm-glass-bg);
                     border: 1px solid var(--mm-glass-border);
                     border-radius: 999px;
@@ -219,7 +221,9 @@ export class MainMenu {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
-                    padding: clamp(3px, 0.8vh, 5px) clamp(8px, 1.5vw, 15px);
+                    height: clamp(32px, 4.5vh, 40px); /* Unified height v67 */
+                    padding: 0 clamp(10px, 1.8vw, 18px);
+                    box-sizing: border-box;
                     background: rgba(0, 0, 0, 0.5);
                     border: 1px solid rgba(0, 255, 204, 0.3);
                     border-radius: 999px;
@@ -665,8 +669,8 @@ export class MainMenu {
             const makeUniqueSVG = (svg: string, suffix: string) => svg.replace(/id="([^"]+)"/g, `id="$1-${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${suffix})`);
             
             container.innerHTML = `
-                <div class="mm-auth-badge" style="padding: 0; border: none; background: transparent; backdrop-filter: none;">
-                    <img src="${avatar}" class="mm-auth-avatar" style="width: clamp(30px, 4vh, 38px); height: clamp(30px, 4vh, 38px); border-width: 2px;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                <div class="mm-auth-badge" style="padding: 0; border: none; background: transparent; backdrop-filter: none; display: flex; align-items: center;">
+                    <img src="${avatar}" class="mm-auth-avatar" style="width: clamp(32px, 4.5vh, 40px); height: clamp(32px, 4.5vh, 40px); border-width: 2px;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
                 </div>
             `;
         } else {
