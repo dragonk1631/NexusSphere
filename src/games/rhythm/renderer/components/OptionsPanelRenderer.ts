@@ -5,15 +5,54 @@ import {
     hexToRgb,
     drawTrackedText,
     drawPremiumPanel,
-    drawPremiumTypography
+    drawPremiumTypography,
+    drawPremiumPlate
 } from '../MenuUIUtils';
 
 export class OptionsPanelRenderer {
     public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, sf: number, c1: string, c2: string) {
         const { padding, infoY, infoH, leftPanelWidth, col1CenterX, col2CenterX, col3CenterX, row1CenterY, hitWidth } = layout;
 
-        // "OPTIONS" Panel - Use infoH to match bottom height of Song List
+        // "OPTIONS" Panel - Use Premium Plate for CHAIN combo
+        const comboValue = state.scoreManager?.getCombo() || 0;
         drawPremiumPanel(ctx, padding, infoY, leftPanelWidth, infoH, "OPTION", c1, c2, sf);
+
+        if (comboValue > 0) {
+            const pulse = Math.sin(Date.now() / 400) * 0.1 + 1.0;
+            const badgeFontSize = 16 * sf;
+            
+            ctx.font = `900 ${Math.floor(badgeFontSize)}px "Orbitron"`;
+            const labelText = "CHAIN";
+            const valText = comboValue.toLocaleString();
+            const labelW = ctx.measureText(labelText).width;
+            const valW = ctx.measureText(valText).width;
+            
+            const platePadding = 12 * sf;
+            const gap = 10 * sf;
+            const plateW = platePadding + labelW + 6 * sf + valW + platePadding;
+            const plateH = 28 * sf;
+            const plateX = padding + leftPanelWidth - plateW - 12 * sf;
+            const plateY = infoY + (MENU_LAYOUT.HEADER_HEIGHT * sf - plateH) / 2;
+            
+            const tx = plateX + platePadding;
+            const ty = plateY + plateH / 2 + 1 * sf;
+
+            // Draw Plate
+            drawPremiumPlate(ctx, plateX, plateY, plateW, plateH, c1, '#ffdd00', sf, pulse);
+            
+            // Draw Text
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2.5 * sf;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.strokeText(labelText, tx, ty);
+            ctx.fillText(labelText, tx, ty);
+            
+            ctx.fillStyle = '#ffdd00';
+            ctx.strokeText(valText, tx + labelW + 6 * sf, ty);
+            ctx.fillText(valText, tx + labelW + 6 * sf, ty);
+        }
 
         // Theme-independent Colors (Value-based)
         const getDifficultyColor = (diff: string) => {
@@ -61,7 +100,6 @@ export class OptionsPanelRenderer {
             // ── 1. TITLE TAB (matched with redesigned main headers) ──
             const tabY = baseY;
             const tabGrad = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
-            // Redesigned: Sophisticated, translucent, and darker bottom
             tabGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.4)`);
             tabGrad.addColorStop(0.15, `rgba(${hexToRgb(c1)}, 0.55)`);
             tabGrad.addColorStop(1, `rgba(15, 15, 25, 0.9)`);
@@ -94,7 +132,7 @@ export class OptionsPanelRenderer {
             ctx.roundRect(cx - tw / 2, boxY, tw, th, [0, 0, 11 * sf, 11 * sf]);
             ctx.fill();
 
-            // Selected Glow (Matched with Theme - simplified to always pulse on options)
+            // Selected Glow
             const pulse = Math.sin(Date.now() / 300 + i * 1.5) * 0.5 + 0.5;
             ctx.save();
             ctx.shadowBlur = 10 * sf + (pulse * 20 * sf);
@@ -126,13 +164,13 @@ export class OptionsPanelRenderer {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            // 4. Value Typography — upper portion of the box
+            // 4. Value Typography
             ctx.shadowBlur = 10 * sf;
             ctx.shadowColor = item.color;
-            const valueY = boxY + th * 0.38;   // upper area
+            const valueY = boxY + th * 0.38;
             drawPremiumTypography(ctx, item.value, cx, valueY, 'center', valSize, '#fff', true, item.color, tw * 0.75);
 
-            // 5. Tactical Arrows — lower portion of the box (well below value text)
+            // 5. Tactical Arrows
             const arrowY = boxY + th * 0.78;
             const arrowSpacing = tw * 0.36;
             const bounce = Math.sin(performance.now() * 0.008) * 2 * sf;
@@ -142,17 +180,14 @@ export class OptionsPanelRenderer {
             ctx.textBaseline = 'middle';
             
             ctx.save();
-            // 1. STROKE FIRST (No shadow)
             ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 2.5 * sf;
-            
             ctx.strokeText("◀", cx - arrowSpacing + bounce, arrowY);
             ctx.strokeText("▶", cx + arrowSpacing - bounce, arrowY);
             
-            // 2. FILL SECOND (With intense downward shadow)
             ctx.shadowBlur = 6 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
-            ctx.shadowOffsetX = 1.6 * sf; ctx.shadowOffsetY = 3.5 * sf; // Downward
+            ctx.shadowOffsetX = 1.6 * sf; ctx.shadowOffsetY = 3.5 * sf;
             ctx.fillText("◀", cx - arrowSpacing + bounce, arrowY);
             ctx.fillText("▶", cx + arrowSpacing - bounce, arrowY);
             ctx.restore();

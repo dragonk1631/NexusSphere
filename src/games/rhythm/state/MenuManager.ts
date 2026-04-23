@@ -10,6 +10,8 @@ import { SystemInitializer } from '../../../core/SystemInitializer';
 import { MelodyAnalyzer } from '../../../core/audio/MelodyAnalyzer';
 import { OfflineDownloadManager } from '../../../core/asset/OfflineDownloadManager';
 import { ScoreManager } from '../../../core/score/ScoreManager';
+import { ModalUI } from '../../../ui/ModalUI';
+import { AuthService } from '../../../services/auth/AuthService';
 
 export interface IMenuCallbacks {
     onPlayRequested: () => void;
@@ -96,6 +98,22 @@ export class MenuManager {
             // Delegate to ScoreManager for cloud sync and local persistence
             sm.toggleCloudFavorite(song.url, nextState);
             
+            // Show premium feedback (Enhanced with Auth awareness)
+            const auth = AuthService.getInstance();
+            const isSignedIn = auth.isSignedIn();
+            
+            if (nextState) {
+                const title = "FAVORITE ADDED";
+                const msg = `${song.name} has been added to your favorites.`;
+                const subtitle = isSignedIn ? "PERMANENTLY SAVED TO CLOUD" : "SAVED LOCALLY (LOGIN TO CLOUD SYNC)";
+                ModalUI.getInstance().showNotification(title, msg, 800, 'info', subtitle);
+            } else {
+                const title = "FAVORITE REMOVED";
+                const msg = `${song.name} has been removed from your favorites.`;
+                const subtitle = isSignedIn ? "REMOVED FROM CLOUD" : "REMOVED FROM LOCAL STORAGE";
+                ModalUI.getInstance().showNotification(title, msg, 800, 'warning', subtitle);
+            }
+
             // Re-apply filter if in favorite tab
             if (this.currentFilter === 'favorite') this.applyFilter();
         } catch (e) {}

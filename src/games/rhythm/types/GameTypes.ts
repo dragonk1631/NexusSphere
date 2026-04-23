@@ -111,6 +111,9 @@ export interface MenuRenderState {
     // -- Feedback --
     toastMessage?: string | null;
     toastTimer?: number;
+
+    // -- Auth --
+    isSignedIn?: boolean;
 }
 
 /**

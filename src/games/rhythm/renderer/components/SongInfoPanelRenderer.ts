@@ -1,22 +1,100 @@
 import { type MenuLayoutResult } from '../MenuLayout';
 import { type MenuRenderState, type SongEntry } from '../../types/GameTypes';
 import { MENU_LAYOUT } from '../MenuLayoutConfig';
+import { DJClassSystem } from '../../../../core/progression/DJClassSystem';
 import { MidiEQRenderer } from '../MidiEQRenderer';
 import {
     hexToRgb,
     drawPremiumPanel,
-    drawPremiumTypography
+    drawPremiumTypography,
+    drawPremiumPlate,
+    drawEmblem
 } from '../MenuUIUtils';
 
 export class SongInfoPanelRenderer {
+
     public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, currentSong: SongEntry | null, sf: number, c1: string, c2: string, bpm: number, eqRenderer: MidiEQRenderer) {
         const { visPanelY, leftPanelWidth, visPanelH, padding } = layout;
+        const headerH = MENU_LAYOUT.HEADER_HEIGHT * sf;
 
-        // Unified 2.5px Blur for Info Panel
-        const currentStreak = state.scoreManager?.getCombo() || 0;
-        drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf, 
-            currentStreak > 0 ? "CHAIN" : undefined, 
-            currentStreak > 0 ? currentStreak.toLocaleString() : undefined);
+        // 1. Draw Main Panel Background (Empty header, we'll draw the badge manually for perfect control)
+        const level = state.scoreManager?.getCurrentLevel() || 1;
+        drawPremiumPanel(ctx, padding, visPanelY, leftPanelWidth, visPanelH, "INFO", c1, c2, sf);
+
+        if (state.isSignedIn) {
+            // 2. Draw Unified Progression Plate (Emblem + LV + Number bundled)
+            const djClass = DJClassSystem.getClassInfo(level);
+            
+            const badgeFontSize = 16 * sf;
+            const emblemSize = 22 * sf; // Adjusted to fit inside comfortably
+            const pulse = Math.sin(Date.now() / 400) * 0.1 + 1.0;
+            
+            ctx.font = `900 ${Math.floor(badgeFontSize)}px "Orbitron"`;
+            const lvText = "LV";
+            const numText = level.toString();
+            
+            const lvW = ctx.measureText(lvText).width;
+            const numW = ctx.measureText(numText).width;
+            
+            // Unified Plate dimensions - Sized to contain everything
+            const platePadding = 8 * sf;
+            const groupGap = 10 * sf;
+            const plateW = platePadding + emblemSize + groupGap + lvW + 6 * sf + numW + platePadding + 4 * sf;
+            const plateH = 28 * sf; // Fits within the 32px header
+            const plateX = padding + leftPanelWidth - plateW - 12 * sf;
+            const plateY = visPanelY + (headerH - plateH) / 2;
+            
+            // Coordinates for elements (All contained within plate)
+            const centerX = plateX + platePadding + emblemSize / 2;
+            const centerY = plateY + plateH / 2;
+            const textStartX = plateX + platePadding + emblemSize + groupGap;
+            const textY = plateY + plateH / 2 + 1 * sf;
+
+            ctx.save();
+            
+            // A. Draw Sophisticated Plate Background (using utility)
+            drawPremiumPlate(ctx, plateX, plateY, plateW, plateH, c1, djClass.color, sf, pulse);
+
+            // B. Draw Aura (Refined)
+            const auraSize = emblemSize * 1.4;
+            const auraGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, auraSize / 2);
+            auraGrad.addColorStop(0, djClass.bgGlow);
+            auraGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = auraGrad;
+            ctx.beginPath(); ctx.arc(centerX, centerY, auraSize / 2, 0, Math.PI * 2); ctx.fill();
+
+            // C. Draw Emblem & Frame (Contained)
+            const frameSize = emblemSize + 6 * sf;
+            ctx.globalAlpha = 0.8; 
+            drawEmblem(ctx, djClass.frameSVG, centerX - frameSize / 2, centerY - frameSize / 2, frameSize, djClass.id + '_frame', false);
+            ctx.globalAlpha = 1.0;
+            drawEmblem(ctx, djClass.emblemSVG, centerX - emblemSize / 2, centerY - emblemSize / 2, emblemSize, djClass.id, true);
+
+            // D. Draw LV and Number
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2.5 * sf;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            
+            ctx.strokeText(lvText, textStartX, textY);
+            ctx.fillText(lvText, textStartX, textY);
+
+            // Level number - Vibrant Neon Gold
+            const goldColor = '#ffdd00';
+            ctx.save();
+            ctx.shadowBlur = 10 * sf;
+            ctx.shadowColor = 'rgba(255, 221, 0, 0.6)';
+            ctx.fillStyle = goldColor;
+            ctx.strokeText(numText, textStartX + lvW + 6 * sf, textY);
+            ctx.fillText(numText, textStartX + lvW + 6 * sf, textY);
+            ctx.restore();
+            
+            ctx.restore();
+        }
+        
+        ctx.restore();
 
         if (!currentSong) {
             const cx = Math.floor(padding + leftPanelWidth / 2);
@@ -27,7 +105,6 @@ export class SongInfoPanelRenderer {
         }
 
         const cx = Math.floor(padding + leftPanelWidth / 2);
-        const headerH = MENU_LAYOUT.HEADER_HEIGHT * sf;
         const innerY = visPanelY + headerH;
         const innerH = visPanelH - headerH;
 
@@ -59,7 +136,7 @@ export class SongInfoPanelRenderer {
         
         const scoreStr = hasRecord ? record.score.toString().padStart(7, '0') : "-------";
         const rank = hasRecord ? record.grade : "---";
-        const bpmStr = Math.round(bpm).toString(); // Removed redundant 'BPM'
+        const bpmStr = Math.round(bpm).toString();
         const duration = currentSong.duration || 0;
         const lengthStr = `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`;
 
@@ -81,14 +158,14 @@ export class SongInfoPanelRenderer {
         this.renderSmallMetaBox(ctx, currentX, infoAreaY, otherW, infoAreaH, "TIME", lengthStr, sf, c1, c2);
     }
 
+
     private renderSmallMetaBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, value: string, sf: number, c1: string, c2: string, isScore = false) {
         ctx.save();
         ctx.translate(x, y);
 
-        const tabH = 22 * sf; // Increased from 18
+        const tabH = 22 * sf;
         const boxH = h - tabH;
 
-        // ── 1. HEADER TAB ──
         const tabGrad = ctx.createLinearGradient(0, 0, 0, tabH);
         tabGrad.addColorStop(0, `rgba(${hexToRgb(c1)}, 0.45)`);
         tabGrad.addColorStop(1, `rgba(10, 10, 20, 0.9)`);
@@ -98,28 +175,23 @@ export class SongInfoPanelRenderer {
         ctx.roundRect(0, 0, w, tabH, [6 * sf, 6 * sf, 0, 0]);
         ctx.fill();
 
-        // Tab Border
         ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.5)`;
         ctx.lineWidth = 1 * sf;
         ctx.stroke();
 
-        // Label Typography
         ctx.font = `700 ${Math.floor(14 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         
-        // 1. STROKE FIRST (no shadow — shadow on stroke causes upward artifact)
         ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2.5 * sf;
         ctx.strokeText(label, w / 2, tabH / 2 + 1 * sf);
         
-        // 2. FILL SECOND (downward drop shadow)
         ctx.shadowBlur = 4 * sf; ctx.shadowColor = 'rgba(0,0,0,0.9)';
         ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2.5 * sf;
         ctx.fillText(label, w / 2, tabH / 2 + 1 * sf);
 
-        // ── 2. VALUE BOX ──
         const boxY = tabH;
         const boxGrad = ctx.createLinearGradient(0, boxY, 0, boxY + boxH);
         boxGrad.addColorStop(0, 'rgba(255,255,255,0.07)');
@@ -131,18 +203,15 @@ export class SongInfoPanelRenderer {
         ctx.roundRect(0, boxY, w, boxH, [0, 0, 6 * sf, 6 * sf]);
         ctx.fill();
 
-        // Main Border (Unified with Panel Style)
         const borderGrad = ctx.createLinearGradient(0, boxY, w, boxY);
         borderGrad.addColorStop(0, c1); borderGrad.addColorStop(1, c2);
         ctx.strokeStyle = borderGrad; ctx.lineWidth = 1.2 * sf;
         ctx.stroke();
 
-        // Divider line between tab and box
         ctx.strokeStyle = `rgba(${hexToRgb(c1)}, 0.3)`;
         ctx.lineWidth = 0.5 * sf;
         ctx.beginPath(); ctx.moveTo(0, boxY); ctx.lineTo(w, boxY); ctx.stroke();
 
-        // Value Typography (Significantly increased size)
         const valueSize = isScore ? Math.floor(28 * sf) : Math.floor(24 * sf);
         const isEmpty = value === "---" || value === "-------";
         
@@ -156,13 +225,11 @@ export class SongInfoPanelRenderer {
         ctx.fillStyle = vColor;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
-        // 1. STROKE FIRST (no shadow — shadow on stroke causes upward artifact)
         ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2.5 * sf;
         ctx.strokeText(value, w / 2, boxY + boxH / 2 + 2 * sf);
         
-        // 2. FILL SECOND (clean downward drop shadow)
         ctx.shadowBlur = 6 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
         ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3.5 * sf;
         ctx.fillText(value, w / 2, boxY + boxH / 2 + 2 * sf);

@@ -68,12 +68,6 @@ export interface MenuLayoutResult {
     backBtnW: number;
     backBtnH: number;
 
-    // ── Top Main Menu Button ──
-    mainMenuBtnX: number;   // Starting X of top right button
-    mainMenuBtnY: number;   // Starting Y of top right button
-    mainMenuBtnW: number;   // Width of the button
-    mainMenuBtnH: number;   // Height of the button
-
     // ── Global Scaling ──
     scaleFactor: number;
 }
@@ -178,12 +172,6 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     const tabAreaW = (folderBtnX - tabAreaX) - (10 * scaleFactor);
     const tabWidth = Math.floor(tabAreaW / 4);
 
-    // Top Right Exit Button
-    const mainMenuBtnW = Math.floor(120 * scaleFactor);
-    const mainMenuBtnH = Math.floor(28 * scaleFactor);
-    const mainMenuBtnX = Math.floor(width - padding - mainMenuBtnW);
-    const mainMenuBtnY = Math.floor(10 * scaleFactor);
-
     return {
         padding: Math.floor(padding),
         tabH: Math.floor(tabH),
@@ -229,10 +217,6 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
         backBtnY: Math.floor(backBtnY),
         backBtnW: Math.floor(backBtnW),
         backBtnH: Math.floor(backBtnH),
-        mainMenuBtnX,
-        mainMenuBtnY,
-        mainMenuBtnW,
-        mainMenuBtnH,
         scrollbarW,
         scrollbarTrackH,
         scaleFactor

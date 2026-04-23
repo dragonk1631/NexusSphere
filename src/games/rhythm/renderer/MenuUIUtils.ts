@@ -11,6 +11,7 @@ const colorCache = new Map<string, string>();
 const lerpColorCache = new Map<string, string>();
 const textWidthCache = new Map<string, number>();
 const panelCache = new Map<string, HTMLCanvasElement>();
+const emblemCache = new Map<string, HTMLImageElement>();
 
 function getCachedTextWidth(ctx: CanvasRenderingContext2D, text: string): number {
     const key = `${ctx.font}|${text}`;
@@ -177,15 +178,17 @@ export function drawPremiumPanel(ctx: CanvasRenderingContext2D, px: number, py: 
     const ox = 50 * sf;
     const oy = 50 * sf;
 
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
     if (panelCache.has(cacheKey)) {
-        ctx.drawImage(panelCache.get(cacheKey)!, px - ox, py - oy);
+        ctx.drawImage(panelCache.get(cacheKey)!, px - ox, py - oy, pw + ox * 2, ph + oy * 2);
         return;
     }
 
     const offCanvas = document.createElement('canvas');
-    offCanvas.width = pw + ox * 2;
-    offCanvas.height = ph + oy * 2;
+    offCanvas.width = (pw + ox * 2) * dpr;
+    offCanvas.height = (ph + oy * 2) * dpr;
     const offCtx = offCanvas.getContext('2d', { alpha: true })!;
+    offCtx.scale(dpr, dpr);
 
     // 1. Shadow Layer
     offCtx.save();
@@ -304,4 +307,97 @@ export function drawScreenCornerDecals(ctx: CanvasRenderingContext2D, w: number,
     ctx.strokeRect(p, p, s, 2 * sf); ctx.strokeRect(p, p, 2 * sf, s);
     ctx.strokeRect(w - p - s, h - p - 2 * sf, s, 2 * sf); ctx.strokeRect(w - p - 2 * sf, h - p - s, 2 * sf, s);
     ctx.restore();
+}
+
+export function drawPremiumPlate(
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number, w: number, h: number,
+    themeColor: string,
+    accentColor: string,
+    sf: number,
+    pulse: number = 1.0
+) {
+    ctx.save();
+    
+    // 1. Shadow & Outer Glow
+    ctx.shadowBlur = 15 * sf * pulse;
+    ctx.shadowColor = `rgba(${hexToRgb(accentColor)}, 0.5)`;
+    
+    // 2. Multi-stop Theme-Integrated Gradient
+    const plateGrad = ctx.createLinearGradient(x, y, x, y + h);
+    plateGrad.addColorStop(0, `rgba(${hexToRgb(themeColor)}, 0.4)`);
+    plateGrad.addColorStop(0.2, `rgba(${hexToRgb(themeColor)}, 0.15)`);
+    plateGrad.addColorStop(0.8, 'rgba(10, 10, 20, 0.85)');
+    plateGrad.addColorStop(1, `rgba(${hexToRgb(themeColor)}, 0.3)`);
+    
+    ctx.fillStyle = plateGrad;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 999 * sf);
+    ctx.fill();
+
+    // 3. Dual-Layered Premium Border
+    ctx.strokeStyle = `rgba(${hexToRgb(themeColor)}, 0.3)`;
+    ctx.lineWidth = 1.5 * sf;
+    ctx.stroke();
+    
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 0.8 * sf;
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+
+    // 4. Internal Top Highlight
+    ctx.beginPath();
+    ctx.roundRect(x + 2 * sf, y + 1 * sf, w - 4 * sf, h / 2, 999 * sf);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 0.5 * sf;
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+export function drawEmblem(ctx: CanvasRenderingContext2D, svgStr: string, x: number, y: number, size: number, cacheKey: string, showBackplate: boolean = true) {
+    if (!svgStr) return;
+
+    const renderResolution = Math.ceil(size * 2);
+
+    if (!emblemCache.has(cacheKey)) {
+        const img = new Image();
+        let processedSvg = svgStr;
+        if (!processedSvg.includes('xmlns=')) {
+            processedSvg = processedSvg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        processedSvg = processedSvg.replace('<svg', `<svg width="${renderResolution}" height="${renderResolution}"`);
+        
+        const base64 = btoa(unescape(encodeURIComponent(processedSvg)));
+        img.src = `data:image/svg+xml;base64,${base64}`;
+        img.onload = () => {
+            emblemCache.set(cacheKey, img);
+        };
+    }
+
+    const cached = emblemCache.get(cacheKey);
+    if (cached && cached.complete) {
+        ctx.save();
+        if (showBackplate) {
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const discSize = size * 0.95;
+            
+            const discGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, discSize / 2);
+            discGrad.addColorStop(0, '#2c3e50');
+            discGrad.addColorStop(1, '#111111');
+            
+            ctx.fillStyle = discGrad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, discSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1 * (size / 20);
+            ctx.stroke();
+        }
+        
+        ctx.drawImage(cached, x, y, size, size);
+        ctx.restore();
+    }
 }

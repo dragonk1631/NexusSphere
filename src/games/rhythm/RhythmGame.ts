@@ -6,6 +6,7 @@ import { ThemeManager } from '../../core/ThemeManager';
 import { ScoreManager } from '../../core/score/ScoreManager';
 import type { ParsedMidi } from '../../core/audio/MidiParser';
 import { BackgroundRenderer } from '../../core/graphics/BackgroundRenderer';
+import { AuthService } from '../../services/auth/AuthService';
 import { LoadingOverlay } from './renderer/LoadingOverlay';
 import { NoteFactory, type VisualNote } from './NoteFactory';
 import { RenderCache } from './graphics/RenderCache';
@@ -540,6 +541,9 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.previewTime = this.audioEngine.getPreciseTime() - this.audioEngine.getOutputLatency();
         s.toastMessage = this.menuManager.toastMessage;
         s.toastTimer = this.menuManager.toastTimer;
+
+        // -- Auth --
+        s.isSignedIn = AuthService.getInstance().isSignedIn();
     }
 
     public updateLoadingRenderState(): void {

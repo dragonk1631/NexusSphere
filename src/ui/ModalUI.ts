@@ -146,4 +146,103 @@ export class ModalUI {
             }, 300);
         }
     }
+
+    /**
+     * Shows a premium auto-hiding notification (Toast)
+     */
+    public showNotification(title: string, message: string, duration: number = 2500, type: 'info' | 'warning' | 'error' = 'info', subtitle?: string): void {
+        const typeColor = type === 'error' ? '#ff4757' : (type === 'warning' ? '#ffa502' : '#00ffcc');
+        
+        const notification = document.createElement('div');
+        notification.className = 'nexus-notification-overlay';
+        notification.style.cssText = `
+            position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+            z-index: 10000; pointer-events: none;
+            opacity: 0; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        `;
+
+        notification.innerHTML = `
+            <style>
+                @keyframes notifIn {
+                    from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                .notif-box {
+                    background: rgba(10, 15, 25, 0.9);
+                    border: 2px solid ${typeColor};
+                    border-radius: 20px;
+                    padding: 20px 40px;
+                    min-width: 350px;
+                    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 15px ${typeColor}44;
+                    animation: notifIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+                    text-align: center;
+                    color: white;
+                    font-family: 'Outfit', sans-serif;
+                    backdrop-filter: blur(15px);
+                    -webkit-backdrop-filter: blur(15px);
+                    position: relative;
+                }
+                .notif-title {
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: 1.5rem;
+                    margin-bottom: 5px;
+                    background: linear-gradient(to bottom, #fff, #ccc);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                }
+                .notif-message {
+                    font-size: 1.1rem;
+                    font-weight: 700;
+                    opacity: 0.95;
+                    letter-spacing: 0.5px;
+                }
+                .notif-subtitle {
+                    font-size: 0.75rem;
+                    font-weight: 800;
+                    margin-top: 10px;
+                    color: ${typeColor};
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                    opacity: 0.8;
+                }
+                .notif-cloud-badge {
+                    position: absolute;
+                    top: -10px; right: -10px;
+                    background: ${typeColor};
+                    color: #000;
+                    padding: 4px 10px;
+                    border-radius: 999px;
+                    font-size: 0.65rem;
+                    font-weight: 900;
+                    box-shadow: 0 0 10px ${typeColor};
+                }
+            </style>
+            <div class="notif-box">
+                ${subtitle && subtitle.includes('CLOUD') ? '<div class="notif-cloud-badge">CLOUD SYNC</div>' : ''}
+                <div class="notif-title">${title}</div>
+                <div class="notif-message">${message}</div>
+                ${subtitle ? `<div class="notif-subtitle">${subtitle}</div>` : ''}
+            </div>
+        `;
+
+        document.body.appendChild(notification);
+        
+        // Fade in
+        setTimeout(() => {
+            notification.style.opacity = '1';
+        }, 10);
+
+        // Auto hide
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(-50%) translateY(-20px) scale(0.95)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 400);
+        }, duration);
+    }
 }

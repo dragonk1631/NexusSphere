@@ -99,6 +99,8 @@ export class SongListRenderer {
         if (state.songList.length === 0) {
             if (state.currentFilter === 'custom') {
                 this.renderEmptyUserPlaceholder(ctx, listX, listInnerY, listW, listH * 0.5, sf, c1);
+            } else if (state.currentFilter === 'favorite') {
+                this.renderEmptyFavoritesPlaceholder(ctx, listX, listInnerY, listW, listH * 0.5, sf, c1, state.isSignedIn || false);
             }
             return;
         }
@@ -122,7 +124,7 @@ export class SongListRenderer {
 
             // Enforce a strict gap: item width is list width minus scrollbar and extra margin
             const safeItemW = listW - layout.scrollbarW - 25 * sf;
-            this.renderPremiumSongItem(ctx, song, listX + (10 * sf), y, safeItemW, itemHeight, isSelected, sf, time, c1, c2);
+            this.renderPremiumSongItem(ctx, song, listX + (10 * sf), y, safeItemW, itemHeight, isSelected, sf, time, c1, c2, state);
         }
         ctx.restore();
 
@@ -164,9 +166,9 @@ export class SongListRenderer {
         // Animation Logic: Fade in/out and Slide up
         let alpha = 1;
         let yOffset = 0;
-        const duration = 2000;
-        const animTime = 300;
-
+        const duration = 800; // Ultra-brief (0.8s)
+        const animTime = 200; // Snappy (0.2s)
+        
         if (timer > duration - animTime) {
             const p = (duration - timer) / animTime;
             alpha = p;
@@ -198,7 +200,7 @@ export class SongListRenderer {
         ctx.restore();
     }
 
-    private renderPremiumSongItem(ctx: CanvasRenderingContext2D, song: SongEntry, x: number, y: number, contentW: number, itemHeight: number, isSelected: boolean, sf: number, time: number, c1: string, c2: string) {
+    private renderPremiumSongItem(ctx: CanvasRenderingContext2D, song: SongEntry, x: number, y: number, contentW: number, itemHeight: number, isSelected: boolean, sf: number, time: number, c1: string, c2: string, state: MenuRenderState) {
         ctx.save();
         ctx.translate(x, y);
 
@@ -246,11 +248,34 @@ export class SongListRenderer {
         ctx.save();
         ctx.translate(starX, starY);
         if (song.isFavorite) {
+            const isSynced = state.isSignedIn; // Logged in = Cloud Synced
+            
             ctx.fillStyle = '#ffcc00'; // Gold
-            ctx.shadowBlur = 15 * sf; ctx.shadowColor = '#ffcc00';
-            ctx.shadowOffsetX = 2 * sf; ctx.shadowOffsetY = 2 * sf;
+            
+            if (isSynced) {
+                // PREMIUM CLOUD SYNC GLOW: Cyan outer glow + Gold inner
+                ctx.shadowBlur = 20 * sf; 
+                ctx.shadowColor = '#00ffff'; // Cyan for Cloud
+                ctx.shadowOffsetX = 0; 
+                ctx.shadowOffsetY = 0;
+            } else {
+                ctx.shadowBlur = 10 * sf; 
+                ctx.shadowColor = '#ffcc00'; // Standard Gold
+                ctx.shadowOffsetX = 2 * sf; 
+                ctx.shadowOffsetY = 2 * sf;
+            }
+            
             this.drawStar(ctx, 0, 0, 5, starSize, starSize * 0.5);
             ctx.fill();
+            
+            // Add a tiny cloud dot if synced
+            if (isSynced) {
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(starSize * 0.8, -starSize * 0.8, 2.5 * sf, 0, Math.PI * 2);
+                ctx.fill();
+            }
         } else {
             ctx.strokeStyle = 'rgba(255,255,255,0.4)';
             ctx.lineWidth = 1.5 * sf;
@@ -369,6 +394,26 @@ export class SongListRenderer {
         ctx.font = `500 ${Math.floor(12 * sf)}px "Orbitron"`;
         ctx.fillStyle = color;
         ctx.fillText("CLICK THE ADD FOLDER BUTTON OR DRAG MIDI FILES HERE", x + w/2, y + h/2 + 45 * sf);
+        ctx.restore();
+    }
+
+    private renderEmptyFavoritesPlaceholder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, sf: number, color: string, isSignedIn: boolean) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        ctx.font = `${Math.floor(40 * sf)}px "Orbitron"`;
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillText("⭐", x + w/2, y + h/2 - 30 * sf);
+
+        ctx.font = `700 ${Math.floor(22 * sf)}px "Orbitron"`;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText("NO FAVORITES YET", x + w/2, y + h/2 + 20 * sf);
+        
+        ctx.font = `500 ${Math.floor(12 * sf)}px "Orbitron"`;
+        ctx.fillStyle = color;
+        const msg = isSignedIn ? "CLICK THE STAR ICON TO BUILD YOUR CLOUD COLLECTION" : "CLICK THE STAR ICON TO SAVE SONGS LOCALLY";
+        ctx.fillText(msg, x + w/2, y + h/2 + 45 * sf);
         ctx.restore();
     }
 
