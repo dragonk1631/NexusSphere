@@ -28,7 +28,6 @@ export class OptionsPanelRenderer {
             const valW = ctx.measureText(valText).width;
             
             const platePadding = 12 * sf;
-            const gap = 10 * sf;
             const plateW = platePadding + labelW + 6 * sf + valW + platePadding;
             const plateH = 28 * sf;
             const plateX = padding + leftPanelWidth - plateW - 12 * sf;
