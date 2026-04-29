@@ -238,8 +238,8 @@ export class CollectionUI {
                     
                     /* Metallic Base Gradient */
                     background: linear-gradient(165deg, #2c2f35 0%, #141518 100%);
-                    border: 1px solid rgba(255,255,255,0.06);
-                    border-top: 1.5px solid rgba(255,255,255,0.15);
+                    border: 2px solid rgba(255,255,255,0.1);
+                    border-top: 3px solid rgba(255,255,255,0.25);
                     box-shadow: 0 6px 0 #000, 0 10px 15px rgba(0,0,0,0.6);
                 }
 
@@ -254,29 +254,29 @@ export class CollectionUI {
                     box-shadow: 0 0 0 transparent !important;
                 }
 
-                /* INACTIVE RANK TINTS - Refined Saturation & Diagonal Gradient */
+                /* INACTIVE RANK TINTS - Thicker Borders & Deep Diagonal Gradient */
                 .grade-item-heavy.s_plus_btn {
                     background: linear-gradient(165deg, #45402a 0%, #141518 100%);
-                    border-color: rgba(241, 196, 15, 0.25);
-                    border-top-color: rgba(241, 196, 15, 0.5);
+                    border-color: rgba(241, 196, 15, 0.35);
+                    border-top-color: rgba(241, 196, 15, 0.65);
                     box-shadow: 0 6px 0 #6e5e15, 0 10px 15px rgba(0,0,0,0.5);
                 }
                 .grade-item-heavy.s_btn {
                     background: linear-gradient(165deg, #4d2a2d 0%, #141518 100%);
-                    border-color: rgba(255, 71, 87, 0.25);
-                    border-top-color: rgba(255, 71, 87, 0.5);
+                    border-color: rgba(255, 71, 87, 0.35);
+                    border-top-color: rgba(255, 71, 87, 0.65);
                     box-shadow: 0 6px 0 #7a1f26, 0 10px 15px rgba(0,0,0,0.5);
                 }
                 .grade-item-heavy.a_btn {
                     background: linear-gradient(165deg, #2a4d3a 0%, #141518 100%);
-                    border-color: rgba(46, 204, 113, 0.25);
-                    border-top-color: rgba(46, 204, 113, 0.5);
+                    border-color: rgba(46, 204, 113, 0.35);
+                    border-top-color: rgba(46, 204, 113, 0.65);
                     box-shadow: 0 6px 0 #1b633b, 0 10px 15px rgba(0,0,0,0.5);
                 }
                 .grade-item-heavy.b_btn {
                     background: linear-gradient(165deg, #2a3d4d 0%, #141518 100%);
-                    border-color: rgba(52, 152, 219, 0.25);
-                    border-top-color: rgba(52, 152, 219, 0.5);
+                    border-color: rgba(52, 152, 219, 0.35);
+                    border-top-color: rgba(52, 152, 219, 0.65);
                     box-shadow: 0 6px 0 #1a4263, 0 10px 15px rgba(0,0,0,0.5);
                 }
 
