@@ -192,7 +192,7 @@ export class CollectionUI {
                 }
 
                 /* CONTENT HUD */
-                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; overflow: hidden; min-height: 0; }
+                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px; overflow: hidden; min-height: 0; }
                 
                 .col-left-stats { display: flex; flex-direction: column; gap: 15px; overflow: hidden; height: 100%; }
                 .col-right-logs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
@@ -208,8 +208,8 @@ export class CollectionUI {
                 .stat-l { font-size: 0.6rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; line-height: 1.2; }
 
                 /* RANK COLORS */
-                .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; }
-                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 70px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
+                .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px 15px; }
+                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 50px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
                 .grade-item-heavy:hover { border-color: ${themeCyan}; transform: translateY(-4px); background: rgba(0, 255, 255, 0.08); }
                 .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 20px rgba(255, 255, 255, 0.2); }
                 .grade-item-heavy.active.s_plus { border-color: #f1c40f; background: rgba(241, 196, 15, 0.1); box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
@@ -422,11 +422,11 @@ export class CollectionUI {
 
                     /* Grade Grid */
                     .grade-grid-heavy { 
-                        flex: 1.5; display: grid; grid-template-columns: repeat(4, 1fr);
-                        padding: 4px; gap: 4px; align-content: stretch;
+                        flex: 1; display: grid; grid-template-columns: repeat(4, 1fr);
+                        padding: 4px; gap: 4px; align-content: flex-start;
                     }
                     .grade-item-heavy { 
-                        height: 55px; border-width: 1px; border-radius: 4px; 
+                        height: 45px; border-width: 1px; border-radius: 4px; 
                         padding: 2px 0; min-height: 0; flex-direction: column; display: flex; justify-content: center; align-items: center;
                     }
                     .gt-h { font-size: 1.1rem; }
@@ -434,7 +434,7 @@ export class CollectionUI {
 
                     /* Right Column: Mission log fills full height */
                     .col-right-logs { 
-                        flex: 1; display: flex; flex-direction: column; 
+                        flex: 1.5; display: flex; flex-direction: column; 
                         height: 100%; min-height: 0; overflow: hidden;
                     }
                     .col-right-logs .col-section { 
