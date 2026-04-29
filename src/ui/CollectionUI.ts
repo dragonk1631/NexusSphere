@@ -223,55 +223,87 @@ export class CollectionUI {
                 .stat-v { font-size: 2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
                 .stat-l { font-size: 0.7rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
 
-                /* RANK BUTTONS STYLE (col-btn-heavy aesthetic) */
+                /* TACTILE 3D RANK BUTTONS */
                 .grade-grid-heavy { 
-                    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; 
-                    padding: 10px 15px; margin: 0; background: transparent; border: none; box-shadow: none;
+                    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; 
+                    padding: 15px; margin: 0; background: transparent; border: none; box-shadow: none;
                 }
                 
                 .grade-item-heavy { 
-                    height: 50px; border-radius: 8px; display: flex; flex-direction: column; 
-                    align-items: center; justify-content: center; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
-                    cursor: pointer; position: relative; overflow: hidden;
-                    /* Base inactive button style */
-                    background: rgba(255,255,255,0.05); 
-                    border: 2px solid rgba(255,255,255,0.2);
-                    box-shadow: inset 0 0 10px rgba(255,255,255,0.05);
+                    height: 55px; border-radius: 8px; display: flex; flex-direction: column; 
+                    align-items: center; justify-content: center; 
+                    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1); 
+                    cursor: pointer; position: relative;
+                    
+                    /* 3D Button Base */
+                    background: linear-gradient(180deg, rgba(50,50,50,0.8), rgba(20,20,20,0.9));
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-top: 1px solid rgba(255,255,255,0.3);
+                    box-shadow: 0 6px 0 rgba(0,0,0,0.8), 0 8px 15px rgba(0,0,0,0.5);
                 }
 
-                .grade-item-heavy::after {
-                    content: ''; position: absolute; inset: 0;
-                    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.15), transparent);
-                    transform: translateX(-100%); transition: 0.4s;
+                .grade-item-heavy:hover { 
+                    background: linear-gradient(180deg, rgba(70,70,70,0.9), rgba(30,30,30,1));
+                    transform: translateY(2px);
+                    box-shadow: 0 4px 0 rgba(0,0,0,0.8), 0 6px 10px rgba(0,0,0,0.5);
                 }
-                .grade-item-heavy:hover::after { transform: translateX(100%); }
+                
+                .grade-item-heavy:active { 
+                    transform: translateY(6px) !important;
+                    box-shadow: 0 0 0 rgba(0,0,0,0.8) !important;
+                }
 
-                .grade-item-heavy:hover { transform: translateY(-2px); }
-                .grade-item-heavy:active { transform: translateY(1px); }
+                /* INACTIVE 3D COLORS */
+                .grade-item-heavy.s_plus_btn {
+                    background: linear-gradient(180deg, rgba(241, 196, 15, 0.15), rgba(40, 40, 40, 0.9));
+                    border-top-color: rgba(241, 196, 15, 0.6); border-color: rgba(241, 196, 15, 0.3);
+                    box-shadow: 0 6px 0 rgba(184, 134, 11, 0.5), 0 8px 15px rgba(0,0,0,0.5);
+                }
+                .grade-item-heavy.s_plus_btn:hover { box-shadow: 0 4px 0 rgba(184, 134, 11, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
 
-                /* INACTIVE SPECIFIC BORDERS & BACKGROUNDS */
-                .grade-item-heavy.s_plus_btn { border-color: rgba(241, 196, 15, 0.6); background: rgba(241, 196, 15, 0.1); box-shadow: inset 0 0 10px rgba(241, 196, 15, 0.2); }
-                .grade-item-heavy.s_btn { border-color: rgba(255, 71, 87, 0.6); background: rgba(255, 71, 87, 0.1); box-shadow: inset 0 0 10px rgba(255, 71, 87, 0.2); }
-                .grade-item-heavy.a_btn { border-color: rgba(46, 204, 113, 0.6); background: rgba(46, 204, 113, 0.1); box-shadow: inset 0 0 10px rgba(46, 204, 113, 0.2); }
-                .grade-item-heavy.b_btn { border-color: rgba(52, 152, 219, 0.6); background: rgba(52, 152, 219, 0.1); box-shadow: inset 0 0 10px rgba(52, 152, 219, 0.2); }
+                .grade-item-heavy.s_btn {
+                    background: linear-gradient(180deg, rgba(255, 71, 87, 0.15), rgba(40, 40, 40, 0.9));
+                    border-top-color: rgba(255, 71, 87, 0.6); border-color: rgba(255, 71, 87, 0.3);
+                    box-shadow: 0 6px 0 rgba(190, 30, 45, 0.5), 0 8px 15px rgba(0,0,0,0.5);
+                }
+                .grade-item-heavy.s_btn:hover { box-shadow: 0 4px 0 rgba(190, 30, 45, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
 
-                /* HOVER GLOW FOR SPECIFIC RANKS */
-                .grade-item-heavy.s_plus_btn:hover { box-shadow: 0 0 15px rgba(241, 196, 15, 0.4), inset 0 0 15px rgba(241, 196, 15, 0.3); border-color: #f1c40f; }
-                .grade-item-heavy.s_btn:hover { box-shadow: 0 0 15px rgba(255, 71, 87, 0.4), inset 0 0 15px rgba(255, 71, 87, 0.3); border-color: #ff4757; }
-                .grade-item-heavy.a_btn:hover { box-shadow: 0 0 15px rgba(46, 204, 113, 0.4), inset 0 0 15px rgba(46, 204, 113, 0.3); border-color: #2ecc71; }
-                .grade-item-heavy.b_btn:hover { box-shadow: 0 0 15px rgba(52, 152, 219, 0.4), inset 0 0 15px rgba(52, 152, 219, 0.3); border-color: #3498db; }
+                .grade-item-heavy.a_btn {
+                    background: linear-gradient(180deg, rgba(46, 204, 113, 0.15), rgba(40, 40, 40, 0.9));
+                    border-top-color: rgba(46, 204, 113, 0.6); border-color: rgba(46, 204, 113, 0.3);
+                    box-shadow: 0 6px 0 rgba(39, 174, 96, 0.5), 0 8px 15px rgba(0,0,0,0.5);
+                }
+                .grade-item-heavy.a_btn:hover { box-shadow: 0 4px 0 rgba(39, 174, 96, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
 
-                /* ACTIVE STATE (Tab style override for full color) */
-                .grade-item-heavy.active.s_plus_btn { background: linear-gradient(180deg, #f1c40f, #b8860b) !important; border-color: #fff; box-shadow: 0 0 20px #f1c40f; }
-                .grade-item-heavy.active.s_btn { background: linear-gradient(180deg, #ff4757, #990000) !important; border-color: #fff; box-shadow: 0 0 20px #ff4757; }
-                .grade-item-heavy.active.a_btn { background: linear-gradient(180deg, #2ecc71, #27ae60) !important; border-color: #fff; box-shadow: 0 0 20px #2ecc71; }
-                .grade-item-heavy.active.b_btn { background: linear-gradient(180deg, #3498db, #2980b9) !important; border-color: #fff; box-shadow: 0 0 20px #3498db; }
+                .grade-item-heavy.b_btn {
+                    background: linear-gradient(180deg, rgba(52, 152, 219, 0.15), rgba(40, 40, 40, 0.9));
+                    border-top-color: rgba(52, 152, 219, 0.6); border-color: rgba(52, 152, 219, 0.3);
+                    box-shadow: 0 6px 0 rgba(41, 128, 185, 0.5), 0 8px 15px rgba(0,0,0,0.5);
+                }
+                .grade-item-heavy.b_btn:hover { box-shadow: 0 4px 0 rgba(41, 128, 185, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
+
+                /* ACTIVE (PRESSED) STATE */
+                .grade-item-heavy.active { transform: translateY(4px); }
+                .grade-item-heavy.active.s_plus_btn { 
+                    background: linear-gradient(180deg, #f1c40f, #b8860b) !important; 
+                    box-shadow: 0 2px 0 #8a6308, 0 0 20px rgba(241, 196, 15, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                }
+                .grade-item-heavy.active.s_btn { 
+                    background: linear-gradient(180deg, #ff4757, #990000) !important; 
+                    box-shadow: 0 2px 0 #660000, 0 0 20px rgba(255, 71, 87, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                }
+                .grade-item-heavy.active.a_btn { 
+                    background: linear-gradient(180deg, #2ecc71, #27ae60) !important; 
+                    box-shadow: 0 2px 0 #1e8449, 0 0 20px rgba(46, 204, 113, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                }
+                .grade-item-heavy.active.b_btn { 
+                    background: linear-gradient(180deg, #3498db, #2980b9) !important; 
+                    box-shadow: 0 2px 0 #1f618d, 0 0 20px rgba(52, 152, 219, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                }
 
                 /* TEXT COLORS */
-                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 0.8; }
-                .grade-item-heavy:hover .gt-h { opacity: 1; transform: scale(1.05); }
-                .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.6; margin-top: 2px; transition: 0.2s; }
-                .grade-item-heavy:hover .gc-h { opacity: 0.9; }
+                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 0.9; }
+                .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.7; margin-top: 2px; transition: 0.2s; }
                 
                 /* INACTIVE TEXT COLOR PRESERVATION */
                 .gt-h.s_plus, .gc-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.4); }
@@ -280,7 +312,8 @@ export class CollectionUI {
                 .gt-h.b, .gc-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
 
                 /* ACTIVE TEXT STATE */
-                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: inherit !important; text-shadow: none !important; opacity: 1; }
+                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: #000 !important; text-shadow: none !important; opacity: 1; }
+                .grade-item-heavy.active.s_btn .gt-h, .grade-item-heavy.active.s_btn .gc-h { color: #fff !important; }
 
                 /* LOG HUD */
                 .perf-scroll { flex: 1; height: 100%; padding: 20px 10px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overflow-x: hidden; }
@@ -490,7 +523,7 @@ export class CollectionUI {
                         box-shadow: none;
                     }
                     .grade-item-heavy { 
-                        height: 45px; border-width: 2px; border-radius: 6px; 
+                        height: 45px; border-radius: 6px; 
                         padding: 0; min-height: 0; flex-direction: column; display: flex; justify-content: center; align-items: center;
                     }
                     .gt-h { font-size: 1.1rem; }
