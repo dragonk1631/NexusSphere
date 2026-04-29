@@ -223,97 +223,95 @@ export class CollectionUI {
                 .stat-v { font-size: 2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
                 .stat-l { font-size: 0.7rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
 
-                /* TACTILE 3D RANK BUTTONS */
+                /* TACTILE 3D RANK BUTTONS - METALLIC OVERHAUL */
                 .grade-grid-heavy { 
                     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; 
                     padding: 15px; margin: 0; background: transparent; border: none; box-shadow: none;
                 }
                 
                 .grade-item-heavy { 
-                    height: 55px; border-radius: 8px; display: flex; flex-direction: column; 
+                    height: 55px; border-radius: 10px; display: flex; flex-direction: column; 
                     align-items: center; justify-content: center; 
-                    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1); 
+                    transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1); 
                     cursor: pointer; position: relative;
+                    overflow: hidden;
                     
-                    /* 3D Button Base */
-                    background: linear-gradient(180deg, rgba(50,50,50,0.8), rgba(20,20,20,0.9));
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-top: 1px solid rgba(255,255,255,0.3);
-                    box-shadow: 0 6px 0 rgba(0,0,0,0.8), 0 8px 15px rgba(0,0,0,0.5);
+                    /* Metallic Base Gradient */
+                    background: linear-gradient(165deg, #2c2f35 0%, #141518 100%);
+                    border: 1px solid rgba(255,255,255,0.06);
+                    border-top: 1.5px solid rgba(255,255,255,0.15);
+                    box-shadow: 0 6px 0 #000, 0 10px 15px rgba(0,0,0,0.6);
                 }
 
                 .grade-item-heavy:hover { 
-                    background: linear-gradient(180deg, rgba(70,70,70,0.9), rgba(30,30,30,1));
                     transform: translateY(2px);
-                    box-shadow: 0 4px 0 rgba(0,0,0,0.8), 0 6px 10px rgba(0,0,0,0.5);
+                    background: linear-gradient(165deg, #3a3f4b 0%, #1e2127 100%);
+                    box-shadow: 0 4px 0 #000, 0 8px 12px rgba(0,0,0,0.5);
                 }
                 
                 .grade-item-heavy:active { 
                     transform: translateY(6px) !important;
-                    box-shadow: 0 0 0 rgba(0,0,0,0.8) !important;
+                    box-shadow: 0 0 0 transparent !important;
                 }
 
-                /* INACTIVE 3D COLORS (Colored Gradients & Visible 6px Shadows) */
+                /* INACTIVE RANK TINTS - Refined Saturation & Diagonal Gradient */
                 .grade-item-heavy.s_plus_btn {
-                    background: linear-gradient(180deg, rgba(241, 196, 15, 0.25), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(241, 196, 15, 0.6); border-color: rgba(241, 196, 15, 0.3);
-                    box-shadow: 0 6px 0 rgba(184, 134, 11, 0.8), 0 8px 15px rgba(0,0,0,0.5);
+                    background: linear-gradient(165deg, #45402a 0%, #141518 100%);
+                    border-color: rgba(241, 196, 15, 0.25);
+                    border-top-color: rgba(241, 196, 15, 0.5);
+                    box-shadow: 0 6px 0 #6e5e15, 0 10px 15px rgba(0,0,0,0.5);
                 }
-                .grade-item-heavy.s_plus_btn:hover { box-shadow: 0 4px 0 rgba(184, 134, 11, 0.8), 0 6px 10px rgba(0,0,0,0.5); }
-
                 .grade-item-heavy.s_btn {
-                    background: linear-gradient(180deg, rgba(255, 71, 87, 0.25), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(255, 71, 87, 0.6); border-color: rgba(255, 71, 87, 0.3);
-                    box-shadow: 0 6px 0 rgba(190, 30, 45, 0.8), 0 8px 15px rgba(0,0,0,0.5);
+                    background: linear-gradient(165deg, #4d2a2d 0%, #141518 100%);
+                    border-color: rgba(255, 71, 87, 0.25);
+                    border-top-color: rgba(255, 71, 87, 0.5);
+                    box-shadow: 0 6px 0 #7a1f26, 0 10px 15px rgba(0,0,0,0.5);
                 }
-                .grade-item-heavy.s_btn:hover { box-shadow: 0 4px 0 rgba(190, 30, 45, 0.8), 0 6px 10px rgba(0,0,0,0.5); }
-
                 .grade-item-heavy.a_btn {
-                    background: linear-gradient(180deg, rgba(46, 204, 113, 0.25), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(46, 204, 113, 0.6); border-color: rgba(46, 204, 113, 0.3);
-                    box-shadow: 0 6px 0 rgba(39, 174, 96, 0.8), 0 8px 15px rgba(0,0,0,0.5);
+                    background: linear-gradient(165deg, #2a4d3a 0%, #141518 100%);
+                    border-color: rgba(46, 204, 113, 0.25);
+                    border-top-color: rgba(46, 204, 113, 0.5);
+                    box-shadow: 0 6px 0 #1b633b, 0 10px 15px rgba(0,0,0,0.5);
                 }
-                .grade-item-heavy.a_btn:hover { box-shadow: 0 4px 0 rgba(39, 174, 96, 0.8), 0 6px 10px rgba(0,0,0,0.5); }
-
                 .grade-item-heavy.b_btn {
-                    background: linear-gradient(180deg, rgba(52, 152, 219, 0.25), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(52, 152, 219, 0.6); border-color: rgba(52, 152, 219, 0.3);
-                    box-shadow: 0 6px 0 rgba(41, 128, 185, 0.8), 0 8px 15px rgba(0,0,0,0.5);
+                    background: linear-gradient(165deg, #2a3d4d 0%, #141518 100%);
+                    border-color: rgba(52, 152, 219, 0.25);
+                    border-top-color: rgba(52, 152, 219, 0.5);
+                    box-shadow: 0 6px 0 #1a4263, 0 10px 15px rgba(0,0,0,0.5);
                 }
-                .grade-item-heavy.b_btn:hover { box-shadow: 0 4px 0 rgba(41, 128, 185, 0.8), 0 6px 10px rgba(0,0,0,0.5); }
 
-                /* ACTIVE (PRESSED) STATE - High Quality, Bright Gradients (Not tacky/dark) */
+                /* ACTIVE STATE - Glowing Edge & Rich Deep Gradient */
                 .grade-item-heavy.active { transform: translateY(6px); }
                 .grade-item-heavy.active.s_plus_btn { 
-                    background: linear-gradient(180deg, #f1c40f, #f39c12) !important; 
-                    box-shadow: 0 0 0 transparent, 0 0 20px rgba(241, 196, 15, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(165deg, #7d650c 0%, #45402a 100%) !important; 
+                    box-shadow: 0 0 15px rgba(241, 196, 15, 0.4) !important; border-color: #f1c40f; border-top-color: #fff;
                 }
                 .grade-item-heavy.active.s_btn { 
-                    background: linear-gradient(180deg, #ff6b81, #ff4757) !important; 
-                    box-shadow: 0 0 0 transparent, 0 0 20px rgba(255, 71, 87, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(165deg, #7d151c 0%, #4d2a2d 100%) !important; 
+                    box-shadow: 0 0 15px rgba(255, 71, 87, 0.4) !important; border-color: #ff4757; border-top-color: #fff;
                 }
                 .grade-item-heavy.active.a_btn { 
-                    background: linear-gradient(180deg, #2ecc71, #27ae60) !important; 
-                    box-shadow: 0 0 0 transparent, 0 0 20px rgba(46, 204, 113, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(165deg, #157d42 0%, #2a4d3a 100%) !important; 
+                    box-shadow: 0 0 15px rgba(46, 204, 113, 0.4) !important; border-color: #2ecc71; border-top-color: #fff;
                 }
                 .grade-item-heavy.active.b_btn { 
-                    background: linear-gradient(180deg, #74b9ff, #0984e3) !important; 
-                    box-shadow: 0 0 0 transparent, 0 0 20px rgba(52, 152, 219, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(165deg, #15467d 0%, #2a3d4d 100%) !important; 
+                    box-shadow: 0 0 15px rgba(52, 152, 219, 0.4) !important; border-color: #3498db; border-top-color: #fff;
                 }
 
-                /* TEXT COLORS */
-                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 1; }
-                .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.8; margin-top: 2px; transition: 0.2s; }
+                /* TEXT STYLES */
+                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; }
+                .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.7; margin-top: 2px; }
                 
-                /* INACTIVE TEXT COLOR PRESERVATION */
-                .gt-h.s_plus, .gc-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.4); }
-                .gt-h.s, .gc-h.s { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.4); }
-                .gt-h.a, .gc-h.a { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.4); }
-                .gt-h.b, .gc-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
+                /* Rank Original Colors */
+                .gt-h.s_plus, .gc-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.3); }
+                .gt-h.s, .gc-h.s { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.3); }
+                .gt-h.a, .gc-h.a { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.3); }
+                .gt-h.b, .gc-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.3); }
 
-                /* ACTIVE TEXT STATE */
-                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: #000 !important; text-shadow: none !important; opacity: 1; }
-                .grade-item-heavy.active.s_btn .gt-h, .grade-item-heavy.active.s_btn .gc-h { color: #fff !important; }
+                /* Active Text State */
+                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: #fff !important; text-shadow: 0 0 10px rgba(255,255,255,0.5) !important; opacity: 1; }
+
 
                 /* LOG HUD */
                 .perf-scroll { flex: 1; height: 100%; padding: 20px 10px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overflow-x: hidden; }
