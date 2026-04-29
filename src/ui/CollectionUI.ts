@@ -155,31 +155,46 @@ export class CollectionUI {
                 }
                 .col-xp-fill-heavy { height: 100%; background: linear-gradient(90deg, ${darkCyan}, ${themeCyan}); }
 
-                /* EMBLEM UI RESTORATION - UNIFIED HIGH QUALITY */
+                /* EMBLEM UI - PREMIUM 3D METALLIC BUTTON */
                 .col-emblem-wrap { 
-                    position: relative; width: 85px; height: 85px; 
+                    position: relative; width: 95px; height: 95px; 
                     display: flex; align-items: center; justify-content: center;
-                    cursor: pointer; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    cursor: pointer; transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
                     z-index: 5;
+                    border-radius: 12px;
+                    
+                    /* Metallic Base Gradient with Rank Tint */
+                    background: linear-gradient(165deg, ${classInfo.color}33 0%, #141518 100%);
+                    border: 2px solid ${classInfo.color}66;
+                    border-top: 3px solid ${classInfo.color}aa;
+                    box-shadow: 0 6px 0 ${classInfo.color}88, 0 10px 20px rgba(0,0,0,0.6);
                 }
-                .col-emblem-wrap:hover { transform: scale(1.15) rotate(5deg); }
-                .col-emblem-wrap:active { transform: scale(0.9); }
+                .col-emblem-wrap:hover { 
+                    transform: translateY(2px);
+                    background: linear-gradient(165deg, ${classInfo.color}44 0%, #1a1c22 100%);
+                    box-shadow: 0 4px 0 ${classInfo.color}88, 0 8px 15px rgba(0,0,0,0.5);
+                }
+                .col-emblem-wrap:active { 
+                    transform: translateY(6px);
+                    box-shadow: 0 0 0 transparent !important;
+                }
                 
                 .col-emblem-frame { 
                     position: absolute; inset: 0; 
-                    filter: drop-shadow(0 0 15px currentColor);
+                    padding: 8px;
+                    filter: drop-shadow(0 0 10px currentColor);
                     transition: 0.3s;
                 }
                 .col-emblem-wrap:hover .col-emblem-frame {
-                    filter: drop-shadow(0 0 25px currentColor);
+                    filter: drop-shadow(0 0 20px currentColor);
                 }
                 .col-emblem-icon { 
-                    position: relative; width: 42px; height: 42px; 
+                    position: relative; width: 45px; height: 45px; 
                     filter: drop-shadow(0 0 8px #fff); 
                     z-index: 2;
                     transition: 0.3s;
                 }
-                .col-emblem-wrap:hover .col-emblem-icon { transform: scale(1.1); }
+                .col-emblem-wrap:hover .col-emblem-icon { transform: scale(1.05); }
 
                 /* FILTER BAR & TABS */
                 .col-filter-bar {
