@@ -223,82 +223,78 @@ export class CollectionUI {
                 .stat-v { font-size: 2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
                 .stat-l { font-size: 0.7rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
 
-                /* TACTILE 3D RANK BUTTONS */
+                /* PREMIUM TACTILE BUTTONS */
                 .grade-grid-heavy { 
                     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; 
                     padding: 15px; margin: 0; background: transparent; border: none; box-shadow: none;
                 }
                 
                 .grade-item-heavy { 
-                    height: 55px; border-radius: 8px; display: flex; flex-direction: column; 
+                    height: 55px; border-radius: 10px; display: flex; flex-direction: column; 
                     align-items: center; justify-content: center; 
-                    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1); 
-                    cursor: pointer; position: relative;
+                    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); /* Apple-like spring bounce */
+                    cursor: pointer; position: relative; overflow: hidden;
                     
-                    /* 3D Button Base */
-                    background: linear-gradient(180deg, rgba(50,50,50,0.8), rgba(20,20,20,0.9));
+                    /* Premium Sleek Button */
+                    background: linear-gradient(180deg, rgba(30, 35, 45, 0.8), rgba(15, 20, 25, 0.9));
                     border: 1px solid rgba(255,255,255,0.1);
-                    border-top: 1px solid rgba(255,255,255,0.3);
-                    box-shadow: 0 6px 0 rgba(0,0,0,0.8), 0 8px 15px rgba(0,0,0,0.5);
+                    border-bottom: 3px solid rgba(0,0,0,0.6); /* Refined depth ledge */
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.15);
                 }
 
+                /* Shimmer Glass Effect */
+                .grade-item-heavy::before {
+                    content: ''; position: absolute; inset: 0;
+                    background: linear-gradient(105deg, transparent, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.08) 55%, transparent);
+                    transform: translateX(-100%); transition: 0.6s ease-in-out; pointer-events: none;
+                }
+                .grade-item-heavy:hover::before { transform: translateX(100%); }
+
                 .grade-item-heavy:hover { 
-                    background: linear-gradient(180deg, rgba(70,70,70,0.9), rgba(30,30,30,1));
-                    transform: translateY(2px);
-                    box-shadow: 0 4px 0 rgba(0,0,0,0.8), 0 6px 10px rgba(0,0,0,0.5);
+                    transform: translateY(-2px);
+                    border-bottom: 3px solid rgba(0,0,0,0.7);
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2);
+                    background: linear-gradient(180deg, rgba(40, 45, 55, 0.9), rgba(20, 25, 30, 1));
                 }
                 
                 .grade-item-heavy:active { 
-                    transform: translateY(6px) !important;
-                    box-shadow: 0 0 0 rgba(0,0,0,0.8) !important;
+                    transform: translateY(2px) scale(0.97) !important;
+                    border-bottom-width: 1px !important;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 2px 8px rgba(0,0,0,0.6) !important;
                 }
 
-                /* INACTIVE 3D COLORS */
-                .grade-item-heavy.s_plus_btn {
-                    background: linear-gradient(180deg, rgba(241, 196, 15, 0.15), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(241, 196, 15, 0.6); border-color: rgba(241, 196, 15, 0.3);
-                    box-shadow: 0 6px 0 rgba(184, 134, 11, 0.5), 0 8px 15px rgba(0,0,0,0.5);
-                }
-                .grade-item-heavy.s_plus_btn:hover { box-shadow: 0 4px 0 rgba(184, 134, 11, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
+                /* PRESTIGE GLOW & COLORING */
+                .grade-item-heavy.s_plus_btn { border-color: rgba(241, 196, 15, 0.4); }
+                .grade-item-heavy.s_plus_btn:hover { border-color: rgba(241, 196, 15, 0.8); box-shadow: 0 8px 16px rgba(241, 196, 15, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
 
-                .grade-item-heavy.s_btn {
-                    background: linear-gradient(180deg, rgba(255, 71, 87, 0.15), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(255, 71, 87, 0.6); border-color: rgba(255, 71, 87, 0.3);
-                    box-shadow: 0 6px 0 rgba(190, 30, 45, 0.5), 0 8px 15px rgba(0,0,0,0.5);
-                }
-                .grade-item-heavy.s_btn:hover { box-shadow: 0 4px 0 rgba(190, 30, 45, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
+                .grade-item-heavy.s_btn { border-color: rgba(255, 71, 87, 0.4); }
+                .grade-item-heavy.s_btn:hover { border-color: rgba(255, 71, 87, 0.8); box-shadow: 0 8px 16px rgba(255, 71, 87, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
 
-                .grade-item-heavy.a_btn {
-                    background: linear-gradient(180deg, rgba(46, 204, 113, 0.15), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(46, 204, 113, 0.6); border-color: rgba(46, 204, 113, 0.3);
-                    box-shadow: 0 6px 0 rgba(39, 174, 96, 0.5), 0 8px 15px rgba(0,0,0,0.5);
-                }
-                .grade-item-heavy.a_btn:hover { box-shadow: 0 4px 0 rgba(39, 174, 96, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
+                .grade-item-heavy.a_btn { border-color: rgba(46, 204, 113, 0.4); }
+                .grade-item-heavy.a_btn:hover { border-color: rgba(46, 204, 113, 0.8); box-shadow: 0 8px 16px rgba(46, 204, 113, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
 
-                .grade-item-heavy.b_btn {
-                    background: linear-gradient(180deg, rgba(52, 152, 219, 0.15), rgba(40, 40, 40, 0.9));
-                    border-top-color: rgba(52, 152, 219, 0.6); border-color: rgba(52, 152, 219, 0.3);
-                    box-shadow: 0 6px 0 rgba(41, 128, 185, 0.5), 0 8px 15px rgba(0,0,0,0.5);
-                }
-                .grade-item-heavy.b_btn:hover { box-shadow: 0 4px 0 rgba(41, 128, 185, 0.5), 0 6px 10px rgba(0,0,0,0.5); }
+                .grade-item-heavy.b_btn { border-color: rgba(52, 152, 219, 0.4); }
+                .grade-item-heavy.b_btn:hover { border-color: rgba(52, 152, 219, 0.8); box-shadow: 0 8px 16px rgba(52, 152, 219, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
 
-                /* ACTIVE (PRESSED) STATE */
-                .grade-item-heavy.active { transform: translateY(4px); }
+                /* ACTIVE (PRESSED) STATE - LUXURY FILL */
+                .grade-item-heavy.active { 
+                    transform: translateY(2px); border-bottom-width: 1px;
+                }
                 .grade-item-heavy.active.s_plus_btn { 
-                    background: linear-gradient(180deg, #f1c40f, #b8860b) !important; 
-                    box-shadow: 0 2px 0 #8a6308, 0 0 20px rgba(241, 196, 15, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(135deg, #f39c12, #d35400) !important; 
+                    box-shadow: 0 0 25px rgba(243, 156, 18, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #f1c40f; border-top-color: rgba(255,255,255,0.6);
                 }
                 .grade-item-heavy.active.s_btn { 
-                    background: linear-gradient(180deg, #ff4757, #990000) !important; 
-                    box-shadow: 0 2px 0 #660000, 0 0 20px rgba(255, 71, 87, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(135deg, #ff4757, #c0392b) !important; 
+                    box-shadow: 0 0 25px rgba(255, 71, 87, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #ff4757; border-top-color: rgba(255,255,255,0.6);
                 }
                 .grade-item-heavy.active.a_btn { 
-                    background: linear-gradient(180deg, #2ecc71, #27ae60) !important; 
-                    box-shadow: 0 2px 0 #1e8449, 0 0 20px rgba(46, 204, 113, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(135deg, #2ecc71, #27ae60) !important; 
+                    box-shadow: 0 0 25px rgba(46, 204, 113, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #2ecc71; border-top-color: rgba(255,255,255,0.6);
                 }
                 .grade-item-heavy.active.b_btn { 
-                    background: linear-gradient(180deg, #3498db, #2980b9) !important; 
-                    box-shadow: 0 2px 0 #1f618d, 0 0 20px rgba(52, 152, 219, 0.6) !important; border-color: #fff; border-top-color: #fff;
+                    background: linear-gradient(135deg, #3498db, #2980b9) !important; 
+                    box-shadow: 0 0 25px rgba(52, 152, 219, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #3498db; border-top-color: rgba(255,255,255,0.6);
                 }
 
                 /* TEXT COLORS */
