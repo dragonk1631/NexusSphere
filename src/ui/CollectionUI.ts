@@ -398,12 +398,12 @@ export class CollectionUI {
                         gap: 6px; height: 100%; min-height: 0; overflow: hidden;
                     }
                     .col-left-stats .sec-stats { 
-                        flex: 6; display: flex; flex-direction: column;
+                        flex: 6.5; display: flex; flex-direction: column;
                         margin-top: 0; border-width: 1.5px; border-radius: 6px;
                         overflow: hidden;
                     }
                     .col-left-stats .sec-grade { 
-                        flex: 4; display: flex; flex-direction: column;
+                        flex: 3.5; display: flex; flex-direction: column;
                         margin-top: 0; border-width: 1.5px; border-radius: 6px;
                         overflow: hidden;
                     }
