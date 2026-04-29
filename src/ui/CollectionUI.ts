@@ -223,53 +223,63 @@ export class CollectionUI {
                 .stat-v { font-size: 2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
                 .stat-l { font-size: 0.7rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
 
-                /* RANK TAB GROUP STYLE */
+                /* RANK BUTTONS STYLE (col-btn-heavy aesthetic) */
                 .grade-grid-heavy { 
-                    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; 
-                    padding: 4px; background: rgba(0,0,0,0.5); border-radius: 10px;
-                    border: 2px solid rgba(255,255,255,0.1); margin: 0 15px 15px 15px;
-                    box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+                    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; 
+                    padding: 10px 15px; margin: 0; background: transparent; border: none; box-shadow: none;
                 }
                 
                 .grade-item-heavy { 
-                    background: transparent; border: 2px solid transparent; 
-                    height: 55px; border-radius: 6px; display: flex; flex-direction: column; 
+                    height: 50px; border-radius: 8px; display: flex; flex-direction: column; 
                     align-items: center; justify-content: center; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
                     cursor: pointer; position: relative; overflow: hidden;
-                    color: rgba(255,255,255,0.4);
+                    /* Base inactive button style */
+                    background: rgba(255,255,255,0.05); 
+                    border: 2px solid rgba(255,255,255,0.2);
+                    box-shadow: inset 0 0 10px rgba(255,255,255,0.05);
                 }
 
                 .grade-item-heavy::after {
                     content: ''; position: absolute; inset: 0;
-                    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.05), transparent);
+                    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.15), transparent);
                     transform: translateX(-100%); transition: 0.4s;
                 }
                 .grade-item-heavy:hover::after { transform: translateX(100%); }
 
-                .grade-item-heavy:hover { 
-                    background: rgba(255, 255, 255, 0.08); 
-                    color: rgba(255,255,255,0.8);
-                }
-                .grade-item-heavy:active { transform: scale(0.95); }
+                .grade-item-heavy:hover { transform: translateY(-2px); }
+                .grade-item-heavy:active { transform: translateY(1px); }
 
-                .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); color: #000; box-shadow: 0 0 15px rgba(255, 255, 255, 0.3); z-index: 2; }
-                .grade-item-heavy.active.s_plus { background: linear-gradient(180deg, #f1c40f, #b8860b) !important; color: #000 !important; box-shadow: 0 0 20px #f1c40f; }
-                .grade-item-heavy.active.s { background: linear-gradient(180deg, #ff4757, #990000) !important; color: #fff !important; box-shadow: 0 0 20px #ff4757; }
-                .grade-item-heavy.active.a { background: linear-gradient(180deg, #2ecc71, #27ae60) !important; color: #000 !important; box-shadow: 0 0 20px #2ecc71; }
-                .grade-item-heavy.active.b { background: linear-gradient(180deg, #3498db, #2980b9) !important; color: #000 !important; box-shadow: 0 0 20px #3498db; }
+                /* INACTIVE SPECIFIC BORDERS & BACKGROUNDS */
+                .grade-item-heavy.s_plus_btn { border-color: rgba(241, 196, 15, 0.6); background: rgba(241, 196, 15, 0.1); box-shadow: inset 0 0 10px rgba(241, 196, 15, 0.2); }
+                .grade-item-heavy.s_btn { border-color: rgba(255, 71, 87, 0.6); background: rgba(255, 71, 87, 0.1); box-shadow: inset 0 0 10px rgba(255, 71, 87, 0.2); }
+                .grade-item-heavy.a_btn { border-color: rgba(46, 204, 113, 0.6); background: rgba(46, 204, 113, 0.1); box-shadow: inset 0 0 10px rgba(46, 204, 113, 0.2); }
+                .grade-item-heavy.b_btn { border-color: rgba(52, 152, 219, 0.6); background: rgba(52, 152, 219, 0.1); box-shadow: inset 0 0 10px rgba(52, 152, 219, 0.2); }
 
+                /* HOVER GLOW FOR SPECIFIC RANKS */
+                .grade-item-heavy.s_plus_btn:hover { box-shadow: 0 0 15px rgba(241, 196, 15, 0.4), inset 0 0 15px rgba(241, 196, 15, 0.3); border-color: #f1c40f; }
+                .grade-item-heavy.s_btn:hover { box-shadow: 0 0 15px rgba(255, 71, 87, 0.4), inset 0 0 15px rgba(255, 71, 87, 0.3); border-color: #ff4757; }
+                .grade-item-heavy.a_btn:hover { box-shadow: 0 0 15px rgba(46, 204, 113, 0.4), inset 0 0 15px rgba(46, 204, 113, 0.3); border-color: #2ecc71; }
+                .grade-item-heavy.b_btn:hover { box-shadow: 0 0 15px rgba(52, 152, 219, 0.4), inset 0 0 15px rgba(52, 152, 219, 0.3); border-color: #3498db; }
+
+                /* ACTIVE STATE (Tab style override for full color) */
+                .grade-item-heavy.active.s_plus_btn { background: linear-gradient(180deg, #f1c40f, #b8860b) !important; border-color: #fff; box-shadow: 0 0 20px #f1c40f; }
+                .grade-item-heavy.active.s_btn { background: linear-gradient(180deg, #ff4757, #990000) !important; border-color: #fff; box-shadow: 0 0 20px #ff4757; }
+                .grade-item-heavy.active.a_btn { background: linear-gradient(180deg, #2ecc71, #27ae60) !important; border-color: #fff; box-shadow: 0 0 20px #2ecc71; }
+                .grade-item-heavy.active.b_btn { background: linear-gradient(180deg, #3498db, #2980b9) !important; border-color: #fff; box-shadow: 0 0 20px #3498db; }
+
+                /* TEXT COLORS */
                 .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 0.8; }
                 .grade-item-heavy:hover .gt-h { opacity: 1; transform: scale(1.05); }
                 .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.6; margin-top: 2px; transition: 0.2s; }
                 .grade-item-heavy:hover .gc-h { opacity: 0.9; }
                 
-                /* INACTIVE COLOR PRESERVATION */
+                /* INACTIVE TEXT COLOR PRESERVATION */
                 .gt-h.s_plus, .gc-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.4); }
                 .gt-h.s, .gc-h.s { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.4); }
                 .gt-h.a, .gc-h.a { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.4); }
                 .gt-h.b, .gc-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
 
-                /* ACTIVE STATE - TAB STYLE OVERRIDE */
+                /* ACTIVE TEXT STATE */
                 .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: inherit !important; text-shadow: none !important; opacity: 1; }
 
                 /* LOG HUD */
@@ -472,17 +482,16 @@ export class CollectionUI {
                     .stat-box-heavy.wide { grid-column: span 3; }
                     .stat-box-heavy.wide .stat-v { font-size: 1.2rem !important; }
 
-                    /* Grade Grid */
+                    /* Grade Grid (Mobile) */
                     .grade-grid-heavy { 
                         flex: 4; display: grid; grid-template-columns: repeat(4, 1fr);
-                        padding: 3px; gap: 3px; align-content: center;
-                        background: rgba(0,0,0,0.4); border-radius: 6px;
-                        border: 1px solid rgba(255,255,255,0.1); margin: 0 6px 6px 6px;
+                        padding: 6px; gap: 8px; align-content: center;
+                        background: transparent; border: none; margin: 0;
+                        box-shadow: none;
                     }
                     .grade-item-heavy { 
-                        height: 40px; border-width: 1px; border-radius: 4px; 
+                        height: 45px; border-width: 2px; border-radius: 6px; 
                         padding: 0; min-height: 0; flex-direction: column; display: flex; justify-content: center; align-items: center;
-                        background: transparent; border-color: transparent;
                     }
                     .gt-h { font-size: 1.1rem; }
                     .gc-h { font-size: 0.6rem; margin-top: 0; }
@@ -740,21 +749,21 @@ export class CollectionUI {
                              <div class="col-section sec-grade">
                                 <div class="col-sec-tag">Performance Rating (TOTAL PLAYS: ${localRankStats.total_plays}) ${this.currentRankFilter ? `(FILTER: ${this.currentRankFilter})` : ''}</div>
                                 <div class="grade-grid-heavy">
-                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'S+' ? 'active s_plus' : ''}" data-rank="S+">
+                                    <div class="grade-item-heavy s_plus_btn ${this.currentRankFilter === 'S+' ? 'active' : ''}" data-rank="S+">
                                         <div class="gt-h s_plus">S+</div>
-                                        <div class="gc-h">${localRankStats.rank_s_plus}</div>
+                                        <div class="gc-h s_plus">${localRankStats.rank_s_plus}</div>
                                     </div>
-                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'S' ? 'active s' : ''}" data-rank="S">
+                                    <div class="grade-item-heavy s_btn ${this.currentRankFilter === 'S' ? 'active' : ''}" data-rank="S">
                                         <div class="gt-h s">S</div>
-                                        <div class="gc-h">${localRankStats.rank_s}</div>
+                                        <div class="gc-h s">${localRankStats.rank_s}</div>
                                     </div>
-                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'A' ? 'active a' : ''}" data-rank="A">
+                                    <div class="grade-item-heavy a_btn ${this.currentRankFilter === 'A' ? 'active' : ''}" data-rank="A">
                                         <div class="gt-h a">A</div>
-                                        <div class="gc-h">${localRankStats.rank_a}</div>
+                                        <div class="gc-h a">${localRankStats.rank_a}</div>
                                     </div>
-                                    <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'B' ? 'active b' : ''}" data-rank="B">
+                                    <div class="grade-item-heavy b_btn ${this.currentRankFilter === 'B' ? 'active' : ''}" data-rank="B">
                                         <div class="gt-h b">B</div>
-                                        <div class="gc-h">${localRankStats.rank_b}</div>
+                                        <div class="gc-h b">${localRankStats.rank_b}</div>
                                     </div>
                                 </div>
                             </div>
