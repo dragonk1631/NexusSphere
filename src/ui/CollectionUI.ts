@@ -208,8 +208,8 @@ export class CollectionUI {
                 .stat-l { font-size: 0.6rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; line-height: 1.2; }
 
                 /* RANK COLORS */
-                .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
-                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 85px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
+                .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; }
+                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 70px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
                 .grade-item-heavy:hover { border-color: ${themeCyan}; transform: translateY(-4px); background: rgba(0, 255, 255, 0.08); }
                 .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 20px rgba(255, 255, 255, 0.2); }
                 .grade-item-heavy.active.s_plus { border-color: #f1c40f; background: rgba(241, 196, 15, 0.1); box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
@@ -394,7 +394,7 @@ export class CollectionUI {
                     
                     /* Left Column: 2 sections stacked, each taking half */
                     .col-left-stats { 
-                        flex: 4; display: flex; flex-direction: column; 
+                        flex: 1; display: flex; flex-direction: column; 
                         gap: 6px; height: 100%; min-height: 0; overflow: hidden;
                     }
                     .col-left-stats .col-section { 
@@ -410,30 +410,31 @@ export class CollectionUI {
 
                     /* Stats Grid */
                     .stats-grid-heavy { 
-                        flex: 1; display: grid; grid-template-columns: 1fr 1fr;
-                        padding: 6px; gap: 6px; align-content: stretch;
+                        flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, 1fr);
+                        padding: 4px; gap: 4px; align-content: flex-start;
                     }
-                    .stat-box-heavy { padding: 4px; border-width: 1px; border-radius: 4px; display: flex; flex-direction: column; justify-content: center; }
-                    .stat-v { font-size: 1.2rem; }
-                    .stat-l { font-size: 0.45rem; margin-top: 0; letter-spacing: 0.5px; }
-                    .stat-box-heavy.wide .stat-v { font-size: 1.4rem !important; }
-                    .stat-box-heavy.wide .stat-l { font-size: 0.45rem; }
+                    .stat-box-heavy { padding: 4px; border-width: 1px; border-radius: 4px; display: flex; flex-direction: column; justify-content: center; min-height: 45px; }
+                    .stat-v { font-size: 1rem; }
+                    .stat-l { font-size: 0.4rem; margin-top: 0; letter-spacing: 0.3px; }
+                    .stat-box-heavy.wide { grid-column: span 3; }
+                    .stat-box-heavy.wide .stat-v { font-size: 1.1rem !important; }
+                    .stat-box-heavy.wide .stat-l { font-size: 0.4rem; }
 
                     /* Grade Grid */
                     .grade-grid-heavy { 
-                        flex: 1; display: grid; grid-template-columns: repeat(4, 1fr);
-                        padding: 6px; gap: 6px; align-content: stretch;
+                        flex: 1.5; display: grid; grid-template-columns: repeat(4, 1fr);
+                        padding: 4px; gap: 4px; align-content: stretch;
                     }
                     .grade-item-heavy { 
-                        height: auto; border-width: 1px; border-radius: 4px; 
-                        padding: 4px 0; min-height: 0; flex-direction: column; display: flex; justify-content: center; align-items: center;
+                        height: 55px; border-width: 1px; border-radius: 4px; 
+                        padding: 2px 0; min-height: 0; flex-direction: column; display: flex; justify-content: center; align-items: center;
                     }
-                    .gt-h { font-size: 1.15rem; }
-                    .gc-h { font-size: 0.65rem; margin-top: 0; }
+                    .gt-h { font-size: 1.1rem; }
+                    .gc-h { font-size: 0.6rem; margin-top: 0; }
 
                     /* Right Column: Mission log fills full height */
                     .col-right-logs { 
-                        flex: 6; display: flex; flex-direction: column; 
+                        flex: 1; display: flex; flex-direction: column; 
                         height: 100%; min-height: 0; overflow: hidden;
                     }
                     .col-right-logs .col-section { 
