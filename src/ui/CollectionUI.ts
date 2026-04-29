@@ -668,19 +668,19 @@ export class CollectionUI {
                                 <div class="stats-grid-heavy">
                                     <div class="stat-box-heavy">
                                         <div class="stat-v">${(stats.max_streak || 0).toLocaleString()}</div>
-                                        <div class="stat-l">MAX STREAK // 연속콤보</div>
+                                        <div class="stat-l">MAX STREAK</div>
                                     </div>
                                     <div class="stat-box-heavy">
                                         <div class="stat-v">${(stats.total_notes_hit || 0).toLocaleString()}</div>
-                                        <div class="stat-l">TOTAL HITS // 누적콤보</div>
+                                        <div class="stat-l">TOTAL HITS</div>
                                     </div>
                                     <div class="stat-box-heavy">
                                         <div class="stat-v">${(stats.play_count || 0).toLocaleString()}</div>
-                                        <div class="stat-l">TOTAL PLAYS // 총 플레이</div>
+                                        <div class="stat-l">TOTAL PLAYS</div>
                                     </div>
                                     <div class="stat-box-heavy wide">
                                         <div class="stat-v" style="font-size: 1.8rem;">${(stats.total_score || 0).toLocaleString()}</div>
-                                        <div class="stat-l">Total Accumulated Score // 누적 점수</div>
+                                        <div class="stat-l">TOTAL SCORE</div>
                                     </div>
                                 </div>
                             </div>
