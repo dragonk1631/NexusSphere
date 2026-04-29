@@ -73,7 +73,7 @@ export class CollectionUI {
                 
                 .col-modal {
                     width: min(1200px, 98vw); 
-                    height: calc(100vh - 120px);
+                    height: min(850px, 92vh); 
                     background: ${bgBlack}; 
                     border: 3px solid ${themeCyan};
                     border-radius: 12px;
@@ -192,7 +192,14 @@ export class CollectionUI {
                 }
 
                 /* CONTENT HUD */
-                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 380px; gap: 30px; overflow: hidden; }
+                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 380px; gap: 30px; overflow: hidden; min-height: 0; }
+                
+                .col-left-stats { display: flex; flex-direction: column; gap: 15px; overflow: hidden; height: 100%; }
+                .col-right-logs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+                
+                .col-left-stats .sec-stats { flex: 0 0 auto; }
+                .col-left-stats .sec-grade { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+                .col-left-stats .sec-grade .grade-grid-heavy { flex: 1; align-content: center; }
                 
                 .stats-grid-heavy { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 25px 20px; }
                 .stat-box-heavy { background: rgba(0,0,0,0.5); border: 2px solid rgba(0, 255, 255, 0.25); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
@@ -218,12 +225,75 @@ export class CollectionUI {
                 .gc-h { font-size: 0.85rem; font-weight: 900; color: #fff; opacity: 0.6; margin-top: 4px; }
 
                 /* LOG HUD */
-                .perf-scroll { flex: 1; height: 100%; padding: 25px 15px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
-                .perf-scroll::-webkit-scrollbar { width: 14px; }
-                .perf-scroll::-webkit-scrollbar-thumb { background: linear-gradient(180deg, ${themeCyan}, ${darkCyan}); border: 3px solid #000; border-radius: 7px; }
+                .perf-scroll { flex: 1; height: 100%; padding: 20px 10px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overflow-x: hidden; }
+                .perf-scroll::-webkit-scrollbar { width: 8px; }
+                .perf-scroll::-webkit-scrollbar-thumb { background: rgba(0, 255, 255, 0.3); border-radius: 4px; }
 
-                .perf-item { display: flex; align-items: center; padding: 12px 18px; background: rgba(255,255,255,0.04); border-radius: 8px; transition: 0.2s; border: 2px solid transparent; }
-                .perf-item:hover { background: rgba(0, 255, 255, 0.1); border-color: ${themeCyan}; transform: translateX(8px); }
+                .perf-item { 
+                    display: flex; 
+                    flex-direction: column;
+                    gap: 8px;
+                    padding: 14px 20px; 
+                    background: rgba(255,255,255,0.02); 
+                    border-radius: 8px; 
+                    transition: 0.15s ease-out; 
+                    border: 1px solid rgba(255,255,255,0.1);
+                    min-width: 0;
+                    margin-bottom: 2px;
+                }
+                .perf-item:nth-child(even) { background: rgba(0, 255, 255, 0.05); }
+                .perf-item:hover { background: rgba(0, 255, 255, 0.12) !important; border-color: rgba(0, 255, 255, 0.4); transform: translateX(4px); }
+
+                .pi-name { 
+                    font-size: 1.1rem; font-weight: 850; color: #fff; 
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+                    width: 100%;
+                }
+                
+                .pi-sub-row {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between; /* Pushes everything apart */
+                    min-width: 0;
+                }
+
+                .pi-sub-left { display: flex; align-items: center; gap: 12px; }
+
+                .pi-grade { 
+                    font-family: 'Goldman'; font-weight: 900; font-size: 1rem; 
+                    min-width: 35px; text-align: left; opacity: 0.9;
+                }
+                
+                .pi-meta { 
+                    font-size: 0.6rem; font-weight: 600; color: rgba(255,255,255,0.3); 
+                    text-transform: uppercase; letter-spacing: 0.5px;
+                    display: flex; gap: 20px; align-items: center;
+                }
+                .pi-meta-item { display: flex; flex-direction: column; gap: 2px; }
+                .pi-meta-item span { font-size: 0.55rem; opacity: 0.6; }
+                .pi-meta-item b { color: ${themeCyan}; font-size: 0.75rem; font-weight: 800; opacity: 0.8; }
+
+                .pi-score { 
+                    font-family: 'Goldman'; font-size: 0.85rem; font-weight: 600; 
+                    color: rgba(255,255,255,0.8); text-align: right;
+                }
+
+                /* MEDIUM-HEIGHT PC OPTIMIZATION (Fixes clipping on smaller browser windows) */
+                @media (max-height: 850px) and (min-width: 901px) {
+                    .col-header { padding: 12px 25px; }
+                    .col-avatar { width: 45px; height: 45px; }
+                    .col-username { font-size: 1.3rem; }
+                    .col-level-val { font-size: 2.6rem; }
+                    .col-emblem-wrap { width: 65px; height: 65px; }
+                    .col-content { padding: 15px 25px; gap: 20px; }
+                    .stats-grid-heavy { padding: 15px 20px; gap: 10px; }
+                    .stat-v { font-size: 1.8rem; }
+                    .stat-box-heavy { padding: 12px; }
+                    .grade-grid-heavy { padding: 10px; gap: 8px; }
+                    .grade-item-heavy { height: 75px; }
+                    .gt-h { font-size: 1.5rem; }
+                    .perf-scroll { padding: 10px; }
+                }
 
                 /* ============================================================
                    MOBILE PORTRAIT (Narrow width, tall screen)
@@ -378,15 +448,33 @@ export class CollectionUI {
                     .perf-scroll::-webkit-scrollbar-thumb { border: none; border-radius: 3px; }
                     
                     .perf-item { 
-                        padding: 5px 10px; border-radius: 4px; border-width: 1px;
-                        display: grid; grid-template-columns: 26px 1fr auto;
-                        gap: 12px; align-items: center;
+                        display: flex; 
+                        flex-direction: column;
+                        gap: 3px;
+                        padding: 6px 10px; 
+                        background: rgba(255,255,255,0.02); 
+                        border-radius: 5px; 
+                        border: 1px solid rgba(255,255,255,0.08);
+                        min-width: 0;
                     }
-                    .pi-grade { font-family: 'Goldman'; font-weight: 700; text-align: center; font-size: 1rem; }
-                    .pi-info { min-width: 0; }
-                    .pi-name { font-size: 0.8rem; font-family: 'Outfit', sans-serif; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
-                    .pi-meta { font-size: 0.55rem; font-family: 'Outfit', sans-serif; opacity: 0.7; white-space: nowrap; line-height: 1.2; }
-                    .pi-score { font-size: 0.85rem; font-family: 'Goldman'; text-align: right; white-space: nowrap; }
+                    .perf-item:nth-child(even) { background: rgba(0, 255, 255, 0.04); }
+                    .pi-name { 
+                        font-size: 0.8rem; font-weight: 800; color: #fff; 
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+                    }
+                    .pi-sub-row {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        min-width: 0;
+                    }
+                    .pi-sub-left { display: flex; align-items: center; gap: 10px; }
+                    .pi-grade { font-size: 0.85rem; min-width: 28px; }
+                    .pi-score { font-size: 0.8rem; color: rgba(255,255,255,0.7); }
+                    .pi-meta { gap: 12px; display: flex; align-items: center; }
+                    .pi-meta-item { display: flex; flex-direction: column; gap: 1px; }
+                    .pi-meta-item span { font-size: 0.45rem; }
+                    .pi-meta-item b { font-size: 0.6rem; }
                 }
 
                 /* EMBLEM MODAL */
@@ -459,10 +547,10 @@ export class CollectionUI {
         // [RULE] Anything below B is treated as B
         const relevantRecords = records.filter(r => r.key_mode === this.currentKeyMode && r.difficulty === this.currentDifficulty);
         const localRankStats = {
-            rank_s_plus: relevantRecords.filter(r => r.best_grade === 'S+').length,
-            rank_s: relevantRecords.filter(r => r.best_grade === 'S').length,
+            rank_s_plus: relevantRecords.filter(r => r.best_grade === 'S+' || (r.best_accuracy >= 100)).length,
+            rank_s: relevantRecords.filter(r => r.best_grade === 'S' && r.best_accuracy < 100).length,
             rank_a: relevantRecords.filter(r => r.best_grade === 'A').length,
-            rank_b: relevantRecords.filter(r => !['S+', 'S', 'A'].includes(r.best_grade)).length
+            rank_b: relevantRecords.filter(r => !['S+', 'S', 'A'].includes(r.best_grade) && r.best_accuracy < 100).length
         };
         
         // --- Song List Expansion Logic ---
@@ -607,17 +695,23 @@ export class CollectionUI {
                                 <div class="col-sec-tag">Mission Archive Log</div>
                                 <div class="perf-scroll">
                                     ${combinedRecords.length > 0 ? combinedRecords.map(({ song, record }) => `
-                                        <div class="perf-item" style="${!record ? 'opacity: 0.55;' : ''}">
-                                            <div class="pi-grade ${record ? (record.best_grade === 'S+' ? 'gt-h s_plus' : record.best_grade === 'S' ? 'gt-h s' : record.best_grade === 'A' ? 'gt-h a' : 'gt-h b') : 'gt-h'}" style="${!record ? 'opacity: 0.3;' : ''}">
-                                                ${record ? (['S+', 'S', 'A'].includes(record.best_grade) ? record.best_grade : 'B') : '--'}
-                                            </div>
-                                            <div class="pi-info">
-                                                <div class="pi-name">${song.name}</div>
-                                                <div class="pi-meta">
-                                                    ${record ? `COMBO ${record.max_combo} | ACCURACY ${(record.best_accuracy || 0).toFixed(2)}% | PLAYS ${record.play_count || 1}` : '<span style="letter-spacing: 1px; opacity: 0.7;">NOT PLAYED</span>'}
+                                        <div class="perf-item" style="${!record ? 'opacity: 0.4;' : ''}">
+                                            <div class="pi-name">${song.name}</div>
+                                            <div class="pi-sub-row">
+                                                <div class="pi-sub-left">
+                                                    <div class="pi-grade ${record ? (record.best_accuracy >= 100 || record.best_grade === 'S+' ? 'gt-h s_plus' : record.best_grade === 'S' ? 'gt-h s' : record.best_grade === 'A' ? 'gt-h a' : 'gt-h b') : 'gt-h'}" style="${!record ? 'opacity: 0.2;' : ''}">
+                                                        ${record ? (record.best_accuracy >= 100 ? 'S+' : (['S+', 'S', 'A'].includes(record.best_grade) ? record.best_grade : 'B')) : '--'}
+                                                    </div>
+                                                    <div class="pi-meta">
+                                                        ${record ? `
+                                                            <div class="pi-meta-item"><span>COMBO</span><b>${record.max_combo}</b></div>
+                                                            <div class="pi-meta-item"><span>ACCURACY</span><b>${(record.best_accuracy || 0).toFixed(2)}%</b></div>
+                                                            <div class="pi-meta-item"><span>PLAYS</span><b>${record.play_count || 1}</b></div>
+                                                        ` : '<span style="letter-spacing: 2px; opacity: 0.3; font-size: 0.6rem;">INITIALIZING_ARCHIVE_DATA</span>'}
+                                                    </div>
                                                 </div>
+                                                <div class="pi-score" style="${!record ? 'opacity: 0.2;' : ''}">${record ? (record.high_score || 0).toLocaleString() : '0'}</div>
                                             </div>
-                                            <div class="pi-score" style="${!record ? 'opacity: 0.3;' : ''}">${record ? (record.high_score || 0).toLocaleString() : '0'}</div>
                                         </div>
                                     `).join('') : '<div style="opacity: 0.3; text-align: center; padding: 2rem 0; font-weight: 900; font-size: 1.2rem; letter-spacing: 2px;">LIBRARY EMPTY</div>'}
                                 </div>

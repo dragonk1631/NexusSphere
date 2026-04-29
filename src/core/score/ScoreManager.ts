@@ -108,8 +108,10 @@ export class ScoreManager {
         const acc = this.getAccuracy();
         const isFC = this.isFullCombo();
         // [RULE] S+ is strictly All Perfect (100% accuracy)
-        if (isFC && acc >= 100) return 'S+';
-        // [RULE] S is strictly for any other Full Combo (0 misses)
+        const isAP = isFC && (this.perfectCount === this.totalChartNotes && this.totalChartNotes > 0);
+        
+        if (isAP) return 'S+';
+        // [RULE] S is for Full Combo (0 misses) that isn't All Perfect
         if (isFC) return 'S';
         // [RULE] Any run with a Miss cannot be S or S+.
         // Accuracy-based fallback for non-FC clears.
@@ -250,8 +252,11 @@ export class ScoreManager {
                             const serverScore = r.high_score;
                             const localRecord = this.highScores[key];
                             
-                            // Only update if server has a better score or no local record exists
-                            if (!localRecord || serverScore > localRecord.score) {
+                            // Update if server has a better score OR if it's the same score but better accuracy/grade (handles hotfixes)
+                            const isBetterScore = !localRecord || serverScore > localRecord.score;
+                            const isBetterAccuracy = localRecord && serverScore === localRecord.score && (r.best_accuracy > localRecord.accuracy || r.best_grade === 'S+' && localRecord.grade !== 'S+');
+                            
+                            if (isBetterScore || isBetterAccuracy) {
                                 this.highScores[key] = {
                                     score: serverScore,
                                     maxCombo: r.max_combo,
