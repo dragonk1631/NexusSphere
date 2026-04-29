@@ -223,89 +223,67 @@ export class CollectionUI {
                 .stat-v { font-size: 2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
                 .stat-l { font-size: 0.7rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
 
-                /* PREMIUM TACTILE BUTTONS */
+                /* TACTILE 3D RANK BUTTONS */
                 .grade-grid-heavy { 
                     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; 
                     padding: 15px; margin: 0; background: transparent; border: none; box-shadow: none;
                 }
                 
                 .grade-item-heavy { 
-                    height: 55px; border-radius: 10px; display: flex; flex-direction: column; 
+                    height: 55px; border-radius: 8px; display: flex; flex-direction: column; 
                     align-items: center; justify-content: center; 
-                    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); /* Apple-like spring bounce */
-                    cursor: pointer; position: relative; overflow: hidden;
+                    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); 
+                    cursor: pointer; position: relative;
                     
-                    /* Premium Sleek Button */
-                    background: linear-gradient(180deg, rgba(30, 35, 45, 0.8), rgba(15, 20, 25, 0.9));
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-bottom: 3px solid rgba(0,0,0,0.6); /* Refined depth ledge */
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.15);
+                    /* Solid Button Base */
+                    background: #2a2d34;
+                    border: 1px solid #4a4e58;
+                    border-top: 1px solid #5a5f6b;
+                    box-shadow: 0 6px 0 #181a1f, 0 8px 10px rgba(0,0,0,0.4);
                 }
-
-                /* Shimmer Glass Effect */
-                .grade-item-heavy::before {
-                    content: ''; position: absolute; inset: 0;
-                    background: linear-gradient(105deg, transparent, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.08) 55%, transparent);
-                    transform: translateX(-100%); transition: 0.6s ease-in-out; pointer-events: none;
-                }
-                .grade-item-heavy:hover::before { transform: translateX(100%); }
 
                 .grade-item-heavy:hover { 
-                    transform: translateY(-2px);
-                    border-bottom: 3px solid rgba(0,0,0,0.7);
-                    box-shadow: 0 8px 16px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2);
-                    background: linear-gradient(180deg, rgba(40, 45, 55, 0.9), rgba(20, 25, 30, 1));
+                    transform: translateY(2px);
+                    background: #343841;
+                    border-color: #5a5f6b;
+                    box-shadow: 0 4px 0 #181a1f, 0 6px 10px rgba(0,0,0,0.4);
                 }
                 
                 .grade-item-heavy:active { 
-                    transform: translateY(2px) scale(0.97) !important;
-                    border-bottom-width: 1px !important;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 2px 8px rgba(0,0,0,0.6) !important;
+                    transform: translateY(6px) !important;
+                    box-shadow: 0 0 0 #181a1f, 0 2px 5px rgba(0,0,0,0.4) !important;
                 }
 
-                /* PRESTIGE GLOW & COLORING */
-                .grade-item-heavy.s_plus_btn { border-color: rgba(241, 196, 15, 0.4); }
-                .grade-item-heavy.s_plus_btn:hover { border-color: rgba(241, 196, 15, 0.8); box-shadow: 0 8px 16px rgba(241, 196, 15, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
-
-                .grade-item-heavy.s_btn { border-color: rgba(255, 71, 87, 0.4); }
-                .grade-item-heavy.s_btn:hover { border-color: rgba(255, 71, 87, 0.8); box-shadow: 0 8px 16px rgba(255, 71, 87, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
-
-                .grade-item-heavy.a_btn { border-color: rgba(46, 204, 113, 0.4); }
-                .grade-item-heavy.a_btn:hover { border-color: rgba(46, 204, 113, 0.8); box-shadow: 0 8px 16px rgba(46, 204, 113, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
-
-                .grade-item-heavy.b_btn { border-color: rgba(52, 152, 219, 0.4); }
-                .grade-item-heavy.b_btn:hover { border-color: rgba(52, 152, 219, 0.8); box-shadow: 0 8px 16px rgba(52, 152, 219, 0.15), inset 0 1px 1px rgba(255,255,255,0.2); }
-
-                /* ACTIVE (PRESSED) STATE - LUXURY FILL */
+                /* ACTIVE (PRESSED) STATE - MODERN SOLID COLORS */
                 .grade-item-heavy.active { 
-                    transform: translateY(2px); border-bottom-width: 1px;
+                    transform: translateY(6px);
                 }
                 .grade-item-heavy.active.s_plus_btn { 
-                    background: linear-gradient(135deg, #f39c12, #d35400) !important; 
-                    box-shadow: 0 0 25px rgba(243, 156, 18, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #f1c40f; border-top-color: rgba(255,255,255,0.6);
+                    background: #fcc419 !important; border-color: #ffd43b; border-top-color: #ffe066;
+                    box-shadow: 0 0 0 #d4a017, 0 0 20px rgba(252, 196, 25, 0.4) !important; 
                 }
                 .grade-item-heavy.active.s_btn { 
-                    background: linear-gradient(135deg, #ff4757, #c0392b) !important; 
-                    box-shadow: 0 0 25px rgba(255, 71, 87, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #ff4757; border-top-color: rgba(255,255,255,0.6);
+                    background: #ff6b6b !important; border-color: #ff8787; border-top-color: #ffa8a8;
+                    box-shadow: 0 0 0 #c92a2a, 0 0 20px rgba(255, 107, 107, 0.4) !important; 
                 }
                 .grade-item-heavy.active.a_btn { 
-                    background: linear-gradient(135deg, #2ecc71, #27ae60) !important; 
-                    box-shadow: 0 0 25px rgba(46, 204, 113, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #2ecc71; border-top-color: rgba(255,255,255,0.6);
+                    background: #20c997 !important; border-color: #38d9a9; border-top-color: #63e6be;
+                    box-shadow: 0 0 0 #0ca678, 0 0 20px rgba(32, 201, 151, 0.4) !important; 
                 }
                 .grade-item-heavy.active.b_btn { 
-                    background: linear-gradient(135deg, #3498db, #2980b9) !important; 
-                    box-shadow: 0 0 25px rgba(52, 152, 219, 0.5), inset 0 2px 5px rgba(0,0,0,0.3) !important; border-color: #3498db; border-top-color: rgba(255,255,255,0.6);
+                    background: #339af0 !important; border-color: #4dabf7; border-top-color: #74c0fc;
+                    box-shadow: 0 0 0 #1c7ed6, 0 0 20px rgba(51, 154, 240, 0.4) !important; 
                 }
 
                 /* TEXT COLORS */
-                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 0.9; }
-                .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.7; margin-top: 2px; transition: 0.2s; }
+                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 1; }
+                .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.8; margin-top: 2px; transition: 0.2s; }
                 
-                /* INACTIVE TEXT COLOR PRESERVATION */
-                .gt-h.s_plus, .gc-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.4); }
-                .gt-h.s, .gc-h.s { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.4); }
-                .gt-h.a, .gc-h.a { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.4); }
-                .gt-h.b, .gc-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
+                /* INACTIVE TEXT COLOR PRESERVATION (SOFT TINTS) */
+                .gt-h.s_plus, .gc-h.s_plus { color: #ffe066; }
+                .gt-h.s, .gc-h.s { color: #ffa8a8; }
+                .gt-h.a, .gc-h.a { color: #63e6be; }
+                .gt-h.b, .gc-h.b { color: #74c0fc; }
 
                 /* ACTIVE TEXT STATE */
                 .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: #000 !important; text-shadow: none !important; opacity: 1; }
