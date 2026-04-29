@@ -201,11 +201,11 @@ export class CollectionUI {
                 .col-left-stats .sec-grade { flex: 1; display: flex; flex-direction: column; min-height: 0; }
                 .col-left-stats .sec-grade .grade-grid-heavy { flex: 1; align-content: center; }
                 
-                .stats-grid-heavy { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 25px 20px; }
-                .stat-box-heavy { background: rgba(0,0,0,0.5); border: 2px solid rgba(0, 255, 255, 0.25); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
-                .stat-box-heavy.wide { grid-column: span 2; border-color: ${themeCyan}; background: rgba(0, 255, 255, 0.05); }
-                .stat-v { font-size: 2.2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
-                .stat-l { font-size: 0.75rem; opacity: 0.55; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 1px; }
+                .stats-grid-heavy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 15px 20px; }
+                .stat-box-heavy { background: rgba(0,0,0,0.5); border: 2px solid rgba(0, 255, 255, 0.25); padding: 10px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 70px; }
+                .stat-box-heavy.wide { grid-column: span 3; border-color: ${themeCyan}; background: rgba(0, 255, 255, 0.05); }
+                .stat-v { font-size: 1.6rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 10px ${themeCyan}; }
+                .stat-l { font-size: 0.6rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; line-height: 1.2; }
 
                 /* RANK COLORS */
                 .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
