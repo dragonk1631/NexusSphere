@@ -157,11 +157,24 @@ export class CollectionUI {
 
                 /* EMBLEM UI RESTORATION */
                 .col-emblem-wrap { 
-                    position: relative; width: 80px; height: 80px; 
-                    display: flex; align-items: center; justify-content: center;
-                    cursor: pointer; transition: 0.3s;
+                    width: 65px; height: 65px; border-radius: 50%; background: rgba(0,255,255,0.1); 
+                    border: 2px solid ${themeCyan}; display: flex; align-items: center; justify-content: center; 
+                    box-shadow: 0 0 15px rgba(0,255,255,0.2), inset 0 0 10px rgba(0,255,255,0.1);
+                    cursor: pointer; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    position: relative; overflow: hidden;
                 }
-                .col-emblem-wrap:hover { transform: scale(1.1) rotate(5deg); }
+                .col-emblem-wrap::after {
+                    content: ''; position: absolute; inset: 0;
+                    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.2), transparent);
+                    transform: translateX(-100%); transition: 0.5s;
+                }
+                .col-emblem-wrap:hover { 
+                    transform: scale(1.1) rotate(5deg); 
+                    box-shadow: 0 0 25px rgba(0,255,255,0.5); 
+                    background: rgba(0,255,255,0.2);
+                }
+                .col-emblem-wrap:hover::after { transform: translateX(100%); }
+                .col-emblem-wrap:active { transform: scale(0.9); }
                 .col-emblem-frame { position: absolute; inset: 0; color: ${classInfo.color}; filter: drop-shadow(0 0 15px ${classInfo.bgGlow}); }
                 .col-emblem-icon { position: relative; width: 38px; height: 38px; filter: drop-shadow(0 0 8px #fff); }
 
@@ -207,17 +220,49 @@ export class CollectionUI {
                 .stat-v { font-size: 2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
                 .stat-l { font-size: 0.7rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
 
-                /* RANK COLORS */
+                /* RANK COLORS & INTERACTION */
+                @keyframes mm-shimmer {
+                    0% { transform: translateX(-100%) skewX(-15deg); }
+                    100% { transform: translateX(200%) skewX(-15deg); }
+                }
+
                 .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px 15px; }
-                .grade-item-heavy { background: rgba(0,15,15,0.4); border: 2px solid rgba(255,255,255,0.1); height: 50px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
-                .grade-item-heavy:hover { border-color: ${themeCyan}; transform: translateY(-4px); background: rgba(0, 255, 255, 0.08); }
-                .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 20px rgba(255, 255, 255, 0.2); }
-                .grade-item-heavy.active.s_plus { border-color: #f1c40f; background: rgba(241, 196, 15, 0.1); box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
-                .grade-item-heavy.active.s { border-color: #ff4757; background: rgba(255, 71, 87, 0.1); box-shadow: 0 0 20px rgba(255, 71, 87, 0.4); }
-                .grade-item-heavy.active.a { border-color: #2ecc71; background: rgba(46, 204, 113, 0.1); box-shadow: 0 0 20px rgba(46, 204, 113, 0.4); }
-                .grade-item-heavy.active.b { border-color: #3498db; background: rgba(52, 152, 219, 0.1); box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
                 
-                .gt-h { font-family: 'Goldman'; font-size: 1.8rem; color: #fff; font-weight: 700; }
+                .grade-item-heavy { 
+                    background: rgba(255,255,255,0.03); border: 2px solid rgba(255,255,255,0.1); 
+                    height: 50px; border-radius: 8px; display: flex; flex-direction: column; 
+                    align-items: center; justify-content: center; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+                    cursor: pointer; position: relative; overflow: hidden;
+                    box-shadow: inset 0 0 10px rgba(255,255,255,0.02);
+                }
+
+                /* Shimmer effect overlay */
+                .grade-item-heavy::after {
+                    content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+                    transform: translateX(-100%) skewX(-15deg); transition: 0.5s;
+                }
+                .grade-item-heavy:hover::after {
+                    animation: mm-shimmer 0.8s infinite;
+                }
+
+                .grade-item-heavy:hover { 
+                    border-color: rgba(255, 255, 255, 0.4); 
+                    transform: translateY(-3px) scale(1.03); 
+                    background: rgba(255, 255, 255, 0.08); 
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.3), 0 0 10px rgba(255,255,255,0.1);
+                }
+                
+                .grade-item-heavy:active { transform: translateY(-1px) scale(0.97); }
+
+                .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.15); box-shadow: 0 0 20px rgba(255, 255, 255, 0.2); }
+                .grade-item-heavy.active.s_plus { border-color: #f1c40f; background: rgba(241, 196, 15, 0.15); box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
+                .grade-item-heavy.active.s { border-color: #ff4757; background: rgba(255, 71, 87, 0.15); box-shadow: 0 0 20px rgba(255, 71, 87, 0.4); }
+                .grade-item-heavy.active.a { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); box-shadow: 0 0 20px rgba(46, 204, 113, 0.4); }
+                .grade-item-heavy.active.b { border-color: #3498db; background: rgba(52, 152, 219, 0.15); box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
+                
+                .gt-h { font-family: 'Goldman'; font-size: 1.8rem; color: #fff; font-weight: 700; transition: 0.2s; }
+                .grade-item-heavy:hover .gt-h { transform: scale(1.1); }
                 .gt-h.s_plus { color: #f1c40f; text-shadow: 0 0 20px #f1c40f, 0 0 40px rgba(241, 196, 15, 0.4); }
                 .gt-h.s { color: #ff4757; text-shadow: 0 0 15px rgba(255, 71, 87, 0.6); }
                 .gt-h.a { color: #2ecc71; text-shadow: 0 0 15px rgba(46, 204, 113, 0.6); }
