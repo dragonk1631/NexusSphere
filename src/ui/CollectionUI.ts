@@ -557,7 +557,8 @@ export class CollectionUI {
             rank_s_plus: relevantRecords.filter(r => getEffectiveGrade(r) === 'S+').length,
             rank_s: relevantRecords.filter(r => getEffectiveGrade(r) === 'S').length,
             rank_a: relevantRecords.filter(r => getEffectiveGrade(r) === 'A').length,
-            rank_b: relevantRecords.filter(r => getEffectiveGrade(r) === 'B').length
+            rank_b: relevantRecords.filter(r => getEffectiveGrade(r) === 'B').length,
+            total_plays: relevantRecords.reduce((sum, r) => sum + (r.play_count || 0), 0)
         };
         
         // --- Song List Expansion Logic ---
@@ -668,6 +669,10 @@ export class CollectionUI {
                                         <div class="stat-v">${(stats.total_notes_hit || 0).toLocaleString()}</div>
                                         <div class="stat-l">누적 콤보기록</div>
                                     </div>
+                                    <div class="stat-box-heavy">
+                                        <div class="stat-v">${(stats.play_count || 0).toLocaleString()}</div>
+                                        <div class="stat-l">TOTAL PLAY COUNT // 총 플레이 횟수</div>
+                                    </div>
                                     <div class="stat-box-heavy wide">
                                         <div class="stat-v" style="font-size: 2.2rem;">${(stats.total_score || 0).toLocaleString()}</div>
                                         <div class="stat-l">Total Accumulated Score // 누적 점수</div>
@@ -676,8 +681,8 @@ export class CollectionUI {
                             </div>
 
                             <!-- PERFORMANCE DISTRIBUTION SECTION -->
-                            <div class="col-section sec-grade">
-                                <div class="col-sec-tag">Performance Rating ${this.currentRankFilter ? `(FILTER: ${this.currentRankFilter})` : ''}</div>
+                             <div class="col-section sec-grade">
+                                <div class="col-sec-tag">Performance Rating (PLAYS: ${localRankStats.total_plays}) ${this.currentRankFilter ? `(FILTER: ${this.currentRankFilter})` : ''}</div>
                                 <div class="grade-grid-heavy">
                                     <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'S+' ? 'active s_plus' : ''}" data-rank="S+">
                                         <div class="gt-h s_plus">S+</div>
