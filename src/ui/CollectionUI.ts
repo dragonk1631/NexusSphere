@@ -155,28 +155,31 @@ export class CollectionUI {
                 }
                 .col-xp-fill-heavy { height: 100%; background: linear-gradient(90deg, ${darkCyan}, ${themeCyan}); }
 
-                /* EMBLEM UI RESTORATION */
+                /* EMBLEM UI RESTORATION - UNIFIED HIGH QUALITY */
                 .col-emblem-wrap { 
-                    width: 65px; height: 65px; border-radius: 50%; background: rgba(0,255,255,0.1); 
-                    border: 2px solid ${themeCyan}; display: flex; align-items: center; justify-content: center; 
-                    box-shadow: 0 0 15px rgba(0,255,255,0.2), inset 0 0 10px rgba(0,255,255,0.1);
+                    position: relative; width: 85px; height: 85px; 
+                    display: flex; align-items: center; justify-content: center;
                     cursor: pointer; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    position: relative; overflow: hidden;
+                    z-index: 5;
                 }
-                .col-emblem-wrap::after {
-                    content: ''; position: absolute; inset: 0;
-                    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.2), transparent);
-                    transform: translateX(-100%); transition: 0.5s;
-                }
-                .col-emblem-wrap:hover { 
-                    transform: scale(1.1) rotate(5deg); 
-                    box-shadow: 0 0 25px rgba(0,255,255,0.5); 
-                    background: rgba(0,255,255,0.2);
-                }
-                .col-emblem-wrap:hover::after { transform: translateX(100%); }
+                .col-emblem-wrap:hover { transform: scale(1.15) rotate(5deg); }
                 .col-emblem-wrap:active { transform: scale(0.9); }
-                .col-emblem-frame { position: absolute; inset: 0; color: ${classInfo.color}; filter: drop-shadow(0 0 15px ${classInfo.bgGlow}); }
-                .col-emblem-icon { position: relative; width: 38px; height: 38px; filter: drop-shadow(0 0 8px #fff); }
+                
+                .col-emblem-frame { 
+                    position: absolute; inset: 0; 
+                    filter: drop-shadow(0 0 15px currentColor);
+                    transition: 0.3s;
+                }
+                .col-emblem-wrap:hover .col-emblem-frame {
+                    filter: drop-shadow(0 0 25px currentColor);
+                }
+                .col-emblem-icon { 
+                    position: relative; width: 42px; height: 42px; 
+                    filter: drop-shadow(0 0 8px #fff); 
+                    z-index: 2;
+                    transition: 0.3s;
+                }
+                .col-emblem-wrap:hover .col-emblem-icon { transform: scale(1.1); }
 
                 /* FILTER BAR & TABS */
                 .col-filter-bar {
