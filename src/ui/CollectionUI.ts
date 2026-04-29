@@ -235,55 +235,61 @@ export class CollectionUI {
                     transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); 
                     cursor: pointer; position: relative;
                     
-                    /* Solid Button Base */
-                    background: #2a2d34;
+                    /* Premium Gradient Base */
+                    background: linear-gradient(180deg, #3a3d45, #2a2d34);
                     border: 1px solid #4a4e58;
-                    border-top: 1px solid #5a5f6b;
-                    box-shadow: 0 6px 0 #181a1f, 0 8px 10px rgba(0,0,0,0.4);
+                    border-top: 1px solid #6a6f7b;
+                    
+                    /* Thick 6px Bottom Shadow */
+                    box-shadow: 0 6px 0 #181a1f, 0 8px 10px rgba(0,0,0,0.5);
                 }
 
                 .grade-item-heavy:hover { 
                     transform: translateY(2px);
-                    background: #343841;
-                    border-color: #5a5f6b;
-                    box-shadow: 0 4px 0 #181a1f, 0 6px 10px rgba(0,0,0,0.4);
+                    background: linear-gradient(180deg, #444852, #343841);
+                    border-top: 1px solid #7a7f8d;
+                    box-shadow: 0 4px 0 #181a1f, 0 6px 10px rgba(0,0,0,0.5);
                 }
                 
                 .grade-item-heavy:active { 
                     transform: translateY(6px) !important;
-                    box-shadow: 0 0 0 #181a1f, 0 2px 5px rgba(0,0,0,0.4) !important;
+                    box-shadow: 0 0 0 #181a1f, 0 2px 5px rgba(0,0,0,0.5) !important;
                 }
 
-                /* ACTIVE (PRESSED) STATE - MODERN SOLID COLORS */
+                /* ACTIVE (PRESSED) STATE - HIGH QUALITY GRADIENTS */
                 .grade-item-heavy.active { 
                     transform: translateY(6px);
                 }
                 .grade-item-heavy.active.s_plus_btn { 
-                    background: #fcc419 !important; border-color: #ffd43b; border-top-color: #ffe066;
-                    box-shadow: 0 0 0 #d4a017, 0 0 20px rgba(252, 196, 25, 0.4) !important; 
+                    background: linear-gradient(180deg, #f1c40f, #d4ac0d) !important; 
+                    border-color: #f1c40f; border-top-color: #f5d76e;
+                    box-shadow: 0 0 0 #b8860b, 0 0 20px rgba(241, 196, 15, 0.5) !important; 
                 }
                 .grade-item-heavy.active.s_btn { 
-                    background: #ff6b6b !important; border-color: #ff8787; border-top-color: #ffa8a8;
-                    box-shadow: 0 0 0 #c92a2a, 0 0 20px rgba(255, 107, 107, 0.4) !important; 
+                    background: linear-gradient(180deg, #ff4757, #d63031) !important; 
+                    border-color: #ff4757; border-top-color: #ff7675;
+                    box-shadow: 0 0 0 #b71540, 0 0 20px rgba(255, 71, 87, 0.5) !important; 
                 }
                 .grade-item-heavy.active.a_btn { 
-                    background: #20c997 !important; border-color: #38d9a9; border-top-color: #63e6be;
-                    box-shadow: 0 0 0 #0ca678, 0 0 20px rgba(32, 201, 151, 0.4) !important; 
+                    background: linear-gradient(180deg, #2ecc71, #27ae60) !important; 
+                    border-color: #2ecc71; border-top-color: #55efc4;
+                    box-shadow: 0 0 0 #009432, 0 0 20px rgba(46, 204, 113, 0.5) !important; 
                 }
                 .grade-item-heavy.active.b_btn { 
-                    background: #339af0 !important; border-color: #4dabf7; border-top-color: #74c0fc;
-                    box-shadow: 0 0 0 #1c7ed6, 0 0 20px rgba(51, 154, 240, 0.4) !important; 
+                    background: linear-gradient(180deg, #3498db, #2980b9) !important; 
+                    border-color: #3498db; border-top-color: #74b9ff;
+                    box-shadow: 0 0 0 #0984e3, 0 0 20px rgba(52, 152, 219, 0.5) !important; 
                 }
 
                 /* TEXT COLORS */
                 .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 1; }
                 .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.8; margin-top: 2px; transition: 0.2s; }
                 
-                /* INACTIVE TEXT COLOR PRESERVATION (SOFT TINTS) */
-                .gt-h.s_plus, .gc-h.s_plus { color: #ffe066; }
-                .gt-h.s, .gc-h.s { color: #ffa8a8; }
-                .gt-h.a, .gc-h.a { color: #63e6be; }
-                .gt-h.b, .gc-h.b { color: #74c0fc; }
+                /* INACTIVE TEXT COLOR PRESERVATION (ORIGINAL RAW COLORS) */
+                .gt-h.s_plus, .gc-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.4); }
+                .gt-h.s, .gc-h.s { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.4); }
+                .gt-h.a, .gc-h.a { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.4); }
+                .gt-h.b, .gc-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
 
                 /* ACTIVE TEXT STATE */
                 .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: #000 !important; text-shadow: none !important; opacity: 1; }
