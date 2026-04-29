@@ -197,8 +197,8 @@ export class CollectionUI {
                 .col-left-stats { display: flex; flex-direction: column; gap: 15px; overflow: hidden; height: 100%; }
                 .col-right-logs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
                 
-                .col-left-stats .sec-stats { flex: 7; display: flex; flex-direction: column; min-height: 0; }
-                .col-left-stats .sec-grade { flex: 3; display: flex; flex-direction: column; min-height: 0; }
+                .col-left-stats .sec-stats { flex: 6; display: flex; flex-direction: column; min-height: 0; }
+                .col-left-stats .sec-grade { flex: 4; display: flex; flex-direction: column; min-height: 0; }
                 .col-left-stats .sec-grade .grade-grid-heavy { flex: 1; align-content: center; }
                 
                 .stats-grid-heavy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 20px; }
@@ -410,7 +410,7 @@ export class CollectionUI {
 
                     /* Stats Grid */
                     .stats-grid-heavy { 
-                        flex: 7; display: grid; grid-template-columns: repeat(3, 1fr);
+                        flex: 6; display: grid; grid-template-columns: repeat(3, 1fr);
                         padding: 6px; gap: 6px; align-content: center;
                     }
                     .stat-box-heavy { padding: 6px; border-width: 1px; border-radius: 4px; display: flex; flex-direction: column; justify-content: center; min-height: 50px; }
@@ -421,7 +421,7 @@ export class CollectionUI {
 
                     /* Grade Grid */
                     .grade-grid-heavy { 
-                        flex: 3; display: grid; grid-template-columns: repeat(4, 1fr);
+                        flex: 4; display: grid; grid-template-columns: repeat(4, 1fr);
                         padding: 6px; gap: 6px; align-content: center;
                     }
                     .grade-item-heavy { 
