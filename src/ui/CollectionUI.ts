@@ -192,7 +192,7 @@ export class CollectionUI {
                 }
 
                 /* CONTENT HUD */
-                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 380px; gap: 30px; overflow: hidden; min-height: 0; }
+                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; overflow: hidden; min-height: 0; }
                 
                 .col-left-stats { display: flex; flex-direction: column; gap: 15px; overflow: hidden; height: 100%; }
                 .col-right-logs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
