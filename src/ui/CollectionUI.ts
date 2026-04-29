@@ -544,13 +544,20 @@ export class CollectionUI {
         `;
 
         // Recalculate Rank Stats locally for perfect consistency with the list
-        // [RULE] Anything below B is treated as B
         const relevantRecords = records.filter(r => r.key_mode === this.currentKeyMode && r.difficulty === this.currentDifficulty);
+        
+        // Helper to get effective grade consistently
+        const getEffectiveGrade = (r: any) => {
+            if (r.best_accuracy >= 100) return 'S+';
+            if (r.best_grade === 'S+') return 'S'; // Downgrade if AP is lost (legacy)
+            return ['S', 'A'].includes(r.best_grade) ? r.best_grade : 'B';
+        };
+
         const localRankStats = {
-            rank_s_plus: relevantRecords.filter(r => r.best_grade === 'S+' || (r.best_accuracy >= 100)).length,
-            rank_s: relevantRecords.filter(r => r.best_grade === 'S' && r.best_accuracy < 100).length,
-            rank_a: relevantRecords.filter(r => r.best_grade === 'A').length,
-            rank_b: relevantRecords.filter(r => !['S+', 'S', 'A'].includes(r.best_grade) && r.best_accuracy < 100).length
+            rank_s_plus: relevantRecords.filter(r => getEffectiveGrade(r) === 'S+').length,
+            rank_s: relevantRecords.filter(r => getEffectiveGrade(r) === 'S').length,
+            rank_a: relevantRecords.filter(r => getEffectiveGrade(r) === 'A').length,
+            rank_b: relevantRecords.filter(r => getEffectiveGrade(r) === 'B').length
         };
         
         // --- Song List Expansion Logic ---
@@ -570,21 +577,11 @@ export class CollectionUI {
         if (this.currentRankFilter) {
             combinedRecords = combinedRecords.filter(cr => {
                 if (!cr.record) return false;
-                
-                // Centralized Rank Logic: Accuracy 100 is always S+, otherwise use stored grade
-                let effectiveGrade = cr.record.best_grade;
-                if (cr.record.best_accuracy >= 100) effectiveGrade = 'S+';
-                else if (effectiveGrade === 'S+') effectiveGrade = 'S'; // Downgrade if AP is lost (legacy protection)
-                
-                // Normalize for filter matching
-                const filterTarget = this.currentRankFilter;
-                
-                if (filterTarget === 'B') {
-                    return !['S+', 'S', 'A'].includes(effectiveGrade);
+                const effectiveGrade = getEffectiveGrade(cr.record);
+                if (this.currentRankFilter === 'B') {
+                    return effectiveGrade === 'B';
                 }
-                
-                // Strict match for S+ and S
-                return effectiveGrade === filterTarget;
+                return effectiveGrade === this.currentRankFilter;
             });
         }
 
@@ -712,8 +709,8 @@ export class CollectionUI {
                                             <div class="pi-name">${song.name}</div>
                                             <div class="pi-sub-row">
                                                 <div class="pi-sub-left">
-                                                    <div class="pi-grade ${record ? (record.best_accuracy >= 100 || record.best_grade === 'S+' ? 'gt-h s_plus' : record.best_grade === 'S' ? 'gt-h s' : record.best_grade === 'A' ? 'gt-h a' : 'gt-h b') : 'gt-h'}" style="${!record ? 'opacity: 0.2;' : ''}">
-                                                        ${record ? (record.best_accuracy >= 100 ? 'S+' : (['S+', 'S', 'A'].includes(record.best_grade) ? record.best_grade : 'B')) : '--'}
+                                                    <div class="pi-grade ${record ? (getEffectiveGrade(record) === 'S+' ? 'gt-h s_plus' : getEffectiveGrade(record) === 'S' ? 'gt-h s' : getEffectiveGrade(record) === 'A' ? 'gt-h a' : 'gt-h b') : 'gt-h'}" style="${!record ? 'opacity: 0.2;' : ''}">
+                                                        ${record ? getEffectiveGrade(record) : '--'}
                                                     </div>
                                                     <div class="pi-meta">
                                                         ${record ? `
