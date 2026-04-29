@@ -258,11 +258,19 @@ export class CollectionUI {
                 .grade-item-heavy.active.a { background: linear-gradient(180deg, #2ecc71, #27ae60) !important; color: #000 !important; box-shadow: 0 0 20px #2ecc71; }
                 .grade-item-heavy.active.b { background: linear-gradient(180deg, #3498db, #2980b9) !important; color: #000 !important; box-shadow: 0 0 20px #3498db; }
 
-                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: inherit !important; text-shadow: none !important; opacity: 1; }
+                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; font-weight: 700; transition: 0.2s; opacity: 0.8; }
+                .grade-item-heavy:hover .gt-h { opacity: 1; transform: scale(1.05); }
+                .gc-h { font-size: 0.75rem; font-weight: 900; opacity: 0.6; margin-top: 2px; transition: 0.2s; }
+                .grade-item-heavy:hover .gc-h { opacity: 0.9; }
                 
-                .gt-h { font-family: 'Goldman'; font-size: 1.6rem; color: inherit; font-weight: 700; transition: 0.2s; opacity: 0.7; }
-                .grade-item-heavy:hover .gt-h { opacity: 1; }
-                .gc-h { font-size: 0.75rem; font-weight: 900; color: inherit; opacity: 0.5; margin-top: 2px; }
+                /* INACTIVE COLOR PRESERVATION */
+                .gt-h.s_plus, .gc-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.4); }
+                .gt-h.s, .gc-h.s { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.4); }
+                .gt-h.a, .gc-h.a { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.4); }
+                .gt-h.b, .gc-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
+
+                /* ACTIVE STATE - TAB STYLE OVERRIDE */
+                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: inherit !important; text-shadow: none !important; opacity: 1; }
 
                 /* LOG HUD */
                 .perf-scroll { flex: 1; height: 100%; padding: 20px 10px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overflow-x: hidden; }
