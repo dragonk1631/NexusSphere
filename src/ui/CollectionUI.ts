@@ -397,8 +397,13 @@ export class CollectionUI {
                         flex: 1; display: flex; flex-direction: column; 
                         gap: 6px; height: 100%; min-height: 0; overflow: hidden;
                     }
-                    .col-left-stats .col-section { 
-                        flex: 1; display: flex; flex-direction: column;
+                    .col-left-stats .sec-stats { 
+                        flex: 6; display: flex; flex-direction: column;
+                        margin-top: 0; border-width: 1.5px; border-radius: 6px;
+                        overflow: hidden;
+                    }
+                    .col-left-stats .sec-grade { 
+                        flex: 4; display: flex; flex-direction: column;
                         margin-top: 0; border-width: 1.5px; border-radius: 6px;
                         overflow: hidden;
                     }
