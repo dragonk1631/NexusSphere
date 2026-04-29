@@ -663,18 +663,18 @@ export class CollectionUI {
                                 <div class="stats-grid-heavy">
                                     <div class="stat-box-heavy">
                                         <div class="stat-v">${(stats.max_streak || 0).toLocaleString()}</div>
-                                        <div class="stat-l">연속콤보기록</div>
+                                        <div class="stat-l">MAX STREAK // 연속콤보</div>
                                     </div>
                                     <div class="stat-box-heavy">
                                         <div class="stat-v">${(stats.total_notes_hit || 0).toLocaleString()}</div>
-                                        <div class="stat-l">누적 콤보기록</div>
+                                        <div class="stat-l">TOTAL HITS // 누적콤보</div>
                                     </div>
                                     <div class="stat-box-heavy">
                                         <div class="stat-v">${(stats.play_count || 0).toLocaleString()}</div>
-                                        <div class="stat-l">TOTAL PLAY COUNT // 총 플레이 횟수</div>
+                                        <div class="stat-l">TOTAL PLAYS // 총 플레이</div>
                                     </div>
                                     <div class="stat-box-heavy wide">
-                                        <div class="stat-v" style="font-size: 2.2rem;">${(stats.total_score || 0).toLocaleString()}</div>
+                                        <div class="stat-v" style="font-size: 1.8rem;">${(stats.total_score || 0).toLocaleString()}</div>
                                         <div class="stat-l">Total Accumulated Score // 누적 점수</div>
                                     </div>
                                 </div>
@@ -682,7 +682,7 @@ export class CollectionUI {
 
                             <!-- PERFORMANCE DISTRIBUTION SECTION -->
                              <div class="col-section sec-grade">
-                                <div class="col-sec-tag">Performance Rating (PLAYS: ${localRankStats.total_plays}) ${this.currentRankFilter ? `(FILTER: ${this.currentRankFilter})` : ''}</div>
+                                <div class="col-sec-tag">Performance Rating (TOTAL PLAYS: ${localRankStats.total_plays}) ${this.currentRankFilter ? `(FILTER: ${this.currentRankFilter})` : ''}</div>
                                 <div class="grade-grid-heavy">
                                     <div class="grade-item-heavy rank-filter ${this.currentRankFilter === 'S+' ? 'active s_plus' : ''}" data-rank="S+">
                                         <div class="gt-h s_plus">S+</div>
