@@ -119,12 +119,33 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id, song_id, key_mode, difficulty) DO UPDATE SET
-                    high_score = MAX(user_song_records_v2.high_score, EXCLUDED.high_score),
-                    max_combo = MAX(user_song_records_v2.max_combo, EXCLUDED.max_combo),
-                    best_accuracy = MAX(user_song_records_v2.best_accuracy, EXCLUDED.best_accuracy),
+                    high_score = CASE 
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.high_score
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN MAX(user_song_records_v2.high_score, EXCLUDED.high_score)
+                        ELSE user_song_records_v2.high_score
+                    END,
+                    max_combo = CASE 
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.max_combo
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN MAX(user_song_records_v2.max_combo, EXCLUDED.max_combo)
+                        ELSE user_song_records_v2.max_combo
+                    END,
+                    best_accuracy = CASE 
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.best_accuracy
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN MAX(user_song_records_v2.best_accuracy, EXCLUDED.best_accuracy)
+                        ELSE user_song_records_v2.best_accuracy
+                    END,
                     best_grade = CASE 
-                        WHEN EXCLUDED.high_score > user_song_records_v2.high_score THEN EXCLUDED.best_grade 
-                        ELSE user_song_records_v2.best_grade 
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.best_grade
+                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) AND EXCLUDED.high_score > user_song_records_v2.high_score THEN EXCLUDED.best_grade
+                        ELSE user_song_records_v2.best_grade
                     END,
                     play_count = user_song_records_v2.play_count + 1,
                     clear_count = user_song_records_v2.clear_count + 1,

@@ -566,13 +566,26 @@ export class CollectionUI {
             return { song, record };
         });
 
-        // Apply Rank Filter if active (B filter includes anything below B)
+        // Apply Rank Filter if active
         if (this.currentRankFilter) {
-            if (this.currentRankFilter === 'B') {
-                combinedRecords = combinedRecords.filter(cr => cr.record && !['S+', 'S', 'A'].includes(cr.record.best_grade));
-            } else {
-                combinedRecords = combinedRecords.filter(cr => cr.record && cr.record.best_grade === this.currentRankFilter);
-            }
+            combinedRecords = combinedRecords.filter(cr => {
+                if (!cr.record) return false;
+                
+                // Centralized Rank Logic: Accuracy 100 is always S+, otherwise use stored grade
+                let effectiveGrade = cr.record.best_grade;
+                if (cr.record.best_accuracy >= 100) effectiveGrade = 'S+';
+                else if (effectiveGrade === 'S+') effectiveGrade = 'S'; // Downgrade if AP is lost (legacy protection)
+                
+                // Normalize for filter matching
+                const filterTarget = this.currentRankFilter;
+                
+                if (filterTarget === 'B') {
+                    return !['S+', 'S', 'A'].includes(effectiveGrade);
+                }
+                
+                // Strict match for S+ and S
+                return effectiveGrade === filterTarget;
+            });
         }
 
         // Sort: Played songs (recent first), then unplayed songs (alphabetical)

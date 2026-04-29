@@ -379,11 +379,16 @@ export class ScoreManager {
             timestamp: Date.now()
         };
 
-        const recordKey = `${songId}:${keyMode}:${difficulty}`;
-        const existing = this.highScores[recordKey];
-        let isNewRecord = false;
+        const gradePriority: { [key: string]: number } = { 'S+': 4, 'S': 3, 'A': 2, 'B': 1, 'F': 0 };
+        const currentGradePower = gradePriority[existing?.grade || 'F'] || 0;
+        const newGradePower = gradePriority[newRecord.grade] || 0;
 
-        if (!existing || newRecord.score > existing.score) {
+        // Update if: 1. No existing record, 2. Better grade, 3. Same grade but better score
+        const shouldUpdate = !existing || 
+                           (newGradePower > currentGradePower) || 
+                           (newGradePower === currentGradePower && newRecord.score > existing.score);
+
+        if (shouldUpdate) {
             this.highScores[recordKey] = newRecord;
             this.save();
             isNewRecord = true;
