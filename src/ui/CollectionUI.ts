@@ -239,23 +239,37 @@ export class CollectionUI {
                     box-shadow: inset 0 0 10px rgba(255,255,255,0.02);
                 }
 
-                .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); color: #000; box-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
-                
-                .grade-item-heavy.active.s_plus { background: linear-gradient(180deg, #f1c40f, #b8860b); color: #000; border-color: #fff; box-shadow: 0 0 20px #f1c40f; }
-                .grade-item-heavy.active.s { background: linear-gradient(180deg, #ff4757, #990000); color: #fff; border-color: #fff; box-shadow: 0 0 20px #ff4757; }
-                .grade-item-heavy.active.a { background: linear-gradient(180deg, #2ecc71, #27ae60); color: #000; border-color: #fff; box-shadow: 0 0 20px #2ecc71; }
-                .grade-item-heavy.active.b { background: linear-gradient(180deg, #3498db, #2980b9); color: #000; border-color: #fff; box-shadow: 0 0 20px #3498db; }
+                .grade-item-heavy::after {
+                    content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+                    transform: translateX(-100%) skewX(-15deg); transition: 0.5s;
+                }
+                .grade-item-heavy:hover::after { animation: mm-shimmer 0.8s infinite; }
 
-                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: inherit; text-shadow: none; }
+                .grade-item-heavy:hover { 
+                    border-color: rgba(255, 255, 255, 0.4); 
+                    transform: translateY(-3px) scale(1.03); 
+                    background: rgba(255, 255, 255, 0.1); 
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.3), 0 0 10px rgba(255,255,255,0.1);
+                }
+                .grade-item-heavy:active { transform: translateY(-1px) scale(0.97); }
+
+                .grade-item-heavy.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); color: #000; box-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
+                .grade-item-heavy.active.s_plus { background: linear-gradient(180deg, #f1c40f, #b8860b) !important; color: #000 !important; border-color: #fff; box-shadow: 0 0 20px #f1c40f; }
+                .grade-item-heavy.active.s { background: linear-gradient(180deg, #ff4757, #990000) !important; color: #fff !important; border-color: #fff; box-shadow: 0 0 20px #ff4757; }
+                .grade-item-heavy.active.a { background: linear-gradient(180deg, #2ecc71, #27ae60) !important; color: #000 !important; border-color: #fff; box-shadow: 0 0 20px #2ecc71; }
+                .grade-item-heavy.active.b { background: linear-gradient(180deg, #3498db, #2980b9) !important; color: #000 !important; border-color: #fff; box-shadow: 0 0 20px #3498db; }
+
+                .grade-item-heavy.active .gt-h, .grade-item-heavy.active .gc-h { color: inherit !important; text-shadow: none !important; opacity: 1; }
                 
-                .gt-h { font-family: 'Goldman'; font-size: 1.8rem; color: #fff; font-weight: 700; transition: 0.2s; opacity: 0.8; }
+                .gt-h { font-family: 'Goldman'; font-size: 1.8rem; color: #fff; font-weight: 700; transition: 0.2s; opacity: 0.8; pointer-events: none; }
                 .grade-item-heavy:hover .gt-h { transform: scale(1.1); opacity: 1; }
                 
-                .gt-h.s_plus { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
-                .gt-h.s { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.5); }
-                .gt-h.a { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.5); }
-                .gt-h.b { color: #3498db; text-shadow: 0 0 10px rgba(52, 152, 219, 0.5); }
-                .gc-h { font-size: 0.85rem; font-weight: 900; color: #fff; opacity: 0.6; margin-top: 4px; }
+                .gt-h.s_plus { color: #f1c40f; }
+                .gt-h.s { color: #ff4757; }
+                .gt-h.a { color: #2ecc71; }
+                .gt-h.b { color: #3498db; }
+                .gc-h { font-size: 0.85rem; font-weight: 900; color: #fff; opacity: 0.6; margin-top: 4px; pointer-events: none; }
 
                 /* LOG HUD */
                 .perf-scroll { flex: 1; height: 100%; padding: 20px 10px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overflow-x: hidden; }
