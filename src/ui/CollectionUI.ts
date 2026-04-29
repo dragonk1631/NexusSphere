@@ -192,20 +192,20 @@ export class CollectionUI {
                 }
 
                 /* CONTENT HUD */
-                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px; overflow: hidden; min-height: 0; }
+                .col-content { flex: 1; padding: 30px 35px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; overflow: hidden; min-height: 0; }
                 
                 .col-left-stats { display: flex; flex-direction: column; gap: 15px; overflow: hidden; height: 100%; }
                 .col-right-logs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
                 
-                .col-left-stats .sec-stats { flex: 0 0 auto; }
+                .col-left-stats .sec-stats { flex: 1.2; display: flex; flex-direction: column; min-height: 0; }
                 .col-left-stats .sec-grade { flex: 1; display: flex; flex-direction: column; min-height: 0; }
                 .col-left-stats .sec-grade .grade-grid-heavy { flex: 1; align-content: center; }
                 
-                .stats-grid-heavy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 15px 20px; }
-                .stat-box-heavy { background: rgba(0,0,0,0.5); border: 2px solid rgba(0, 255, 255, 0.25); padding: 10px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 70px; }
+                .stats-grid-heavy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 20px; }
+                .stat-box-heavy { background: rgba(0,0,0,0.5); border: 2px solid rgba(0, 255, 255, 0.25); padding: 15px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
                 .stat-box-heavy.wide { grid-column: span 3; border-color: ${themeCyan}; background: rgba(0, 255, 255, 0.05); }
-                .stat-v { font-size: 1.6rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 10px ${themeCyan}; }
-                .stat-l { font-size: 0.6rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; line-height: 1.2; }
+                .stat-v { font-size: 2rem; font-family: 'Goldman'; color: ${themeCyan}; text-shadow: 0 0 12px ${themeCyan}; }
+                .stat-l { font-size: 0.7rem; opacity: 0.6; font-weight: 800; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; }
 
                 /* RANK COLORS */
                 .grade-grid-heavy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px 15px; }
@@ -410,23 +410,22 @@ export class CollectionUI {
 
                     /* Stats Grid */
                     .stats-grid-heavy { 
-                        flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, 1fr);
-                        padding: 4px; gap: 4px; align-content: flex-start;
+                        flex: 1.2; display: grid; grid-template-columns: repeat(3, 1fr);
+                        padding: 6px; gap: 6px; align-content: center;
                     }
-                    .stat-box-heavy { padding: 4px; border-width: 1px; border-radius: 4px; display: flex; flex-direction: column; justify-content: center; min-height: 45px; }
-                    .stat-v { font-size: 1rem; }
-                    .stat-l { font-size: 0.4rem; margin-top: 0; letter-spacing: 0.3px; }
+                    .stat-box-heavy { padding: 6px; border-width: 1px; border-radius: 4px; display: flex; flex-direction: column; justify-content: center; min-height: 50px; }
+                    .stat-v { font-size: 1.1rem; }
+                    .stat-l { font-size: 0.45rem; margin-top: 2px; letter-spacing: 0.3px; }
                     .stat-box-heavy.wide { grid-column: span 3; }
-                    .stat-box-heavy.wide .stat-v { font-size: 1.1rem !important; }
-                    .stat-box-heavy.wide .stat-l { font-size: 0.4rem; }
+                    .stat-box-heavy.wide .stat-v { font-size: 1.2rem !important; }
 
                     /* Grade Grid */
                     .grade-grid-heavy { 
                         flex: 1; display: grid; grid-template-columns: repeat(4, 1fr);
-                        padding: 4px; gap: 4px; align-content: flex-start;
+                        padding: 6px; gap: 6px; align-content: center;
                     }
                     .grade-item-heavy { 
-                        height: 45px; border-width: 1px; border-radius: 4px; 
+                        height: 50px; border-width: 1px; border-radius: 4px; 
                         padding: 2px 0; min-height: 0; flex-direction: column; display: flex; justify-content: center; align-items: center;
                     }
                     .gt-h { font-size: 1.1rem; }
@@ -434,7 +433,7 @@ export class CollectionUI {
 
                     /* Right Column: Mission log fills full height */
                     .col-right-logs { 
-                        flex: 1.5; display: flex; flex-direction: column; 
+                        flex: 1; display: flex; flex-direction: column; 
                         height: 100%; min-height: 0; overflow: hidden;
                     }
                     .col-right-logs .col-section { 
