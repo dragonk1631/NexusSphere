@@ -1,5 +1,6 @@
 import { UIManager } from '../core/ui/UIManager';
 import { SettingsUI } from './SettingsUI';
+import { ShopUI } from './ShopUI';
 import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 import { ThemeManager } from '../core/ThemeManager';
 import { RankingUI } from './RankingUI';
@@ -16,6 +17,7 @@ export class MainMenu {
     private ui: UIManager;
     private onStartGame: (mode: string) => void;
     private settingsUI: SettingsUI | null = null;
+    private shopUI: ShopUI | null = null;
     private currentLang: string = 'en';
     private themeUnsubscribe: (() => void) | null = null;
 
@@ -281,15 +283,6 @@ export class MainMenu {
                     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
                 }
 
-                .mm-auth-name { 
-                    font-family: 'Black Han Sans', sans-serif;
-                    font-size: 0.85rem; 
-                    font-weight: 900; 
-                    color: white; 
-                    text-transform: uppercase;
-                    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-                }
-
                 /* ── BGM BADGE ── */
                 .mm-bgm-badge {
                     display: inline-flex;
@@ -461,18 +454,6 @@ export class MainMenu {
                 .mm-lang-group { display: flex; gap: 25px; margin-left: 60px; border-left: 2px solid rgba(255,255,255,0.2); padding-left: 60px; }
                 .mm-flag-btn { font-size: 2.5rem; cursor: pointer; opacity: 0.4; transition: 0.3s; }
                 .mm-flag-btn.active, .mm-flag-btn:hover { opacity: 1; transform: scale(1.3) translateY(-4px); }
-                .mm-nav-item { display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; opacity: 0.8; transition: 0.2s; }
-                .mm-nav-item:hover { opacity: 1; transform: translateY(-6px); }
-                .mm-nav-icon { font-size: clamp(2.5rem, 6vh, 3.5rem); } /* Enlarged footer icons v49 */
-                .mm-nav-label { font-size: clamp(0.85rem, 2vh, 1.2rem); font-weight: 900; text-transform: uppercase; }
-
-                .mm-lang-group { 
-                    display: flex; gap: 20px; margin-left: 50px; 
-                    border-left: 3px solid rgba(255,255,255,0.2); 
-                    padding: 10px 0 10px 50px; 
-                }
-                .mm-flag-btn { font-size: clamp(2.2rem, 5.5vh, 3.2rem); cursor: pointer; opacity: 0.4; transition: 0.2s; }
-                .mm-flag-btn.active, .mm-flag-btn:hover { opacity: 1; transform: scale(1.25) translateY(-4px); }
             </style>
         `;
 
@@ -594,11 +575,13 @@ export class MainMenu {
             this.onStartGame('editor');
         });
         document.getElementById('btn-ranking')?.addEventListener('click', () => {
-            console.log('Ranking clicked');
             this.showRanking();
         });
         document.getElementById('btn-collection')?.addEventListener('click', () => {
             this.showCollection();
+        });
+        document.getElementById('btn-shop')?.addEventListener('click', () => {
+            this.showShop();
         });
         document.getElementById('btn-settings')?.addEventListener('click', () => {
             this.navigateWithTransition('Opening Settings...', async () => {
@@ -625,7 +608,7 @@ export class MainMenu {
         });
 
         // Auth listeners (using delegation for dynamic #mm-auth-container)
-        document.getElementById('mm-currency-container')?.addEventListener('click', async (e) => {
+        document.getElementById('mm-hud-left-container')?.addEventListener('click', async (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('#mm-auth-container')) {
                 const auth = AuthService.getInstance();
@@ -762,6 +745,30 @@ export class MainMenu {
                 this.show();
             });
             await collection.show();
+        });
+    }
+
+    private async showShop(): Promise<void> {
+        const auth = AuthService.getInstance();
+        if (!auth.isSignedIn()) {
+            ModalUI.getInstance().show(
+                'AUTHENTICATION REQUIRED',
+                'Please sign in to access the item shop and customize your themes or skins.',
+                {
+                    confirmLabel: 'SIGN IN NOW',
+                    cancelLabel: 'LATER',
+                    onConfirm: () => auth.openSignIn()
+                }
+            );
+            return;
+        }
+
+        await this.navigateWithTransition('Entering Shop...', async () => {
+            this.hideMenuOnly();
+            this.shopUI = new ShopUI(() => {
+                this.show();
+            });
+            await this.shopUI.show();
         });
     }
 

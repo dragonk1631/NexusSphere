@@ -150,4 +150,19 @@ export class AuthService {
     public async signOut(): Promise<void> {
         await this.clerk?.signOut();
     }
+
+    /**
+     * [GOD-MODE] Checks if the current user has administrative privileges.
+     * Strictly validates through Clerk's publicMetadata.
+     */
+    public isAdmin(): boolean {
+        if (!this.isSignedIn()) return false;
+        
+        // Clerk uses publicMetadata for role-based access
+        const role = this.clerk.user.publicMetadata?.role;
+        
+        // Hardcoded emergency admin ID or email domain can also be added here if needed
+        // For now, we trust the metadata set by the backend/dashboard
+        return role === 'admin';
+    }
 }

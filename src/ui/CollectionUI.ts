@@ -795,19 +795,19 @@ export class CollectionUI {
                              <div class="col-section sec-grade">
                                 <div class="col-sec-tag">Performance Rating (TOTAL PLAYS: ${localRankStats.total_plays}) ${this.currentRankFilter ? `(FILTER: ${this.currentRankFilter})` : ''}</div>
                                 <div class="grade-grid-heavy">
-                                    <div class="grade-item-heavy s_plus_btn ${this.currentRankFilter === 'S+' ? 'active' : ''}" data-rank="S+">
+                                    <div class="grade-item-heavy rank-filter s_plus_btn ${this.currentRankFilter === 'S+' ? 'active' : ''}" data-rank="S+">
                                         <div class="gt-h s_plus">S+</div>
                                         <div class="gc-h s_plus">${localRankStats.rank_s_plus}</div>
                                     </div>
-                                    <div class="grade-item-heavy s_btn ${this.currentRankFilter === 'S' ? 'active' : ''}" data-rank="S">
+                                    <div class="grade-item-heavy rank-filter s_btn ${this.currentRankFilter === 'S' ? 'active' : ''}" data-rank="S">
                                         <div class="gt-h s">S</div>
                                         <div class="gc-h s">${localRankStats.rank_s}</div>
                                     </div>
-                                    <div class="grade-item-heavy a_btn ${this.currentRankFilter === 'A' ? 'active' : ''}" data-rank="A">
+                                    <div class="grade-item-heavy rank-filter a_btn ${this.currentRankFilter === 'A' ? 'active' : ''}" data-rank="A">
                                         <div class="gt-h a">A</div>
                                         <div class="gc-h a">${localRankStats.rank_a}</div>
                                     </div>
-                                    <div class="grade-item-heavy b_btn ${this.currentRankFilter === 'B' ? 'active' : ''}" data-rank="B">
+                                    <div class="grade-item-heavy rank-filter b_btn ${this.currentRankFilter === 'B' ? 'active' : ''}" data-rank="B">
                                         <div class="gt-h b">B</div>
                                         <div class="gc-h b">${localRankStats.rank_b}</div>
                                     </div>
