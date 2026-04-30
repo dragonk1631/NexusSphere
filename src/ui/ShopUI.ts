@@ -175,25 +175,32 @@ export class ShopUI {
                 /* Guest Experience v2 */
                 .shop-guest-banner {
                     background: linear-gradient(90deg, #ff00cc 0%, #3333ff 100%);
-                    padding: 12px; display: flex; align-items: center; justify-content: center;
-                    gap: 20px; font-weight: 800; font-size: 0.9rem;
+                    padding: 6px 15px; display: flex; align-items: center; justify-content: center;
+                    gap: 15px; font-weight: 800; font-size: 0.85rem;
                     border-bottom: 2px solid rgba(255,255,255,0.2);
                     animation: bannerPulse 2s infinite ease-in-out;
+                    flex-shrink: 0;
                 }
                 @keyframes bannerPulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; filter: brightness(1.2); } }
                 .banner-login-btn {
                     background: linear-gradient(135deg, #ff00cc 0%, #3333ff 100%);
-                    color: #fff; border: 2px solid #fff; padding: 6px 20px;
-                    border-radius: 8px; font-family: 'Black Han Sans'; cursor: pointer;
-                    transition: 0.2s; font-weight: 900;
-                    box-shadow: 0 0 15px rgba(255, 0, 204, 0.4);
-                    animation: btn-pulse-vibrant 2.5s infinite;
+                    color: #fff; border: 1px solid #fff; padding: 4px 16px;
+                    border-radius: 4px; font-family: 'Black Han Sans'; cursor: pointer;
+                    transition: 0.2s; font-weight: 900; font-size: 0.8rem;
+                    box-shadow: 0 0 10px rgba(255, 0, 204, 0.4);
                 }
-                .banner-login-btn:hover { transform: scale(1.1); filter: brightness(1.2); }
+                .banner-login-btn:hover { transform: scale(1.05); filter: brightness(1.2); }
                 
-                @keyframes btn-pulse-vibrant {
-                    0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 204, 0.3); }
-                    50% { box-shadow: 0 0 25px rgba(255, 0, 204, 0.6), 0 0 40px rgba(51, 51, 255, 0.3); }
+                @media (max-width: 850px) {
+                    .shop-guest-banner {
+                        padding: 4px 10px;
+                        font-size: 0.7rem;
+                        gap: 10px;
+                    }
+                    .banner-login-btn {
+                        padding: 2px 10px;
+                        font-size: 0.7rem;
+                    }
                 }
 
                 .shop-panel {
@@ -361,7 +368,7 @@ export class ShopUI {
                 banner.id = bannerId;
                 banner.className = 'shop-guest-banner';
                 banner.innerHTML = `
-                    <span>SIGN IN TO ENABLE PURCHASES AND SYNC YOUR INVENTORY</span>
+                    <span>SIGN IN TO SYNC PURCHASES</span>
                     <button class="banner-login-btn">SIGN IN NOW</button>
                 `;
                 panel.prepend(banner);

@@ -414,19 +414,69 @@ export class MainMenu {
                     .mm-card-icon { font-size: 1.8rem; }
                     .mm-bottom-nav { height: 90px; padding-bottom: 20px; gap: 40px; }
                 }
-                .mm-center { display: flex; width: 100%; gap: 18px; justify-content: center; }
-                .mm-card {
-                    position: relative; flex: 1; aspect-ratio: 1.2 / 1; border-radius: 30px;
-                    border: 3px solid rgba(255,255,255,0.35); display: flex; flex-direction: column;
-                    align-items: center; justify-content: center; gap: 8px; cursor: pointer; overflow: hidden;
-                    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+                .mm-center { 
+                    display: flex; 
+                    width: 100%; 
+                    gap: clamp(12px, 4vw, 50px); /* Responsive gap: small for mobile, large for desktop */
+                    justify-content: center; 
+                    align-items: center;
                 }
-                .mm-card-play { background: linear-gradient(135deg, rgba(255,0,110,1), rgba(255,100,50,1)); }
+                .mm-card {
+                    position: relative; flex: 1; aspect-ratio: 1.2 / 1; 
+                    border-radius: 30px;
+                    border: 3px solid rgba(255,255,255,0.35); display: flex; flex-direction: column;
+                    align-items: center; justify-content: center; gap: 4px; cursor: pointer; overflow: hidden;
+                    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+                    padding: clamp(10px, 2vh, 20px) 5px clamp(12px, 2.5vh, 25px) 5px;
+                    box-sizing: border-box;
+                }
+                .mm-card-play { 
+                    background: linear-gradient(135deg, rgba(255,0,110,1), rgba(255,100,50,1)); 
+                    transform: scale(1.2); 
+                    z-index: 100;
+                    border: 3px solid rgba(255, 255, 255, 0.4) !important;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                }
+                .mm-card-play:hover { 
+                    transform: scale(1.3) translateY(-15px) !important; 
+                    filter: brightness(1.2);
+                }
+
+                /* [MOBILE OPTIMIZATION] */
+                @media (max-width: 850px) {
+                    .mm-panel { width: 96vw; padding: 10px; border-radius: 25px; }
+                    .mm-card { border-radius: 18px; border-width: 2px; }
+                    .mm-card-play { transform: scale(1.12); } /* Slightly smaller scale for mobile to save space */
+                    .mm-card-play:hover { transform: scale(1.18) translateY(-8px) !important; }
+                    .mm-center { gap: clamp(8px, 2.5vw, 20px); }
+                }
+
+                /* [ULTRA] Font-Focused Mega Pulse (Unified Style) */
+                .mm-card-play .mm-card-label {
+                    color: #fff !important;
+                    -webkit-text-stroke: 1.5px #000; /* High contrast stroke */
+                    paint-order: stroke fill;
+                    font-size: clamp(1.1rem, 2.3vh, 1.5rem) !important;
+                    animation: mm-play-font-mega 1.2s infinite alternate ease-in-out;
+                    display: inline-block;
+                    text-shadow: 0 4px 12px rgba(0,0,0,1);
+                }
+                @keyframes mm-play-font-mega {
+                    0% { 
+                        transform: scale(1);
+                        text-shadow: 0 4px 8px rgba(0,0,0,1);
+                    }
+                    100% { 
+                        transform: scale(1.45); 
+                        text-shadow: 0 10px 25px rgba(0,0,0,1); /* Deep black shadow for impact */
+                    }
+                }
+
                 .mm-card-editor { background: linear-gradient(135deg, rgba(255,200,0,1), rgba(180,255,0,1)); }
                 .mm-card-ranking { background: linear-gradient(135deg, rgba(255,100,10,1), rgba(255,180,0,1)); }
                 .mm-card-collection { background: linear-gradient(135deg, rgba(140,255,0,1), rgba(0,210,255,1)); }
                 .mm-card-shop { background: linear-gradient(135deg, rgba(0,210,255,1), rgba(120,0,255,1)); }
-                .mm-card:hover { transform: scale(1.06) translateY(-8px); border-color: white; box-shadow: 0 10px 30px rgba(255,255,255,0.2); }
+                .mm-card:not(.mm-card-play):hover { transform: scale(1.06) translateY(-8px); border-color: white; box-shadow: 0 10px 30px rgba(255,255,255,0.2); }
                 .mm-card-icon { font-size: clamp(1.8rem, 4.5vh, 2.6rem); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.4)); }
                 .mm-card-label { 
                     font-family: 'Black Han Sans', sans-serif; font-size: clamp(0.85rem, 1.7vh, 1.15rem); margin-top: 4px;
@@ -494,11 +544,6 @@ export class MainMenu {
                     </div>
                     <div class="mm-panel">
                         <div class="mm-center">
-                            <div class="mm-card mm-card-play" id="btn-rhythm">
-                                <div class="mm-card-icon">🎵</div>
-                                <div class="mm-card-label">${t.play}</div>
-                                <div class="mm-card-sub">${t.playDesc}</div>
-                            </div>
                             <div class="mm-card mm-card-editor" id="btn-editor">
                                 <div class="mm-card-icon">💿</div>
                                 <div class="mm-card-label">${t.editor}</div>
@@ -508,6 +553,11 @@ export class MainMenu {
                                 <div class="mm-card-icon">🏆</div>
                                 <div class="mm-card-label">${t.ranking}</div>
                                 <div class="mm-card-sub">${t.rankingDesc}</div>
+                            </div>
+                            <div class="mm-card mm-card-play" id="btn-rhythm">
+                                <div class="mm-card-icon">🎮</div>
+                                <div class="mm-card-label">${t.play}</div>
+                                <div class="mm-card-sub">${t.playDesc}</div>
                             </div>
                             <div class="mm-card mm-card-collection" id="btn-collection">
                                 <div class="mm-card-icon">📂</div>

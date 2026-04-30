@@ -89,6 +89,13 @@ export class CollectionUI {
                 }
 
                 /* NEW PAGE TITLE BAR */
+                .col-header {
+                    display: flex; gap: clamp(15px, 2vw, 25px); padding: clamp(20px, 3.5vh, 30px);
+                    background: rgba(0,0,0,0.5); border-bottom: 1px solid rgba(255,255,255,0.1);
+                    position: relative;
+                    align-items: center;
+                }
+
                 .col-title-bar {
                     background: rgba(0, 255, 255, 0.1);
                     padding: 6px 35px; border-bottom: 1px solid rgba(0, 255, 255, 0.3);
@@ -592,27 +599,59 @@ export class CollectionUI {
                     .pi-meta-item b { font-size: 0.6rem; }
                 }
 
-                /* [NEW] Premium Action Button for Guests */
+                /* [NEW] Premium Action Button for Guests - Responsive v2 */
                 .col-btn-sync-premium {
                     background: linear-gradient(135deg, #ff00cc 0%, #3333ff 100%);
-                    border: 2px solid rgba(255,255,255,0.8);
-                    border-radius: 8px;
-                    padding: 8px 18px;
+                    border: 1px solid rgba(255,255,255,0.8);
+                    border-radius: 4px;
+                    padding: 0 16px;
                     color: white;
                     font-family: 'Goldman', cursive;
                     font-weight: 900;
-                    font-size: 1rem;
+                    font-size: 0.8rem;
                     display: flex;
-                    flex-direction: column;
                     align-items: center;
-                    line-height: 1.1;
+                    justify-content: center;
+                    height: 38px;
                     cursor: pointer;
                     transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    box-shadow: 0 0 20px rgba(255, 0, 204, 0.5);
-                    margin-left: 20px;
-                    flex-shrink: 0;
+                    box-shadow: 0 0 15px rgba(255, 0, 204, 0.4);
                     animation: btn-pulse-vibrant 2.5s infinite;
-                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                    margin-right: 15px;
+                }
+                .col-btn-sync-premium:hover {
+                    transform: scale(1.08) rotate(-1deg);
+                    box-shadow: 0 0 35px rgba(255, 0, 204, 0.8);
+                    filter: brightness(1.2);
+                }
+                
+                @media (max-width: 850px) {
+                    .col-btn-sync-premium {
+                        padding: 0 12px;
+                        font-size: 0.55rem;
+                        height: 24px;
+                        margin-right: 6px;
+                        transform: translateY(-1px);
+                    }
+                    .col-emblem-wrap { width: 32px !important; height: 32px !important; transform: translateY(-1px) !important; }
+                    .emb-icon-wrap { width: 24px !important; height: 24px !important; }
+                    .col-header { 
+                        height: auto !important; 
+                        padding: 6px 12px !important; 
+                        gap: 8px !important;
+                    }
+                    .col-avatar { width: 32px !important; height: 32px !important; }
+                    .col-username { font-size: 0.95rem !important; margin: 0 !important; }
+                    .col-warning-pulse { font-size: 0.45rem !important; margin: 0 !important; }
+                    .stat-box-heavy { 
+                        min-height: 28px !important; 
+                        padding: 2px 6px !important; 
+                    }
+                    .stat-val-heavy { font-size: 0.8rem !important; }
+                    .stat-label-heavy { font-size: 0.45rem !important; }
+                    .stats-grid-heavy, .grade-grid-heavy { gap: 4px !important; padding: 2px !important; }
                 }
                 .col-btn-sync-premium:hover {
                     transform: scale(1.1) rotate(-1deg);
@@ -627,9 +666,9 @@ export class CollectionUI {
                 }
 
                 .col-warning-pulse {
-                    color: #ff4757;
+                    color: #ffcc00; /* High-contrast Yellow */
                     font-weight: 900;
-                    text-shadow: 0 0 10px rgba(255, 71, 87, 0.8);
+                    text-shadow: 0 0 10px rgba(255, 204, 0, 0.6);
                     animation: text-flicker 1.5s infinite;
                     letter-spacing: 1px;
                 }
@@ -673,7 +712,10 @@ export class CollectionUI {
                 .emb-item.unlocked { border-color: rgba(0, 255, 255, 0.3); background: rgba(0, 255, 255, 0.05); }
                 .emb-item.unlocked:hover { transform: translateY(-5px); border-color: ${themeCyan}; box-shadow: 0 5px 15px rgba(0,255,255,0.15); }
                 .emb-item.current { border-color: #f1c40f; box-shadow: 0 0 20px rgba(241,196,15,0.2); background: rgba(241,196,15,0.05); }
-                .emb-icon-wrap { position: relative; width: 60px; height: 60px; }
+                .col-emblem-wrap { 
+                    position: relative; width: 60px; height: 60px; cursor: pointer; flex-shrink: 0; 
+                }
+                .emb-icon-wrap { position: relative; width: 50px; height: 50px; }
                 .emb-frame, .emb-icon { position: absolute; inset: 0; width: 100%; height: 100%; transition: all 0.3s; }
                 .emb-name { font-family: 'Goldman', cursive; font-size: 0.75rem; text-align: center; color: #fff; line-height: 1.2; }
                 .emb-item.locked .emb-name { color: #888 !important; }
@@ -776,25 +818,28 @@ export class CollectionUI {
                             <div class="col-avatar">
                                 <img src="${auth.isSignedIn() ? (auth.getClerk()?.user?.imageUrl || '') : 'https://ui-avatars.com/api/?name=Guest&background=random'}" alt="AVATAR">
                             </div>
-                            <div style="min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div class="col-username">${auth.isSignedIn() ? auth.getUserName() : 'GUEST USER'}</div>
-                                    ${!auth.isSignedIn() ? `
-                                        <button class="col-btn-sync-premium" id="col-guest-login-premium">
-                                            <span style="font-size: 0.6rem; opacity: 0.8; letter-spacing: 2px;">SECURE YOUR PROGRESS</span>
-                                            <span>SIGN IN NOW</span>
-                                        </button>
-                                    ` : ''}
-                                </div>
-                                <div style="font-size: 0.75rem; font-weight: 800; margin-top: 8px; letter-spacing: 1.5px; text-transform: uppercase;">
+                            <div style="min-width: 0; flex: 1; overflow: visible;">
+                                ${!auth.isSignedIn() ? `
+                                    <div class="col-warning-pulse" style="font-size: 0.6rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">
+                                        ⚠️ OFFLINE MODE: PROGRESS NOT SAVED
+                                    </div>
+                                ` : ''}
+                                <div class="col-username">${auth.isSignedIn() ? auth.getUserName() : 'GUEST USER'}</div>
+                                <div style="margin-top: 4px;">
                                     ${auth.isSignedIn() ? 
-                                        `<span style="color: ${themeCyan}; opacity: 0.5;">NEXUS SYSTEM SYNCED // USER_ID: ${auth.getClerk()?.user?.id?.slice(0, 8)}</span>` : 
-                                        `<span class="col-warning-pulse">⚠️ OFFLINE MODE: PROGRESS NOT SAVED TO CLOUD SERVER</span>`
+                                        `<div style="font-size: 0.75rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: ${themeCyan}; opacity: 0.5;">
+                                            SYSTEM SYNCED // USER_ID: ${auth.getClerk()?.user?.id?.slice(0, 8)}
+                                        </div>` : ''
                                     }
                                 </div>
                             </div>
                         </div>
                         <div class="col-progression">
+                            ${!auth.isSignedIn() ? `
+                                <button class="col-btn-sync-premium" id="col-guest-login-premium">
+                                    SIGN IN TO SYNC
+                                </button>
+                            ` : ''}
                             <div class="col-emblem-wrap" id="emblem-trigger">
                                 <div class="col-emblem-frame" style="color: ${classInfo.color}">${makeUniqueSVG(classInfo.frameSVG, 'main')}</div>
                                 <div class="col-emblem-icon">${makeUniqueSVG(classInfo.emblemSVG, 'main')}</div>
