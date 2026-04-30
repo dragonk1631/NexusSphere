@@ -7,6 +7,7 @@ import { MenuMusicManager } from '../core/audio/MenuMusicManager';
 import { BackgroundRenderer } from '../core/graphics/BackgroundRenderer';
 import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 import { AuthService } from '../services/auth/AuthService';
+import { ModalUI } from './ModalUI';
 
 type ShopTab = 'theme' | 'note';
 
@@ -171,6 +172,30 @@ export class ShopUI {
                 .god-btn-reset { background: #555; color: #fff; flex: 1; }
                 .god-btn:hover { filter: brightness(1.2); transform: translateY(-2px); }
 
+                /* Guest Experience v2 */
+                .shop-guest-banner {
+                    background: linear-gradient(90deg, #ff00cc 0%, #3333ff 100%);
+                    padding: 12px; display: flex; align-items: center; justify-content: center;
+                    gap: 20px; font-weight: 800; font-size: 0.9rem;
+                    border-bottom: 2px solid rgba(255,255,255,0.2);
+                    animation: bannerPulse 2s infinite ease-in-out;
+                }
+                @keyframes bannerPulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; filter: brightness(1.2); } }
+                .banner-login-btn {
+                    background: linear-gradient(135deg, #ff00cc 0%, #3333ff 100%);
+                    color: #fff; border: 2px solid #fff; padding: 6px 20px;
+                    border-radius: 8px; font-family: 'Black Han Sans'; cursor: pointer;
+                    transition: 0.2s; font-weight: 900;
+                    box-shadow: 0 0 15px rgba(255, 0, 204, 0.4);
+                    animation: btn-pulse-vibrant 2.5s infinite;
+                }
+                .banner-login-btn:hover { transform: scale(1.1); filter: brightness(1.2); }
+                
+                @keyframes btn-pulse-vibrant {
+                    0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 204, 0.3); }
+                    50% { box-shadow: 0 0 25px rgba(255, 0, 204, 0.6), 0 0 40px rgba(51, 51, 255, 0.3); }
+                }
+
                 .shop-panel {
                     background: rgba(0, 20, 20, 0.6);
                     border: 4px solid rgba(255, 255, 255, 0.8);
@@ -315,11 +340,35 @@ export class ShopUI {
     }
 
     private updateGodModeUI(): void {
-        const isAdmin = AuthService.getInstance().isAdmin();
+        const auth = AuthService.getInstance();
+        const isAdmin = auth.isAdmin();
+        const isSignedIn = auth.isSignedIn();
+
         const btn = document.getElementById('btn-god-mode');
         if (btn) {
             if (isAdmin) btn.classList.add('admin-visible');
             else btn.classList.remove('admin-visible');
+        }
+
+        // Handle Guest Banner
+        const panel = document.getElementById('shop-panel');
+        const bannerId = 'shop-guest-banner';
+        const existingBanner = document.getElementById(bannerId);
+
+        if (!isSignedIn) {
+            if (panel && !existingBanner) {
+                const banner = document.createElement('div');
+                banner.id = bannerId;
+                banner.className = 'shop-guest-banner';
+                banner.innerHTML = `
+                    <span>SIGN IN TO ENABLE PURCHASES AND SYNC YOUR INVENTORY</span>
+                    <button class="banner-login-btn">SIGN IN NOW</button>
+                `;
+                panel.prepend(banner);
+                banner.querySelector('.banner-login-btn')?.addEventListener('click', () => auth.openSignIn());
+            }
+        } else {
+            existingBanner?.remove();
         }
     }
 
@@ -493,6 +542,19 @@ export class ShopUI {
                 if (!themeId) return;
 
                 if (btn.classList.contains('locked')) {
+                    if (!AuthService.getInstance().isSignedIn()) {
+                        ModalUI.getInstance().show(
+                            'SIGN IN REQUIRED',
+                            'You need a Nexus account to purchase premium themes and save them to your inventory.',
+                            {
+                                confirmLabel: 'SIGN IN',
+                                cancelLabel: 'LATER',
+                                onConfirm: () => AuthService.getInstance().openSignIn()
+                            }
+                        );
+                        return;
+                    }
+
                     const price = parseInt(btn.getAttribute('data-price') || '0');
                     if (confirm(`${price.toLocaleString()} 코인으로 이 테마를 구매하시겠습니까?`)) {
                         const res = economy.purchaseTheme(themeId, price);
@@ -521,6 +583,19 @@ export class ShopUI {
                 if (!skinId) return;
 
                 if (btn.classList.contains('locked')) {
+                    if (!AuthService.getInstance().isSignedIn()) {
+                        ModalUI.getInstance().show(
+                            'SIGN IN REQUIRED',
+                            'You need a Nexus account to purchase premium note skins and save them to your inventory.',
+                            {
+                                confirmLabel: 'SIGN IN',
+                                cancelLabel: 'LATER',
+                                onConfirm: () => AuthService.getInstance().openSignIn()
+                            }
+                        );
+                        return;
+                    }
+
                     const price = parseInt(btn.getAttribute('data-price') || '0');
                     if (confirm(`${price.toLocaleString()} 코인으로 이 노트를 구매하시겠습니까?`)) {
                         const res = economy.purchaseSkin(skinId, price);

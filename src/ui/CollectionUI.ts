@@ -1,5 +1,6 @@
 import { UIManager } from '../core/ui/UIManager';
 import { AuthService } from '../services/auth/AuthService';
+import { ScoreManager } from '../core/score/ScoreManager';
 import { ExperienceSystem } from '../core/score/ExperienceSystem';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { ApiUtils } from '../core/utils/ApiUtils';
@@ -22,7 +23,10 @@ export class CollectionUI {
     public async show(): Promise<void> {
         const auth = AuthService.getInstance();
         if (!auth.isSignedIn()) {
-            alert("로그인이 필요한 기능입니다.");
+            // Guest mode: Use local high scores from ScoreManager
+            const sm = ScoreManager.getInstance();
+            this.cachedData = sm.getLocalArchiveData();
+            this.render();
             return;
         }
         
@@ -588,6 +592,52 @@ export class CollectionUI {
                     .pi-meta-item b { font-size: 0.6rem; }
                 }
 
+                /* [NEW] Premium Action Button for Guests */
+                .col-btn-sync-premium {
+                    background: linear-gradient(135deg, #ff00cc 0%, #3333ff 100%);
+                    border: 2px solid rgba(255,255,255,0.8);
+                    border-radius: 8px;
+                    padding: 8px 18px;
+                    color: white;
+                    font-family: 'Goldman', cursive;
+                    font-weight: 900;
+                    font-size: 1rem;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    line-height: 1.1;
+                    cursor: pointer;
+                    transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    box-shadow: 0 0 20px rgba(255, 0, 204, 0.5);
+                    margin-left: 20px;
+                    flex-shrink: 0;
+                    animation: btn-pulse-vibrant 2.5s infinite;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                }
+                .col-btn-sync-premium:hover {
+                    transform: scale(1.1) rotate(-1deg);
+                    box-shadow: 0 0 35px rgba(255, 0, 204, 0.8);
+                    filter: brightness(1.2);
+                }
+                .col-btn-sync-premium:active { transform: scale(0.95); }
+
+                @keyframes btn-pulse-vibrant {
+                    0%, 100% { box-shadow: 0 0 15px rgba(255, 0, 204, 0.4); }
+                    50% { box-shadow: 0 0 35px rgba(255, 0, 204, 0.8), 0 0 50px rgba(51, 51, 255, 0.4); }
+                }
+
+                .col-warning-pulse {
+                    color: #ff4757;
+                    font-weight: 900;
+                    text-shadow: 0 0 10px rgba(255, 71, 87, 0.8);
+                    animation: text-flicker 1.5s infinite;
+                    letter-spacing: 1px;
+                }
+                @keyframes text-flicker {
+                    0%, 100% { opacity: 1; filter: brightness(1); }
+                    50% { opacity: 0.6; filter: brightness(1.5); }
+                }
+
                 /* EMBLEM MODAL */
                 .emb-modal-overlay {
                     position: absolute; inset: 0; background: rgba(0,0,0,0.85);
@@ -719,15 +769,29 @@ export class CollectionUI {
                         SYSTEM ARCHIVE // COLLECTION
                     </div>
 
+
                     <!-- MAIN HUD HEADER -->
                     <div class="col-header">
                         <div class="col-profile">
                             <div class="col-avatar">
-                                <img src="${auth.getClerk()?.user?.imageUrl || ''}" alt="AVATAR">
+                                <img src="${auth.isSignedIn() ? (auth.getClerk()?.user?.imageUrl || '') : 'https://ui-avatars.com/api/?name=Guest&background=random'}" alt="AVATAR">
                             </div>
-                            <div>
-                                <div class="col-username">${auth.getUserName()}</div>
-                                <div style="font-size: 0.75rem; opacity: 0.5; font-weight: 800; margin-top: 5px; letter-spacing: 1.5px; color: ${themeCyan}; text-transform: uppercase;">NEXUS SYSTEM SYNCED // USER_ID: ${auth.getClerk()?.user?.id?.slice(0, 8)}</div>
+                            <div style="min-width: 0;">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div class="col-username">${auth.isSignedIn() ? auth.getUserName() : 'GUEST USER'}</div>
+                                    ${!auth.isSignedIn() ? `
+                                        <button class="col-btn-sync-premium" id="col-guest-login-premium">
+                                            <span style="font-size: 0.6rem; opacity: 0.8; letter-spacing: 2px;">SECURE YOUR PROGRESS</span>
+                                            <span>SIGN IN NOW</span>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                                <div style="font-size: 0.75rem; font-weight: 800; margin-top: 8px; letter-spacing: 1.5px; text-transform: uppercase;">
+                                    ${auth.isSignedIn() ? 
+                                        `<span style="color: ${themeCyan}; opacity: 0.5;">NEXUS SYSTEM SYNCED // USER_ID: ${auth.getClerk()?.user?.id?.slice(0, 8)}</span>` : 
+                                        `<span class="col-warning-pulse">⚠️ OFFLINE MODE: PROGRESS NOT SAVED TO CLOUD SERVER</span>`
+                                    }
+                                </div>
                             </div>
                         </div>
                         <div class="col-progression">
@@ -884,6 +948,13 @@ export class CollectionUI {
 
     private attachEventListeners() {
         const modal = document.getElementById('emblem-modal');
+
+        // Guest Login (integrated in profile)
+        document.getElementById('col-guest-login-premium')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log("[CollectionUI] Triggering login from premium guest button...");
+            AuthService.getInstance().openSignIn();
+        });
 
         // Close Main Modal
         document.getElementById('close-col')?.addEventListener('click', () => {

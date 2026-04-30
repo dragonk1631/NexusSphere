@@ -371,17 +371,21 @@ export class ScoreManager {
         const isFC = this.isFullCombo();
         const isAP = isFC && (this.greatCount + this.goodCount) === 0;
 
+        const recordKey = `${songId}:${keyMode}:${difficulty}`;
+        const existing = this.highScores[recordKey];
+        let isNewRecord = false;
+
+        // Increment local play count
+        const newPlayCount = (existing?.playCount || 0) + 1;
+
         const newRecord: ScoreRecord = {
             score: Math.floor(this.score),
             maxCombo: this.maxCombo,
             accuracy: accuracy,
             grade: grade,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            playCount: newPlayCount
         };
-
-        const recordKey = `${songId}:${keyMode}:${difficulty}`;
-        const existing = this.highScores[recordKey];
-        let isNewRecord = false;
 
         const gradePriority: { [key: string]: number } = { 'S+': 4, 'S': 3, 'A': 2, 'B': 1, 'F': 0 };
         const currentGradePower = gradePriority[existing?.grade || 'F'] || 0;
@@ -488,8 +492,37 @@ export class ScoreManager {
     }
 
     /**
-     * [OFFLINE] Local ranking data retrieval for RankingUI fallback
+     * [GUEST] Aggregates local high scores into an archive data structure compatible with CollectionUI.
      */
+    public getLocalArchiveData() {
+        const records = Object.entries(this.highScores).map(([key, r]) => {
+            const [song_id, key_mode, difficulty] = key.split(':');
+            return {
+                song_id,
+                key_mode: parseInt(key_mode),
+                difficulty,
+                high_score: r.score,
+                max_combo: r.maxCombo,
+                best_accuracy: r.accuracy,
+                best_grade: r.grade,
+                last_played_at: new Date(r.timestamp).toISOString(),
+                play_count: r.playCount || 1
+            };
+        });
+
+        const stats = {
+            max_streak: Math.max(...records.map(r => r.max_combo), 0),
+            // Estimate total hits based on max combo of records (guests don't track raw hits yet)
+            total_notes_hit: records.reduce((acc, r) => acc + (r.max_combo * 0.9), 0), 
+            play_count: records.reduce((acc, r) => acc + r.play_count, 0),
+            total_score: records.reduce((acc, r) => acc + r.high_score, 0),
+            level: 1,
+            exp: 0
+        };
+
+        return { success: true, stats, records };
+    }
+
     public getLocalRanking(): any[] {
         // Convert map to sorted array
         return Object.entries(this.highScores)

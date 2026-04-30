@@ -202,29 +202,31 @@ export class MainMenu {
                 }
                 .mm-auth-badge:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px) scale(1.05); }
                 
-                /* GUEST / SIGN IN Call to Action v67 */
+                /* GUEST / SIGN IN Call to Action - Premium Vibe */
                 .mm-auth-badge.guest {
-                    background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-                    border-color: rgba(255, 255, 255, 0.8);
+                    background: linear-gradient(135deg, #ff00cc 0%, #3333ff 100%);
+                    border: 1.5px solid rgba(255, 255, 255, 0.8);
                     padding: 0 clamp(15px, 2.5vw, 30px);
-                    box-shadow: 0 0 15px rgba(79, 172, 254, 0.4);
-                    animation: mm-auth-pulse 2.5s infinite;
+                    box-shadow: 0 0 15px rgba(255, 0, 204, 0.4);
+                    animation: btn-pulse-vibrant 2.5s infinite;
+                    transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                 }
                 .mm-auth-badge.guest:hover {
-                    box-shadow: 0 0 25px rgba(79, 172, 254, 0.6);
-                    transform: scale(1.05);
+                    box-shadow: 0 0 25px rgba(255, 0, 204, 0.7);
+                    transform: scale(1.08) rotate(-1deg);
+                    filter: brightness(1.2);
                 }
                 .mm-auth-badge.guest .mm-auth-name {
                     font-size: 0.75rem;
                     letter-spacing: 1px;
                     color: #fff;
-                    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+                    font-weight: 900;
+                    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
                 }
 
-                @keyframes mm-auth-pulse {
-                    0% { transform: scale(1); opacity: 0.9; }
-                    50% { transform: scale(1.05); opacity: 1; }
-                    100% { transform: scale(1); opacity: 0.9; }
+                @keyframes btn-pulse-vibrant {
+                    0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 204, 0.3); }
+                    50% { box-shadow: 0 0 25px rgba(255, 0, 204, 0.6), 0 0 40px rgba(51, 51, 255, 0.3); }
                 }
 
                 .mm-auth-avatar {
@@ -708,7 +710,7 @@ export class MainMenu {
             container.onclick = () => auth.openSignIn();
             container.innerHTML = `
                 <div class="mm-auth-badge guest">
-                    <span class="mm-auth-name">SIGN IN</span>
+                    <span class="mm-auth-name">SIGN IN NOW</span>
                 </div>
             `;
         }
@@ -725,20 +727,6 @@ export class MainMenu {
     }
 
     private async showCollection(): Promise<void> {
-        const auth = AuthService.getInstance();
-        if (!auth.isSignedIn()) {
-            ModalUI.getInstance().show(
-                'AUTHENTICATION REQUIRED',
-                'Please sign in to access your personal song collection and track your progress.',
-                {
-                    confirmLabel: 'SIGN IN NOW',
-                    cancelLabel: 'LATER',
-                    onConfirm: () => auth.openSignIn()
-                }
-            );
-            return;
-        }
-
         await this.navigateWithTransition('Synchronizing Data...', async () => {
             this.hide();
             const collection = new CollectionUI(() => {
@@ -749,20 +737,6 @@ export class MainMenu {
     }
 
     private async showShop(): Promise<void> {
-        const auth = AuthService.getInstance();
-        if (!auth.isSignedIn()) {
-            ModalUI.getInstance().show(
-                'AUTHENTICATION REQUIRED',
-                'Please sign in to access the item shop and customize your themes or skins.',
-                {
-                    confirmLabel: 'SIGN IN NOW',
-                    cancelLabel: 'LATER',
-                    onConfirm: () => auth.openSignIn()
-                }
-            );
-            return;
-        }
-
         await this.navigateWithTransition('Entering Shop...', async () => {
             this.hideMenuOnly();
             this.shopUI = new ShopUI(() => {
