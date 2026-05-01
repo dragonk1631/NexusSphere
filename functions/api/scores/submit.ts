@@ -44,7 +44,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const body: any = await request.json();
 
         // --- VALIDATION ---
-        const { songId, keyMode, difficulty, score, accuracy, maxCombo, grade, isFC, isAP, nickname, avatarUrl } = body;
+        const { songId, keyMode, difficulty, score, accuracy, maxCombo, grade, isFC, isAP, perfect, great, good, miss, nickname, avatarUrl } = body;
+        
+        const totalNotesHit = (perfect || 0) + (great || 0) + (good || 0);
 
         if (!songId || !keyMode || !difficulty || score === undefined) {
             return new Response('Missing required fields', { status: 400 });
@@ -83,9 +85,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             env.DB.prepare(`
                 INSERT INTO user_stats_v2 (
                     user_id, display_name, avatar_url, 
-                    exp, total_score, play_count, total_coins, max_combo, updated_at
+                    exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     display_name = COALESCE(EXCLUDED.display_name, user_stats_v2.display_name),
                     avatar_url = COALESCE(EXCLUDED.avatar_url, user_stats_v2.avatar_url),
@@ -94,9 +96,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                     play_count = user_stats_v2.play_count + 1,
                     total_coins = user_stats_v2.total_coins + EXCLUDED.total_coins,
                     max_combo = MAX(user_stats_v2.max_combo, EXCLUDED.max_combo),
+                    max_streak = MAX(user_stats_v2.max_streak, EXCLUDED.max_streak),
+                    total_notes_hit = user_stats_v2.total_notes_hit + EXCLUDED.total_notes_hit,
                     updated_at = CURRENT_TIMESTAMP
-                RETURNING exp, total_score, play_count, total_coins, max_combo
-            `).bind(userId, nickname, avatarUrl, serverGainedXP, score, serverGainedCoin, maxCombo),
+                RETURNING exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit
+            `).bind(userId, nickname, avatarUrl, serverGainedXP, score, serverGainedCoin, maxCombo, maxCombo, totalNotesHit),
 
             // [B] Rank Stats
             env.DB.prepare(`
@@ -142,7 +146,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             total_score: score,
             play_count: 1,
             total_coins: serverGainedCoin,
-            max_combo: maxCombo
+            max_combo: maxCombo,
+            max_streak: maxCombo,
+            total_notes_hit: totalNotesHit
         };
         const currentExp = updatedStats.exp || 0;
         
@@ -163,7 +169,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 total_score: (updatedStats?.total_score as number) || 0,
                 play_count: (updatedStats?.play_count as number) || 0,
                 total_coins: (updatedStats?.total_coins as number) || 0,
-                max_combo: (updatedStats?.max_combo as number) || 0
+                max_combo: (updatedStats?.max_combo as number) || 0,
+                max_streak: (updatedStats?.max_streak as number) || 0,
+                total_notes_hit: (updatedStats?.total_notes_hit as number) || 0
             }
         }), {
             headers: { 'Content-Type': 'application/json' }
