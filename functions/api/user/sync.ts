@@ -19,16 +19,23 @@ function decodeJWT(token: string): any {
 }
 
 /**
- * Full Sync API: Fetches everything about the user to restore their state
- * (Profile, High Scores, Rank Counts)
+ * [SERVER-AUTHORITATIVE SYNC API]
+ * 
+ * This is the ONLY source of truth for logged-in users.
+ * It reads from the DB and returns exactly what's there — nothing more, nothing less.
+ * 
+ * NO migration. NO reconstruction. NO guessing.
+ * If the DB is empty, the response is empty. Period.
  */
 export const onRequestGet: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
+    const url = new URL(request.url);
     
     try {
         if (!env.DB) throw new Error('D1 Binding is missing');
         await ensureTables(env.DB);
 
+        // Auth
         const authHeader = request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
@@ -36,34 +43,50 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
         const token = authHeader.split(' ')[1];
         const decoded = decodeJWT(token);
-        if (!decoded || !decoded.sub) return new Response(JSON.stringify({ error: 'Invalid Token' }), { status: 401 });
+        if (!decoded || !decoded.sub) {
+            return new Response(JSON.stringify({ error: 'Invalid Token' }), { status: 401 });
+        }
 
         const userId = decoded.sub;
 
-        // Fetch everything in parallel
-        const [stats, records, rankCounts, favorites] = await Promise.all([
+        // --- PARALLEL FETCH: Read everything from DB in one shot ---
+        const [stats, recordsResult, rankCountsResult, favoritesResult] = await Promise.all([
             env.DB.prepare('SELECT * FROM user_stats_v2 WHERE user_id = ?').bind(userId).first(),
             env.DB.prepare('SELECT * FROM user_song_records_v2 WHERE user_id = ?').bind(userId).all(),
             env.DB.prepare('SELECT * FROM user_rank_stats WHERE user_id = ?').bind(userId).all(),
             env.DB.prepare('SELECT song_id FROM user_favorites_v2 WHERE user_id = ?').bind(userId).all()
         ]);
 
+        // --- DYNAMIC LEVEL & NAME SYNC ---
+        let finalStats = stats as any;
+        if (finalStats) {
+            const currentName = url.searchParams.get('name');
+            if (currentName && finalStats.display_name !== currentName) {
+                await env.DB.prepare('UPDATE user_stats_v2 SET display_name = ? WHERE user_id = ?')
+                    .bind(currentName, userId).run();
+                finalStats.display_name = currentName;
+            }
+
+            // Calculate level dynamically based on exp, saving us from writing it to DB
+            const currentExp = finalStats.exp || 0;
+            const calculatedLevel = Math.floor((-40 + Math.sqrt(1600 + 160 * currentExp)) / 80 + 1);
+            finalStats.level = Math.min(Math.max(1, calculatedLevel), 999);
+        }
+
+        // --- RESPONSE: Return exactly what the DB has ---
+        // If stats is null → user has never played. Client must show defaults.
         return new Response(JSON.stringify({
             success: true,
-            stats: stats || { user_id: userId, level: 1, exp: 0, play_count: 0 },
-            records: records.results || [],
-            rankCounts: rankCounts.results || [],
-            favorites: favorites.results?.map((f: any) => f.song_id) || []
+            stats: finalStats || null,
+            records: recordsResult.results || [],
+            rankCounts: rankCountsResult.results || [],
+            favorites: favoritesResult.results?.map((f: any) => f.song_id) || []
         }), {
-            headers: { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            }
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
     } catch (e: any) {
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
+            status: 500, headers: { 'Content-Type': 'application/json' } 
         });
     }
 };

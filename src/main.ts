@@ -1,3 +1,45 @@
+// ============================================================
+// [CRITICAL] Legacy Data Cleanup — runs BEFORE anything else
+// Removes all old localStorage keys from previous versions to prevent
+// zombie data from being displayed by cached old code.
+// ============================================================
+(() => {
+    try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (
+                key.includes('nexussphere_highscores_v2') ||
+                key.includes('nexussphere_highscores_v3') ||
+                key.includes('NexusSphere_Favorites_v2') ||
+                key.includes('NexusSphere_Favorites_v3') ||
+                key.includes('nexus-stats-v2') ||
+                key.includes('nexus-stats-v3') ||
+                key.includes('nexus-song-records-v2') ||
+                key.includes('nexus-song-records-v3')
+            )) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        if (keysToRemove.length > 0) {
+            console.log(`[Cleanup] Removed ${keysToRemove.length} legacy localStorage keys`);
+        }
+    } catch (e) { /* ignore */ }
+
+    // Force Service Worker update: unregister old SW so new one takes over immediately
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            registrations.forEach(reg => {
+                if (reg.waiting) {
+                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+                reg.update();
+            });
+        });
+    }
+})();
+
 import './style.css';
 import { PongGame } from './games/puzzle/PongGame';
 import { RhythmGame } from './games/rhythm/RhythmGame';

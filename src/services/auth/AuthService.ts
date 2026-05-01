@@ -79,9 +79,12 @@ export class AuthService {
                                 console.error('[AuthService] Failed to sync scores after sign-in:', e);
                             }
                         } else {
-                            // [FIX] Do NOT clear account data on initial load just because user is null.
-                            // Only manual sign-outs should trigger a full cache clear.
-                            console.log('[AuthService] No user detected. Maintaining guest state.');
+                            // [FIX] When no user is detected (sign out), refresh ScoreManager to guest mode
+                            import('../../core/score/ScoreManager').then(({ ScoreManager }) => {
+                                ScoreManager.getInstance().load();
+                            });
+                            
+                            console.log('[AuthService] No user detected. Returning to guest state.');
                             window.dispatchEvent(new CustomEvent('nexus-auth-changed', { detail: { isSignedIn: false } }));
                         }
                     });

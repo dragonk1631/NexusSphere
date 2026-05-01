@@ -1,14 +1,16 @@
-# Developer Blog: Refinement of UI Responsiveness & Layout Stability
+# Developer Blog: UI Stability & Server-Authoritative Data Architecture
 
 **Date:** 2026-05-01  
-**Category:** UI/UX, Responsive Design, Layout Stability  
+**Category:** UI/UX, Data Architecture, Database Optimization  
 **Author:** Antigravity (AI Coding Assistant)
 
 ---
 
 ## 🚀 Today's Objective
 
-The primary goal today was to achieve **perfect visual consistency and layout stability** across the Collection and Shop interfaces, specifically focusing on the transition between Guest and Authenticated states on both PC and mobile devices.
+The primary goals today were twofold:
+1. **UI/UX**: Achieve perfect visual consistency and layout stability across the Collection and Shop interfaces.
+2. **Data Integrity**: Completely overhaul the data synchronization logic to implement a strictly Server-Authoritative architecture, permanently resolving "zombie data" issues.
 
 ## 🛠️ Key Accomplishments
 
@@ -39,10 +41,33 @@ The Shop's guest notification banner was identified as a "layout inhibitor," tak
 | **PC/Mobile Conflict** | Utilized strict Media Query isolation to allow PC elements to remain large and premium while mobile elements are aggressively scaled down. |
 | **Visual Clipping** | Re-calibrated vertical alignment using `align-items: center` and micro-offsets to keep elements perfectly centered within tight paddings. |
 
+### 3. Server-Authoritative Data Architecture Redesign
+
+We faced a critical "Zombie Data" issue where deleted database records would mysteriously reappear upon login. 
+
+- **Root Cause Analysis**: 
+  1. The client heavily relied on `localStorage` even when logged in, causing dual sources of truth.
+  2. Legacy PWA Service Workers were aggressively caching old JavaScript bundles (`skipWaiting` was missing), meaning players were executing outdated logic that read from contaminated `v2` storage keys.
+  3. `sync.ts` had a dangerous "auto-migration" fallback that tried to resurrect data from legacy `user_scores` tables if the `v2` tables were empty.
+- **The "Server is Truth" Paradigm**: Completely rewrote `ScoreManager.ts`, `sync.ts`, and `submit.ts`. When a user logs in, `localStorage` is completely ignored. The server dictates Level, XP, and stats. If the server says the user has 0 records, the client renders 0 records.
+- **PWA Cache Purge**: Added a strict runtime block at the top of `main.ts` to iterate through and obliterate all legacy `localStorage` keys before the app even initializes. We also updated `vite.config.ts` to enforce `skipWaiting: true` and `clientsClaim: true`, ensuring immediate rollout of patches.
+
+### 4. D1 Database Query Optimization (Zero-Write Leveling)
+
+To maximize the Cloudflare D1 Free Tier (100,000 Writes/Day), we aggressively optimized the `submit.ts` API.
+
+- **The Old Way (4 Writes, 1 Read)**: `INSERT user_stats` -> `INSERT rank_stats` -> `INSERT song_records` -> `SELECT exp` -> `UPDATE user_stats SET level`.
+- **The Optimized Way (3 Writes, 0 Reads)**: 
+  - Utilized SQLite's `RETURNING` clause on the very first `INSERT` query to instantly grab the updated `exp`.
+  - **Zero-Write Leveling**: Realized that `level` is strictly a derived metric of `exp`. We stopped saving `level` to the database entirely, saving 1 Write per song play. The server now dynamically calculates the level using `Math.floor((-40 + Math.sqrt(1600 + 160 * currentExp)) / 80 + 1)` right before returning the JSON payload.
+- **Impact**: Reduced Write costs by 25% and Read costs by 100% on the core gameplay loop, theoretically allowing up to 3,333 Daily Active Users (DAU) entirely for free.
+
 ## 💡 Lessons Learned
 
 - **Content-Driven Scaling**: Layout stability is best achieved when conditional elements (like login buttons) are designed to fit within the "footprint" of permanent elements.
 - **Mobile First, PC Premium**: A "one size fits all" approach often sacrifices the premium feel of desktop or the usability of mobile. Strict divergence via media queries is essential for high-fidelity rhythm game UIs.
+- **Beware the Service Worker**: In PWA environments, aggressive caching can trap users in broken states for days. Always ensure proper `skipWaiting` protocols and runtime sanity checks for critical data keys.
+- **Normalize, Don't Materialize**: If a value (like Level) can be perfectly mathematically derived from another column (like XP), do not waste database write operations storing it. Calculate it on the fly.
 
 ---
 

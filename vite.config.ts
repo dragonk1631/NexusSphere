@@ -51,6 +51,9 @@ export default defineConfig(({ command }) => {
                 enabled: false // SSL 인증서 오류 방지를 위해 개발 모드에서는 SW 비활성화 (빌드 시 자동 활성화)
             },
             workbox: {
+                // Force new SW to activate immediately
+                skipWaiting: true,
+                clientsClaim: true,
                 // 대용량 사운드폰트(32MB+) 및 오디오 파일을 캐싱하기 위해 제한 해제 (150MB)
                 maximumFileSizeToCacheInBytes: 150 * 1024 * 1024,
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,json,mp3,mid,sf2}'],

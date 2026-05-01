@@ -42,10 +42,14 @@ export class CollectionUI {
 
     private render() {
         const auth = AuthService.getInstance();
-        const { stats, records } = this.cachedData;
+        const records = this.cachedData?.records || [];
+        const stats = this.cachedData?.stats || {
+            level: 1, exp: 0, total_score: 0, play_count: 0,
+            max_streak: 0, max_combo: 0, total_notes_hit: 0, total_coins: 0
+        };
         
-        const level = stats?.level || 1;
-        const totalXP = stats?.exp || 0;
+        const level = stats.level || 1;
+        const totalXP = stats.exp || 0;
         this.renderModal(auth, level, totalXP, stats, records);
         this.attachEventListeners();
     }

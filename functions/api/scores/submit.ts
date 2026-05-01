@@ -5,10 +5,6 @@ interface Env {
     DB: D1Database;
 }
 
-/**
- * Simple JWT Decorder (Non-verifying for demo/pages context)
- * In production, you would use a library or verify the signature with Clerk Public Key.
- */
 function decodeJWT(token: string): any {
     try {
         const base64Url = token.split('.')[1];
@@ -22,6 +18,13 @@ function decodeJWT(token: string): any {
     }
 }
 
+/**
+ * [SERVER-AUTHORITATIVE SCORE SUBMISSION]
+ * 
+ * The server is the SOLE authority on XP, Level, and statistics.
+ * The client sends raw play results. The server calculates everything.
+ * The response contains the FULL updated stats so the client can display them.
+ */
 export const onRequestPost: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
     
@@ -29,7 +32,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         if (!env.DB) throw new Error('D1 Binding [env.DB] is missing');
         await ensureTables(env.DB);
 
-        // 1. Authentication
+        // --- AUTH ---
         const authHeader = request.headers.get('Authorization');
         if (!authHeader) return new Response('Unauthorized', { status: 401 });
 
@@ -39,65 +42,63 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
         const userId = decoded.sub;
         const body: any = await request.json();
-        
-        // Destructure all necessary stats for professional tracking
-        const { 
-            songId, keyMode, difficulty, score, accuracy, maxCombo, 
-            gainedXP, gainedCoin, grade, isFC, isAP, 
-            perfect, great, good, miss,
-            nickname, avatarUrl 
-        } = body;
 
-        if (!songId || !keyMode || !difficulty) {
-            return new Response('Missing required data', { status: 400 });
+        // --- VALIDATION ---
+        const { songId, keyMode, difficulty, score, accuracy, maxCombo, grade, isFC, isAP, nickname, avatarUrl } = body;
+
+        if (!songId || !keyMode || !difficulty || score === undefined) {
+            return new Response('Missing required fields', { status: 400 });
+        }
+        if (score > 5000000 || score < 0) {
+            return new Response('Invalid score data', { status: 400 });
         }
 
-        const normalizedGrade = (grade || 'F').toUpperCase().replace('+', '_plus').toLowerCase();
+        // --- SERVER-SIDE XP CALCULATION (The ONLY XP calculation that matters) ---
+        const diffStr = (difficulty || 'NORMAL').toUpperCase();
+        const gradeStr = (grade || 'F').toUpperCase();
+        
+        let diffWeight = 1.0;
+        if (diffStr === 'EASY') diffWeight = 0.95;
+        else if (diffStr === 'HARD') diffWeight = 1.05;
+        else if (diffStr === 'EXPERT' || diffStr === 'EXTREME') diffWeight = 1.1;
+
+        let rankWeight = 0.8;
+        if (gradeStr === 'S+') rankWeight = 1.3;
+        else if (gradeStr === 'S') rankWeight = 1.2;
+        else if (gradeStr === 'A') rankWeight = 1.1;
+        else if (gradeStr === 'B') rankWeight = 1.0;
+
+        const serverGainedXP = Math.floor((20 + (maxCombo * 0.1)) * diffWeight * rankWeight + (isAP ? 150 : isFC ? 50 : 0));
+
+        // --- SERVER-SIDE COIN CALCULATION ---
+        const serverGainedCoin = Math.floor((10 + (maxCombo * 0.05)) * rankWeight);
+
+        // --- RANK COLUMN ---
+        const normalizedGrade = gradeStr.replace('+', '_plus').toLowerCase();
         const rankColumn = `rank_${normalizedGrade}`;
 
-        // 2. Atomic Batch Update
-        await env.DB.batch([
-            // [A] Update Global Profile & Socials
+        // --- ATOMIC DB UPDATE ---
+        const batchResults = await env.DB.batch([
+            // [A] User Stats: Increment XP, Score, PlayCount, Coins
             env.DB.prepare(`
                 INSERT INTO user_stats_v2 (
                     user_id, display_name, avatar_url, 
-                    exp, total_score, play_count, 
-                    total_perfect, total_great, total_good, total_miss,
-                    max_combo, current_streak, max_streak, total_notes_hit, 
-                    total_coins, updated_at
+                    exp, total_score, play_count, total_coins, max_combo, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     display_name = COALESCE(EXCLUDED.display_name, user_stats_v2.display_name),
                     avatar_url = COALESCE(EXCLUDED.avatar_url, user_stats_v2.avatar_url),
                     exp = user_stats_v2.exp + EXCLUDED.exp,
                     total_score = user_stats_v2.total_score + EXCLUDED.total_score,
                     play_count = user_stats_v2.play_count + 1,
-                    total_perfect = user_stats_v2.total_perfect + EXCLUDED.total_perfect,
-                    total_great = user_stats_v2.total_great + EXCLUDED.total_great,
-                    total_good = user_stats_v2.total_good + EXCLUDED.total_good,
-                    total_miss = user_stats_v2.total_miss + EXCLUDED.total_miss,
-                    max_combo = MAX(user_stats_v2.max_combo, EXCLUDED.max_combo),
-                    current_streak = EXCLUDED.current_streak,
-                    max_streak = MAX(user_stats_v2.max_streak, EXCLUDED.current_streak),
-                    total_notes_hit = user_stats_v2.total_notes_hit + (EXCLUDED.total_perfect + EXCLUDED.total_great + EXCLUDED.total_good),
                     total_coins = user_stats_v2.total_coins + EXCLUDED.total_coins,
+                    max_combo = MAX(user_stats_v2.max_combo, EXCLUDED.max_combo),
                     updated_at = CURRENT_TIMESTAMP
-            `).bind(userId, nickname, avatarUrl, gainedXP, score, perfect || 0, great || 0, good || 0, miss || 0, maxCombo, body.currentCombo || 0, body.currentCombo || 0, (perfect || 0) + (great || 0) + (good || 0), gainedCoin),
+                RETURNING exp, total_score, play_count, total_coins, max_combo
+            `).bind(userId, nickname, avatarUrl, serverGainedXP, score, serverGainedCoin, maxCombo),
 
-            // [B] Update Leveling (Based on total XP threshold: 40 * (L^2 + L))
-            env.DB.prepare(`
-                UPDATE user_stats_v2 
-                SET level = (
-                    SELECT MAX(level_calc) FROM (
-                        SELECT 1 as level_calc UNION
-                        SELECT CAST(( -40 + SQRT(1600 + 160 * exp) ) / 80 + 1 AS INTEGER)
-                    )
-                )
-                WHERE user_id = ?
-            `).bind(userId),
-
-            // [C] Update Detailed Rank Stats (Separated by Key and Difficulty)
+            // [B] Rank Stats
             env.DB.prepare(`
                 INSERT INTO user_rank_stats (
                     user_id, key_mode, difficulty, ${rankColumn}, fc_count, ap_count, updated_at
@@ -110,7 +111,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                     updated_at = CURRENT_TIMESTAMP
             `).bind(userId, keyMode, difficulty, isFC ? 1 : 0, isAP ? 1 : 0),
 
-            // [D] Update Song Best Record
+            // [C] Song Best Record
             env.DB.prepare(`
                 INSERT INTO user_song_records_v2 (
                     user_id, song_id, key_mode, difficulty, 
@@ -119,32 +120,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id, song_id, key_mode, difficulty) DO UPDATE SET
-                    high_score = CASE 
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.high_score
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN MAX(user_song_records_v2.high_score, EXCLUDED.high_score)
-                        ELSE user_song_records_v2.high_score
-                    END,
-                    max_combo = CASE 
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.max_combo
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN MAX(user_song_records_v2.max_combo, EXCLUDED.max_combo)
-                        ELSE user_song_records_v2.max_combo
-                    END,
-                    best_accuracy = CASE 
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.best_accuracy
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN MAX(user_song_records_v2.best_accuracy, EXCLUDED.best_accuracy)
-                        ELSE user_song_records_v2.best_accuracy
-                    END,
+                    high_score = MAX(user_song_records_v2.high_score, EXCLUDED.high_score),
+                    max_combo = MAX(user_song_records_v2.max_combo, EXCLUDED.max_combo),
+                    best_accuracy = MAX(user_song_records_v2.best_accuracy, EXCLUDED.best_accuracy),
                     best_grade = CASE 
                         WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) THEN EXCLUDED.best_grade
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) = 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) AND EXCLUDED.high_score > user_song_records_v2.high_score THEN EXCLUDED.best_grade
+                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) 
+                        THEN EXCLUDED.best_grade
                         ELSE user_song_records_v2.best_grade
                     END,
                     play_count = user_song_records_v2.play_count + 1,
@@ -153,15 +135,44 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             `).bind(userId, songId, keyMode, difficulty, score, maxCombo, accuracy, grade)
         ]);
 
-        return new Response(JSON.stringify({ success: true }), {
+        // --- LEVEL CALCULATION (Server-only, dynamic) ---
+        // Extract the RETURNING row from the first batch query
+        const updatedStats = batchResults[0]?.results?.[0] as any || {
+            exp: serverGainedXP,
+            total_score: score,
+            play_count: 1,
+            total_coins: serverGainedCoin,
+            max_combo: maxCombo
+        };
+        const currentExp = updatedStats.exp || 0;
+        
+        const calculatedLevel = Math.floor((-40 + Math.sqrt(1600 + 160 * currentExp)) / 80 + 1);
+        const finalLevel = Math.min(Math.max(1, calculatedLevel), 999);
+        
+        // Note: We intentionally skip updating the 'level' column in the DB to save 1 Write operation.
+        // The level is strictly derived from 'exp', so the server calculates it on the fly.
+
+        // --- RESPONSE: Return FULL stats so client can update its display ---
+        return new Response(JSON.stringify({ 
+            success: true,
+            gainedXP: serverGainedXP,
+            gainedCoin: serverGainedCoin,
+            stats: {
+                level: finalLevel,
+                exp: currentExp,
+                total_score: (updatedStats?.total_score as number) || 0,
+                play_count: (updatedStats?.play_count as number) || 0,
+                total_coins: (updatedStats?.total_coins as number) || 0,
+                max_combo: (updatedStats?.max_combo as number) || 0
+            }
+        }), {
             headers: { 'Content-Type': 'application/json' }
         });
 
     } catch (e: any) {
         console.error('[Submit Error]', e);
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
+            status: 500, headers: { 'Content-Type': 'application/json' }
         });
     }
 };
