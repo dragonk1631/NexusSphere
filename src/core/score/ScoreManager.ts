@@ -34,6 +34,7 @@ export class ScoreManager {
     private score: number = 0;
     private isTestMode: boolean = false;
     private isServerDown: boolean = false;
+    private liveStreak: number = 0; // Persistent streak across songs
 
     // --- Progression State (from server for logged-in, from localStorage for guest) ---
     private totalXP: number = 0;
@@ -82,11 +83,13 @@ export class ScoreManager {
         if (judgment === Judgment.MISS) {
             this.missCount++;
             this.resetCombo();
+            this.liveStreak = 0;
             if (!this.isTestMode) this.damage(5);
             return;
         }
 
         this.currentCombo++;
+        this.liveStreak++;
         if (this.currentCombo > this.maxCombo) {
             this.maxCombo = this.currentCombo;
         }
@@ -108,6 +111,7 @@ export class ScoreManager {
 
     public increaseCombo(amount: number): void {
         this.currentCombo += amount;
+        this.liveStreak += amount;
         if (this.currentCombo > this.maxCombo) {
             this.maxCombo = this.currentCombo;
         }
@@ -150,6 +154,7 @@ export class ScoreManager {
     public getLastGainedCoin(): number { return this.gainedCoin; }
     public getHealth(): number { return this.health; }
     public getMaxHealth(): number { return this.maxHealth; }
+    public getLiveStreak(): number { return this.liveStreak; }
 
     public resetCombo(): void { this.currentCombo = 0; }
 
@@ -175,6 +180,7 @@ export class ScoreManager {
         this.missCount = 0;
         this.maxCombo = total;
         this.currentCombo = total;
+        this.liveStreak += total;
         this.health = this.maxHealth;
         
         let simulatedScore = 0;
@@ -184,7 +190,7 @@ export class ScoreManager {
         this.score = Math.floor(simulatedScore);
     }
 
-    public getCombo(): number { return this.currentCombo; }
+    public getCombo(): number { return this.liveStreak; }
     public getMaxCombo(): number { return this.maxCombo; }
     public getScore(): number { return this.score; }
     public isFullCombo(): boolean { return this.missCount === 0 && this.totalChartNotes > 0; }
@@ -226,6 +232,7 @@ export class ScoreManager {
                 this.totalXP = serverStats.exp || 0;
                 this.currentLevel = serverStats.level || 1;
                 this.totalCoins = serverStats.total_coins || 0;
+                this.liveStreak = serverStats.current_streak || 0;
                 this.stats = serverStats;
             } else {
                 // User has never played — clean slate
@@ -365,6 +372,7 @@ export class ScoreManager {
                 score: record.score, accuracy: record.accuracy, maxCombo: record.maxCombo,
                 grade: record.grade, isFC, isAP,
                 perfect: this.perfectCount, great: this.greatCount, good: this.goodCount, miss: this.missCount,
+                liveStreak: this.liveStreak,
                 nickname: auth.getUserName(),
                 avatarUrl: auth.getClerk()?.user?.imageUrl
             };

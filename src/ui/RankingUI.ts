@@ -11,6 +11,7 @@ export interface LeaderboardEntry {
     max_streak?: number;
     play_count?: number;
     current_streak?: number;
+    total_notes_hit?: number;
     level?: number;
     accuracy?: number;
     timestamp: string;
@@ -133,6 +134,45 @@ export class RankingUI {
                     cursor: pointer; transition: 0.3s;
                 }
                 .close-rank-btn:hover { background: ${themeCyan}; color: #000; box-shadow: 0 0 20px ${themeCyan}; }
+
+                /* ── RESPONSIVE DESIGN (Mobile) ── */
+                @media (max-width: 768px) {
+                    .ranking-modal { width: 95vw; height: 92vh; border-radius: 15px; }
+                    .ranking-header { padding: 8px 15px; flex-direction: row; align-items: center; justify-content: space-between; gap: 5px; }
+                    .ranking-title-group h2 { font-size: 1.2rem; }
+                    .ranking-subtitle { display: none; } /* Hide subtitle on mobile to save space */
+                    
+                    .ranking-tabs { 
+                        padding: 5px 10px; gap: 4px; overflow-x: auto; 
+                        white-space: nowrap; -webkit-overflow-scrolling: touch;
+                        background: rgba(0,0,0,0.5);
+                    }
+                    .rank-tab { padding: 5px 10px; font-size: 0.6rem; }
+                    
+                    .ranking-list { padding: 10px; gap: 6px; }
+                    .ranking-item { 
+                        grid-template-columns: 35px 50px 1fr 100px; 
+                        padding: 10px 12px; border-radius: 10px;
+                    }
+                    .rank-num { font-size: 1.1rem; }
+                    .rank-avatar-wrap { width: 40px; height: 40px; }
+                    .rank-info { padding-left: 10px; }
+                    .rank-name { font-size: 0.95rem; line-height: 1.2; }
+                    .rank-level { font-size: 0.6rem; }
+                    
+                    .rank-score-val { font-size: 1.1rem; }
+                    .rank-sub-val { font-size: 0.6rem; }
+                    
+                    .ranking-footer { padding: 15px 20px; }
+                    .close-rank-btn { padding: 8px 25px; font-size: 0.8rem; width: 100%; }
+                }
+                @media (max-width: 480px) {
+                    .ranking-item { grid-template-columns: 30px 45px 1fr 85px; padding: 8px; }
+                    .rank-avatar-wrap { width: 35px; height: 35px; }
+                    .rank-num { font-size: 1rem; }
+                    .rank-name { font-size: 0.85rem; }
+                    .rank-score-val { font-size: 0.95rem; }
+                }
             </style>
         `;
 
@@ -143,8 +183,8 @@ export class RankingUI {
         const tabs = [
             { id: 'score', label: 'HALL OF FAME' },
             { id: 'combo', label: 'MAX STREAK' },
+            { id: 'hits', label: 'TOTAL HITS' },
             { id: 'plays', label: 'DEDICATION' },
-            { id: 'streak', label: 'LIVE STREAK' },
             { id: 'level', label: 'EXPERIENCE' }
         ];
 
@@ -161,10 +201,7 @@ export class RankingUI {
                             <div class="ranking-subtitle">${this.currentSongId ? 'TRACK LEADERBOARD' : 'GLOBAL RANKINGS'}</div>
                             <h2>WORLD RANKING</h2>
                         </div>
-                        <div style="text-align: right">
-                            <div class="rank-sub-val">${this.currentSongId ? 'FILTER: '+this.currentSongId : 'MODE: AGGREGATED'}</div>
-                            ${AuthService.getInstance().isAdmin() ? `<button id="admin-panel-trigger" class="admin-entry-btn">COMMAND CENTER</button>` : ''}
-                        </div>
+                        ${AuthService.getInstance().isAdmin() ? `<button id="admin-panel-trigger" class="admin-entry-btn">COMMAND CENTER</button>` : ''}
                     </div>
                     <div class="ranking-tabs">
                         ${tabsHtml}
@@ -198,12 +235,12 @@ export class RankingUI {
         if (this.currentType === 'combo') {
             valueStr = (entry.max_streak || 0).toLocaleString();
             subStr = 'MAX COMBO';
+        } else if (this.currentType === 'hits') {
+            valueStr = (entry.total_notes_hit || 0).toLocaleString();
+            subStr = 'TOTAL HITS';
         } else if (this.currentType === 'plays') {
             valueStr = (entry.play_count || 0).toLocaleString();
             subStr = 'SESSIONS';
-        } else if (this.currentType === 'streak') {
-            valueStr = (entry.current_streak || 0).toLocaleString();
-            subStr = 'CURRENT STREAK';
         } else if (this.currentType === 'level') {
             valueStr = `LV.${entry.level}`;
             subStr = 'PLAYER LEVEL';
@@ -296,7 +333,8 @@ export class RankingUI {
             score: stats.total_score,
             max_streak: stats.max_streak,
             play_count: stats.play_count,
-            current_streak: sm.getCombo(), // Get live combo from SM
+            current_streak: sm.getLiveStreak(),
+            total_notes_hit: stats.total_notes_hit,
             level: stats.level,
             timestamp: new Date().toISOString()
         };

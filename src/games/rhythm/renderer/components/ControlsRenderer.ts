@@ -7,43 +7,56 @@ export class ControlsRenderer {
         const pulse = 0.5 + Math.sin(time * 4) * 0.5;
 
         ctx.save();
-        // 1. Base Gradient
+        
+        // 1. Neon Outer Ring (Highly Visible)
+        ctx.save();
+        ctx.strokeStyle = c1;
+        ctx.lineWidth = 4 * sf;
+        ctx.shadowBlur = 15 * sf + (20 * sf * pulse);
+        ctx.shadowColor = c1;
+        ctx.beginPath();
+        ctx.roundRect(btnX - 2 * sf, btnY - 2 * sf, btnW + 4 * sf, btnH + 4 * sf, 16 * sf);
+        ctx.stroke();
+        ctx.restore();
+
+        // 2. Base Gradient (Premium 3-Stop Vibrant)
         const grad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
-        grad.addColorStop(0, `rgba(255, 255, 255, 0.45)`);
-        grad.addColorStop(1, c1);
+        grad.addColorStop(0, '#ffffff'); 
+        grad.addColorStop(0.3, c1);
+        grad.addColorStop(1, '#000000');
         ctx.fillStyle = grad;
-        ctx.shadowBlur = 30 * sf * pulse; ctx.shadowColor = c2;
+        ctx.shadowBlur = 35 * sf * pulse; ctx.shadowColor = c2;
         ctx.beginPath(); ctx.roundRect(btnX, btnY, btnW, btnH, 14 * sf); ctx.fill();
 
-        // 2. Shimmer Sweep
-        const shimmerPos = ((time * 0.9) % 3) - 1.5;
-        const sGrad = ctx.createLinearGradient(btnX + btnW * shimmerPos, btnY, btnX + btnW * (shimmerPos + 0.1), btnY + btnH);
+        // 3. Shimmer Sweep (Faster & Sharper)
+        const shimmerPos = ((time * 1.4) % 3) - 1.5;
+        const sGrad = ctx.createLinearGradient(btnX + btnW * shimmerPos, btnY, btnX + btnW * (shimmerPos + 0.15), btnY + btnH);
         sGrad.addColorStop(0, 'rgba(255,255,255,0)');
-        sGrad.addColorStop(0.5, 'rgba(255,255,255,0.25)');
+        sGrad.addColorStop(0.5, 'rgba(255,255,255,0.4)');
         sGrad.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = sGrad;
         ctx.beginPath(); ctx.roundRect(btnX, btnY, btnW, btnH, 14 * sf); ctx.fill();
 
-        // 3. Inner Border
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1 * sf;
-        ctx.stroke();
+        // 4. Inner Bevel Highlight
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5 * sf;
+        ctx.beginPath(); ctx.roundRect(btnX + 2*sf, btnY + 2*sf, btnW - 4*sf, btnH - 4*sf, 12 * sf); ctx.stroke();
 
         // -- Text & Icon Group (Group Centering) --
-        const fontSize = 38 * sf; // Slightly larger for high impact
-        const tracking = 2 * sf; // Black Han Sans is already wide, reduce tracking
+        const fontSize = 40 * sf; 
+        const tracking = 2 * sf; 
         ctx.font = `900 ${Math.floor(fontSize)}px "Black Han Sans"`;
         const textStr = "PLAY";
         
-        // Correct tracked width calculation
         const chars = textStr.split('');
         const textW = chars.reduce((acc, char) => acc + ctx.measureText(char).width + tracking, 0) - tracking;
         
-        const iconSize = btnH * 0.5; // Slightly larger icon
+        const iconSize = btnH * 0.52; 
         const spacing = 30 * sf; 
         const totalW = textW + spacing + iconSize;
         
-        // Unified Pulse Animation (Faster & More Dynamic)
-        const btnPulse = 1.0 + Math.sin(time * 6.5) * 0.035;
+        // Unified Pulse Animation (Pronounced)
+        const btnPulse = 1.0 + Math.sin(time * 7.5) * 0.045;
+        const textFlicker = 0.7 + Math.sin(time * 15) * 0.3; // High-frequency neon flicker
         
         const centerX = btnX + btnW / 2;
         const centerY = btnY + btnH / 2;
@@ -53,19 +66,22 @@ export class ControlsRenderer {
         ctx.scale(btnPulse, btnPulse);
         ctx.translate(-centerX, -centerY);
 
-        // Group start for perfect centering
         const startX = btnX + (btnW - totalW) / 2;
         const tx = startX;
         const ty = centerY + fontSize * 0.35;
         const ix = startX + textW + spacing + iconSize / 2;
 
-        // 1. Draw Text (Title Screen Style: Black Han Sans + Thick Stroke + Deep Shadow)
-        drawTrackedText(ctx, textStr, tx, ty, fontSize, tracking, '#fff', 'left', 'rgba(0,0,0,0.9)', '"Black Han Sans"', 6 * sf, 8 * sf);
+        // 1. Draw Text with Flickering Glow
+        ctx.save();
+        ctx.shadowBlur = 20 * sf * textFlicker;
+        ctx.shadowColor = '#fff';
+        drawTrackedText(ctx, textStr, tx, ty, fontSize, tracking, '#fff', 'left', 'rgba(0,0,0,0.9)', '"Black Han Sans"', 7 * sf, 9 * sf);
+        ctx.restore();
 
         // 2. Draw Solid Triangle Icon
         ctx.save();
         ctx.translate(ix, centerY);
-        ctx.shadowBlur = 15 * sf; ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 20 * sf * textFlicker; ctx.shadowColor = '#fff';
         
         ctx.beginPath();
         ctx.moveTo(-iconSize * 0.4, -iconSize * 0.5);
@@ -74,7 +90,7 @@ export class ControlsRenderer {
         ctx.closePath();
         
         ctx.fillStyle = '#fff'; ctx.fill();
-        ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5 * sf; ctx.stroke();
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2 * sf; ctx.stroke();
         
         ctx.restore();
         ctx.restore();

@@ -115,7 +115,8 @@ export async function ensureTables(db: D1Database) {
         'total_good INTEGER DEFAULT 0', 'total_miss INTEGER DEFAULT 0', 
         'total_coins INTEGER DEFAULT 0',
         'current_streak INTEGER DEFAULT 0',
-        'max_streak INTEGER DEFAULT 0'
+        'max_streak INTEGER DEFAULT 0',
+        'total_notes_hit INTEGER DEFAULT 0'
     ];
     
     for (const col of columns) {

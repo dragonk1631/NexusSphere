@@ -398,9 +398,9 @@ export class MainMenu {
                 .mm-panel {
                     background: var(--mm-glass-bg); border: 1px solid var(--mm-glass-border);
                     border-radius: 50px; backdrop-filter: blur(var(--mm-blur));
-                    padding: clamp(15px, 2.5vh, 30px); box-shadow: 0 25px 80px rgba(0,0,0,0.5);
-                    width: clamp(320px, 92vw, 1150px);
-                    max-height: 50vh; display: flex; align-items: center; justify-content: center;
+                    padding: clamp(15px, 2.8vh, 35px); box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+                    width: clamp(320px, 90vw, 1050px); /* Tighter panel v69 */
+                    max-height: 52vh; display: flex; align-items: center; justify-content: center;
                     flex-shrink: 1; min-height: 0;
                 }
                 @media (max-height: 720px) {
@@ -417,59 +417,86 @@ export class MainMenu {
                 .mm-center { 
                     display: flex; 
                     width: 100%; 
-                    gap: clamp(12px, 4vw, 50px); /* Responsive gap: small for mobile, large for desktop */
+                    gap: clamp(10px, 1.5vw, 20px); /* Tighter gap for horizontal density v71 */
                     justify-content: center; 
                     align-items: center;
                 }
                 .mm-card {
-                    position: relative; flex: 1; aspect-ratio: 1.2 / 1; 
-                    border-radius: 30px;
+                    position: relative; flex: 1; aspect-ratio: 1.3 / 1; /* Sleek horizontal proportion */
+                    border-radius: 32px;
                     border: 3px solid rgba(255,255,255,0.35); display: flex; flex-direction: column;
-                    align-items: center; justify-content: center; gap: 4px; cursor: pointer; overflow: hidden;
+                    align-items: center; justify-content: center; gap: 10px; cursor: pointer; overflow: hidden;
                     transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-                    padding: clamp(10px, 2vh, 20px) 5px clamp(12px, 2.5vh, 25px) 5px;
+                    padding: clamp(20px, 3vh, 35px) 15px; /* Deeper padding for visual weight */
                     box-sizing: border-box;
                 }
+
+                /* ── [ULTRA] PLAY CARD (Refined & Sophisticated) ── */
                 .mm-card-play { 
-                    background: linear-gradient(135deg, rgba(255,0,110,1), rgba(255,100,50,1)); 
-                    transform: scale(1.2); 
+                    background: linear-gradient(-45deg, #ff006e, #ff6b08, #ff006e, #ff6b08);
+                    background-size: 400% 400%;
+                    animation: mm-play-pulse 2.5s infinite ease-in-out, mm-play-gradient 6s infinite linear;
                     z-index: 100;
-                    border: 3px solid rgba(255, 255, 255, 0.4) !important;
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                    border: 2px solid rgba(255, 255, 255, 0.85) !important;
+                    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5), 0 0 25px rgba(255, 0, 110, 0.4);
+                    transform: scale(1.22);
+                    margin: 0 clamp(10px, 2.2vw, 32px); /* Refined margin for tighter layout */
                 }
                 .mm-card-play:hover { 
-                    transform: scale(1.3) translateY(-15px) !important; 
-                    filter: brightness(1.2);
+                    transform: scale(1.3) translateY(-12px) !important; 
+                    filter: brightness(1.15);
+                    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 45px rgba(255, 0, 110, 0.7);
+                    border-color: #fff !important;
                 }
 
-                /* [MOBILE OPTIMIZATION] */
-                @media (max-width: 850px) {
-                    .mm-panel { width: 96vw; padding: 10px; border-radius: 25px; }
-                    .mm-card { border-radius: 18px; border-width: 2px; }
-                    .mm-card-play { transform: scale(1.12); } /* Slightly smaller scale for mobile to save space */
-                    .mm-card-play:hover { transform: scale(1.18) translateY(-8px) !important; }
-                    .mm-center { gap: clamp(8px, 2.5vw, 20px); }
-                }
-
-                /* [ULTRA] Font-Focused Mega Pulse (Unified Style) */
+                /* Text Blinking & Pulse */
                 .mm-card-play .mm-card-label {
+                    animation: mm-play-blink 1s infinite alternate ease-in-out, mm-play-font-mega 1.5s infinite alternate ease-in-out;
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: clamp(1.3rem, 2.8vh, 1.7rem) !important;
                     color: #fff !important;
-                    -webkit-text-stroke: 1.5px #000; /* High contrast stroke */
+                    text-shadow: 0 0 15px rgba(255,255,255,0.6), 0 4px 10px rgba(0,0,0,0.8);
+                    -webkit-text-stroke: 1.2px #000;
                     paint-order: stroke fill;
-                    font-size: clamp(1.1rem, 2.3vh, 1.5rem) !important;
-                    animation: mm-play-font-mega 1.2s infinite alternate ease-in-out;
-                    display: inline-block;
-                    text-shadow: 0 4px 12px rgba(0,0,0,1);
+                    letter-spacing: 1.5px;
+                }
+
+                @keyframes mm-play-gradient {
+                    0% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
+                }
+                @keyframes mm-play-pulse {
+                    0%, 100% { transform: scale(1.2); box-shadow: 0 15px 40px rgba(0,0,0,0.5), 0 0 20px rgba(255, 0, 110, 0.3); }
+                    50% { transform: scale(1.24); box-shadow: 0 20px 55px rgba(0,0,0,0.7), 0 0 40px rgba(255, 0, 110, 0.6); }
+                }
+                @keyframes mm-play-blink {
+                    0% { opacity: 1; filter: drop-shadow(0 0 15px #fff); }
+                    100% { opacity: 0.8; filter: drop-shadow(0 0 5px #fff); }
                 }
                 @keyframes mm-play-font-mega {
-                    0% { 
-                        transform: scale(1);
-                        text-shadow: 0 4px 8px rgba(0,0,0,1);
+                    0% { transform: scale(1); }
+                    100% { transform: scale(1.1); }
+                }
+
+                /* [MOBILE OPTIMIZATION] - RESTORED TO PREVIOUS PERFECT STATE v70 */
+                @media (max-width: 850px) {
+                    .mm-panel { width: 96vw; padding: 10px; border-radius: 25px; max-height: 48vh; }
+                    .mm-card { 
+                        aspect-ratio: 1.2 / 1 !important; 
+                        border-radius: 18px; border-width: 2px; 
+                        padding: clamp(10px, 2vh, 20px) 5px clamp(12px, 2.5vh, 25px) 5px !important;
+                        gap: 4px !important;
                     }
-                    100% { 
-                        transform: scale(1.45); 
-                        text-shadow: 0 10px 25px rgba(0,0,0,1); /* Deep black shadow for impact */
-                    }
+                    .mm-card-play { 
+                        transform: scale(1.12) !important; 
+                        border-width: 2px !important; 
+                        margin: 0 12px !important; 
+                    } 
+                    .mm-card-play:hover { transform: scale(1.18) translateY(-8px) !important; }
+                    .mm-center { gap: clamp(8px, 2.5vw, 20px) !important; }
+                    .mm-card-icon { font-size: 2rem !important; }
+                    .mm-card-label { font-size: 0.85rem !important; }
                 }
 
                 .mm-card-editor { background: linear-gradient(135deg, rgba(255,200,0,1), rgba(180,255,0,1)); }
@@ -477,12 +504,12 @@ export class MainMenu {
                 .mm-card-collection { background: linear-gradient(135deg, rgba(140,255,0,1), rgba(0,210,255,1)); }
                 .mm-card-shop { background: linear-gradient(135deg, rgba(0,210,255,1), rgba(120,0,255,1)); }
                 .mm-card:not(.mm-card-play):hover { transform: scale(1.06) translateY(-8px); border-color: white; box-shadow: 0 10px 30px rgba(255,255,255,0.2); }
-                .mm-card-icon { font-size: clamp(1.8rem, 4.5vh, 2.6rem); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.4)); }
+                .mm-card-icon { font-size: clamp(2.2rem, 5vh, 3.2rem); filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
                 .mm-card-label { 
-                    font-family: 'Black Han Sans', sans-serif; font-size: clamp(0.85rem, 1.7vh, 1.15rem); margin-top: 4px;
-                    -webkit-text-stroke: 0.5px rgba(0,0,0,0.4); /* Thinned v56 */
+                    font-family: 'Black Han Sans', sans-serif; font-size: clamp(1rem, 2vh, 1.4rem); margin-top: 8px;
+                    -webkit-text-stroke: 0.8px rgba(0,0,0,0.4);
                     paint-order: stroke fill;
-                    text-shadow: 0 4px 8px rgba(0,0,0,1);
+                    text-shadow: 0 5px 12px rgba(0,0,0,1);
                 }
                 .mm-card-sub { 
                     font-size: clamp(0.55rem, 0.9vh, 0.7rem); opacity: 0.9; text-transform: uppercase; font-weight: 800; 

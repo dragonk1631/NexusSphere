@@ -62,9 +62,11 @@ export class OfflineDownloadManager {
         if (isSF2) {
             if (await this.binaryVault.has(url)) return true;
         } else {
-            const cache = await caches.open(OfflineDownloadManager.CACHE_NAME);
-            const existing = await cache.match(resolvedUrl);
-            if (existing) return true;
+            const cache = await this.getCache();
+            if (cache) {
+                const existing = await cache.match(resolvedUrl);
+                if (existing) return true;
+            }
         }
 
         for (let attempt = 0; attempt <= retryCount; attempt++) {
@@ -115,9 +117,9 @@ export class OfflineDownloadManager {
                     const blob = new Blob(chunks as BlobPart[]);
                     await this.binaryVault.store(url, blob);
                 } else {
-                    const cache = await caches.open(OfflineDownloadManager.CACHE_NAME);
+                    const cache = await this.getCache();
                     // 일반 파일은 Cache API 저장
-                    await cache.put(resolvedUrl, response.clone());
+                    if (cache) await cache.put(resolvedUrl, response.clone());
                 }
                 
                 return true;
@@ -241,7 +243,7 @@ export class OfflineDownloadManager {
                     let sf2Count = 0;
                     let assetCount = 0;
 
-                    const cache = await caches.open(OfflineDownloadManager.CACHE_NAME);
+                    const cache = await this.getCache();
 
                     for (const filePath of files) {
                         try {
@@ -256,7 +258,7 @@ export class OfflineDownloadManager {
                                 console.log(`[Vault:STORE] Storing SoundFont: "${normalizedPath}"`);
                                 await this.binaryVault.store(normalizedPath, blob);
                                 sf2Count++;
-                            } else {
+                            } else if (cache) {
                                 const fileUrl = resolveAssetPath(normalizedPath);
                                 await cache.put(fileUrl, new Response(blob));
                                 assetCount++;
@@ -315,7 +317,8 @@ export class OfflineDownloadManager {
                 if (blob) return new Response(blob);
             }
 
-            const cache = await caches.open(OfflineDownloadManager.CACHE_NAME);
+            const cache = await this.getCache();
+            if (!cache) return undefined;
             const resolvedUrl = resolveAssetPath(url);
             return await cache.match(resolvedUrl);
         } catch {
@@ -331,12 +334,22 @@ export class OfflineDownloadManager {
             if (url.endsWith('.sf2')) {
                 return await this.binaryVault.has(url);
             }
-            const cache = await caches.open(OfflineDownloadManager.CACHE_NAME);
+            const cache = await this.getCache();
+            if (!cache) return false;
             const resolvedUrl = resolveAssetPath(url);
             const existing = await cache.match(resolvedUrl);
             return !!existing;
         } catch {
             return false;
+        }
+    }
+
+    private async getCache(): Promise<Cache | null> {
+        try {
+            return await caches.open(OfflineDownloadManager.CACHE_NAME);
+        } catch (e) {
+            // 브라우저의 Cache Storage가 가득 찼거나 비밀 모드 등에서 제한된 경우 발생할 수 있음
+            return null;
         }
     }
 
@@ -370,7 +383,9 @@ export class OfflineDownloadManager {
             if (isSF2) {
                 clone.blob().then(blob => this.binaryVault.store(url, blob));
             } else {
-                caches.open(OfflineDownloadManager.CACHE_NAME).then(cache => cache.put(resolvedUrl, clone));
+                this.getCache().then(cache => {
+                    if (cache) cache.put(resolvedUrl, clone);
+                });
             }
         }
         

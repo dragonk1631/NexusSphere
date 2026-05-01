@@ -42,19 +42,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             if (type === 'combo') {
                 orderBy = 'max_streak DESC';
                 field = 'max_streak as score';
+            } else if (type === 'hits') {
+                orderBy = 'total_notes_hit DESC';
+                field = 'total_notes_hit as score';
             } else if (type === 'plays') {
                 orderBy = 'play_count DESC';
                 field = 'play_count as score';
-            } else if (type === 'streak') {
-                orderBy = 'current_streak DESC';
-                field = 'current_streak as score';
             } else if (type === 'level') {
                 orderBy = 'level DESC, exp DESC';
                 field = 'level as score';
             }
 
             query = `
-                SELECT user_id, display_name, avatar_url, ${field}, max_streak, play_count, current_streak, level, updated_at as timestamp
+                SELECT user_id, display_name, avatar_url, ${field}, max_streak, play_count, current_streak, total_notes_hit, level, updated_at as timestamp
                 FROM user_stats_v2
                 WHERE display_name IS NOT NULL
                 ORDER BY ${orderBy}

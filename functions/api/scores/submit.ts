@@ -44,9 +44,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const body: any = await request.json();
 
         // --- VALIDATION ---
-        const { songId, keyMode, difficulty, score, accuracy, maxCombo, grade, isFC, isAP, perfect, great, good, miss, nickname, avatarUrl } = body;
+        const { songId, keyMode, difficulty, score, accuracy, maxCombo, grade, isFC, isAP, perfect, great, good, miss, liveStreak, nickname, avatarUrl } = body;
         
         const totalNotesHit = (perfect || 0) + (great || 0) + (good || 0);
+        const finalLiveStreak = liveStreak || 0;
 
         if (!songId || !keyMode || !difficulty || score === undefined) {
             return new Response('Missing required fields', { status: 400 });
@@ -85,9 +86,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             env.DB.prepare(`
                 INSERT INTO user_stats_v2 (
                     user_id, display_name, avatar_url, 
-                    exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit, updated_at
+                    exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit, current_streak, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     display_name = COALESCE(EXCLUDED.display_name, user_stats_v2.display_name),
                     avatar_url = COALESCE(EXCLUDED.avatar_url, user_stats_v2.avatar_url),
@@ -96,11 +97,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                     play_count = user_stats_v2.play_count + 1,
                     total_coins = user_stats_v2.total_coins + EXCLUDED.total_coins,
                     max_combo = MAX(user_stats_v2.max_combo, EXCLUDED.max_combo),
-                    max_streak = MAX(user_stats_v2.max_streak, EXCLUDED.max_streak),
+                    max_streak = MAX(user_stats_v2.max_streak, EXCLUDED.max_streak, EXCLUDED.current_streak),
                     total_notes_hit = user_stats_v2.total_notes_hit + EXCLUDED.total_notes_hit,
+                    current_streak = EXCLUDED.current_streak,
                     updated_at = CURRENT_TIMESTAMP
-                RETURNING exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit
-            `).bind(userId, nickname, avatarUrl, serverGainedXP, score, serverGainedCoin, maxCombo, maxCombo, totalNotesHit),
+                RETURNING exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit, current_streak
+            `).bind(userId, nickname, avatarUrl, serverGainedXP, score, serverGainedCoin, maxCombo, maxCombo, totalNotesHit, finalLiveStreak),
 
             // [B] Rank Stats
             env.DB.prepare(`
@@ -155,8 +157,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const calculatedLevel = Math.floor((-40 + Math.sqrt(1600 + 160 * currentExp)) / 80 + 1);
         const finalLevel = Math.min(Math.max(1, calculatedLevel), 999);
         
-        // Note: We intentionally skip updating the 'level' column in the DB to save 1 Write operation.
-        // The level is strictly derived from 'exp', so the server calculates it on the fly.
+        // --- PERSIST LEVEL ---
+        // We update the 'level' column so it's indexed and available for the ranking API.
+        try {
+            await env.DB.prepare('UPDATE user_stats_v2 SET level = ? WHERE user_id = ?').bind(finalLevel, userId).run();
+        } catch (e) {
+            console.error('[Level Sync Error]', e);
+        }
 
         // --- RESPONSE: Return FULL stats so client can update its display ---
         return new Response(JSON.stringify({ 
@@ -171,7 +178,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 total_coins: (updatedStats?.total_coins as number) || 0,
                 max_combo: (updatedStats?.max_combo as number) || 0,
                 max_streak: (updatedStats?.max_streak as number) || 0,
-                total_notes_hit: (updatedStats?.total_notes_hit as number) || 0
+                total_notes_hit: (updatedStats?.total_notes_hit as number) || 0,
+                current_streak: (updatedStats?.current_streak as number) || 0
             }
         }), {
             headers: { 'Content-Type': 'application/json' }

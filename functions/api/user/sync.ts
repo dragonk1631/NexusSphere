@@ -67,10 +67,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
                 finalStats.display_name = currentName;
             }
 
-            // Calculate level dynamically based on exp, saving us from writing it to DB
+            // Calculate level dynamically based on exp
             const currentExp = finalStats.exp || 0;
             const calculatedLevel = Math.floor((-40 + Math.sqrt(1600 + 160 * currentExp)) / 80 + 1);
-            finalStats.level = Math.min(Math.max(1, calculatedLevel), 999);
+            const finalLevel = Math.min(Math.max(1, calculatedLevel), 999);
+            
+            // Sync level back to DB if it's out of sync (important for Ranking API)
+            if (finalStats.level !== finalLevel) {
+                await env.DB.prepare('UPDATE user_stats_v2 SET level = ? WHERE user_id = ?')
+                    .bind(finalLevel, userId).run();
+                finalStats.level = finalLevel;
+            }
         }
 
         // --- RESPONSE: Return exactly what the DB has ---

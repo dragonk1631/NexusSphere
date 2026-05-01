@@ -201,9 +201,8 @@ async function enforceLandscape(isUserGesture: boolean = false) {
     // 1. Fullscreen - STRICTLY REQUIRES USER GESTURE
     // Skip if already in standalone (PWA) mode as it's already "fullscreen-like"
     if (!isStandalone && isUserGesture && document.fullscreenEnabled && !document.fullscreenElement && document.documentElement.requestFullscreen) {
-      await document.documentElement.requestFullscreen().catch((err) => {
-        // Log but don't crash; CSS fallback will handle orientation
-        console.warn("Fullscreen request failed (expected on some mobile browsers):", err);
+      await document.documentElement.requestFullscreen().catch(() => {
+        // Silently ignore: Common browser security restriction
       });
 
       // Small delay to allow browser to transition before locking
@@ -216,8 +215,8 @@ async function enforceLandscape(isUserGesture: boolean = false) {
       const lockPromise = (screen.orientation as any).lock('landscape');
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000));
       
-      await Promise.race([lockPromise, timeoutPromise]).catch((err) => {
-        console.warn("[enforceLandscape] Orientation lock skipped or timed out:", err);
+      await Promise.race([lockPromise, timeoutPromise]).catch(() => {
+        // Silently ignore: Often not supported on desktop or restricted on mobile
       });
     }
   } catch (e) {
