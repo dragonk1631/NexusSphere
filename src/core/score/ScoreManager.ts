@@ -247,11 +247,20 @@ export class ScoreManager {
             if (data.records && Array.isArray(data.records)) {
                 data.records.forEach((r: any) => {
                     const key = `${r.song_id}:${r.key_mode}:${r.difficulty}`;
+                    const acc = r.accuracy !== undefined ? r.accuracy : (r.best_accuracy || 0);
+                    
+                    // Dynamic Grade Calculation for V3 (or use existing best_grade)
+                    let calculatedGrade = r.best_grade || 'B';
+                    if (acc >= 100) calculatedGrade = 'S+';
+                    else if (acc >= 95) calculatedGrade = 'S';
+                    else if (acc >= 85) calculatedGrade = 'A';
+                    else if (acc > 0) calculatedGrade = 'B';
+
                     this.highScores[key] = {
-                        score: r.high_score,
-                        maxCombo: r.max_combo || 0,
-                        accuracy: r.best_accuracy || 0,
-                        grade: r.best_grade || 'F',
+                        score: r.score !== undefined ? r.score : (r.high_score || 0),
+                        maxCombo: r.max_streak !== undefined ? r.max_streak : (r.max_combo || 0),
+                        accuracy: acc,
+                        grade: calculatedGrade,
                         playCount: r.play_count || 1,
                         timestamp: new Date(r.last_played_at || Date.now()).getTime()
                     };

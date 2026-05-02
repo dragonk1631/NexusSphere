@@ -753,11 +753,15 @@ export class CollectionUI {
         // Recalculate Rank Stats locally for perfect consistency with the list
         const relevantRecords = records.filter(r => r.key_mode === this.currentKeyMode && r.difficulty === this.currentDifficulty);
         
-        // Helper to get effective grade consistently
+        // Helper to get effective grade consistently (Supports V2 and V3 field names)
         const getEffectiveGrade = (r: any) => {
-            if (r.best_accuracy >= 100) return 'S+';
-            if (r.best_grade === 'S+') return 'S'; // Downgrade if AP is lost (legacy)
-            return ['S', 'A'].includes(r.best_grade) ? r.best_grade : 'B';
+            const acc = r.accuracy !== undefined ? r.accuracy : (r.best_accuracy || 0);
+            const grade = r.best_grade || 'B'; // Default to B for V3 if not present
+            
+            if (acc >= 100) return 'S+';
+            if (acc >= 95) return 'S';
+            if (acc >= 85) return 'A';
+            return 'B';
         };
 
         const localRankStats = {
@@ -943,13 +947,13 @@ export class CollectionUI {
                                                     </div>
                                                     <div class="pi-meta">
                                                         ${record ? `
-                                                            <div class="pi-meta-item"><span>COMBO</span><b>${record.max_combo}</b></div>
-                                                            <div class="pi-meta-item"><span>ACCURACY</span><b>${(record.best_accuracy || 0).toFixed(2)}%</b></div>
+                                                            <div class="pi-meta-item"><span>COMBO</span><b>${record.max_streak !== undefined ? record.max_streak : (record.max_combo || 0)}</b></div>
+                                                            <div class="pi-meta-item"><span>ACCURACY</span><b>${(record.accuracy !== undefined ? record.accuracy : (record.best_accuracy || 0)).toFixed(2)}%</b></div>
                                                             <div class="pi-meta-item"><span>PLAYS</span><b>${record.play_count || 1}</b></div>
                                                         ` : '<span style="letter-spacing: 2px; opacity: 0.3; font-size: 0.6rem;">INITIALIZING_ARCHIVE_DATA</span>'}
                                                     </div>
                                                 </div>
-                                                <div class="pi-score" style="${!record ? 'opacity: 0.2;' : ''}">${record ? (record.high_score || 0).toLocaleString() : '0'}</div>
+                                                <div class="pi-score" style="${!record ? 'opacity: 0.2;' : ''}">${record ? (record.score !== undefined ? record.score : (record.high_score || 0)).toLocaleString() : '0'}</div>
                                             </div>
                                         </div>
                                     `).join('') : '<div style="opacity: 0.3; text-align: center; padding: 2rem 0; font-weight: 900; font-size: 1.2rem; letter-spacing: 2px;">LIBRARY EMPTY</div>'}
