@@ -20,29 +20,30 @@ function decodeJWT(token: string): any {
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
+
+    const CORS_HEADERS = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Max-Age': '86400',
+    };
+
+    if (request.method === 'OPTIONS') {
+        return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
     
+    try {
         if (!env.DB) throw new Error('D1 Binding is missing');
         await ensureTables(env.DB);
 
-        const CORS_HEADERS = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '86400',
-        };
-
-        if (request.method === 'OPTIONS') {
-            return new Response(null, { headers: CORS_HEADERS });
-        }
-
         const authHeader = request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS_HEADERS });
         }
 
         const token = authHeader.split(' ')[1];
         const decoded = decodeJWT(token);
-        if (!decoded || !decoded.sub) return new Response(JSON.stringify({ error: 'Invalid Token' }), { status: 401 });
+        if (!decoded || !decoded.sub) return new Response(JSON.stringify({ error: 'Invalid Token' }), { status: 401, headers: CORS_HEADERS });
 
         const userId = decoded.sub;
 
@@ -77,6 +78,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
                 'Content-Type': 'application/json'
             }
         });
+
     } catch (e: any) {
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
             status: 500,

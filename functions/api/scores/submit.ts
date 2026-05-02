@@ -18,38 +18,31 @@ function decodeJWT(token: string): any {
     }
 }
 
-/**
- * [SERVER-AUTHORITATIVE SCORE SUBMISSION]
- * 
- * The server is the SOLE authority on XP, Level, and statistics.
- * The client sends raw play results. The server calculates everything.
- * The response contains the FULL updated stats so the client can display them.
- */
 export const onRequestPost: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
-    
+
+    const CORS_HEADERS = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Max-Age': '86400',
+    };
+
+    if (request.method === 'OPTIONS') {
+        return new Response(null, { headers: CORS_HEADERS });
+    }
+
     try {
         if (!env.DB) throw new Error('D1 Binding is missing');
         await ensureTables(env.DB);
 
-        const CORS_HEADERS = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '86400',
-        };
-
-        if (request.method === 'OPTIONS') {
-            return new Response(null, { headers: CORS_HEADERS });
-        }
-
         // --- AUTH ---
         const authHeader = request.headers.get('Authorization');
-        if (!authHeader) return new Response('Unauthorized', { status: 401 });
+        if (!authHeader) return new Response('Unauthorized', { status: 401, headers: CORS_HEADERS });
 
         const token = authHeader.split(' ')[1];
         const decoded = decodeJWT(token);
-        if (!decoded || !decoded.sub) return new Response('Unauthorized', { status: 401 });
+        if (!decoded || !decoded.sub) return new Response('Unauthorized', { status: 401, headers: CORS_HEADERS });
 
         const userId = decoded.sub;
         const body: any = await request.json();
@@ -61,13 +54,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const finalLiveStreak = liveStreak || 0;
 
         if (!songId || !keyMode || !difficulty || score === undefined) {
-            return new Response('Missing required fields', { status: 400 });
-        }
-        if (score > 5000000 || score < 0) {
-            return new Response('Invalid score data', { status: 400 });
+            return new Response('Missing required fields', { status: 400, headers: CORS_HEADERS });
         }
 
-        // --- SERVER-SIDE XP CALCULATION (The ONLY XP calculation that matters) ---
+        // --- SERVER-SIDE XP & COIN CALCULATION ---
         const diffStr = (difficulty || 'NORMAL').toUpperCase();
         const gradeStr = (grade || 'F').toUpperCase();
         
@@ -83,31 +73,22 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         else if (gradeStr === 'B') rankWeight = 1.0;
 
         const serverGainedXP = Math.floor((20 + (maxCombo * 0.1)) * diffWeight * rankWeight + (isAP ? 150 : isFC ? 50 : 0));
-
-        // --- SERVER-SIDE COIN CALCULATION ---
         const serverGainedCoin = Math.floor((10 + (maxCombo * 0.05)) * rankWeight);
 
-        // --- RANK COLUMN ---
-        const normalizedGrade = gradeStr.replace('+', '_plus').toLowerCase();
-        const rankColumn = `rank_${normalizedGrade}`;
-
-        // --- [NEW] AUTO-REGISTER SONG & V3 RECORDING ---
+        // --- AUTO-REGISTER SONG & V3 RECORDING ---
         const cleanSlug = songId.split('/').pop()?.replace(/\.(mid|mp3|wav)$/i, '').toLowerCase() || 'unknown';
         const cleanTitle = songId.split('/').pop()?.replace(/\.(mid|mp3|wav)$/i, '') || 'Unknown Track';
 
-        // 1. Ensure the song exists in master table
         await env.DB.prepare(`
             INSERT OR IGNORE INTO songs (slug, title, asset_path) 
             VALUES (?, ?, ?)
         `).bind(cleanSlug, cleanTitle, songId).run();
 
-        // 2. Get the song's internal ID
         const songMaster = await env.DB.prepare(`SELECT id FROM songs WHERE asset_path = ?`).bind(songId).first() as any;
         const songPk = songMaster?.id;
 
-        // --- ATOMIC DB UPDATE (V3 + User Stats) ---
+        // --- ATOMIC DB UPDATE ---
         const batchResults = await env.DB.batch([
-            // [A] User Stats
             env.DB.prepare(`
                 INSERT INTO user_stats_v2 (
                     user_id, display_name, avatar_url, 
@@ -129,7 +110,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 RETURNING exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit, current_streak
             `).bind(userId, nickname, avatarUrl, serverGainedXP, score, serverGainedCoin, maxCombo, maxCombo, totalNotesHit, finalLiveStreak),
 
-            // [B] V3 Song Records (Normalized)
             env.DB.prepare(`
                 INSERT INTO user_song_records_v3 (
                     user_id, song_id, score, max_streak, play_count, accuracy, last_played_at
@@ -144,51 +124,26 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             `).bind(userId, songPk, score, maxCombo, accuracy)
         ]);
 
-        // --- LEVEL CALCULATION (Server-only, dynamic) ---
-        const updatedStats = batchResults[0]?.results?.[0] as any || {
-            exp: serverGainedXP,
-            total_score: score,
-            play_count: 1,
-            total_coins: serverGainedCoin,
-            max_combo: maxCombo,
-            max_streak: maxCombo,
-            total_notes_hit: totalNotesHit
-        };
-        const currentExp = updatedStats.exp || 0;
-        
+        const updatedStats = batchResults[0]?.results?.[0] as any;
+        const currentExp = updatedStats?.exp || 0;
         const calculatedLevel = Math.floor((-40 + Math.sqrt(1600 + 160 * currentExp)) / 80 + 1);
         const finalLevel = Math.min(Math.max(1, calculatedLevel), 999);
         
-        // --- PERSIST LEVEL ---
-        try {
-            await env.DB.prepare('UPDATE user_stats_v2 SET level = ? WHERE user_id = ?').bind(finalLevel, userId).run();
-        } catch (e) {
-            console.error('[Level Sync Error]', e);
-        }
+        await env.DB.prepare('UPDATE user_stats_v2 SET level = ? WHERE user_id = ?').bind(finalLevel, userId).run();
 
-        // --- RESPONSE: Return FULL stats so client can update its display ---
         return new Response(JSON.stringify({ 
             success: true, 
             gainedXP: serverGainedXP, 
             gainedCoin: serverGainedCoin,
-            stats: {
-                level: finalLevel,
-                ...updatedStats
-            }
+            stats: { level: finalLevel, ...updatedStats }
         }), {
-            headers: { 
-                ...CORS_HEADERS,
-                'Content-Type': 'application/json'
-            }
+            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
         });
 
     } catch (e: any) {
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
             status: 500,
-            headers: { 
-                ...CORS_HEADERS,
-                'Content-Type': 'application/json'
-            }
+            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
         });
     }
 };

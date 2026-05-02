@@ -9,7 +9,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const { env, request } = context;
     const url = new URL(request.url);
     const type = url.searchParams.get('type') || 'score';
-    const songId = url.searchParams.get('songId');
+    const songId = url.searchParams.get('song_id');
 
     const CORS_HEADERS = {
         'Access-Control-Allow-Origin': '*',
@@ -18,10 +18,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         'Access-Control-Max-Age': '86400',
     };
 
-    // Handle CORS Preflight
     if (request.method === 'OPTIONS') {
-            }
-        });
+        return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
     try {
@@ -29,8 +27,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         await ensureTables(env.DB);
 
         let query = '';
+        let params: any[] = [];
+
         if (type === 'songs') {
-            // [V3] Global Song Popularity Ranking (JOIN with songs master table)
+            // [V3] Global Song Popularity Ranking
             query = `
                 SELECT 
                     s.title as display_name,
@@ -56,8 +56,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                 ORDER BY r.score DESC
                 LIMIT 50
             `;
+            params = [songId, songId];
         } else {
-            // [V2] Global User Ranking (Level, Score, etc.)
+            // [V2] Global User Ranking
             const column = type === 'score' ? 'total_score' : 
                            type === 'plays' ? 'play_count' : 
                            type === 'level' ? 'exp' : 'total_score';

@@ -9,6 +9,7 @@
 ## 🚀 Today's Objective
 
 The primary goals today were twofold:
+
 1. **UI/UX**: Achieve perfect visual consistency and layout stability across the Collection and Shop interfaces.
 2. **Data Integrity**: Completely overhaul the data synchronization logic to implement a strictly Server-Authoritative architecture, permanently resolving "zombie data" issues.
 
@@ -46,6 +47,7 @@ The Shop's guest notification banner was identified as a "layout inhibitor," tak
 We faced a critical "Zombie Data" issue where deleted database records would mysteriously reappear upon login. 
 
 - **Root Cause Analysis**: 
+
   1. The client heavily relied on `localStorage` even when logged in, causing dual sources of truth.
   2. Legacy PWA Service Workers were aggressively caching old JavaScript bundles (`skipWaiting` was missing), meaning players were executing outdated logic that read from contaminated `v2` storage keys.
   3. `sync.ts` had a dangerous "auto-migration" fallback that tried to resurrect data from legacy `user_scores` tables if the `v2` tables were empty.
