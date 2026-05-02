@@ -301,12 +301,14 @@ export class RankingUI {
                 ? `/api/scores/top?songId=${songId}` 
                 : `/api/scores/top?type=${type}`;
             
-            const response = await ApiUtils.fetch(apiPath);
-            if (!response.ok) throw new Error('Server unreachable');
+            const response = await ApiUtils.fetch(apiPath, {}, true); // forceGlobal = true
+            if (!response.ok) throw new Error(`Server returned ${response.status}`);
             
-            return await response.json();
+            const data = await response.json();
+            console.info(`[RankingUI] Successfully fetched global rankings from server. Records: ${data.length}`);
+            return data;
         } catch (e) {
-            console.warn('[RankingUI] Using local fallback:', e);
+            console.warn(`[RankingUI] Global fetch failed, using local fallback:`, e);
             return this.getLocalFallback(songId, type);
         }
     }

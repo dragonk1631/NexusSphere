@@ -8,23 +8,39 @@ export class ApiUtils {
      * @param path The relative path (e.g., '/api/user/sync')
      * @returns The resolved URL
      */
-    public static resolve(path: string): string {
-        // 1. Check for remote API override (e.g. https://nexussphere.pages.dev)
+    /**
+     * Production API Base URL for global features (like Rankings)
+     */
+    private static readonly PRODUCTION_URL = 'https://nexussphere.pages.dev';
+
+    /**
+     * Resolves a relative API path to a full URL or absolute path.
+     * @param path The relative path (e.g., '/api/user/sync')
+     * @param forceGlobal If true, always points to the production server regardless of local environment.
+     * @returns The resolved URL
+     */
+    public static resolve(path: string, forceGlobal: boolean = false): string {
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+        // 1. Force Global (Production) if requested
+        if (forceGlobal) {
+            return `${this.PRODUCTION_URL}${normalizedPath}`;
+        }
+
+        // 2. Check for remote API override from environment
         const remoteApiUrl = import.meta.env.VITE_API_URL;
         if (remoteApiUrl) {
             const base = remoteApiUrl.endsWith('/') ? remoteApiUrl.slice(0, -1) : remoteApiUrl;
-            const normalizedPath = path.startsWith('/') ? path : `/${path}`;
             return `${base}${normalizedPath}`;
         }
 
-        // 2. Default to relative path with BASE_URL support
+        // 3. Default to relative path with BASE_URL support
         const baseUrl = import.meta.env.BASE_URL || '/';
         const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
         
         const finalPath = `${normalizedBase}${normalizedPath}`.replace(/\/+/g, '/');
         
-        // 3. Domain-specific guidance for GitHub Pages
+        // 4. Domain-specific guidance for GitHub Pages
         if (window.location.hostname.includes('github.io') && import.meta.env.PROD) {
             console.warn(
                 `[ApiUtils] detected static hosting (GitHub Pages). ` +
@@ -37,10 +53,10 @@ export class ApiUtils {
     }
 
     /**
-     * Enhanced fetch wrapper with better error reporting for hosting issues.
+     * Enhanced fetch wrapper with support for global production API routing.
      */
-    public static async fetch(path: string, options: RequestInit = {}): Promise<Response> {
-        const url = this.resolve(path);
+    public static async fetch(path: string, options: RequestInit = {}, forceGlobal: boolean = false): Promise<Response> {
+        const url = this.resolve(path, forceGlobal);
         const response = await fetch(url, options);
 
         if (response.status === 404 && window.location.hostname.includes('github.io')) {
