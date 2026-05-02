@@ -42,4 +42,40 @@ export async function ensureTables(db: D1Database) {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`)
     ]);
+
+    // --- AUTOMATIC V3 MIGRATION (Handle legacy table without key_mode/difficulty) ---
+    try {
+        const check = await db.prepare("PRAGMA table_info(user_song_records_v3)").all();
+        const hasKeyMode = check.results?.some((col: any) => col.name === 'key_mode');
+
+        if (!hasKeyMode && check.results?.length > 0) {
+            console.log('[DB Migration] Upgrading user_song_records_v3 to support modes and difficulties...');
+            await db.batch([
+                db.prepare("ALTER TABLE user_song_records_v3 RENAME TO user_song_records_v3_old"),
+                db.prepare(`
+                    CREATE TABLE user_song_records_v3 (
+                        user_id TEXT NOT NULL,
+                        song_id INTEGER NOT NULL,
+                        key_mode INTEGER DEFAULT 4,
+                        difficulty TEXT DEFAULT 'NORMAL',
+                        score INTEGER DEFAULT 0,
+                        max_streak INTEGER DEFAULT 0,
+                        play_count INTEGER DEFAULT 1,
+                        accuracy REAL DEFAULT 0,
+                        last_played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (user_id, song_id, key_mode, difficulty),
+                        FOREIGN KEY (song_id) REFERENCES songs(id)
+                    )
+                `),
+                db.prepare(`
+                    INSERT INTO user_song_records_v3 (user_id, song_id, score, max_streak, play_count, accuracy, last_played_at)
+                    SELECT user_id, song_id, score, max_streak, play_count, accuracy, last_played_at FROM user_song_records_v3_old
+                `),
+                db.prepare("DROP TABLE user_song_records_v3_old")
+            ]);
+            console.log('[DB Migration] user_song_records_v3 upgrade complete.');
+        }
+    } catch (e) {
+        console.error('[DB Migration] Migration check skipped or failed:', e);
+    }
 }
