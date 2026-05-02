@@ -18,6 +18,18 @@ function decodeJWT(token: string): any {
     }
 }
 
+export const onRequestOptions: PagesFunction = async () => {
+    return new Response(null, {
+        status: 204,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400',
+        }
+    });
+};
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
 
@@ -27,10 +39,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Access-Control-Max-Age': '86400',
     };
-
-    if (request.method === 'OPTIONS') {
-        return new Response(null, { status: 204, headers: CORS_HEADERS });
-    }
     
     try {
         if (!env.DB) throw new Error('D1 Binding is missing');
