@@ -27,6 +27,20 @@ function decodeJWT(token: string): any {
  * NO migration. NO reconstruction. NO guessing.
  * If the DB is empty, the response is empty. Period.
  */
+const CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+};
+
+export const onRequestOptions: PagesFunction = async () => {
+    return new Response(null, {
+        status: 204,
+        headers: CORS_HEADERS
+    });
+};
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
     const url = new URL(request.url);
@@ -94,11 +108,18 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             rankCounts: rankCountsResult.results || [],
             favorites: favoritesResult.results?.map((f: any) => f.song_id) || []
         }), {
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            headers: { 
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json' 
+            }
         });
     } catch (e: any) {
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
-            status: 500, headers: { 'Content-Type': 'application/json' } 
+            status: 500, 
+            headers: { 
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json' 
+            }
         });
     }
 };

@@ -11,13 +11,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const type = url.searchParams.get('type') || 'score';
     const songId = url.searchParams.get('songId');
 
+    const CORS_HEADERS = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Max-Age': '86400',
+    };
+
     // Handle CORS Preflight
     if (request.method === 'OPTIONS') {
-        return new Response(null, {
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             }
         });
     }
@@ -68,16 +70,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             `;
         }
 
-        const stmt = env.DB.prepare(query);
-        const results = (type === 'songs' || !songId) 
-            ? await stmt.all() 
-            : await stmt.bind(songId, songId).all();
+        const results = await env.DB.prepare(query).bind(...params).all();
 
         return new Response(JSON.stringify(results.results || []), { 
             headers: { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json' 
             } 
         });
 
@@ -85,8 +83,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
             status: 500,
             headers: { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json' 
             }
         });
     }

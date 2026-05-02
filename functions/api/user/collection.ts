@@ -21,9 +21,19 @@ function decodeJWT(token: string): any {
 export const onRequestGet: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
     
-    try {
         if (!env.DB) throw new Error('D1 Binding is missing');
         await ensureTables(env.DB);
+
+        const CORS_HEADERS = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400',
+        };
+
+        if (request.method === 'OPTIONS') {
+            return new Response(null, { headers: CORS_HEADERS });
+        }
 
         const authHeader = request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -63,14 +73,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             rankCounts: rankCounts.results || []
         }), {
             headers: { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json'
             }
         });
     } catch (e: any) {
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
             status: 500,
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json'
+            }
         });
     }
 };

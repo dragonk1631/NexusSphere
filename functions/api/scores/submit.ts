@@ -29,8 +29,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const { request, env } = context;
     
     try {
-        if (!env.DB) throw new Error('D1 Binding [env.DB] is missing');
+        if (!env.DB) throw new Error('D1 Binding is missing');
         await ensureTables(env.DB);
+
+        const CORS_HEADERS = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400',
+        };
+
+        if (request.method === 'OPTIONS') {
+            return new Response(null, { headers: CORS_HEADERS });
+        }
 
         // --- AUTH ---
         const authHeader = request.headers.get('Authorization');
@@ -134,7 +145,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         ]);
 
         // --- LEVEL CALCULATION (Server-only, dynamic) ---
-        // Extract the RETURNING row from the first batch query
         const updatedStats = batchResults[0]?.results?.[0] as any || {
             exp: serverGainedXP,
             total_score: score,
@@ -150,7 +160,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const finalLevel = Math.min(Math.max(1, calculatedLevel), 999);
         
         // --- PERSIST LEVEL ---
-        // We update the 'level' column so it's indexed and available for the ranking API.
         try {
             await env.DB.prepare('UPDATE user_stats_v2 SET level = ? WHERE user_id = ?').bind(finalLevel, userId).run();
         } catch (e) {
@@ -159,28 +168,27 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
         // --- RESPONSE: Return FULL stats so client can update its display ---
         return new Response(JSON.stringify({ 
-            success: true,
-            gainedXP: serverGainedXP,
+            success: true, 
+            gainedXP: serverGainedXP, 
             gainedCoin: serverGainedCoin,
             stats: {
                 level: finalLevel,
-                exp: currentExp,
-                total_score: (updatedStats?.total_score as number) || 0,
-                play_count: (updatedStats?.play_count as number) || 0,
-                total_coins: (updatedStats?.total_coins as number) || 0,
-                max_combo: (updatedStats?.max_combo as number) || 0,
-                max_streak: (updatedStats?.max_streak as number) || 0,
-                total_notes_hit: (updatedStats?.total_notes_hit as number) || 0,
-                current_streak: (updatedStats?.current_streak as number) || 0
+                ...updatedStats
             }
         }), {
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json'
+            }
         });
 
     } catch (e: any) {
-        console.error('[Submit Error]', e);
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
-            status: 500, headers: { 'Content-Type': 'application/json' }
+            status: 500,
+            headers: { 
+                ...CORS_HEADERS,
+                'Content-Type': 'application/json'
+            }
         });
     }
 };
