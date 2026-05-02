@@ -149,7 +149,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         });
 
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: true, message: e.message }), { 
+        return new Response(JSON.stringify({ 
+            error: true, 
+            message: e.message,
+            stack: e.stack,
+            context: "Score Submission Phase"
+        }), { 
             status: 500,
             headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
         });
