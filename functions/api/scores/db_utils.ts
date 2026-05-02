@@ -21,12 +21,14 @@ export async function ensureTables(db: D1Database) {
             CREATE TABLE IF NOT EXISTS user_song_records_v3 (
                 user_id TEXT NOT NULL,
                 song_id INTEGER NOT NULL,
+                key_mode INTEGER DEFAULT 4,
+                difficulty TEXT DEFAULT 'NORMAL',
                 score INTEGER DEFAULT 0,
                 max_streak INTEGER DEFAULT 0,
                 play_count INTEGER DEFAULT 1,
                 accuracy REAL DEFAULT 0,
                 last_played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (user_id, song_id),
+                PRIMARY KEY (user_id, song_id, key_mode, difficulty),
                 FOREIGN KEY (song_id) REFERENCES songs(id)
             )
         `),

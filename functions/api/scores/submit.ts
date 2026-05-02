@@ -120,16 +120,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
             env.DB.prepare(`
                 INSERT INTO user_song_records_v3 (
-                    user_id, song_id, score, max_streak, play_count, accuracy, last_played_at
+                    user_id, song_id, key_mode, difficulty, score, max_streak, play_count, accuracy, last_played_at
                 )
-                VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(user_id, song_id) DO UPDATE SET
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id, song_id, key_mode, difficulty) DO UPDATE SET
                     score = MAX(user_song_records_v3.score, EXCLUDED.score),
                     max_streak = MAX(user_song_records_v3.max_streak, EXCLUDED.max_streak),
                     play_count = user_song_records_v3.play_count + 1,
                     accuracy = MAX(user_song_records_v3.accuracy, EXCLUDED.accuracy),
                     last_played_at = CURRENT_TIMESTAMP
-            `).bind(userId, songPk, score, maxCombo, accuracy)
+            `).bind(userId, songPk, keyMode, difficulty, score, maxCombo, accuracy)
         ]);
 
         const updatedStats = batchResults[0]?.results?.[0] as any;
