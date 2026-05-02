@@ -27,84 +27,60 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         await ensureTables(env.DB);
 
         let query = '';
-        if (songId) {
-            // [Server-Side Fix] Song-Specific Leaderboard
-            // Use ROW_NUMBER() to ensure we get EXACTLY ONE best record (the highest score) per user.
-            // This prevents a single user from dominating the board with multiple difficulty clears.
-            query = `
-                SELECT * FROM (
-                    SELECT 
-                        s.user_id, 
-                        COALESCE(u.display_name, 'Guest Player') as display_name, 
-                        u.avatar_url, 
-                        s.high_score as score, 
-                        s.best_accuracy as accuracy, 
-                        s.max_combo as max_streak, 
-                        s.last_played_at as timestamp,
-                        COALESCE(u.level, 1) as level,
-                        u.play_count,
-                        ROW_NUMBER() OVER (PARTITION BY s.user_id ORDER BY s.high_score DESC, s.best_accuracy DESC) as rn
-                    FROM user_song_records_v2 s
-                    LEFT JOIN user_stats_v2 u ON s.user_id = u.user_id
-                    WHERE s.song_id = ?
-                ) WHERE rn = 1
-                ORDER BY score DESC, accuracy DESC
-                LIMIT 50
-            `;
-            const results = await env.DB.prepare(query).bind(songId).all();
-            return new Response(JSON.stringify(results.results || []), { 
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-                } 
-            });
-        } else {
-            // [Server-Side Fix] Global Hall of Fame
-            let orderBy = 'total_score DESC';
-            let field = 'total_score as score';
-            
-            if (type === 'combo') {
-                orderBy = 'max_streak DESC';
-                field = 'max_streak as score';
-            } else if (type === 'hits') {
-                orderBy = 'total_notes_hit DESC';
-                field = 'total_notes_hit as score';
-            } else if (type === 'plays') {
-                orderBy = 'play_count DESC';
-                field = 'play_count as score';
-            } else if (type === 'level') {
-                orderBy = 'level DESC, exp DESC';
-                field = 'level as score';
-            }
-
-            // Removed strict 'display_name IS NOT NULL' to include Guest users who have play records
+        if (type === 'songs') {
+            // [V3] Global Song Popularity Ranking (JOIN with songs master table)
             query = `
                 SELECT 
-                    user_id, 
-                    COALESCE(display_name, 'Guest Player') as display_name, 
-                    avatar_url, 
-                    ${field}, 
-                    max_streak, 
-                    play_count, 
-                    current_streak, 
-                    total_notes_hit, 
-                    level, 
-                    updated_at as timestamp
-                FROM user_stats_v2
-                WHERE play_count > 0 OR display_name IS NOT NULL
-                ORDER BY ${orderBy}
+                    s.title as display_name,
+                    SUM(r.play_count) as score,
+                    COUNT(DISTINCT r.user_id) as total_notes_hit,
+                    s.asset_path as timestamp
+                FROM songs s
+                JOIN user_song_records_v3 r ON s.id = r.song_id
+                GROUP BY s.id
+                ORDER BY score DESC
                 LIMIT 50
             `;
-            const results = await env.DB.prepare(query).all();
-            return new Response(JSON.stringify(results.results || []), { 
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-                } 
-            });
+        } else if (songId) {
+            // [V3] Specific Song User Ranking
+            query = `
+                SELECT 
+                    u.display_name, u.avatar_url, u.level,
+                    r.score, r.max_streak, r.accuracy as timestamp
+                FROM user_song_records_v3 r
+                JOIN user_stats_v2 u ON r.user_id = u.user_id
+                JOIN songs s ON r.song_id = s.id
+                WHERE s.asset_path = ? OR s.slug = ?
+                ORDER BY r.score DESC
+                LIMIT 50
+            `;
+        } else {
+            // [V2] Global User Ranking (Level, Score, etc.)
+            const column = type === 'score' ? 'total_score' : 
+                           type === 'plays' ? 'play_count' : 
+                           type === 'level' ? 'exp' : 'total_score';
+            
+            query = `
+                SELECT display_name, avatar_url, level, ${column} as score, updated_at as timestamp
+                FROM user_stats_v2
+                ORDER BY ${column} DESC
+                LIMIT 50
+            `;
         }
+
+        const stmt = env.DB.prepare(query);
+        const results = (type === 'songs' || !songId) 
+            ? await stmt.all() 
+            : await stmt.bind(songId, songId).all();
+
+        return new Response(JSON.stringify(results.results || []), { 
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            } 
+        });
+
     } catch (e: any) {
         return new Response(JSON.stringify({ error: true, message: e.message }), { 
             status: 500,

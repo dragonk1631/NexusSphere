@@ -80,9 +80,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const normalizedGrade = gradeStr.replace('+', '_plus').toLowerCase();
         const rankColumn = `rank_${normalizedGrade}`;
 
-        // --- ATOMIC DB UPDATE ---
+        // --- [NEW] AUTO-REGISTER SONG & V3 RECORDING ---
+        const cleanSlug = songId.split('/').pop()?.replace(/\.(mid|mp3|wav)$/i, '').toLowerCase() || 'unknown';
+        const cleanTitle = songId.split('/').pop()?.replace(/\.(mid|mp3|wav)$/i, '') || 'Unknown Track';
+
+        // 1. Ensure the song exists in master table
+        await env.DB.prepare(`
+            INSERT OR IGNORE INTO songs (slug, title, asset_path) 
+            VALUES (?, ?, ?)
+        `).bind(cleanSlug, cleanTitle, songId).run();
+
+        // 2. Get the song's internal ID
+        const songMaster = await env.DB.prepare(`SELECT id FROM songs WHERE asset_path = ?`).bind(songId).first() as any;
+        const songPk = songMaster?.id;
+
+        // --- ATOMIC DB UPDATE (V3 + User Stats) ---
         const batchResults = await env.DB.batch([
-            // [A] User Stats: Increment XP, Score, PlayCount, Coins
+            // [A] User Stats
             env.DB.prepare(`
                 INSERT INTO user_stats_v2 (
                     user_id, display_name, avatar_url, 
@@ -104,41 +118,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 RETURNING exp, total_score, play_count, total_coins, max_combo, max_streak, total_notes_hit, current_streak
             `).bind(userId, nickname, avatarUrl, serverGainedXP, score, serverGainedCoin, maxCombo, maxCombo, totalNotesHit, finalLiveStreak),
 
-            // [B] Rank Stats
+            // [B] V3 Song Records (Normalized)
             env.DB.prepare(`
-                INSERT INTO user_rank_stats (
-                    user_id, key_mode, difficulty, ${rankColumn}, fc_count, ap_count, updated_at
+                INSERT INTO user_song_records_v3 (
+                    user_id, song_id, score, max_streak, play_count, accuracy, last_played_at
                 )
-                VALUES (?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(user_id, key_mode, difficulty) DO UPDATE SET
-                    ${rankColumn} = user_rank_stats.${rankColumn} + 1,
-                    fc_count = user_rank_stats.fc_count + EXCLUDED.fc_count,
-                    ap_count = user_rank_stats.ap_count + EXCLUDED.ap_count,
-                    updated_at = CURRENT_TIMESTAMP
-            `).bind(userId, keyMode, difficulty, isFC ? 1 : 0, isAP ? 1 : 0),
-
-            // [C] Song Best Record
-            env.DB.prepare(`
-                INSERT INTO user_song_records_v2 (
-                    user_id, song_id, key_mode, difficulty, 
-                    high_score, max_combo, best_accuracy, best_grade, 
-                    play_count, clear_count, last_played_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT(user_id, song_id, key_mode, difficulty) DO UPDATE SET
-                    high_score = MAX(user_song_records_v2.high_score, EXCLUDED.high_score),
-                    max_combo = MAX(user_song_records_v2.max_combo, EXCLUDED.max_combo),
-                    best_accuracy = MAX(user_song_records_v2.best_accuracy, EXCLUDED.best_accuracy),
-                    best_grade = CASE 
-                        WHEN (CASE EXCLUDED.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) > 
-                             (CASE user_song_records_v2.best_grade WHEN 'S+' THEN 4 WHEN 'S' THEN 3 WHEN 'A' THEN 2 WHEN 'B' THEN 1 ELSE 0 END) 
-                        THEN EXCLUDED.best_grade
-                        ELSE user_song_records_v2.best_grade
-                    END,
-                    play_count = user_song_records_v2.play_count + 1,
-                    clear_count = user_song_records_v2.clear_count + 1,
+                VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id, song_id) DO UPDATE SET
+                    score = MAX(user_song_records_v3.score, EXCLUDED.score),
+                    max_streak = MAX(user_song_records_v3.max_streak, EXCLUDED.max_streak),
+                    play_count = user_song_records_v3.play_count + 1,
+                    accuracy = MAX(user_song_records_v3.accuracy, EXCLUDED.accuracy),
                     last_played_at = CURRENT_TIMESTAMP
-            `).bind(userId, songId, keyMode, difficulty, score, maxCombo, accuracy, grade)
+            `).bind(userId, songPk, score, maxCombo, accuracy)
         ]);
 
         // --- LEVEL CALCULATION (Server-only, dynamic) ---
