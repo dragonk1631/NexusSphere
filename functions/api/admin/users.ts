@@ -87,7 +87,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         if (action === 'delete') {
             await env.DB.batch([
                 env.DB.prepare('DELETE FROM user_stats_v2 WHERE user_id = ?').bind(targetUserId),
-                env.DB.prepare('DELETE FROM user_song_records_v2 WHERE user_id = ?').bind(targetUserId),
+                env.DB.prepare('DELETE FROM user_song_records_v3 WHERE user_id = ?').bind(targetUserId),
                 env.DB.prepare('DELETE FROM user_rank_stats WHERE user_id = ?').bind(targetUserId)
             ]);
             return new Response(JSON.stringify({ success: true, message: 'User purged' }));

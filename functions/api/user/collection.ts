@@ -36,10 +36,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
         const userId = decoded.sub;
 
-        // Parallel fetch for Professional Collection Data
+        // Parallel fetch for Professional Collection Data (V3 Normalized)
         const [stats, records, rankCounts] = await Promise.all([
             env.DB.prepare('SELECT * FROM user_stats_v2 WHERE user_id = ?').bind(userId).first(),
-            env.DB.prepare('SELECT * FROM user_song_records_v2 WHERE user_id = ?').bind(userId).all(),
+            env.DB.prepare(`
+                SELECT r.*, s.asset_path as song_id, s.title, s.artist
+                FROM user_song_records_v3 r
+                JOIN songs s ON r.song_id = s.id
+                WHERE r.user_id = ?
+            `).bind(userId).all(),
             env.DB.prepare('SELECT * FROM user_rank_stats WHERE user_id = ?').bind(userId).all()
         ]);
 

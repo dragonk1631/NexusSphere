@@ -49,10 +49,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
         const userId = decoded.sub;
 
-        // --- PARALLEL FETCH: Read everything from DB in one shot ---
+        // --- PARALLEL FETCH: Read everything from DB in one shot (V3 Normalized) ---
         const [stats, recordsResult, rankCountsResult, favoritesResult] = await Promise.all([
             env.DB.prepare('SELECT * FROM user_stats_v2 WHERE user_id = ?').bind(userId).first(),
-            env.DB.prepare('SELECT * FROM user_song_records_v2 WHERE user_id = ?').bind(userId).all(),
+            env.DB.prepare(`
+                SELECT r.*, s.asset_path as song_id 
+                FROM user_song_records_v3 r 
+                JOIN songs s ON r.song_id = s.id 
+                WHERE r.user_id = ?
+            `).bind(userId).all(),
             env.DB.prepare('SELECT * FROM user_rank_stats WHERE user_id = ?').bind(userId).all(),
             env.DB.prepare('SELECT song_id FROM user_favorites_v2 WHERE user_id = ?').bind(userId).all()
         ]);
