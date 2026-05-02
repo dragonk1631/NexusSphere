@@ -1,5 +1,4 @@
 import { UIManager } from '../core/ui/UIManager';
-import { ScoreManager } from '../core/score/ScoreManager';
 import { ApiUtils } from '../core/utils/ApiUtils';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { AuthService } from '../services/auth/AuthService';

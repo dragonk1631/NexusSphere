@@ -55,7 +55,7 @@ export class ApiUtils {
     /**
      * Enhanced fetch wrapper with support for global production API routing.
      */
-    public static async fetch(path: string, options: RequestInit = {}, forceGlobal: boolean = true): Promise<Response> {
+    public static async fetch(path: string, options: RequestInit = {}): Promise<Response> {
         // ALWAYS use production URL to ensure local and web environments use the same D1 DB
         const baseUrl = this.PRODUCTION_URL; 
         const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
