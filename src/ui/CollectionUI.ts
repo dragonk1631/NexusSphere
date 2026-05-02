@@ -756,7 +756,6 @@ export class CollectionUI {
         // Helper to get effective grade consistently (Supports V2 and V3 field names)
         const getEffectiveGrade = (r: any) => {
             const acc = r.accuracy !== undefined ? r.accuracy : (r.best_accuracy || 0);
-            const grade = r.best_grade || 'B'; // Default to B for V3 if not present
             
             if (acc >= 100) return 'S+';
             if (acc >= 95) return 'S';
