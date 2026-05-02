@@ -282,8 +282,9 @@ export class RankingUI {
             const data = await response.json();
 
             if (type === 'songs') {
-                // If the server returns users for a song request (old server), filter them out
-                return data.filter((item: any) => item.display_name.includes('/') || item.display_name.includes('.mid') || item.display_name.includes('터키행진곡'));
+                // The new V3 server returns clean titles from the songs table.
+                // No need to filter for paths/extensions anymore.
+                return data;
             }
             return data;
         } catch (e) {
