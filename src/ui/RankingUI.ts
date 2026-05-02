@@ -277,7 +277,7 @@ export class RankingUI {
         const apiPath = type === 'songs' ? '/api/scores/top?type=songs' : (songId ? `/api/scores/top?songId=${songId}` : `/api/scores/top?type=${type}`);
         
         try {
-            const response = await ApiUtils.fetch(apiPath, {}, true); 
+            const response = await ApiUtils.fetch(apiPath, {}); 
             if (!response.ok) return [];
             const data = await response.json();
 
