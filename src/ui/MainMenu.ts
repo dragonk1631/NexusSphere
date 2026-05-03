@@ -12,6 +12,7 @@ import { ExperienceSystem } from '../core/score/ExperienceSystem';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 import { ModalUI } from './ModalUI';
+import { AvatarUI, AvatarReaction } from './AvatarUI';
 
 export class MainMenu {
     private ui: UIManager;
@@ -253,11 +254,18 @@ export class MainMenu {
                 }
 
                 .mm-auth-avatar-mini {
-                    width: clamp(22px, 3.2vh, 28px);
-                    height: clamp(22px, 3.2vh, 28px);
-                    border-radius: 50%;
-                    border: 1.5px solid #00ffcc;
-                    object-fit: cover;
+                    width: clamp(28px, 4vh, 36px);
+                    height: clamp(28px, 4vh, 36px);
+                    position: relative;
+                    flex-shrink: 0;
+                }
+                
+                /* Override AvatarUI internal styles for HUD integration */
+                .mm-auth-avatar-mini .player-avatar {
+                    width: 100% !important;
+                    height: 100% !important;
+                    border: 2px solid #00ffcc !important;
+                    background: rgba(0, 255, 204, 0.1) !important;
                 }
 
                 .mm-auth-emblem-mini {
@@ -635,13 +643,20 @@ export class MainMenu {
             this.updateBGMText();
         });
 
-        // [NEW] Listen for auth changes to update HUD/UI (using named function for cleanup)
+        // [NEW] Listen for auth and character changes to update HUD/UI
         window.removeEventListener('nexus-auth-changed', this.handleAuthChange);
         window.addEventListener('nexus-auth-changed', this.handleAuthChange);
+        window.removeEventListener('nexus-character-changed', this.handleCharacterChange as EventListener);
+        window.addEventListener('nexus-character-changed', this.handleCharacterChange as EventListener);
     }
 
     private handleAuthChange = () => {
         this.updateCurrencyUI();
+    };
+
+    private handleCharacterChange = (e: CustomEvent) => {
+        const { charId } = e.detail;
+        AvatarUI.getInstance().updateCharacter(charId);
     };
 
     private attachListeners(): void {
@@ -758,31 +773,30 @@ export class MainMenu {
         const auth = AuthService.getInstance();
         if (auth.isSignedIn()) {
             const name = auth.getUserName();
-            const clerk = auth.getClerk();
-            const avatar = clerk?.user?.imageUrl || '';
             
-            container.onclick = async () => {
-                ModalUI.getInstance().show(
-                    'SIGN OUT',
-                    'Are you sure you want to sign out? Your data is safe on the cloud.',
-                    {
-                        confirmLabel: 'SIGN OUT',
-                        cancelLabel: 'CANCEL',
-                        type: 'warning',
-                        onConfirm: async () => {
-                            await auth.signOut();
-                            window.location.reload();
-                        }
-                    }
-                );
-            };
-
             container.innerHTML = `
-                <div class="mm-auth-badge">
-                    <img src="${avatar}" class="mm-auth-avatar-mini" style="width: clamp(20px, 2.8vh, 26px); height: clamp(20px, 2.8vh, 26px);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random'"/>
+                <div class="mm-auth-badge" id="mm-auth-badge-clickable">
+                    <div id="mm-avatar-host" class="mm-auth-avatar-mini"></div>
                     <span class="mm-auth-name" style="font-size: clamp(0.7rem, 1.4vh, 0.85rem);">${name}</span>
                 </div>
             `;
+
+            // Initialize Avatar
+            const avatarUI = AvatarUI.getInstance();
+            avatarUI.createAvatar('mm-avatar-host');
+            
+            // Add click listener for reaction
+            const badge = document.getElementById('mm-auth-badge-clickable');
+            if (badge) {
+                badge.onclick = (e) => {
+                    e.stopPropagation();
+                    avatarUI.setReaction(AvatarReaction.HAPPY, 1500);
+                    
+                    setTimeout(() => {
+                        this.showSignOutModal(auth, name);
+                    }, 500);
+                };
+            }
         } else {
             container.onclick = () => auth.openSignIn();
             container.innerHTML = `
@@ -791,6 +805,22 @@ export class MainMenu {
                 </div>
             `;
         }
+    }
+
+    private showSignOutModal(auth: AuthService, name: string): void {
+        ModalUI.getInstance().show(
+            'SIGN OUT',
+            'Are you sure you want to sign out? Your data is safe on the cloud.',
+            {
+                confirmLabel: 'SIGN OUT',
+                cancelLabel: 'CANCEL',
+                type: 'warning',
+                onConfirm: async () => {
+                    await auth.signOut();
+                    window.location.reload();
+                }
+            }
+        );
     }
 
     private async showRanking(): Promise<void> {

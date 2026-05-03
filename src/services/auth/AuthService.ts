@@ -1,4 +1,5 @@
 import { ModalUI } from '../../ui/ModalUI';
+import { ApiUtils } from '../../core/utils/ApiUtils';
 
 export class AuthService {
     private static instance: AuthService;
@@ -152,10 +153,6 @@ export class AuthService {
         await this.clerk?.signOut();
     }
 
-    /**
-     * [GOD-MODE] Checks if the current user has administrative privileges.
-     * Strictly validates through Clerk's publicMetadata.
-     */
     public isAdmin(): boolean {
         if (!this.isSignedIn()) return false;
         
@@ -165,5 +162,46 @@ export class AuthService {
         // Hardcoded emergency admin ID or email domain can also be added here if needed
         // For now, we trust the metadata set by the backend/dashboard
         return role === 'admin';
+    }
+
+    public async adminGiveCoins(targetUserId: string, amount: number): Promise<{ success: boolean, message: string }> {
+        if (!this.isAdmin()) return { success: false, message: 'Admin privileges required.' };
+        
+        try {
+            const token = await this.clerk.session.getToken();
+            const response = await ApiUtils.fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    action: 'give_coins',
+                    targetUserId,
+                    data: { amount }
+                })
+            });
+            
+            if (!response.ok) throw new Error(await response.text());
+            return await response.json();
+        } catch (e: any) {
+            console.error('[AuthService] adminGiveCoins failed:', e);
+            return { success: false, message: e.message };
+        }
+    }
+    public async fetchAdminUsers(): Promise<any[]> {
+        if (!this.isAdmin()) return [];
+        
+        try {
+            const token = await this.clerk.session.getToken();
+            const response = await ApiUtils.fetch('/api/admin/users', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error(await response.text());
+            return await response.json();
+        } catch (e) {
+            console.error('[AuthService] fetchAdminUsers failed:', e);
+            return [];
+        }
     }
 }

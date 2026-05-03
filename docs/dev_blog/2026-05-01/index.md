@@ -44,9 +44,9 @@ The Shop's guest notification banner was identified as a "layout inhibitor," tak
 
 ### 3. Server-Authoritative Data Architecture Redesign
 
-We faced a critical "Zombie Data" issue where deleted database records would mysteriously reappear upon login. 
+We faced a critical "Zombie Data" issue where deleted database records would mysteriously reappear upon login.
 
-- **Root Cause Analysis**: 
+- **Root Cause Analysis**:
 
   1. The client heavily relied on `localStorage` even when logged in, causing dual sources of truth.
   2. Legacy PWA Service Workers were aggressively caching old JavaScript bundles (`skipWaiting` was missing), meaning players were executing outdated logic that read from contaminated `v2` storage keys.
@@ -59,7 +59,7 @@ We faced a critical "Zombie Data" issue where deleted database records would mys
 To maximize the Cloudflare D1 Free Tier (100,000 Writes/Day), we aggressively optimized the `submit.ts` API.
 
 - **The Old Way (4 Writes, 1 Read)**: `INSERT user_stats` -> `INSERT rank_stats` -> `INSERT song_records` -> `SELECT exp` -> `UPDATE user_stats SET level`.
-- **The Optimized Way (3 Writes, 0 Reads)**: 
+- **The Optimized Way (3 Writes, 0 Reads)**:
   - Utilized SQLite's `RETURNING` clause on the very first `INSERT` query to instantly grab the updated `exp`.
   - **Zero-Write Leveling**: Realized that `level` is strictly a derived metric of `exp`. We stopped saving `level` to the database entirely, saving 1 Write per song play. The server now dynamically calculates the level using `Math.floor((-40 + Math.sqrt(1600 + 160 * currentExp)) / 80 + 1)` right before returning the JSON payload.
 - **Impact**: Reduced Write costs by 25% and Read costs by 100% on the core gameplay loop, theoretically allowing up to 3,333 Daily Active Users (DAU) entirely for free.

@@ -9,7 +9,7 @@ import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 import { AuthService } from '../services/auth/AuthService';
 import { ModalUI } from './ModalUI';
 
-type ShopTab = 'theme' | 'note';
+type ShopTab = 'theme' | 'note' | 'character';
 
 export class ShopUI {
     private ui: UIManager;
@@ -132,6 +132,44 @@ export class ShopUI {
                     filter: brightness(1.2) drop-shadow(0 0 15px rgba(255,0,0,0.5));
                     transform: scale(1.05) translateY(-2px);
                 }
+
+                .god-user-list {
+                    margin-top: 10px;
+                    background: rgba(0,0,0,0.3);
+                    border-radius: 10px;
+                    padding: 8px;
+                    max-height: 180px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 5px;
+                    border: 1px solid rgba(255,255,255,0.05);
+                }
+                .god-user-items {
+                    overflow-y: auto;
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
+                .god-user-items::-webkit-scrollbar { width: 4px; }
+                .god-user-items::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.3); border-radius: 2px; }
+                
+                .god-user-item {
+                    font-size: 0.7rem;
+                    padding: 6px 10px;
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 6px;
+                    cursor: pointer;
+                    display: flex;
+                    flex-direction: column;
+                    text-align: left;
+                    transition: 0.2s;
+                }
+                .god-user-item:hover { 
+                    background: rgba(0,229,255,0.15);
+                    transform: translateX(2px);
+                }
+                .god-user-id-small { color: rgba(0,229,255,0.6); font-size: 0.6rem; margin-top: 2px; font-family: monospace; }
 
                 .btn-god-mode {
                     height: var(--header-btn-height); padding: 0 25px;
@@ -458,6 +496,26 @@ export class ShopUI {
                         padding: 2px 8px !important;
                         white-space: nowrap !important;
                     }
+                    
+                    .character-card {
+                        border-radius: 12px !important;
+                    }
+                    .char-card-title {
+                        font-size: 0.6rem !important;
+                        padding: 4px 2px !important;
+                        bottom: 0 !important;
+                    }
+                    .char-preview-sprite {
+                        transform: scale(1.0) !important;
+                    }
+                    .char-price-overlay {
+                        bottom: 25px !important;
+                        left: 50% !important;
+                        right: auto !important;
+                        transform: translateX(-50%) !important;
+                        font-size: 0.6rem !important;
+                        padding: 2px 6px !important;
+                    }
                 }
 
                 .note-card.locked .note-preview-area::after {
@@ -552,6 +610,81 @@ export class ShopUI {
                     display: none;
                 }
 
+                .character-grid {
+                    display: grid; grid-template-columns: repeat(5, 1fr);
+                    grid-template-rows: repeat(2, 1fr); gap: clamp(12px, 2vw, 24px);
+                    width: 100%; height: 100%; box-sizing: border-box; flex: 1;
+                }
+
+                .character-card {
+                    position: relative; background: rgba(20, 20, 40, 0.6);
+                    border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 20px;
+                    cursor: pointer; display: flex; flex-direction: column;
+                    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    overflow: hidden; backdrop-filter: blur(10px);
+                }
+
+                .character-card:hover:not(.placeholder) { transform: translateY(-5px); border-color: #00E5FF; box-shadow: 0 10px 25px rgba(0, 229, 255, 0.2); }
+                .character-card.active { border-color: #00E5FF; border-width: 4px; box-shadow: 0 0 25px rgba(0, 229, 255, 0.4); animation: themePulse 1.5s infinite; }
+                
+                .char-preview-area {
+                    flex: 1; display: flex; align-items: center; justify-content: center;
+                    position: relative; background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.05) 0%, transparent 100%);
+                    overflow: hidden;
+                }
+
+                .char-preview-sprite {
+                    width: 100%;
+                    height: 100%;
+                    background-size: 200% 200%;
+                    background-repeat: no-repeat;
+                    filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
+                    transition: all 0.3s ease;
+                    transform: scale(0.9);
+                }
+                
+                .character-card.active .char-preview-sprite {
+                    background-position: 100% 0% !important; /* Happy */
+                }
+                
+                .character-card.owned:not(.active) .char-preview-sprite {
+                    background-position: 0% 0% !important; /* Idle */
+                }
+
+                .character-card.locked .char-preview-sprite {
+                    background-position: 0% 100% !important; /* Miss/Disappointed */
+                    filter: grayscale(0.8) brightness(0.6) contrast(0.9);
+                }
+                .char-placeholder { font-size: 4rem; font-weight: 900; color: rgba(255,255,255,0.05); font-family: 'Outfit'; }
+                
+                .char-card-title {
+                    position: absolute; bottom: 0; left: 0; right: 0;
+                    padding: 8px 5px; text-align: center; font-family: 'Black Han Sans', sans-serif;
+                    font-size: 0.85rem; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%); 
+                    color: #fff; z-index: 10; pointer-events: none;
+                    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+                }
+                
+                .char-price-overlay {
+                    position: absolute; bottom: 35px; left: 50%;
+                    transform: translateX(-50%);
+                    background: rgba(0,0,0,0.85); padding: 4px 12px;
+                    border-radius: 12px; border: 2px solid #FFD700;
+                    color: #FFD700; font-size: 0.85rem; font-weight: 900;
+                    display: flex; align-items: center; gap: 6px;
+                    backdrop-filter: blur(4px); z-index: 15;
+                    white-space: nowrap;
+                }
+
+                .char-check {
+                    position: absolute; top: 10px; right: 10px;
+                    background: #00E5FF; color: #000; width: 24px; height: 24px;
+                    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                    font-size: 14px; font-weight: 900; box-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+                }
+
+                .shop-tab-btn.tab-character.active { --active-color: #00E5FF; --active-glow: rgba(0, 229, 255, 0.6); }
+
                 /* Removed redundant currency HUD v2 */
                 .shop-tab-content-wrapper {
                     flex: 1; display: flex; flex-direction: column;
@@ -566,8 +699,9 @@ export class ShopUI {
                 <div class="shop-window">
                     <div class="shop-header">
                         <div class="shop-tabs" id="shop-tabs">
-                            <button class="shop-tab-btn tab-theme active" data-tab="theme">THEME SHOP</button>
-                            <button class="shop-tab-btn tab-note" data-tab="note">NOTE SKIN SHOP</button>
+                            <button class="shop-tab-btn tab-theme active" data-tab="theme">THEME</button>
+                            <button class="shop-tab-btn tab-note" data-tab="note">NOTE SKIN</button>
+                            <button class="shop-tab-btn tab-character" data-tab="character">CHARACTER</button>
                         </div>
                         <div style="display: flex; gap: 10px; position: relative;">
                             <button id="btn-god-mode" class="btn-god-mode">GOD</button>
@@ -585,6 +719,18 @@ export class ShopUI {
                                 <div class="god-row">
                                     <button id="god-btn-reset-all" class="god-btn god-btn-reset">RESET ALL</button>
                                 </div>
+                                <div class="god-row" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; flex-direction: column; align-items: stretch; gap: 8px;">
+                                    <div style="font-size: 0.7rem; color: #888; text-transform: uppercase;">Gift to Specific User</div>
+                                    <input type="text" id="god-target-user-id" class="god-input" placeholder="Target User ID...">
+                                    <div style="display: flex; gap: 8px;">
+                                        <input type="number" id="god-gift-amount" class="god-input" placeholder="Amount..." value="5000">
+                                        <button id="god-btn-gift-coins" class="god-btn" style="background: #FFD700; color: #000;">GIFT</button>
+                                    </div>
+                                </div>
+                                <div class="god-user-list">
+                                    <button id="god-btn-fetch-users" class="god-btn" style="width: 100%; font-size: 0.65rem; padding: 4px; background: rgba(0,229,255,0.1);">↻ LOAD USER LIST</button>
+                                    <div id="god-user-items" class="god-user-items"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -599,7 +745,7 @@ export class ShopUI {
 
         const contentEl = document.getElementById('shop-tab-content');
         if (contentEl) {
-            ['theme', 'note'].forEach(t => {
+            ['theme', 'note', 'character'].forEach(t => {
                 const container = document.createElement('div');
                 container.style.display = 'none';
                 container.className = 'tab-container-fit';
@@ -690,6 +836,10 @@ export class ShopUI {
                 if (this.activeTab === 'note') { 
                     borderColor = '#FFD700'; 
                     boxShadow = '0 0 40px rgba(255, 215, 0, 0.3)'; 
+                    panel.style.borderRadius = '24px';
+                } else if (this.activeTab === 'character') {
+                    borderColor = '#00E5FF';
+                    boxShadow = '0 0 40px rgba(0, 229, 255, 0.3)';
                     panel.style.borderRadius = '24px';
                 } else {
                     panel.style.borderRadius = '0 24px 24px 24px';
@@ -794,6 +944,46 @@ export class ShopUI {
 
             container.innerHTML = `<div class="note-grid">${skinsHtml}</div>`;
             this.attachSkinListeners(container);
+        } else if (this.activeTab === 'character') {
+            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            
+            const characters = [
+                { id: 'baby', name: 'BABY CHARACTER', img: '/assets/images/characters/char_baby.png', price: 0 },
+                { id: 'melodia', name: 'MELODIA', img: '/assets/images/characters/char_melodia.png', price: 2500 },
+                { id: 'flora', name: 'FLORA', img: '/assets/images/characters/char_flora.png', price: 3500 },
+            ];
+
+            const displayList = [...characters];
+            while (displayList.length < 10) {
+                displayList.push({ id: `placeholder-${displayList.length}`, name: '???', img: '', price: 0 });
+            }
+
+            const charHtml = displayList.map((c) => {
+                const isOwned = economy.isCharacterOwned(c.id);
+                const isActive = c.id === currentCharId;
+                const isPlaceholder = c.name === '???';
+
+                return `
+                    <div class="character-card ${isActive ? 'active' : ''} ${isPlaceholder ? 'placeholder' : ''} ${isOwned ? 'owned' : 'locked'}" 
+                         data-char="${c.id}" data-price="${c.price}"
+                         style="${isPlaceholder ? 'cursor: default; opacity: 0.3; filter: grayscale(1);' : ''}">
+                        <div class="char-preview-area">
+                            ${c.img ? `<div class="char-preview-sprite" style="background-image: url('${c.img}');"></div>` : `<div class="char-placeholder">?</div>`}
+                            ${!isOwned && !isPlaceholder ? `
+                                <div class="char-price-overlay">
+                                    <span>🔒</span>
+                                    <span>${c.price.toLocaleString()}</span>
+                                </div>
+                            ` : ''}
+                            ${isActive ? `<div class="char-check">✓</div>` : ''}
+                        </div>
+                        <div class="char-card-title">${c.name}</div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = `<div class="character-grid">${charHtml}</div>`;
+            this.attachCharacterListeners(container);
         }
     }
 
@@ -828,6 +1018,7 @@ export class ShopUI {
             const economy = EconomyManager.getInstance();
             ThemeManager.getInstance().getAllThemes().forEach(t => economy.adminSetOwnership('theme', t.id, true));
             NoteSkinManager.getInstance().getAllSkins().forEach(s => economy.adminSetOwnership('skin', s.id, true));
+            ['baby', 'melodia', 'flora'].forEach(cId => economy.adminSetOwnership('char', cId, true));
             this.renderActiveTabContent(this.tabContainers.get(this.activeTab)!);
         });
 
@@ -835,6 +1026,102 @@ export class ShopUI {
             EconomyManager.getInstance().adminResetAll();
             this.updateCurrencyUI();
             this.renderActiveTabContent(this.tabContainers.get(this.activeTab)!);
+        });
+
+        document.getElementById('god-btn-gift-coins')?.addEventListener('click', async () => {
+            const targetId = (document.getElementById('god-target-user-id') as HTMLInputElement).value;
+            const amount = parseInt((document.getElementById('god-gift-amount') as HTMLInputElement).value || '0');
+            
+            if (!targetId || amount <= 0) {
+                alert('Please enter a valid User ID and amount.');
+                return;
+            }
+
+            const res = await AuthService.getInstance().adminGiveCoins(targetId, amount);
+            if (res.success) {
+                ModalUI.getInstance().show('GIFT SUCCESS', res.message, { type: 'info' });
+                
+                // If the target is the current user, sync to show the update immediately
+                if (targetId === AuthService.getInstance().getUserId()) {
+                    const { ScoreManager } = await import('../core/score/ScoreManager');
+                    await ScoreManager.getInstance().syncWithServer();
+                    this.updateCurrencyUI();
+                }
+            } else {
+                ModalUI.getInstance().show('GIFT FAILED', res.message || (res as any).error, { type: 'error' });
+            }
+        });
+
+        document.getElementById('god-btn-fetch-users')?.addEventListener('click', async () => {
+            const btn = document.getElementById('god-btn-fetch-users') as HTMLButtonElement;
+            btn.innerText = 'FETCHING...';
+            btn.disabled = true;
+
+            const users = await AuthService.getInstance().fetchAdminUsers();
+            const container = document.getElementById('god-user-items');
+            if (container) {
+                container.innerHTML = users.map(u => `
+                    <div class="god-user-item" data-id="${u.user_id}">
+                        <div style="font-weight: 700;">${u.display_name || 'Unknown'}</div>
+                        <div class="god-user-id-small">${u.user_id}</div>
+                    </div>
+                `).join('');
+
+                container.querySelectorAll('.god-user-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const targetIdInput = document.getElementById('god-target-user-id') as HTMLInputElement;
+                        if (targetIdInput) {
+                            targetIdInput.value = item.getAttribute('data-id') || '';
+                            targetIdInput.style.borderColor = '#00E5FF';
+                            setTimeout(() => targetIdInput.style.borderColor = '', 1000);
+                        }
+                    });
+                });
+            }
+            
+            btn.innerText = '↻ LOAD USER LIST';
+            btn.disabled = false;
+        });
+    }
+
+    private attachCharacterListeners(container: HTMLElement): void {
+        const economy = EconomyManager.getInstance();
+        
+        container.querySelectorAll('.character-card').forEach(card => {
+            if (card.classList.contains('placeholder')) return;
+
+            card.addEventListener('click', () => {
+                const charId = card.getAttribute('data-char');
+                const price = parseInt(card.getAttribute('data-price') || '0');
+                if (!charId) return;
+
+                const isOwned = economy.isCharacterOwned(charId);
+
+                if (!isOwned) {
+                    ModalUI.getInstance().show(
+                        'PURCHASE CHARACTER',
+                        `Unlock this character for ${price.toLocaleString()} coins?`,
+                        {
+                            confirmLabel: 'UNLOCK',
+                            cancelLabel: 'CANCEL',
+                            onConfirm: () => {
+                                if (economy.getCoins() >= price) {
+                                    economy.spendCoins(price);
+                                    economy.adminSetOwnership('char', charId, true);
+                                    this.renderActiveTabContent(container);
+                                } else {
+                                    alert('Not enough coins!');
+                                }
+                            }
+                        }
+                    );
+                } else {
+                    localStorage.setItem('nexus_active_character', charId);
+                    this.renderActiveTabContent(container);
+                    // Notify any observers if needed
+                    window.dispatchEvent(new CustomEvent('nexus-character-changed', { detail: { charId } }));
+                }
+            });
         });
     }
 

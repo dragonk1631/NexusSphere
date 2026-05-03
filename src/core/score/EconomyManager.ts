@@ -14,6 +14,7 @@ export class EconomyManager {
     private jewels: number = 0;
     private ownedThemes: Set<string> = new Set(['deep-space']);
     private ownedSkins: Set<string> = new Set(['classic-gel']);
+    private ownedCharacters: Set<string> = new Set(['baby']);
 
     private constructor() {
         this.load();
@@ -99,6 +100,13 @@ export class EconomyManager {
         return this.ownedSkins.has(skinId);
     }
 
+    public isCharacterOwned(charId: string): boolean {
+        const defaults = ['baby'];
+        if (defaults.includes(charId)) return true;
+        if (!this.checkAuth()) return false;
+        return this.ownedCharacters.has(charId);
+    }
+
     public purchaseSkin(skinId: string, cost: number): { success: boolean, message: string } {
         if (!this.checkAuth()) {
             return { success: false, message: "로그인이 필요한 서비스입니다." };
@@ -136,7 +144,8 @@ export class EconomyManager {
                 coins: this.coins,
                 jewels: this.jewels,
                 ownedThemes: Array.from(this.ownedThemes),
-                ownedSkins: Array.from(this.ownedSkins)
+                ownedSkins: Array.from(this.ownedSkins),
+                ownedCharacters: Array.from(this.ownedCharacters)
             };
             localStorage.setItem(EconomyManager.STORAGE_KEY, JSON.stringify(data));
         } catch (e) {
@@ -153,6 +162,7 @@ export class EconomyManager {
                 this.jewels = 50;
                 this.ownedThemes = new Set(['deep-space']);
                 this.ownedSkins = new Set(['classic-gel']);
+                this.ownedCharacters = new Set(['baby']);
                 this.save();
                 return;
             }
@@ -162,6 +172,7 @@ export class EconomyManager {
             this.jewels = data.jewels || 0;
             this.ownedThemes = new Set(data.ownedThemes || ['deep-space']);
             this.ownedSkins = new Set(data.ownedSkins || ['classic-gel']);
+            this.ownedCharacters = new Set(data.ownedCharacters || ['baby']);
         } catch (e) {
             console.warn("[EconomyManager] Load failed, using defaults");
             this.coins = 0;
@@ -187,12 +198,15 @@ export class EconomyManager {
      * [GOD-MODE] Forcefully unlocks/locks content.
      * Strictly restricted to administrators.
      */
-    public adminSetOwnership(type: 'theme' | 'skin', id: string, owned: boolean): void {
+    public adminSetOwnership(type: 'theme' | 'skin' | 'char', id: string, owned: boolean): void {
         if (!AuthService.getInstance().isAdmin()) {
             console.error("[GOD-MODE] Access Denied: Administrator privileges required.");
             return;
         }
-        const target = type === 'theme' ? this.ownedThemes : this.ownedSkins;
+        let target: Set<string>;
+        if (type === 'theme') target = this.ownedThemes;
+        else if (type === 'skin') target = this.ownedSkins;
+        else target = this.ownedCharacters;
         if (owned) {
             target.add(id);
             console.log(`[GOD-MODE] ${type} unlocked: ${id}`);
@@ -216,6 +230,7 @@ export class EconomyManager {
         this.jewels = 50;
         this.ownedThemes = new Set(['deep-space']);
         this.ownedSkins = new Set(['classic-gel']);
+        this.ownedCharacters = new Set(['baby']);
         this.save();
         console.log("[GOD-MODE] Economy reset to starter defaults.");
     }

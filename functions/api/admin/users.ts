@@ -31,20 +31,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         const token = authHeader.split(' ')[1];
         const decoded = decodeJWT(token);
         
-        // Flexible role check (Clerk can place metadata in different locations)
         const role = decoded?.metadata?.role || decoded?.public_metadata?.role || decoded?.role;
         const userId = decoded?.sub;
         
-        // [DEV BYPASS] Allow access if role is admin OR if running on localhost for easier testing
         const isLocal = request.url.includes('localhost') || request.headers.get('Host')?.includes('localhost');
         const hasPermission = role === 'admin' || isLocal;
 
         if (!hasPermission) {
-            console.error(`[Admin] Access Denied for ${userId}. Role: ${role}, Local: ${isLocal}`);
-            return new Response(`Forbidden: Admin access required. (Your ID: ${userId}, Role: ${role || 'none'})`, { status: 403 });
+            return new Response(`Forbidden: Admin access required.`, { status: 403 });
         }
 
-        // 2. Fetch all user statistics
         const { results } = await env.DB.prepare(`
             SELECT user_id, display_name, avatar_url, level, exp, total_score, play_count, total_coins, updated_at
             FROM user_stats_v2
@@ -60,9 +56,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     }
 };
 
-/**
- * Handle user updates/deletions
- */
 export const onRequestPost: PagesFunction<Env> = async (context) => {
     const { env, request } = context;
     
@@ -71,13 +64,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const token = authHeader?.split(' ')[1];
         const decoded = decodeJWT(token || '');
         
-        // Flexible role check
         const role = decoded?.metadata?.role || decoded?.public_metadata?.role || decoded?.role;
         const isLocal = request.url.includes('localhost') || request.headers.get('Host')?.includes('localhost');
         const hasPermission = role === 'admin' || isLocal;
 
         if (!hasPermission) {
-            console.error('[Admin-Post] Access Denied:', role);
             return new Response('Forbidden', { status: 403 });
         }
 
@@ -100,6 +91,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
                 WHERE user_id = ?
             `).bind(data.total_coins, data.level, data.exp, targetUserId).run();
             return new Response(JSON.stringify({ success: true, message: 'Stats updated' }));
+        }
+
+        if (action === 'give_coins') {
+            await env.DB.prepare(`
+                INSERT INTO user_stats_v2 (user_id, total_coins, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET
+                total_coins = user_stats_v2.total_coins + EXCLUDED.total_coins,
+                updated_at = CURRENT_TIMESTAMP
+            `).bind(targetUserId, data.amount).run();
+            
+            return new Response(JSON.stringify({ success: true, message: `Gifted ${data.amount} coins to ${targetUserId}` }));
         }
 
         return new Response('Invalid Action', { status: 400 });
