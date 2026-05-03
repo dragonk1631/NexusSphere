@@ -766,21 +766,7 @@ export class ShopUI {
                 const rarityStars = 3;
                 const accentColor = skinColors[idx % skinColors.length];
 
-                let statusHtml = '';
-                let lockIconHtml = '';
-                if (!isOwned) {
-                    lockIconHtml = `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5rem; color: #ffd700; opacity: 0.8; z-index: 5; text-shadow: 0 0 10px rgba(0,0,0,0.8);">🔒</div>`;
-                    statusHtml = `
-                        <div class="note-card-price" style="color: ${accentColor};">
-                            <span style="font-size: 0.8rem;">🪙</span>
-                            <span>${price.toLocaleString()}</span>
-                        </div>
-                    `;
-                } else if (s.id === currentSkinId) {
-                    statusHtml = ''; // Removed EQUIPPED badge (Handled by active state)
-                } else {
-                    statusHtml = ''; // Removed OWNED badge
-                }
+
 
                 return `
                 <div class="note-card skin-btn ${s.id === currentSkinId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
