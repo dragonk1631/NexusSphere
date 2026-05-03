@@ -360,7 +360,6 @@ export class ShopUI {
                     position: relative;
                     overflow: hidden;
                     border: 1px solid rgba(255, 255, 255, 0.08);
-                    margin-bottom: 10px;
                     box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
                 }
 
@@ -399,27 +398,29 @@ export class ShopUI {
                 }
 
                 .note-card-desc {
-                    font-size: 0.7rem;
-                    color: rgba(255, 255, 255, 0.55);
-                    text-align: center;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    display: block;
-                    width: 100%;
-                    margin-bottom: 4px;
+                    display: none;
                 }
 
-                .note-card-price {
+                .note-card-price-overlay, .theme-price-overlay {
+                    position: absolute;
+                    bottom: 8px;
+                    right: 8px;
+                    background: rgba(0, 0, 0, 0.9);
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    border: 2px solid #FFD700;
+                    color: #FFD700 !important;
                     font-family: 'Outfit', sans-serif;
+                    font-size: 1rem;
                     font-weight: 900;
-                    font-size: 0.9rem;
-                    color: #FFD700;
+                    z-index: 50;
+                    backdrop-filter: blur(5px);
                     display: flex;
                     align-items: center;
-                    justify-content: center;
                     gap: 6px;
-                    width: 100%;
+                    pointer-events: none;
+                    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+                    text-shadow: 0 0 5px rgba(0,0,0,1);
                 }
 
                 .note-card.locked {
@@ -428,6 +429,35 @@ export class ShopUI {
                 
                 .note-card.locked .note-preview-img {
                     filter: grayscale(0.4) brightness(0.6);
+                }
+
+                @media (max-width: 900px) {
+                    .note-card {
+                        padding: 8px !important;
+                    }
+                    .note-card-title {
+                        font-size: 0.65rem !important;
+                        white-space: normal;
+                        line-height: 1.1;
+                    }
+                    .note-card-rarity, .rarity-star {
+                        display: none !important;
+                    }
+                    .note-card-desc {
+                        display: none !important;
+                    }
+                    .note-preview-img {
+                        width: 90% !important;
+                    }
+                    .note-card-price-overlay, .theme-price-overlay {
+                        bottom: 5px !important;
+                        right: auto !important;
+                        left: 50% !important;
+                        transform: translateX(-50%) !important;
+                        font-size: 0.65rem !important;
+                        padding: 2px 8px !important;
+                        white-space: nowrap !important;
+                    }
                 }
 
                 .note-card.locked .note-preview-area::after {
@@ -453,7 +483,7 @@ export class ShopUI {
                     cursor: pointer; display: flex; align-items: flex-end; justify-content: center;
                     padding: clamp(10px, 1.5vh, 20px); transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                     box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow: hidden; height: 100%;
-                    background: rgba(255, 255, 255, 0.05);
+                    background: #111;
                 }
 
                 .theme-btn:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(0,0,0,0.7); }
@@ -477,21 +507,49 @@ export class ShopUI {
                 }
 
                 .theme-name {
-                    position: relative; z-index: 5; font-family: 'Black Han Sans', sans-serif;
-                    font-size: clamp(13px, 1.5vw, 17px); font-weight: 800; color: #fff;
-                    text-align: center; width: 100%;
-                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                    position: absolute; 
+                    top: 50%;
+                    left: 0;
+                    right: 0;
+                    transform: translateY(-50%);
+                    z-index: 10; 
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: clamp(14px, 1.8vw, 20px); 
+                    font-weight: 800; 
+                    color: #fff;
+                    text-align: center;
+                    text-shadow: 0 2px 10px rgba(0,0,0,1), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                    pointer-events: none;
+                    padding: 0 10px;
+                }
+                
+                .theme-btn.active::after {
+                    content: '✓'; position: absolute; top: 10px; right: 10px;
+                    background: #00E5FF; color: #000; width: 30px; height: 30px;
+                    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                    font-size: 18px; font-weight: 900; z-index: 20;
+                    box-shadow: 0 0 20px rgba(0, 229, 255, 0.6);
                 }
 
-                .theme-btn.locked { filter: grayscale(0.8) brightness(0.4); }
-                .theme-btn.locked:hover { filter: grayscale(0.2) brightness(0.7); }
+                .theme-btn-bg {
+                    position: absolute;
+                    inset: 0;
+                    background-size: cover;
+                    background-position: center;
+                    transition: all 0.4s ease;
+                    z-index: 1;
+                }
+
+                .theme-btn.locked .theme-btn-bg {
+                    filter: grayscale(0.5) brightness(0.6) saturate(0.8);
+                }
+
+                .theme-btn.locked {
+                    border-color: rgba(255, 255, 255, 0.15) !important;
+                }
 
                 .lock-badge {
-                    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                    background: rgba(0,0,0,0.8); padding: 8px 15px; border-radius: 20px;
-                    border: 2px solid #ffd700; color: #ffd700; font-family: 'Black Han Sans';
-                    font-size: 0.9rem; pointer-events: none; display: flex; flex-direction: column; align-items: center;
-                    z-index: 10;
+                    display: none;
                 }
 
                 /* Removed redundant currency HUD v2 */
@@ -670,15 +728,21 @@ export class ShopUI {
 
                 let innerHtml = `<span class="theme-name">${t.name}</span>`;
                 if (!isOwned) {
-                    innerHtml += `<div class="lock-badge"><span>🔒</span><span>${price.toLocaleString()} Coin</span></div>`;
+                    innerHtml += `
+                        <div class="theme-price-overlay" style="border-color: ${t.color1}; color: ${t.color1};">
+                            <span>🔒</span>
+                            <span>${price.toLocaleString()}</span>
+                        </div>
+                    `;
                 }
 
                 const bgStyle = url ? `background-image: url(${url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
 
                 return `
-                <button class="theme-btn ${t.id === currentThemeId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
+                <button class="theme-btn theme-item ${t.id === currentThemeId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
                         data-theme="${t.id}" data-price="${price}"
-                        style="${bgStyle} border-color: ${t.color3}; background-size: cover; background-position: center;">
+                        style="border-color: ${t.color1}55;">
+                    <div class="theme-btn-bg" style="${bgStyle}"></div>
                     ${innerHtml}
                 </button>
                 `;
@@ -731,12 +795,13 @@ export class ShopUI {
                         </div>
                     </div>
                     <div class="note-preview-area" style="background: radial-gradient(circle at 50% 50%, ${accentColor}11 0%, #05050a 100%);">
-                        ${lockIconHtml}
                         <img src="${previewUrl}" class="note-preview-img" alt="${s.name}">
-                    </div>
-                    <div class="note-card-info">
-                        <span class="note-card-desc">${s.description}</span>
-                        ${statusHtml}
+                        ${!isOwned ? `
+                            <div class="note-card-price-overlay">
+                                <span>🔒</span>
+                                <span>${price.toLocaleString()}</span>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `}).join('');
