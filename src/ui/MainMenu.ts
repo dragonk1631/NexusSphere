@@ -793,7 +793,7 @@ export class MainMenu {
                     avatarUI.setReaction(AvatarReaction.HAPPY, 1500);
                     
                     setTimeout(() => {
-                        this.showSignOutModal(auth, name);
+                        this.showSignOutModal(auth);
                     }, 500);
                 };
             }
@@ -807,7 +807,7 @@ export class MainMenu {
         }
     }
 
-    private showSignOutModal(auth: AuthService, name: string): void {
+    private showSignOutModal(auth: AuthService): void {
         ModalUI.getInstance().show(
             'SIGN OUT',
             'Are you sure you want to sign out? Your data is safe on the cloud.',
