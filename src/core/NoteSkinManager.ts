@@ -12,15 +12,15 @@ export class NoteSkinManager {
     // The 10 Curated Note Skins
     public static readonly SKINS: NoteSkinConfig[] = [
         { id: 'classic-gel', name: 'Classic Gel', description: '기본 라운드 반사광 젤리 노트' },
-        { id: 'cyber-neon', name: 'Cyber Neon', description: '속이 빈 직사각형 형태의 강렬한 레이저 네온' },
-        { id: 'retro-blocks', name: 'Retro Blocks', description: '고전 오락실 감성의 8비트 각진 블록' },
-        { id: 'orb-lights', name: 'Orb Lights', description: '완벽하게 둥글고 부드러운 발광 구체' },
-        { id: 'diamond-stars', name: 'Diamond Stars', description: '마름모(◇) 형태의 공격적이고 예리한 디자인' },
+        { id: 'winter-snowflakes', name: 'Snowflakes', description: '차갑고 아름다운 결정체 모양의 눈송이 노트' },
+        { id: 'pill-capsules', name: 'Pill Capsules', description: '고광택 3D 알약 캡슐 형태의 유니크한 노트' },
+        { id: 'cat-face', name: 'Cat Face', description: '깜찍한 고양이 얼굴 모양의 귀여운 노트' },
+        { id: 'shining-stars', name: 'Shining Stars', description: '화려하게 빛나는 5각 별 모양의 프리미엄 디자인' },
         { id: 'minimal-bars', name: 'Minimal Bars', description: '두께가 아주 얇고 세련된 와이드 가로바' },
-        { id: 'glass-spheres', name: 'Glass Spheres', description: '입체감이 강한 반짝이는 유리구슬' },
-        { id: 'laser-blades', name: 'Laser Blades', description: '양끝이 뾰족한 광선검 파편 형태' },
+        { id: 'crown', name: 'Crown', description: '화려하고 권위 있는 황금빛 왕관 모양의 노트' },
+        { id: 'diamond-gems', name: 'Diamond Gems', description: '영롱하게 빛나는 5각형 다이아몬드 보석 노트' },
         { id: 'hologram', name: 'Hologram', description: '노이즈와 스캔라인이 잔뜩 들어간 투명 테크' },
-        { id: 'heart-beats', name: 'Heart Beats', description: '스윗하고 팝한 하트모양 아이콘 노트' }
+        { id: 'heart-beats', name: 'Heart Beats', description: '사랑스럽고 입체적인 팝스타일 하트 아이콘' }
     ];
 
     private constructor() {

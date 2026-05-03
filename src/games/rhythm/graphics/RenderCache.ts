@@ -91,67 +91,354 @@ export class RenderCache {
         ctx.lineJoin = 'round';
 
         switch (skinId) {
-            case 'cyber-neon':
-                ctx.strokeStyle = baseColor;
-                ctx.lineWidth = 6;
-                ctx.strokeRect(x, y, w, h);
-                ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                ctx.fillRect(x + w * 0.2, y + h * 0.4, w * 0.6, h * 0.2);
-                break;
-            case 'retro-blocks':
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = darkColor;
-                ctx.fillRect(x, y, w, h);
-                ctx.fillStyle = baseColor;
-                ctx.fillRect(x + 5, y + 5, w - 10, h - 10);
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(x + 10, y + 10, 15, 10);
-                break;
-            case 'orb-lights':
-                ctx.fillStyle = baseColor;
+            case 'winter-snowflakes':
+                const sfCx = x + w / 2;
+                const sfCy = y + h / 2;
+                const sfSize = w * 0.8;
+                
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2.5;
+                ctx.lineCap = 'round';
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = baseColor;
+                
+                // Draw complex crystalline structure
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i * Math.PI) / 3;
+                    ctx.save();
+                    ctx.translate(sfCx, sfCy);
+                    ctx.rotate(angle);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(0, -sfSize / 2);
+                    
+                    // Main branches (Diamond tips)
+                    const tipY = -sfSize / 2;
+                    ctx.moveTo(0, tipY);
+                    ctx.lineTo(-5, tipY + 8);
+                    ctx.lineTo(5, tipY + 8);
+                    ctx.closePath();
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();
+
+                    // Side branches (Ice needles)
+                    ctx.moveTo(0, -sfSize * 0.25);
+                    ctx.lineTo(-12, -sfSize * 0.4);
+                    ctx.moveTo(0, -sfSize * 0.25);
+                    ctx.lineTo(12, -sfSize * 0.4);
+                    
+                    ctx.stroke();
+                    ctx.restore();
+                }
+                // Center crystal hex
                 ctx.beginPath();
-                ctx.ellipse(x + w / 2, y + h / 2, Math.min(w, h * 1.5) / 2, h / 2, 0, 0, Math.PI * 2);
+                for (let i = 0; i < 6; i++) {
+                    const a = (i * Math.PI) / 3;
+                    const hx = sfCx + Math.cos(a) * 8;
+                    const hy = sfCy + Math.sin(a) * 8;
+                    if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+                }
+                ctx.closePath();
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, 0.5)`;
                 ctx.fill();
-                ctx.fillStyle = '#fff';
-                ctx.globalAlpha = 0.5;
-                ctx.beginPath();
-                ctx.ellipse(x + w / 2, y + h * 0.3, Math.min(w, h * 1.5) * 0.3, h * 0.15, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
                 break;
-            case 'diamond-stars':
+            case 'pill-capsules':
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, h / 2);
+                ctx.save();
+                ctx.clip();
+                // Left half (color)
                 ctx.fillStyle = baseColor;
+                ctx.fillRect(x, y, w / 2, h);
+                // Right half (white/light) - Added depth
+                const pGradRight = ctx.createLinearGradient(x + w / 2, y, x + w / 2, y + h);
+                pGradRight.addColorStop(0, '#fff');
+                pGradRight.addColorStop(1, '#ccc');
+                ctx.fillStyle = pGradRight;
+                ctx.fillRect(x + w / 2, y, w / 2, h);
+                ctx.restore();
+                
+                // Better Center band
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 3;
                 ctx.beginPath();
                 ctx.moveTo(x + w / 2, y);
-                ctx.lineTo(x + w, y + h / 2);
                 ctx.lineTo(x + w / 2, y + h);
-                ctx.lineTo(x, y + h / 2);
+                ctx.stroke();
+
+                // High-gloss 3D highlight (Refined)
+                const pillGrad = ctx.createLinearGradient(x, y, x, y + h);
+                pillGrad.addColorStop(0, 'rgba(255,255,255,0.9)');
+                pillGrad.addColorStop(0.3, 'rgba(255,255,255,0.2)');
+                pillGrad.addColorStop(0.5, 'rgba(255,255,255,0)');
+                pillGrad.addColorStop(0.8, 'rgba(0,0,0,0.1)');
+                pillGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+                ctx.fillStyle = pillGrad;
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, h / 2);
+                ctx.fill();
+                break;
+            case 'cat-face':
+                const fCx = x + w / 2;
+                const fCy = y + h / 2;
+                const headW = w * 0.42;
+                const headH = h * 0.45;
+                
+                // 1. Ears
+                ctx.fillStyle = darkColor;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                
+                // Left Ear
+                ctx.beginPath();
+                ctx.moveTo(fCx - headW * 0.8, fCy - headH * 0.4);
+                ctx.lineTo(fCx - headW * 1.0, fCy - headH * 1.1);
+                ctx.lineTo(fCx - headW * 0.3, fCy - headH * 0.8);
                 ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                // Right Ear
+                ctx.beginPath();
+                ctx.moveTo(fCx + headW * 0.8, fCy - headH * 0.4);
+                ctx.lineTo(fCx + headW * 1.0, fCy - headH * 1.1);
+                ctx.lineTo(fCx + headW * 0.3, fCy - headH * 0.8);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 2. Head Base
+                const headGrad = ctx.createRadialGradient(fCx - 10, fCy - 10, 0, fCx, fCy, headW * 1.2);
+                headGrad.addColorStop(0, '#fff');
+                headGrad.addColorStop(0.3, baseColor);
+                headGrad.addColorStop(1, darkColor);
+                ctx.fillStyle = headGrad;
+                ctx.beginPath();
+                ctx.ellipse(fCx, fCy, headW * 1.1, headH, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 3;
                 ctx.stroke();
+                
+                // 3. Eyes
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(fCx - headW * 0.4, fCy - 2, 4, 0, Math.PI * 2);
+                ctx.arc(fCx + headW * 0.4, fCy - 2, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 4. Blush (Cute detail)
+                ctx.fillStyle = 'rgba(255, 100, 150, 0.4)';
+                ctx.beginPath();
+                ctx.arc(fCx - headW * 0.55, fCy + 5, 4, 0, Math.PI * 2);
+                ctx.arc(fCx + headW * 0.55, fCy + 5, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 5. Whiskers
+                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                ctx.lineWidth = 1.5;
+                // Left whiskers
+                ctx.beginPath();
+                ctx.moveTo(fCx - headW * 0.8, fCy + 2); ctx.lineTo(fCx - headW * 1.3, fCy - 3);
+                ctx.moveTo(fCx - headW * 0.8, fCy + 7); ctx.lineTo(fCx - headW * 1.3, fCy + 12);
+                // Right whiskers
+                ctx.moveTo(fCx + headW * 0.8, fCy + 2); ctx.lineTo(fCx + headW * 1.3, fCy - 3);
+                ctx.moveTo(fCx + headW * 0.8, fCy + 7); ctx.lineTo(fCx + headW * 1.3, fCy + 12);
+                ctx.stroke();
+                
+                // 6. Mouth (Small W)
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(fCx - 3, fCy + 8, 3, 0, Math.PI);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(fCx + 3, fCy + 8, 3, 0, Math.PI);
+                ctx.stroke();
+                break;
+            case 'shining-stars':
+                const sSpikes = 5;
+                const sOuter = h * 0.72; // Reduced to prevent clipping
+                const sInner = h * 0.32;
+                const sCx = x + w / 2;
+                const sCy = y + h / 2;
+
+                ctx.beginPath();
+                for (let i = 0; i < sSpikes * 2; i++) {
+                    const radius = i % 2 === 0 ? sOuter : sInner;
+                    const angle = (i * Math.PI) / sSpikes - Math.PI / 2;
+                    // Horizontal scale: stay safely within 100px lane
+                    const sx = sCx + Math.cos(angle) * radius * 1.3;
+                    const sy = sCy + Math.sin(angle) * radius;
+                    if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+                }
+                ctx.closePath();
+                
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                const sGrad = ctx.createRadialGradient(sCx, sCy, 0, sCx, sCy, sOuter * 1.5);
+                sGrad.addColorStop(0, '#fff');
+                sGrad.addColorStop(0.4, baseColor);
+                sGrad.addColorStop(1, darkColor);
+                ctx.fillStyle = sGrad;
+                ctx.fill();
+
+                // Inner Star Detail
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                for (let i = 0; i < sSpikes; i++) {
+                    const a = (i * Math.PI * 2) / sSpikes - Math.PI / 2;
+                    ctx.moveTo(sCx, sCy);
+                    ctx.lineTo(sCx + Math.cos(a) * sOuter * 1.2, sCy + Math.sin(a) * sOuter * 0.8);
+                }
+                ctx.stroke();
+
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = baseColor;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(sCx, sCy, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                break;
+            case 'diamond-gems':
+                const dCx = x + w / 2;
+                const dCy = y + h / 2;
+                const dw = w * 0.95;
+                const dh = h * 1.0; 
+
+                // 1. MAIN BODY PATH (Define once)
+                const defineDiamondPath = () => {
+                    ctx.beginPath();
+                    ctx.moveTo(dCx - dw * 0.28, dCy - dh * 0.45); 
+                    ctx.lineTo(dCx + dw * 0.28, dCy - dh * 0.45); 
+                    ctx.lineTo(dCx + dw * 0.5, dCy + dh * 0.0);   
+                    ctx.lineTo(dCx, dCy + dh * 0.5);             
+                    ctx.lineTo(dCx - dw * 0.5, dCy + dh * 0.0);   
+                    ctx.closePath();
+                };
+
+                // FILL BODY
+                defineDiamondPath();
+                const dGrad = ctx.createLinearGradient(dCx, dCy - dh * 0.5, dCx, dCy + dh * 0.5);
+                dGrad.addColorStop(0, '#fff');
+                dGrad.addColorStop(0.4, baseColor);
+                dGrad.addColorStop(1, darkColor);
+                ctx.fillStyle = dGrad;
+                ctx.fill();
+
+                // 2. CROWN FACETS (Internal)
+                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(dCx - dw * 0.28, dCy - dh * 0.45);
+                ctx.lineTo(dCx - dw * 0.18, dCy - dh * 0.15);
+                ctx.lineTo(dCx + dw * 0.18, dCy - dh * 0.15);
+                ctx.lineTo(dCx + dw * 0.28, dCy - dh * 0.45);
+                ctx.moveTo(dCx - dw * 0.18, dCy - dh * 0.15);
+                ctx.lineTo(dCx - dw * 0.5, dCy + dh * 0.0);
+                ctx.moveTo(dCx + dw * 0.18, dCy - dh * 0.15);
+                ctx.lineTo(dCx + dw * 0.5, dCy + dh * 0.0);
+                ctx.moveTo(dCx - dw * 0.18, dCy - dh * 0.15);
+                ctx.lineTo(dCx, dCy + dh * 0.5);
+                ctx.moveTo(dCx + dw * 0.18, dCy - dh * 0.15);
+                ctx.lineTo(dCx, dCy + dh * 0.5);
+                ctx.stroke();
+
+                // 3. CORE HIGHLIGHT
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.beginPath();
+                ctx.moveTo(dCx - dw * 0.28, dCy - dh * 0.45);
+                ctx.lineTo(dCx + dw * 0.28, dCy - dh * 0.45);
+                ctx.lineTo(dCx, dCy - dh * 0.15);
+                ctx.fill();
+                
+                // Central sparkle
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(dCx, dCy - dh * 0.15, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 4. OUTER BORDER (Re-define path to stroke)
+                defineDiamondPath();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 4;
+                ctx.stroke();
                 break;
             case 'minimal-bars':
                 ctx.fillStyle = baseColor;
-                ctx.shadowBlur = 15;
+                ctx.shadowBlur = 10;
                 ctx.shadowColor = baseColor;
                 ctx.fillRect(x, y + h * 0.3, w, h * 0.4);
+                
+                const barGrad = ctx.createLinearGradient(x, y + h * 0.3, x, y + h * 0.7);
+                barGrad.addColorStop(0, 'rgba(255,255,255,0.6)');
+                barGrad.addColorStop(0.5, 'rgba(255,255,255,0)');
+                barGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+                ctx.fillStyle = barGrad;
+                ctx.fillRect(x, y + h * 0.3, w, h * 0.4);
+                
                 ctx.fillStyle = '#fff';
-                ctx.fillRect(x, y + h * 0.4, w, h * 0.2);
+                ctx.globalAlpha = 0.7;
+                ctx.fillRect(x, y + h * 0.45, w, h * 0.1);
+                ctx.globalAlpha = 1.0;
                 break;
-            case 'glass-spheres':
-                const radGrad = ctx.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, h);
-                radGrad.addColorStop(0, 'rgba(255,255,255,0.9)');
-                radGrad.addColorStop(0.3, baseColor);
-                radGrad.addColorStop(1, darkColor);
-                ctx.fillStyle = radGrad;
+            case 'crown':
+                const crCx = x + w / 2;
+                const crCy = y + h / 2;
+                const crW = w * 0.45;
+                const crH = h * 0.45;
+
+                // 1. Crown Base
+                const crGrad = ctx.createLinearGradient(crCx - crW, 0, crCx + crW, 0);
+                crGrad.addColorStop(0, darkColor);
+                crGrad.addColorStop(0.5, '#fff');
+                crGrad.addColorStop(1, darkColor);
+                
+                ctx.fillStyle = crGrad;
                 ctx.beginPath();
-                ctx.roundRect(x, y, w, h, h / 2);
+                ctx.roundRect(crCx - crW, crCy + crH * 0.2, crW * 2, crH * 0.5, 4);
                 ctx.fill();
-                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 2. Crown Points (3 points)
                 ctx.beginPath();
-                ctx.roundRect(x + w * 0.1, y + 2, w * 0.8, h * 0.3, h / 4);
+                // Left point
+                ctx.moveTo(crCx - crW, crCy + crH * 0.2);
+                ctx.lineTo(crCx - crW * 0.9, crCy - crH * 0.6);
+                ctx.lineTo(crCx - crW * 0.4, crCy + crH * 0.2);
+                // Center point
+                ctx.moveTo(crCx - crW * 0.3, crCy + crH * 0.2);
+                ctx.lineTo(crCx, crCy - crH * 0.9);
+                ctx.lineTo(crCx + crW * 0.3, crCy + crH * 0.2);
+                // Right point
+                ctx.moveTo(crCx + crW * 0.4, crCy + crH * 0.2);
+                ctx.lineTo(crCx + crW * 0.9, crCy - crH * 0.6);
+                ctx.lineTo(crCx + crW, crCy + crH * 0.2);
+                ctx.fill();
+                ctx.stroke();
+
+                // 3. Ornaments (Tips)
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(crCx - crW * 0.9, crCy - crH * 0.6, 5, 0, Math.PI * 2);
+                ctx.arc(crCx, crCy - crH * 0.9, 6, 0, Math.PI * 2);
+                ctx.arc(crCx + crW * 0.9, crCy - crH * 0.6, 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Extra inner jewel
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                ctx.arc(crCx, crCy + crH * 0.45, 4, 0, Math.PI * 2);
                 ctx.fill();
                 break;
             case 'laser-blades':
@@ -163,11 +450,16 @@ export class RenderCache {
                 ctx.lineTo(x + w / 2, y + h - 5);
                 ctx.closePath();
                 ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 4;
+                
+                const bladeGrad = ctx.createLinearGradient(x, y, x + w, y);
+                bladeGrad.addColorStop(0, 'rgba(255,255,255,0)');
+                bladeGrad.addColorStop(0.5, 'rgba(255,255,255,0.9)');
+                bladeGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.strokeStyle = bladeGrad;
+                ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.moveTo(x, y + h / 2);
-                ctx.lineTo(x + w, y + h / 2);
+                ctx.moveTo(x + 5, y + h / 2);
+                ctx.lineTo(x + w - 5, y + h / 2);
                 ctx.stroke();
                 break;
             case 'hologram':
@@ -180,48 +472,70 @@ export class RenderCache {
                 }
                 break;
             case 'heart-beats':
-                ctx.fillStyle = baseColor;
-                ctx.beginPath();
-                // Increase width to better fill the 100px lane. 
-                // Previous Math.min(w, h * 1.5) was ~75px. 
-                // Let's use 90% of the core width (w=100) -> 90px.
-                const hw = w * 0.9;
                 const hx = x + w / 2;
-                const hl = hx - hw / 2, hr = hx + hw / 2;
-                ctx.moveTo(hx, y + h * 0.3);
-                ctx.bezierCurveTo(hx, y - h * 0.1, hl, y - h * 0.1, hl, y + h * 0.4);
-                ctx.bezierCurveTo(hl, y + h * 0.8, hx, y + h * 0.9, hx, y + h);
-                ctx.bezierCurveTo(hx, y + h * 0.9, hr, y + h * 0.8, hr, y + h * 0.4);
-                ctx.bezierCurveTo(hr, y - h * 0.1, hx, y - h * 0.1, hx, y + h * 0.3);
-                ctx.fill();
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                const hy = y + h / 2;
+                // Natural heart shape: not too wide
+                const hw = w * 0.85; 
+                const hh = h * 1.0;
+                
+                ctx.save();
+                ctx.translate(hx, hy);
+                
+                // Outer Border
                 ctx.beginPath();
-                ctx.ellipse(x + w * 0.3, y + h * 0.3, w * 0.1, h * 0.1, Math.PI / 4, 0, Math.PI * 2);
+                this.drawHeartShape(ctx, 0, 0, hw, hh);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 5;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
                 ctx.fill();
+                
+                // Inner Content
+                ctx.beginPath();
+                this.drawHeartShape(ctx, 0, 2, hw - 10, hh - 10);
+                const hGrad = ctx.createLinearGradient(0, -hh/2, 0, hh/2);
+                hGrad.addColorStop(0, '#fff');
+                hGrad.addColorStop(0.3, baseColor);
+                hGrad.addColorStop(1, darkColor);
+                ctx.fillStyle = hGrad;
+                ctx.fill();
+                
+                // Glossy Highlight (Better position)
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.beginPath();
+                ctx.ellipse(-hw * 0.18, -hh * 0.22, hw * 0.12, hh * 0.08, Math.PI / 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
                 break;
             case 'classic-gel':
             default:
-                ctx.fillStyle = baseColor;
-                ctx.beginPath();
-                ctx.roundRect(x + 2, y + 2, w - 4, h - 4, h / 3);
-                ctx.fill();
-                const grad = ctx.createLinearGradient(x, y, x, y + h);
-                grad.addColorStop(0, baseColor);
-                grad.addColorStop(1, darkColor);
-                ctx.fillStyle = grad;
+                const gelGrad = ctx.createLinearGradient(x, y, x, y + h);
+                gelGrad.addColorStop(0, baseColor);
+                gelGrad.addColorStop(1, darkColor);
+                ctx.fillStyle = gelGrad;
                 ctx.beginPath();
                 ctx.roundRect(x, y, w, h, h / 3);
                 ctx.fill();
-                const innerGrad = ctx.createLinearGradient(x, y, x, y + h / 2);
-                innerGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
-                innerGrad.addColorStop(1, 'rgba(255,255,255,0.1)');
+                
+                // Outer highlight
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Advanced internal glazing
+                const innerGrad = ctx.createLinearGradient(x, y, x, y + h * 0.6);
+                innerGrad.addColorStop(0, 'rgba(255,255,255,0.9)');
+                innerGrad.addColorStop(1, 'rgba(255,255,255,0)');
                 ctx.fillStyle = innerGrad;
                 ctx.beginPath();
-                ctx.roundRect(x + 2, y + 2, w - 4, h / 2 - 2, h / 3);
+                ctx.roundRect(x + 3, y + 3, w - 6, h * 0.45, h / 4);
                 ctx.fill();
-                ctx.fillStyle = 'rgba(255,255,255,0.95)';
+
+                // Focal point highlight
+                ctx.fillStyle = '#fff';
                 ctx.beginPath();
-                ctx.ellipse(x + w / 2, y + h * 0.3, w * 0.4, h * 0.15, 0, 0, Math.PI * 2);
+                ctx.ellipse(x + w * 0.3, y + h * 0.25, w * 0.15, h * 0.1, -Math.PI / 10, 0, Math.PI * 2);
                 ctx.fill();
                 break;
         }
@@ -271,125 +585,123 @@ export class RenderCache {
         const vH = drawH - lineWidth;
 
         switch (skinId) {
-            case 'cyber-neon':
+            case 'winter-snowflakes':
+                const rCx = vX + vW / 2;
+                const rCy = vY + vH / 2;
+                const sfRSize = vW * 0.75; 
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
-                ctx.strokeRect(vX, vY, vW, vH);
+                ctx.lineCap = 'round';
+                
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i * Math.PI) / 3;
+                    ctx.save();
+                    ctx.translate(rCx, rCy);
+                    ctx.rotate(angle);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(0, -sfRSize / 2);
+                    
+                    // MATCH NOTE DESIGN EXACTLY: Diamond tips and needles
+                    const tipY = -sfRSize / 2;
+                    ctx.moveTo(0, tipY);
+                    ctx.lineTo(-5, tipY + 8);
+                    ctx.lineTo(5, tipY + 8);
+                    ctx.closePath();
+                    ctx.fillStyle = strokeColor;
+                    ctx.fill();
 
-                // Add subtle inner pulse/glow even when idle
-                const cnInnerAlpha = isActive ? 0.3 : 0.15;
-                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${cnInnerAlpha})`;
-                ctx.fillRect(vX, vY, vW, vH);
-
-                if (isActive) {
-                    const cnGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
-                    cnGrad.addColorStop(0, darkColor);
-                    cnGrad.addColorStop(1, baseColor);
-                    ctx.fillStyle = cnGrad;
-                    ctx.fillRect(vX, vY, vW, vH);
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.fillRect(vX + vW * 0.2, vY + vH * 0.4, vW * 0.6, vH * 0.2);
-                } else {
-                    // Glass highlight for cyber look
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                    ctx.fillRect(vX, vY, vW, vH * 0.4);
+                    ctx.moveTo(0, -sfRSize * 0.25);
+                    ctx.lineTo(-10, -sfRSize * 0.4);
+                    ctx.moveTo(0, -sfRSize * 0.25);
+                    ctx.lineTo(10, -sfRSize * 0.4);
+                    ctx.stroke();
+                    ctx.restore();
                 }
-                break;
-            case 'retro-blocks':
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = lineWidth;
-                ctx.strokeRect(vX, vY, vW, vH);
-
-                // Inner "TV Screen" fill
-                const rbFillAlpha = isActive ? 0.4 : 0.2;
-                ctx.fillStyle = `rgba(${this.hexToRgbaParams(darkColor)}, ${rbFillAlpha})`;
-                ctx.fillRect(vX + 2, vY + 2, vW - 4, vH - 4);
-
-                if (isActive) {
-                    const rbGrad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + drawH);
-                    rbGrad.addColorStop(0, baseColor);
-                    rbGrad.addColorStop(1, darkColor);
-                    ctx.fillStyle = rbGrad;
-                    ctx.fillRect(drawX + 4, drawY + 4, drawW - 8, drawH - 8);
-                    ctx.fillStyle = '#fff';
-                    ctx.fillRect(drawX + 8, drawY + 8, drawW * 0.3, drawH * 0.3);
-                }
-                break;
-            case 'orb-lights':
+                const sfFillAlpha = isActive ? 0.5 : 0.2;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${sfFillAlpha})`;
                 ctx.beginPath();
-                ctx.ellipse(vX + vW / 2, vY + vH / 2, Math.min(vW, vH * 1.5) / 2, vH / 2, 0, 0, Math.PI * 2);
+                ctx.arc(rCx, rCy, 6, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            case 'pill-capsules':
+                ctx.beginPath();
+                ctx.roundRect(vX, vY, vW, vH, vH / 2);
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
 
-                // Soft radial fill
-                const orbFillAlpha = isActive ? 0.6 : 0.25;
-                const orbFillGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH / 2);
-                orbFillGrad.addColorStop(0, `rgba(${this.hexToRgbaParams(baseColor)}, ${orbFillAlpha})`);
-                orbFillGrad.addColorStop(1, `rgba(${this.hexToRgbaParams(darkColor)}, 0.1)`);
-                ctx.fillStyle = orbFillGrad;
+                const pillRFillAlpha = isActive ? 0.3 : 0.1;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${pillRFillAlpha})`;
                 ctx.fill();
 
                 if (isActive) {
-                    const orbGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
-                    orbGrad.addColorStop(0, '#fff');
-                    orbGrad.addColorStop(1, baseColor);
-                    ctx.fillStyle = orbGrad;
-                    ctx.fill();
-
-                    // Strong reflection for active state
-                    ctx.fillStyle = '#fff';
-                    ctx.globalAlpha = 0.8;
+                    // Pill split highlight
+                    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
                     ctx.beginPath();
-                    ctx.ellipse(vX + vW / 2, vY + vH * 0.3, Math.min(vW, vH * 1.5) * 0.3, vH * 0.15, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                } else {
-                    // Subtle glass highlight
-                    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-                    ctx.beginPath();
-                    ctx.ellipse(vX + vW / 2, vY + vH * 0.25, vW * 0.2, vH * 0.1, 0, 0, Math.PI * 2);
-                    ctx.fill();
+                    ctx.moveTo(vX + vW / 2, vY);
+                    ctx.lineTo(vX + vW / 2, vY + vH);
+                    ctx.stroke();
                 }
                 break;
-            case 'diamond-stars':
+            case 'cat-face':
+                const rfCx = vX + vW / 2;
+                const rfCy = vY + vH / 2;
+                const rHeadW = vW * 0.4;
+                const rHeadH = vH * 0.42;
+                
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                
+                // Head outline
                 ctx.beginPath();
-                ctx.moveTo(vX + vW / 2, vY);
-                ctx.lineTo(vX + vW, vY + vH / 2);
-                ctx.lineTo(vX + vW / 2, vY + vH);
-                ctx.lineTo(vX, vY + vH / 2);
+                ctx.ellipse(rfCx, rfCy, rHeadW * 1.1, rHeadH, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Ears outline
+                ctx.beginPath();
+                ctx.moveTo(rfCx - rHeadW * 0.8, rfCy - rHeadH * 0.4);
+                ctx.lineTo(rfCx - rHeadW * 1.0, rfCy - rHeadH * 1.1);
+                ctx.lineTo(rfCx - rHeadW * 0.3, rfCy - rHeadH * 0.8);
+                ctx.moveTo(rfCx + rHeadW * 0.8, rfCy - rHeadH * 0.4);
+                ctx.lineTo(rfCx + rHeadW * 1.0, rfCy - rHeadH * 1.1);
+                ctx.lineTo(rfCx + rHeadW * 0.3, rfCy - rHeadH * 0.8);
+                ctx.stroke();
+                
+                const cfFillAlpha = isActive ? 0.6 : 0.2;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${cfFillAlpha})`;
+                ctx.fill();
+                break;
+            case 'shining-stars':
+                const sSpikes = 5;
+                const sOuter = vH * 0.72; // Further reduced to avoid all clipping
+                const sInner = vH * 0.32;
+                const sCx = vX + vW / 2;
+                const sCy = vY + vH / 2;
+
+                ctx.beginPath();
+                for (let i = 0; i < sSpikes * 2; i++) {
+                    const radius = i % 2 === 0 ? sOuter : sInner;
+                    const angle = (i * Math.PI) / sSpikes - Math.PI / 2;
+                    // Scale: Stay within lane width
+                    const sx = sCx + Math.cos(angle) * radius * 1.25;
+                    const sy = sCy + Math.sin(angle) * radius;
+                    if (i === 0) ctx.moveTo(sx, sy);
+                    else ctx.lineTo(sx, sy);
+                }
                 ctx.closePath();
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
 
-                // Faint inner fill
-                const dsFillAlpha = isActive ? 0.5 : 0.2;
-                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${dsFillAlpha})`;
+                const sFillAlpha = isActive ? 0.6 : 0.2;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${sFillAlpha})`;
                 ctx.fill();
 
                 if (isActive) {
-                    const dsGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
-                    dsGrad.addColorStop(0, '#fff');
-                    dsGrad.addColorStop(1, darkColor);
-                    ctx.fillStyle = dsGrad;
-                    ctx.fill();
-
-                    // Center star highlight
                     ctx.fillStyle = '#fff';
                     ctx.beginPath();
-                    ctx.moveTo(vX + vW / 2, vY + vH * 0.3);
-                    ctx.lineTo(vX + vW * 0.7, vY + vH / 2);
-                    ctx.lineTo(vX + vW / 2, vY + vH * 0.7);
-                    ctx.lineTo(vX + vW * 0.3, vY + vH / 2);
-                    ctx.fill();
-                } else {
-                    // Small glimmer highlight
-                    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                    ctx.beginPath();
-                    ctx.moveTo(vX + vW / 2, vY + 4);
-                    ctx.lineTo(vX + vW / 2 + 10, vY + 14);
-                    ctx.lineTo(vX + vW / 2, vY + 10);
-                    ctx.lineTo(vX + vW / 2 - 10, vY + 14);
+                    ctx.arc(sCx, sCy, 4, 0, Math.PI * 2);
                     ctx.fill();
                 }
                 break;
@@ -417,80 +729,72 @@ export class RenderCache {
                     ctx.fillRect(vX, vY + vH * 0.45, vW, vH * 0.1);
                 }
                 break;
-            case 'glass-spheres':
-                ctx.beginPath();
-                ctx.roundRect(vX, vY, vW, vH, vH / 2);
+            case 'crown':
+                const rcrCx = vX + vW / 2;
+                const rcrCy = vY + vH / 2;
+                const rcrW = vW * 0.45;
+                const rcrH = vH * 0.45;
+
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
+                
+                // Base
+                ctx.strokeRect(rcrCx - rcrW, rcrCy + rcrH * 0.2, rcrW * 2, rcrH * 0.5);
+                
+                // Points
+                ctx.beginPath();
+                ctx.moveTo(rcrCx - rcrW, rcrCy + rcrH * 0.2);
+                ctx.lineTo(rcrCx - rcrW * 0.9, rcrCy - rcrH * 0.6);
+                ctx.lineTo(rcrCx - rcrW * 0.4, rcrCy + rcrH * 0.2);
+                ctx.moveTo(rcrCx - rcrW * 0.3, rcrCy + rcrH * 0.2);
+                ctx.lineTo(rcrCx, rcrCy - rcrH * 0.9);
+                ctx.lineTo(rcrCx + rcrW * 0.3, rcrCy + rcrH * 0.2);
+                ctx.moveTo(rcrCx + rcrW * 0.4, rcrCy + rcrH * 0.2);
+                ctx.lineTo(rcrCx + rcrW * 0.9, rcrCy - rcrH * 0.6);
+                ctx.lineTo(rcrCx + rcrW, rcrCy + rcrH * 0.2);
                 ctx.stroke();
 
-                // Advanced glass fill
-                const gsFillAlpha = isActive ? 0.6 : 0.25;
-                const gsGradFill = ctx.createLinearGradient(vX, vY, vX, vY + vH);
-                gsGradFill.addColorStop(0, `rgba(255, 255, 255, ${gsFillAlpha})`);
-                gsGradFill.addColorStop(1, `rgba(${this.hexToRgbaParams(baseColor)}, 0.1)`);
-                ctx.fillStyle = gsGradFill;
+                const crFillAlpha = isActive ? 0.6 : 0.25;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${crFillAlpha})`;
                 ctx.fill();
-
-                if (isActive) {
-                    const gsGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
-                    gsGrad.addColorStop(0, '#fff');
-                    gsGrad.addColorStop(0.3, baseColor);
-                    gsGrad.addColorStop(1, darkColor);
-                    ctx.fillStyle = gsGrad;
-                    ctx.fill();
-
-                    // Polished highlight
-                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                    ctx.beginPath();
-                    ctx.roundRect(vX + vW * 0.1, vY + 4, vW * 0.8, vH * 0.3, vH / 4);
-                    ctx.fill();
-                } else {
-                    // Subtle glass edge highlight
-                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
                 break;
-            case 'laser-blades':
-                ctx.beginPath();
-                ctx.moveTo(vX + 10, vY + vH / 2);
-                ctx.lineTo(vX + vW / 2, vY + 5);
-                ctx.lineTo(vX + vW - 10, vY + vH / 2);
-                ctx.lineTo(vX + vW / 2, vY + vH - 5);
-                ctx.closePath();
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = lineWidth;
-                ctx.stroke();
 
-                // Faint energy core
-                const lbInnerAlpha = isActive ? 0.4 : 0.15;
-                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${lbInnerAlpha})`;
+            case 'diamond-gems':
+                const rdCx = vX + vW / 2;
+                const rdCy = vY + vH / 2;
+                const rdw = vW * 0.95;
+                const rdh = vH * 1.0;
+
+                const defineReceptorPath = () => {
+                    ctx.beginPath();
+                    ctx.moveTo(rdCx - rdw * 0.28, rdCy - rdh * 0.45);
+                    ctx.lineTo(rdCx + rdw * 0.28, rdCy - rdh * 0.45);
+                    ctx.lineTo(rdCx + rdw * 0.5, rdCy + rdh * 0.0);
+                    ctx.lineTo(rdCx, rdCy + rdh * 0.5);
+                    ctx.lineTo(rdCx - rdw * 0.5, rdCy + rdh * 0.0);
+                    ctx.closePath();
+                };
+
+                // Fill
+                defineReceptorPath();
+                const dFillAlpha = isActive ? 0.6 : 0.2;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${dFillAlpha})`;
                 ctx.fill();
 
-                if (isActive) {
-                    const lbGrad = ctx.createLinearGradient(vX, vY, vX, vY + vH);
-                    lbGrad.addColorStop(0, baseColor);
-                    lbGrad.addColorStop(1, darkColor);
-                    ctx.fillStyle = lbGrad;
-                    ctx.fill();
+                // Stroke (Re-define path)
+                defineReceptorPath();
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth + 2; 
+                ctx.stroke();
 
-                    // Razor sharp highlight
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 4;
-                    ctx.beginPath();
-                    ctx.moveTo(vX, vY + vH / 2);
-                    ctx.lineTo(vX + vW, vY + vH / 2);
-                    ctx.stroke();
-                } else {
-                    // Pulsing line in core (center)
-                    ctx.strokeStyle = `rgba(255, 255, 255, 0.3)`;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(vX + 15, vY + vH / 2);
-                    ctx.lineTo(vX + vW - 15, vY + vH / 2);
-                    ctx.stroke();
-                }
+                // Internal lines
+                ctx.beginPath();
+                ctx.moveTo(rdCx - rdw * 0.28, rdCy - rdh * 0.45);
+                ctx.lineTo(rdCx, rdCy - rdh * 0.15);
+                ctx.lineTo(rdCx + rdw * 0.28, rdCy - rdh * 0.45);
+                ctx.moveTo(rdCx, rdCy - rdh * 0.15);
+                ctx.lineTo(rdCx, rdCy + rdh * 0.5);
+                ctx.stroke();
                 break;
             case 'hologram':
                 ctx.strokeStyle = strokeColor;
@@ -515,47 +819,23 @@ export class RenderCache {
                 }
                 break;
             case 'heart-beats':
+                const rHx = vX + vW / 2;
+                const rHy = vY + vH / 2;
+                const rHw = vW * 0.85;
+                const rHh = vH * 1.0;
+                
+                ctx.save();
+                ctx.translate(rHx, rHy);
                 ctx.beginPath();
-                // Increase width to match note (90px)
-                const hw = vW * 0.9;
-                const hx = vX + vW / 2;
-                const hl = hx - hw / 2, hr = hx + hw / 2;
-                ctx.moveTo(hx, vY + vH * 0.3);
-                ctx.bezierCurveTo(hx, vY - vH * 0.1, hl, vY - vH * 0.1, hl, vY + vH * 0.4);
-                ctx.bezierCurveTo(hl, vY + vH * 0.8, hx, vY + vH * 0.9, hx, vY + vH);
-                ctx.bezierCurveTo(hx, vY + vH * 0.9, hr, vY + vH * 0.8, hr, vY + vH * 0.4);
-                ctx.bezierCurveTo(hr, vY - vH * 0.1, hx, vY - vH * 0.1, hx, vY + vH * 0.3);
+                this.drawHeartShape(ctx, 0, 0, rHw, rHh);
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
                 ctx.stroke();
 
-                // Soft heart fill (Glazing effect)
-                const hbFillAlpha = isActive ? 0.7 : 0.25;
-                const hbFillGrad = ctx.createLinearGradient(hx, vY, hx, vY + vH);
-                hbFillGrad.addColorStop(0, `rgba(${this.hexToRgbaParams(baseColor)}, ${hbFillAlpha})`);
-                hbFillGrad.addColorStop(1, `rgba(${this.hexToRgbaParams(darkColor)}, ${hbFillAlpha * 0.5})`);
-                ctx.fillStyle = hbFillGrad;
+                const hFillAlpha = isActive ? 0.6 : 0.2;
+                ctx.fillStyle = `rgba(${this.hexToRgbaParams(baseColor)}, ${hFillAlpha})`;
                 ctx.fill();
-
-                if (isActive) {
-                    const hbGrad = ctx.createRadialGradient(vX + vW / 2, vY + vH / 2, 0, vX + vW / 2, vY + vH / 2, vH);
-                    hbGrad.addColorStop(0, '#fff');
-                    hbGrad.addColorStop(1, darkColor);
-                    ctx.fillStyle = hbGrad;
-                    ctx.fill();
-
-                    // Vivid highlight
-                    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-                    ctx.beginPath();
-                    ctx.ellipse(vX + vW * 0.3, vY + vH * 0.3, vW * 0.13, vH * 0.13, Math.PI / 4, 0, Math.PI * 2);
-                    ctx.fill();
-                } else {
-                    // Glass highlight (Reflection)
-                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                    ctx.beginPath();
-                    ctx.ellipse(vX + vW * 0.3, vY + vH * 0.3, vW * 0.08, vH * 0.08, Math.PI / 4, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+                ctx.restore();
                 break;
             case 'classic-gel':
             default:
@@ -946,9 +1226,28 @@ export class RenderCache {
 
 
     public getPreviewDataURL(skinId: string): string {
-        // Use Lane 3 (Cyber Cyan) colors for preview mapping
-        const colorSet = this.COLORS[3];
+        const skins = NoteSkinManager.SKINS;
+        const index = skins.findIndex(s => s.id === skinId);
+        
+        let colorSet = index === -1 ? this.COLORS[3] : this.COLORS[index % this.COLORS.length];
+
+        // Specific color overrides for shop preview (requested by user)
+        if (skinId === 'cat-face') {
+            colorSet = ['#5D2E0C', '#8B4513']; // Brown
+        } else if (skinId === 'heart-beats') {
+            colorSet = ['#C71585', '#FF69B4']; // Pink
+        }
+
         const canvas = this.createCachedNote(colorSet, skinId);
         return canvas.toDataURL();
+    }
+
+    private drawHeartShape(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+        const topY = y - h / 2;
+        ctx.moveTo(x, topY + h * 0.3);
+        ctx.bezierCurveTo(x, topY, x - w / 2, topY, x - w / 2, topY + h * 0.4);
+        ctx.bezierCurveTo(x - w / 2, topY + h * 0.75, x, topY + h * 0.9, x, topY + h);
+        ctx.bezierCurveTo(x, topY + h * 0.9, x + w / 2, topY + h * 0.75, x + w / 2, topY + h * 0.4);
+        ctx.bezierCurveTo(x + w / 2, topY, x, topY, x, topY + h * 0.3);
     }
 }

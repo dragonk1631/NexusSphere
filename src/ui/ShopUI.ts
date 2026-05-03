@@ -231,6 +231,223 @@ export class ShopUI {
                     width: 100%; height: 100%; box-sizing: border-box; flex: 1;
                 }
 
+                .note-grid {
+                    display: grid;
+                    grid-template-columns: repeat(5, 1fr);
+                    gap: clamp(12px, 2vw, 24px);
+                    width: 100%; height: 100%; box-sizing: border-box; flex: 1;
+                }
+
+                .note-card {
+                    position: relative;
+                    background: linear-gradient(135deg, #2a2a40 0%, #111119 100%);
+                    border-radius: 20px;
+                    border: 1px solid rgba(255, 255, 255, 0.15);
+                    cursor: pointer;
+                    display: flex;
+                    flex-direction: column;
+                    padding: 16px;
+                    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+                    overflow: hidden;
+                    box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+                    height: 100%;
+                    box-sizing: border-box;
+                    text-align: left;
+                    backdrop-filter: blur(10px);
+                }
+
+                .note-card::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.12) 0%, transparent 70%);
+                    pointer-events: none;
+                    z-index: 1;
+                }
+
+                .note-card-aura {
+                    position: absolute;
+                    bottom: -20%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 120%;
+                    height: 60%;
+                    background: radial-gradient(ellipse at center, var(--card-glow, #fff) 0%, transparent 70%);
+                    opacity: 0.15;
+                    filter: blur(30px);
+                    pointer-events: none;
+                    z-index: 0;
+                    transition: opacity 0.3s;
+                }
+
+                .note-card:hover .note-card-aura {
+                    opacity: 0.35;
+                }
+
+                .note-card:hover {
+                    transform: translateY(-8px) scale(1.02);
+                    border-color: rgba(255, 255, 255, 0.4);
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+                }
+
+                .note-card.active {
+                    border: 4px solid #fff !important;
+                    background: linear-gradient(135deg, #4a4a80 0%, #252545 100%);
+                    box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
+                    animation: themePulse 1.5s ease-in-out infinite;
+                    z-index: 5;
+                }
+
+                .note-card.active::after {
+                    content: '✓';
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    width: 28px;
+                    height: 28px;
+                    background: #00E5FF;
+                    color: #000;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 16px;
+                    font-weight: 900;
+                    box-shadow: 0 0 15px rgba(0, 229, 255, 0.6);
+                    z-index: 20;
+                }
+
+                .note-card-frame {
+                    position: absolute;
+                    inset: 5px;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 12px;
+                    pointer-events: none;
+                }
+
+                .note-card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 8px;
+                    z-index: 2;
+                }
+
+                .note-card-title {
+                    font-family: 'Black Han Sans', sans-serif;
+                    font-size: clamp(0.8rem, 1.2vw, 1rem);
+                    color: #fff;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+                }
+
+                .note-card-rarity {
+                    display: flex;
+                    gap: 2px;
+                }
+
+                .rarity-star {
+                    color: #FFD700;
+                    font-size: 0.7rem;
+                }
+
+                .note-preview-area {
+                    flex: 1;
+                    background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #05050a 100%);
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    position: relative;
+                    overflow: hidden;
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    margin-bottom: 10px;
+                    box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+                }
+
+                .note-preview-area::after {
+                    content: '';
+                    position: absolute;
+                    width: 150%;
+                    height: 150%;
+                    background: radial-gradient(circle, rgba(255,215,0,0.05) 0%, transparent 70%);
+                    animation: noteGlow 4s infinite ease-in-out;
+                }
+
+                @keyframes noteGlow {
+                    0%, 100% { opacity: 0.3; transform: scale(1); }
+                    50% { opacity: 0.6; transform: scale(1.2); }
+                }
+
+                .note-preview-img {
+                    width: 70%;
+                    height: auto;
+                    object-fit: contain;
+                    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.4));
+                    z-index: 2;
+                    transition: transform 0.3s ease;
+                }
+
+                .note-card:hover .note-preview-img {
+                    transform: scale(1.1) rotate(5deg);
+                }
+
+                .note-card-info {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                    z-index: 2;
+                }
+
+                .note-card-desc {
+                    font-size: 0.7rem;
+                    color: rgba(255, 255, 255, 0.55);
+                    text-align: center;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    display: block;
+                    width: 100%;
+                    margin-bottom: 4px;
+                }
+
+                .note-card-price {
+                    font-family: 'Outfit', sans-serif;
+                    font-weight: 900;
+                    font-size: 0.9rem;
+                    color: #FFD700;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    width: 100%;
+                }
+
+                .note-card.locked {
+                    filter: saturate(0.8) brightness(0.85);
+                }
+                
+                .note-card.locked .note-preview-img {
+                    filter: grayscale(0.4) brightness(0.6);
+                }
+
+                .note-card.locked .note-preview-area::after {
+                    background: radial-gradient(circle, rgba(255,0,0,0.05) 0%, transparent 70%);
+                }
+
+                .note-card-badge {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    background: rgba(0, 0, 0, 0.8);
+                    color: #FFD700;
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                    font-size: 0.6rem;
+                    font-family: 'Black Han Sans';
+                    border: 1px solid #FFD700;
+                    z-index: 10;
+                }
+
                 .theme-btn {
                     position: relative; border-radius: 16px; border: 2px solid rgba(255,255,255,0.3);
                     cursor: pointer; display: flex; align-items: flex-end; justify-content: center;
@@ -472,28 +689,59 @@ export class ShopUI {
 
         } else if (this.activeTab === 'note') {
             const skins = skinManager.getAllSkins();
+            const skinColors = [
+                '#00E5FF', '#A2FF00', '#FF3D00', '#8B4513', 
+                '#FFD700', '#9C27B0', '#FFD700', '#2196F3', 
+                '#00FFCC', '#FF69B4'
+            ];
+
             const skinsHtml = skins.map((s, idx) => {
                 const previewUrl = renderCache.getPreviewDataURL(s.id);
                 const isOwned = economy.isSkinOwned(s.id);
                 const price = (idx === 0) ? 0 : 1500;
+                const rarityStars = 3;
+                const accentColor = skinColors[idx % skinColors.length];
 
-                let innerHtml = `
-                    <img src="${previewUrl}" alt="${s.name}" style="height: 30px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); z-index: 5;">
-                    <span class="theme-name">${s.name}</span>
-                `;
+                let statusHtml = '';
+                let lockIconHtml = '';
                 if (!isOwned) {
-                    innerHtml += `<div class="lock-badge"><span>🔒</span><span>${price.toLocaleString()} Coin</span></div>`;
+                    lockIconHtml = `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5rem; color: #ffd700; opacity: 0.8; z-index: 5; text-shadow: 0 0 10px rgba(0,0,0,0.8);">🔒</div>`;
+                    statusHtml = `
+                        <div class="note-card-price" style="color: ${accentColor};">
+                            <span style="font-size: 0.8rem;">🪙</span>
+                            <span>${price.toLocaleString()}</span>
+                        </div>
+                    `;
+                } else if (s.id === currentSkinId) {
+                    statusHtml = ''; // Removed EQUIPPED badge (Handled by active state)
+                } else {
+                    statusHtml = ''; // Removed OWNED badge
                 }
 
                 return `
-                <button class="theme-btn skin-btn ${s.id === currentSkinId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
-                        data-skin="${s.id}" data-price="${price}"
-                        style="background: linear-gradient(135deg, #333340, #1a1a25); border-color: #555566; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;">
-                    ${innerHtml}
-                </button>
+                <div class="note-card skin-btn ${s.id === currentSkinId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
+                     data-skin="${s.id}" data-price="${price}"
+                     style="--card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
+                    <div class="note-card-aura"></div>
+                    <div class="note-card-frame"></div>
+                    <div class="note-card-header">
+                        <span class="note-card-title">${s.name}</span>
+                        <div class="note-card-rarity">
+                            ${Array(rarityStars).fill('<span class="rarity-star">★</span>').join('')}
+                        </div>
+                    </div>
+                    <div class="note-preview-area" style="background: radial-gradient(circle at 50% 50%, ${accentColor}11 0%, #05050a 100%);">
+                        ${lockIconHtml}
+                        <img src="${previewUrl}" class="note-preview-img" alt="${s.name}">
+                    </div>
+                    <div class="note-card-info">
+                        <span class="note-card-desc">${s.description}</span>
+                        ${statusHtml}
+                    </div>
+                </div>
             `}).join('');
 
-            container.innerHTML = `<div class="theme-grid">${skinsHtml}</div>`;
+            container.innerHTML = `<div class="note-grid">${skinsHtml}</div>`;
             this.attachSkinListeners(container);
         }
     }
@@ -563,15 +811,25 @@ export class ShopUI {
                     }
 
                     const price = parseInt(btn.getAttribute('data-price') || '0');
-                    if (confirm(`${price.toLocaleString()} 코인으로 이 테마를 구매하시겠습니까?`)) {
-                        const res = economy.purchaseTheme(themeId, price);
-                        alert(res.message);
-                        if (res.success) {
-                            this.updateCurrencyUI();
-                            this.renderActiveTabContent(container);
-                            themeManager.setTheme(themeId);
+                    ModalUI.getInstance().show(
+                        'PURCHASE THEME',
+                        `${price.toLocaleString()} 코인으로 이 테마를 구매하시겠습니까?`,
+                        {
+                            confirmLabel: 'PURCHASE',
+                            cancelLabel: 'CANCEL',
+                            onConfirm: () => {
+                                const res = economy.purchaseTheme(themeId, price);
+                                if (res.success) {
+                                    ModalUI.getInstance().showNotification('SUCCESS', res.message, 3000, 'info');
+                                    this.updateCurrencyUI();
+                                    this.renderActiveTabContent(container);
+                                    themeManager.setTheme(themeId);
+                                } else {
+                                    ModalUI.getInstance().showNotification('FAILED', res.message, 3000, 'error');
+                                }
+                            }
                         }
-                    }
+                    );
                     return;
                 }
                 themeManager.setTheme(themeId);
@@ -604,15 +862,25 @@ export class ShopUI {
                     }
 
                     const price = parseInt(btn.getAttribute('data-price') || '0');
-                    if (confirm(`${price.toLocaleString()} 코인으로 이 노트를 구매하시겠습니까?`)) {
-                        const res = economy.purchaseSkin(skinId, price);
-                        alert(res.message);
-                        if (res.success) {
-                            this.updateCurrencyUI();
-                            this.renderActiveTabContent(container);
-                            skinManager.setSkin(skinId);
+                    ModalUI.getInstance().show(
+                        'PURCHASE NOTE SKIN',
+                        `${price.toLocaleString()} 코인으로 이 노트를 구매하시겠습니까?`,
+                        {
+                            confirmLabel: 'PURCHASE',
+                            cancelLabel: 'CANCEL',
+                            onConfirm: () => {
+                                const res = economy.purchaseSkin(skinId, price);
+                                if (res.success) {
+                                    ModalUI.getInstance().showNotification('SUCCESS', res.message, 3000, 'info');
+                                    this.updateCurrencyUI();
+                                    this.renderActiveTabContent(container);
+                                    skinManager.setSkin(skinId);
+                                } else {
+                                    ModalUI.getInstance().showNotification('FAILED', res.message, 3000, 'error');
+                                }
+                            }
                         }
-                    }
+                    );
                     return;
                 }
                 skinManager.setSkin(skinId);
