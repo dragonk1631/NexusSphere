@@ -1,3 +1,5 @@
+import { getCharacterImagePath } from '../core/utils/PathUtils';
+
 /**
  * AvatarReaction defines the possible states/expressions for the player character.
  * Based on a 2x2 sprite sheet:
@@ -20,7 +22,7 @@ export class AvatarUI {
     private avatarElement: HTMLElement | null = null;
     private reactionTimeout: number | null = null;
     private currentReaction: AvatarReaction = AvatarReaction.IDLE;
-    private currentCharacterAsset: string = '/assets/images/characters/char_baby.png';
+    private currentCharacterAsset: string = getCharacterImagePath('baby');
 
     private constructor() {}
 
@@ -58,7 +60,7 @@ export class AvatarUI {
         
         // Load active character from storage if available
         const savedChar = localStorage.getItem('nexus_active_character') || 'baby';
-        this.currentCharacterAsset = `/assets/images/characters/char_${savedChar}.png`;
+        this.currentCharacterAsset = getCharacterImagePath(savedChar);
         
         const sprite = avatar.querySelector('#avatar-sprite') as HTMLElement;
         if (sprite) {
@@ -76,7 +78,7 @@ export class AvatarUI {
      * Updates the character asset for the active avatar.
      */
     public updateCharacter(assetId: string): void {
-        this.currentCharacterAsset = `/assets/images/characters/char_${assetId}.png`;
+        this.currentCharacterAsset = getCharacterImagePath(assetId);
         const sprite = document.getElementById('avatar-sprite');
         if (sprite) {
             sprite.style.backgroundImage = `url('${this.currentCharacterAsset}')`;

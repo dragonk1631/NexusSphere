@@ -56,35 +56,41 @@ export class RankingUI {
                     backdrop-filter: blur(10px);
                 }
                 .ranking-modal {
-                    width: clamp(380px, 90vw, 900px);
-                    height: 85vh;
-                    background: rgba(10, 15, 15, 0.7);
+                    width: clamp(380px, 95vw, 900px);
+                    height: 88vh;
+                    background: rgba(10, 15, 15, 0.85);
                     border: 2px solid ${themeCyan};
-                    border-radius: 20px;
+                    border-radius: 24px;
                     display: flex; flex-direction: column;
                     box-shadow: 0 0 50px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(0, 255, 255, 0.1);
                     overflow: hidden;
                     font-family: 'Outfit', sans-serif;
                     position: relative;
+                    backdrop-filter: blur(20px);
                 }
                 .ranking-header {
-                    padding: 25px 40px;
+                    padding: 15px 30px;
                     background: linear-gradient(180deg, rgba(0, 255, 255, 0.1), transparent);
                     border-bottom: 1px solid rgba(0, 255, 255, 0.2);
                     display: flex; justify-content: space-between; align-items: center;
+                    position: relative;
                 }
-                .ranking-title-area { display: flex; align-items: center; gap: 25px; }
-                .ranking-title-group h2 { margin: 0; font-size: 2.2rem; font-weight: 950; color: #fff; text-shadow: 0 0 15px ${themeCyan}; letter-spacing: -1px; }
-                .ranking-subtitle { font-family: 'Goldman', cursive; font-size: 0.7rem; color: ${themeCyan}; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 4px; opacity: 0.8; }
+                .ranking-title-area { display: flex; align-items: center; gap: 20px; flex: 1; }
+                .ranking-title-group { display: flex; flex-direction: column; }
+                .ranking-subtitle { font-family: 'Goldman', cursive; font-size: 0.6rem; color: ${themeCyan}; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; opacity: 0.7; }
+                .ranking-title-group h2 { margin: 0; font-size: 1.8rem; font-weight: 950; color: #fff; text-shadow: 0 0 15px ${themeCyan}; letter-spacing: -1px; line-height: 1; }
                 
                 .category-switcher {
-                    display: flex; background: rgba(0,0,0,0.4); border-radius: 30px; padding: 4px; border: 1px solid rgba(0, 255, 255, 0.2);
+                    display: flex; background: rgba(0,0,0,0.4); border-radius: 12px; padding: 3px; border: 1px solid rgba(0, 255, 255, 0.2);
+                    margin-left: 20px;
                 }
                 .category-btn {
-                    padding: 6px 20px; font-family: 'Goldman'; font-size: 0.8rem; border-radius: 20px; cursor: pointer; transition: 0.3s;
+                    padding: 6px 15px; font-family: 'Goldman'; font-size: 0.75rem; border-radius: 8px; cursor: pointer; transition: 0.3s;
                     color: rgba(255,255,255,0.4);
                 }
                 .category-btn.active { background: ${themeCyan}; color: #000; box-shadow: 0 0 10px ${themeCyan}; }
+
+
 
                 .ranking-tabs {
                     display: flex; gap: 10px; padding: 15px 40px; background: rgba(0,0,0,0.3);
@@ -117,26 +123,47 @@ export class RankingUI {
                 .ranking-item:hover { background: rgba(0, 255, 255, 0.08); transform: translateX(5px); border-color: ${themeCyan}44; }
                 .ranking-item.me { border: 1px solid ${themeCyan}; background: rgba(0, 255, 255, 0.05); }
 
-                .rank-num { font-family: 'Goldman'; font-weight: 900; font-size: 1.4rem; color: rgba(255,255,255,0.3); }
+                .rank-num { font-family: 'Goldman'; font-weight: 900; font-size: 1.4rem; color: rgba(255,255,255,0.3); text-align: center; }
                 .rank-top-1 { color: #ffd700; text-shadow: 0 0 15px rgba(255,215,0,0.6); font-size: 1.8rem; }
-                .rank-avatar-wrap { position: relative; width: 45px; height: 45px; }
+                .rank-avatar-wrap { position: relative; width: 45px; height: 45px; margin: 0 auto; }
                 .rank-avatar { width: 100%; height: 100%; border-radius: 10px; border: 2px solid rgba(255,255,255,0.1); object-fit: cover; background: #000; }
-                .rank-info { display: flex; flex-direction: column; padding-left: 15px; }
-                .rank-name { font-weight: 900; font-size: 1.1rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; }
+                .rank-info { display: flex; flex-direction: column; padding-left: 15px; min-width: 0; }
+                .rank-name { font-weight: 900; font-size: 1.1rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .rank-sub-text { font-size: 0.7rem; color: ${themeCyan}; font-weight: 800; opacity: 0.7; }
                 .rank-val-group { text-align: right; }
                 .rank-score-val { font-family: 'Goldman'; font-size: 1.4rem; font-weight: 700; color: #fff; }
                 .rank-sub-val { font-size: 0.75rem; opacity: 0.5; font-weight: 800; text-transform: uppercase; }
 
-                .ranking-footer {
-                    padding: 20px 40px; border-top: 1px solid rgba(255, 255, 255, 0.1);
-                    display: flex; justify-content: space-between; align-items: center;
-                    background: rgba(0,0,0,0.2);
-                }
-                .close-rank-btn {
-                    padding: 10px 40px; background: transparent; border: 2px solid ${themeCyan};
-                    border-radius: 8px; color: ${themeCyan}; font-weight: 900; font-family: 'Goldman';
-                    cursor: pointer; transition: 0.3s;
+                .ranking-footer { display: none; }
+
+                @media (max-width: 800px) {
+                    .ranking-modal { width: 98vw; height: 95vh; }
+                    .ranking-header { padding: 10px 15px; }
+                    .ranking-title-area { gap: 10px; }
+                    .ranking-title-group h2 { font-size: 1.1rem; }
+                    .ranking-subtitle { font-size: 0.5rem; letter-spacing: 1px; }
+                    .category-switcher { margin-left: 5px; border-radius: 8px; }
+                    .category-btn { padding: 4px 8px; font-size: 0.6rem; }
+                    .close-rank-btn { padding: 6px 15px; font-size: 0.7rem; border-radius: 6px; }
+
+                    .ranking-tabs { padding: 6px 10px; gap: 4px; overflow-x: auto; }
+                    .rank-tab { padding: 4px 10px; font-size: 0.55rem; border-radius: 4px; }
+                    
+                    .ranking-list { padding: 4px 8px; gap: 4px; }
+                    .ranking-item { 
+                        grid-template-columns: 35px 40px 1fr auto; 
+                        padding: 6px 10px; gap: 4px;
+                        border-radius: 8px;
+                    }
+                    .rank-num { font-size: 1rem; width: 25px; }
+                    .rank-top-1 { font-size: 1.2rem; }
+                    .rank-avatar-wrap { width: 32px; height: 32px; }
+                    .rank-emblem-badge { width: 16px; height: 16px; right: -5px !important; bottom: -5px !important; border-width: 1px; }
+                    .rank-info { padding-left: 6px; gap: 0; }
+                    .rank-name { font-size: 0.85rem; line-height: 1.1; }
+                    .rank-sub-text { font-size: 0.6rem; }
+                    .rank-score-val { font-size: 1rem; }
+                    .rank-sub-val { font-size: 0.55rem; }
                 }
             </style>
         `;
@@ -163,7 +190,7 @@ export class RankingUI {
                     <div class="ranking-header">
                         <div class="ranking-title-area">
                             <div class="ranking-title-group">
-                                <div class="ranking-subtitle">${this.currentCategory === 'user' ? 'GLOBAL LEADERBOARD' : 'GLOBAL TRACK CHARTS'}</div>
+                                <div class="ranking-subtitle">GLOBAL LEADERBOARD</div>
                                 <h2>WORLD RANKING</h2>
                             </div>
                             <div class="category-switcher">
@@ -171,16 +198,13 @@ export class RankingUI {
                                 <div class="category-btn ${this.currentCategory === 'song' ? 'active' : ''}" data-cat="song">TRACKS</div>
                             </div>
                         </div>
+                        <button class="col-btn-heavy" id="close-ranking">BACK</button>
                     </div>
                     <div class="ranking-tabs">
                         ${tabs.map(t => `<div class="rank-tab ${this.currentType === t.id ? 'active' : ''}" data-type="${t.id}">${t.label}</div>`).join('')}
                     </div>
                     <div class="ranking-list">
                         ${listHtml}
-                    </div>
-                    <div class="ranking-footer">
-                        <div style="font-size: 0.75rem; color: #00ffff; opacity: 0.6; font-weight: 800;">DATA SOURCE: CLOUDFLARE D1 (REMOTE)</div>
-                        <button class="close-rank-btn" id="close-ranking">DISMISS</button>
                     </div>
                 </div>
             </div>
@@ -225,7 +249,7 @@ export class RankingUI {
                 <div class="rank-num ${rankClass}">${rankNum}</div>
                 <div class="rank-avatar-wrap">
                     <img src="${avatar}" class="rank-avatar" />
-                    <div style="position: absolute; bottom: -5px; right: -5px; width: 22px; height: 22px; background: #111; border-radius: 50%; padding: 2px; border: 1.5px solid ${themeCyan};">
+                    <div class="rank-emblem-badge" style="position: absolute; bottom: -5px; right: -5px; width: 22px; height: 22px; background: #111; border-radius: 50%; padding: 2px; border: 1.5px solid ${themeCyan};">
                         ${classInfo.emblemSVG}
                     </div>
                 </div>

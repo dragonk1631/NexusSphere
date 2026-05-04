@@ -134,15 +134,17 @@ export class ModalUI {
 
     public close(): void {
         if (this.container) {
-            this.container.style.opacity = '0';
-            const box = this.container.querySelector('.modal-box') as HTMLElement;
+            const target = this.container; // Capture current container
+            this.container = null; // Unset instance reference immediately
+            
+            target.style.opacity = '0';
+            const box = target.querySelector('.modal-box') as HTMLElement;
             if (box) box.style.transform = 'scale(0.9) translateY(20px)';
             
             setTimeout(() => {
-                if (this.container && this.container.parentNode) {
-                    this.container.parentNode.removeChild(this.container);
+                if (target && target.parentNode) {
+                    target.parentNode.removeChild(target);
                 }
-                this.container = null;
             }, 300);
         }
     }

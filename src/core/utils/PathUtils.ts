@@ -32,7 +32,9 @@ export function resolveAssetPath(path: string): string {
         return path;
     }
 
-    const externalUrl = import.meta.env.VITE_ASSET_EXTERNAL_URL || import.meta.env.VITE_R2_EXTERNAL_URL;
+    const externalUrl = import.meta.env.VITE_ASSET_EXTERNAL_URL || 
+                        import.meta.env.VITE_R2_EXTERNAL_URL;
+    
     const assetVersion = import.meta.env.VITE_ASSET_VERSION || '1.0.0';
     let normalizedPath = normalizePath(path);
 
@@ -49,7 +51,9 @@ export function resolveAssetPath(path: string): string {
     if (externalUrl && !isCoreUI) {
         // [PHASE 1] External CDN Support (Production only or specified environment)
         const host = externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`;
-        resolved = `${host}${normalizedPath}`;
+        // Ensure we don't have double slashes if normalizedPath also starts with one
+        const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.slice(1) : normalizedPath;
+        resolved = `${host}${cleanPath}`;
     } else {
         // [DEFAULT] Vite's BASE_URL (Core UI or Local Dev)
         const baseUrl = import.meta.env.BASE_URL || '/';
@@ -58,8 +62,9 @@ export function resolveAssetPath(path: string): string {
     }
 
     // [PHASE 1] Hashing Strategy: Append version query parameter
-    // If it already has version or cache-buster, skip.
-    if (!resolved.includes('v=') && !resolved.includes('cb=')) {
+    // Skip versioning for external CDN/GitHub URLs to avoid potential loading issues with Raw content providers
+    const isExternal = !!(externalUrl && !isCoreUI);
+    if (!isExternal && !resolved.includes('v=') && !resolved.includes('cb=')) {
         const separator = resolved.includes('?') ? '&' : '?';
         resolved = `${resolved}${separator}v=${assetVersion}`;
     }
@@ -82,4 +87,20 @@ export function resolveAssetPath(path: string): string {
     }
     
     return resolved;
+}
+
+/**
+ * 캐릭터 ID를 받아 표준화된 이미지 에셋 경로를 반환합니다.
+ * 이 함수를 통해 캐릭터 이미지 경로 규칙을 중앙에서 관리합니다.
+ */
+export function getCharacterImagePath(charId: string): string {
+    if (!charId || charId.startsWith('placeholder-')) return '';
+    
+    // [TEMP] 캐릭터 이미지는 아직 클라우드플레어 R2에 업로드되지 않았으므로, 
+    // 깃허브 저장소의 Raw 주소에서 직접 가져옵니다. 
+    // 나중에 R2로 옮긴 후에는 resolveAssetPath(`assets/images/characters/char_${charId}.png`)로 변경하면 됩니다.
+    const repoPath = `public/assets/images/characters/char_${charId}.png`;
+    const githubRawUrl = `https://raw.githubusercontent.com/dragonk1631/NexusSphere/main/${repoPath}`;
+    
+    return githubRawUrl;
 }

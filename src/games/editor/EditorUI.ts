@@ -109,8 +109,8 @@ export class EditorUI {
                             ↺ RESET
                         </button>
 
-                        <button id="btn-main-menu" title="Return to Main Menu" style="background:#673AB7; color:white; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:11px;">
-                            🏠 MENU
+                        <button id="btn-main-menu" class="col-btn-heavy" title="Return to Main Menu" style="padding: 4px 15px; font-size: 11px; border-width: 2px; border-radius: 6px;">
+                            BACK
                         </button>
                     </div>
                 </div>

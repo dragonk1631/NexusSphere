@@ -8,6 +8,7 @@ import { BackgroundRenderer } from '../core/graphics/BackgroundRenderer';
 import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 import { AuthService } from '../services/auth/AuthService';
 import { ModalUI } from './ModalUI';
+import { getCharacterImagePath } from '../core/utils/PathUtils';
 
 type ShopTab = 'theme' | 'note' | 'character';
 
@@ -119,18 +120,12 @@ export class ShopUI {
 
                 .btn-close-shop {
                     height: var(--header-btn-height); padding: 0 40px;
-                    background: linear-gradient(135deg, #FF0000 0%, #990000 100%);
-                    color: #fff; border: 3px solid #fff; border-radius: 12px;
-                    font-family: 'Black Han Sans', sans-serif; font-size: 1.1rem;
-                    cursor: pointer; transition: all 0.2s;
-                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-                    box-shadow: 0 4px 15px rgba(255,0,0,0.3);
-                    display: flex; align-items: center; justify-content: center;
                 }
-
-                .btn-close-shop:hover {
-                    filter: brightness(1.2) drop-shadow(0 0 15px rgba(255,0,0,0.5));
-                    transform: scale(1.05) translateY(-2px);
+                @media (max-width: 800px) {
+                    .btn-close-shop {
+                        padding: 0 20px;
+                        font-size: 0.85rem !important;
+                    }
                 }
 
                 .god-user-list {
@@ -705,7 +700,7 @@ export class ShopUI {
                         </div>
                         <div style="display: flex; gap: 10px; position: relative;">
                             <button id="btn-god-mode" class="btn-god-mode">GOD</button>
-                            <button id="btn-close-shop" class="btn-close-shop">EXIT SHOP</button>
+                            <button id="btn-close-shop" class="col-btn-heavy btn-close-shop">BACK</button>
                             
                             <div id="god-panel" class="god-panel">
                                 <div class="god-title">GOD CONTROLS</div>
@@ -948,9 +943,9 @@ export class ShopUI {
             const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
             
             const characters = [
-                { id: 'baby', name: 'BABY CHARACTER', img: '/assets/images/characters/char_baby.png', price: 0 },
-                { id: 'melodia', name: 'MELODIA', img: '/assets/images/characters/char_melodia.png', price: 2500 },
-                { id: 'flora', name: 'FLORA', img: '/assets/images/characters/char_flora.png', price: 3500 },
+                { id: 'baby', name: 'BABY CHARACTER', img: getCharacterImagePath('baby'), price: 0 },
+                { id: 'melodia', name: 'MELODIA', img: getCharacterImagePath('melodia'), price: 2500 },
+                { id: 'flora', name: 'FLORA', img: getCharacterImagePath('flora'), price: 3500 },
             ];
 
             const displayList = [...characters];
@@ -1033,7 +1028,7 @@ export class ShopUI {
             const amount = parseInt((document.getElementById('god-gift-amount') as HTMLInputElement).value || '0');
             
             if (!targetId || amount <= 0) {
-                alert('Please enter a valid User ID and amount.');
+                ModalUI.getInstance().showNotification('INVALID INPUT', 'Please enter a valid User ID and amount.', 3000, 'error');
                 return;
             }
 
@@ -1099,18 +1094,18 @@ export class ShopUI {
 
                 if (!isOwned) {
                     ModalUI.getInstance().show(
-                        'PURCHASE CHARACTER',
-                        `Unlock this character for ${price.toLocaleString()} coins?`,
+                        '캐릭터 구매',
+                        `${price.toLocaleString()} 코인으로 이 캐릭터를 구매하시겠습니까?`,
                         {
-                            confirmLabel: 'UNLOCK',
-                            cancelLabel: 'CANCEL',
+                            confirmLabel: '구매하기',
+                            cancelLabel: '취소',
                             onConfirm: () => {
                                 if (economy.getCoins() >= price) {
                                     economy.spendCoins(price);
                                     economy.adminSetOwnership('char', charId, true);
                                     this.renderActiveTabContent(container);
                                 } else {
-                                    alert('Not enough coins!');
+                                    ModalUI.getInstance().show('코인 부족', '코인이 부족하여 이 캐릭터를 구매할 수 없습니다.', { type: 'error' });
                                 }
                             }
                         }
@@ -1150,20 +1145,20 @@ export class ShopUI {
 
                     const price = parseInt(btn.getAttribute('data-price') || '0');
                     ModalUI.getInstance().show(
-                        'PURCHASE THEME',
+                        '테마 구매',
                         `${price.toLocaleString()} 코인으로 이 테마를 구매하시겠습니까?`,
                         {
-                            confirmLabel: 'PURCHASE',
-                            cancelLabel: 'CANCEL',
+                            confirmLabel: '구매하기',
+                            cancelLabel: '취소',
                             onConfirm: () => {
                                 const res = economy.purchaseTheme(themeId, price);
                                 if (res.success) {
-                                    ModalUI.getInstance().showNotification('SUCCESS', res.message, 3000, 'info');
+                                    ModalUI.getInstance().showNotification('구매 성공', res.message, 3000, 'info');
                                     this.updateCurrencyUI();
                                     this.renderActiveTabContent(container);
                                     themeManager.setTheme(themeId);
                                 } else {
-                                    ModalUI.getInstance().showNotification('FAILED', res.message, 3000, 'error');
+                                    ModalUI.getInstance().show('코인 부족', '코인이 부족하여 이 테마를 구매할 수 없습니다.', { type: 'error' });
                                 }
                             }
                         }
@@ -1201,20 +1196,20 @@ export class ShopUI {
 
                     const price = parseInt(btn.getAttribute('data-price') || '0');
                     ModalUI.getInstance().show(
-                        'PURCHASE NOTE SKIN',
+                        '노트 스킨 구매',
                         `${price.toLocaleString()} 코인으로 이 노트를 구매하시겠습니까?`,
                         {
-                            confirmLabel: 'PURCHASE',
-                            cancelLabel: 'CANCEL',
+                            confirmLabel: '구매하기',
+                            cancelLabel: '취소',
                             onConfirm: () => {
                                 const res = economy.purchaseSkin(skinId, price);
                                 if (res.success) {
-                                    ModalUI.getInstance().showNotification('SUCCESS', res.message, 3000, 'info');
+                                    ModalUI.getInstance().showNotification('구매 성공', res.message, 3000, 'info');
                                     this.updateCurrencyUI();
                                     this.renderActiveTabContent(container);
                                     skinManager.setSkin(skinId);
                                 } else {
-                                    ModalUI.getInstance().showNotification('FAILED', res.message, 3000, 'error');
+                                    ModalUI.getInstance().show('코인 부족', '코인이 부족하여 이 노트 스킨을 구매할 수 없습니다.', { type: 'error' });
                                 }
                             }
                         }
