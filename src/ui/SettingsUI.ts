@@ -47,18 +47,17 @@ export class SettingsUI {
                 @keyframes stFadeIn { to { opacity: 1; } }
 
                 .settings-window {
-                    width: 80vw; max-width: 900px;
-                    height: 70vh;
+                    width: 90vw; max-width: 1000px;
+                    height: 65vh;
                     display: flex; flex-direction: column;
                     position: relative;
-                    gap: 20px;
-                    --header-btn-height: clamp(50px, 6.5vh, 70px); 
+                    --header-btn-height: clamp(35px, 5vh, 50px); 
                 }
 
                 .settings-header {
                     display: flex; justify-content: space-between; align-items: flex-end;
-                    padding: 10px 0 0 0;
-                    gap: 30px; 
+                    padding: 5px 0 0 0;
+                    gap: 20px; 
                 }
 
                 .settings-tabs {
@@ -67,19 +66,20 @@ export class SettingsUI {
                 }
 
                 .tab-btn {
-                    flex: 1; min-width: 0; height: var(--header-btn-height);
+                    flex: 1; max-width: 200px; height: var(--header-btn-height);
                     display: flex; align-items: center; justify-content: center;
                     background: rgba(20, 15, 35, 0.8);
                     border: 3px solid rgba(255, 255, 255, 0.2);
                     border-bottom: none; border-radius: 12px 12px 0 0;
                     color: rgba(255, 255, 255, 0.4);
                     font-family: 'Black Han Sans', sans-serif;
-                    font-size: clamp(0.7rem, 1.8vw, 1.1rem); 
+                    font-size: clamp(0.65rem, 1.4vw, 0.95rem); 
                     box-sizing: border-box; font-weight: 900; 
                     cursor: pointer; white-space: nowrap;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                     text-transform: uppercase;
                     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                    padding: 0 15px;
                 }
                 .tab-btn.active {
                     color: #fff; background: var(--active-color, #00E5FF);
@@ -91,25 +91,22 @@ export class SettingsUI {
                 .tab-btn.tab-audio.active { --active-color: #FF006E; --active-glow: rgba(255,0,110,0.6); }
                 .tab-btn.tab-gameplay.active { --active-color: #00E5FF; --active-glow: rgba(0,229,255,0.6); }
 
-                .btn-return-fixed {
-                    height: var(--header-btn-height); padding: 0 40px; 
-                    background: linear-gradient(135deg, #FF0000 0%, #990000 100%);
-                    color: #fff; border: 3px solid #fff; border-radius: 12px;
-                    font-family: 'Black Han Sans', sans-serif; font-size: 1.1rem;
-                    cursor: pointer; transition: all 0.2s;
-                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-                    box-shadow: 0 4px 15px rgba(255,0,0,0.3);
-                    display: flex; align-items: center; justify-content: center;
+                .btn-settings-back {
+                    height: var(--header-btn-height); 
+                    min-width: 130px;
+                    padding: 0 30px !important;
+                    font-size: 0.95rem !important;
                 }
 
                 .settings-panel {
-                    background: rgba(10, 10, 30, 0.8);
+                    background: rgba(10, 10, 30, 0.7);
                     border: 4px solid rgba(255, 255, 255, 0.8);
                     border-radius: 0 24px 24px 24px;
                     padding: 0; color: #fff;
                     display: flex; flex-direction: column;
                     position: relative; flex: 1; min-height: 0;
                     overflow: hidden; z-index: 20;
+                    backdrop-filter: blur(10px);
                 }
 
                 #settings-tab-content {
@@ -121,50 +118,69 @@ export class SettingsUI {
 
                 .tab-container-scroll {
                     height: 100%; width: 100%; overflow-y: auto;
-                    padding: 30px; box-sizing: border-box;
+                    padding: clamp(20px, 4vw, 40px); box-sizing: border-box;
                 }
 
                 .setting-row {
                     display: flex; justify-content: space-between; align-items: center;
-                    margin-bottom: 24px; gap: 20px;
+                    margin-bottom: 30px; gap: 30px;
                     width: 100%; box-sizing: border-box;
                 }
                 .setting-row label { 
                     font-family: 'Black Han Sans', sans-serif;
-                    font-weight: 700; font-size: 1.5rem; 
-                    white-space: nowrap; min-width: 200px; 
+                    font-weight: 700; font-size: clamp(1.1rem, 2.5vw, 1.8rem); 
+                    white-space: nowrap; min-width: 150px; 
                     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
                 }
-                input[type=range] { flex: 1; cursor: pointer; accent-color: #FF006E; height: 8px; border-radius: 4px; }
+                input[type=range] { flex: 1; cursor: pointer; accent-color: #FF006E; height: 12px; border-radius: 6px; }
                 
                 .dev-options-box {
-                    background: rgba(0, 0, 0, 0.75);
-                    border: 2px solid rgba(255, 255, 255, 0.25);
-                    border-radius: 20px; padding: 24px; margin-top: 10px;
-                    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
-                    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-                    display: flex; flex-direction: column; gap: 16px;
+                    background: rgba(0, 0, 0, 0.6);
+                    border: 2px solid rgba(255, 255, 255, 0.15);
+                    border-radius: 20px; padding: 25px; margin-top: 10px;
+                    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+                    display: flex; flex-direction: column; gap: 20px;
                 }
                 .dev-label {
                     font-family: 'Black Han Sans', sans-serif; color: #fff;
-                    font-size: 1.4rem; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+                    font-size: 1.5rem; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
                     letter-spacing: 1px; margin: 0;
                 }
                 .dev-option-row {
                     display: flex; justify-content: space-between; align-items: center;
-                    width: 100%; gap: 15px; padding: 8px 0;
+                    width: 100%; gap: 20px; padding: 10px 0;
+                    border-bottom: 1px solid rgba(255,255,255,0.05);
                 }
                 .dev-option-label {
-                    font-family: 'Outfit'; font-size: 1rem; font-weight: 800;
-                    color: rgba(255,255,255,0.85); text-transform: uppercase; letter-spacing: 0.5px;
+                    font-family: 'Outfit'; font-size: 1.1rem; font-weight: 800;
+                    color: rgba(255,255,255,0.9); text-transform: uppercase; letter-spacing: 0.5px;
                 }
                 .dev-action-btn {
                     background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-                    border: 2px solid #fff; color: #fff; padding: 6px 16px;
+                    border: 2px solid #fff; color: #fff; padding: 8px 20px;
                     border-radius: 8px; font-family: 'Black Han Sans', sans-serif;
                     font-size: 0.9rem; cursor: pointer; transition: 0.2s;
                     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-                    box-shadow: 0 4px 12px rgba(255, 65, 108, 0.3);
+                }
+                .dev-action-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+
+                @media (max-width: 800px) {
+                    .settings-window { width: 98vw; height: 75vh; }
+                    .settings-header { gap: 10px; }
+                    .tab-btn { border-radius: 8px 8px 0 0; border-width: 2px; }
+                    .btn-settings-back { 
+                        min-width: 100px; 
+                        padding: 0 20px !important;
+                        font-size: 0.85rem !important;
+                    }
+                    .settings-panel { border-radius: 0 16px 16px 16px; border-width: 3px; }
+                    .tab-container-scroll { padding: 20px; }
+                    .setting-row { flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 25px; }
+                    .setting-row label { font-size: 1.2rem; min-width: auto; }
+                    input[type=range] { width: 100%; }
+                    .dev-options-box { padding: 15px; }
+                    .dev-label { font-size: 1.2rem; }
+                    .dev-option-label { font-size: 0.9rem; }
                 }
             </style>
 
@@ -175,13 +191,14 @@ export class SettingsUI {
                             <button class="tab-btn tab-audio active" data-tab="audio">AUDIO</button>
                             <button class="tab-btn tab-gameplay" data-tab="gameplay">GAMEPLAY</button>
                         </div>
-                        <button id="btn-back" class="btn-return-fixed">← APPLY & RETURN</button>
+                        <button id="btn-back" class="col-btn-heavy btn-settings-back">BACK</button>
                     </div>
                     <div class="settings-panel" id="settings-panel">
                         <div id="settings-tab-content"></div>
                     </div>
                 </div>
             </div>
+
         `;
 
         this.ui.createOverlay('settings-ui', html);
