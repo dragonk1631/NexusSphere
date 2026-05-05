@@ -2,6 +2,7 @@ import { UIManager } from '../core/ui/UIManager';
 import { ApiUtils } from '../core/utils/ApiUtils';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { AuthService } from '../services/auth/AuthService';
+import { getCharacterImagePath } from '../core/utils/PathUtils';
 
 export interface LeaderboardEntry {
     display_name: string;
@@ -127,6 +128,15 @@ export class RankingUI {
                 .rank-top-1 { color: #ffd700; text-shadow: 0 0 15px rgba(255,215,0,0.6); font-size: 1.8rem; }
                 .rank-avatar-wrap { position: relative; width: 45px; height: 45px; margin: 0 auto; }
                 .rank-avatar { width: 100%; height: 100%; border-radius: 10px; border: 2px solid rgba(255,255,255,0.1); object-fit: cover; background: #000; }
+                .rank-avatar-sprite { 
+                    width: 100%; height: 100%; 
+                    background-size: 200% 200%; 
+                    background-position: 0% 0%; 
+                    background-repeat: no-repeat;
+                    border-radius: 10px;
+                    border: 2px solid rgba(255,255,255,0.1);
+                    background-color: #000;
+                }
                 .rank-info { display: flex; flex-direction: column; padding-left: 15px; min-width: 0; }
                 .rank-name { font-weight: 900; font-size: 1.1rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .rank-sub-text { font-size: 0.7rem; color: ${themeCyan}; font-weight: 800; opacity: 0.7; }
@@ -242,13 +252,24 @@ export class RankingUI {
         const isMe = entry.display_name === AuthService.getInstance().getUserName();
         const level = entry.level || 1;
         const classInfo = DJClassSystem.getClassInfo(level);
-        const avatar = entry.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.display_name)}&background=random&color=fff`;
+        
+        let avatarHtml = '';
+        if (isMe) {
+            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            const charImg = getCharacterImagePath(currentCharId);
+            avatarHtml = `<div class="rank-avatar-sprite" style="background-image: url('${charImg}');"></div>`;
+        } else if (entry.avatar_url && (entry.avatar_url.includes('characters/char_') || entry.avatar_url.includes('raw.githubusercontent.com'))) {
+            avatarHtml = `<div class="rank-avatar-sprite" style="background-image: url('${entry.avatar_url}');"></div>`;
+        } else {
+            const avatar = entry.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.display_name)}&background=random&color=fff`;
+            avatarHtml = `<img src="${avatar}" class="rank-avatar" />`;
+        }
 
         return `
             <div class="ranking-item ${isMe ? 'me' : ''}">
                 <div class="rank-num ${rankClass}">${rankNum}</div>
                 <div class="rank-avatar-wrap">
-                    <img src="${avatar}" class="rank-avatar" />
+                    ${avatarHtml}
                     <div class="rank-emblem-badge" style="position: absolute; bottom: -5px; right: -5px; width: 22px; height: 22px; background: #111; border-radius: 50%; padding: 2px; border: 1.5px solid ${themeCyan};">
                         ${classInfo.emblemSVG}
                     </div>

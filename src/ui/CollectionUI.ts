@@ -5,6 +5,7 @@ import { ExperienceSystem } from '../core/score/ExperienceSystem';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { ApiUtils } from '../core/utils/ApiUtils';
 import { SystemInitializer } from '../core/SystemInitializer';
+import { getCharacterImagePath } from '../core/utils/PathUtils';
 
 export class CollectionUI {
     private ui: UIManager;
@@ -152,8 +153,15 @@ export class CollectionUI {
                     width: 60px; height: 60px; border: 3px solid ${themeCyan};
                     border-radius: 10px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
                     overflow: hidden; background: #000;
+                    display: flex; align-items: center; justify-content: center;
                 }
                 .col-avatar img { width: 100%; height: 100%; object-fit: cover; }
+                .col-avatar-sprite {
+                    width: 100%; height: 100%;
+                    background-size: 200% 200%;
+                    background-position: 0% 0%;
+                    background-repeat: no-repeat;
+                }
                 .col-username { font-size: 1.6rem; font-weight: 950; color: #fff; text-shadow: 0 0 15px ${themeCyan}; text-transform: uppercase; letter-spacing: -0.5px; }
                 
                 .col-progression { display: flex; align-items: center; gap: 30px; }
@@ -823,7 +831,11 @@ export class CollectionUI {
                     <div class="col-header">
                         <div class="col-profile">
                             <div class="col-avatar">
-                                <img src="${auth.isSignedIn() ? (auth.getClerk()?.user?.imageUrl || '') : 'https://ui-avatars.com/api/?name=Guest&background=random'}" alt="AVATAR">
+                                ${(() => {
+                                    const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+                                    const charImg = getCharacterImagePath(currentCharId);
+                                    return `<div class="col-avatar-sprite" style="background-image: url('${charImg}');"></div>`;
+                                })()}
                             </div>
                             <div style="min-width: 0; flex: 1; overflow: visible;">
                                 ${!auth.isSignedIn() ? `
