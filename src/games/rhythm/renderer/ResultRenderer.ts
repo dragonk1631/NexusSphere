@@ -16,7 +16,7 @@ export class ResultRenderer {
     private lastTickElapsed: number = 0;
     private hasPlayedLevelUp: boolean = false;
 
-    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager, song: SongEntry | null, _alpha: number = 0, phase: 'SCORE' | 'EXP' = 'SCORE', elapsed: number = 0, difficultyLabel: string = 'NORMAL', audioEngine?: CoreAudioEngine) {
+    public render(ctx: CanvasRenderingContext2D, width: number, height: number, scoreManager: ScoreManager, song: SongEntry | null, _alpha: number = 0, phase: 'SCORE' | 'EXP' = 'SCORE', elapsed: number = 0, difficultyLabel: string = 'NORMAL', audioEngine?: CoreAudioEngine, charImage: HTMLImageElement | null = null) {
         const theme = ThemeManager.getInstance().getCurrentTheme();
         const pal = HUD_PALETTES[theme.id] || HUD_PALETTES['deep-space'];
 
@@ -87,9 +87,13 @@ export class ResultRenderer {
         ctx.fillText("OVER RAPID SYSTEM / CORE ENGINE v4.5C", headerX, headerY + (12 * sf)); 
         ctx.restore();
 
-        // [NEW] ALL COMBO Celebration Layer
+        // [NEW] ALL COMBO & S-Rank Celebration Layer
         if (scoreManager.isFullCombo()) {
             this.renderCelebration(ctx, width, height);
+        }
+
+        if (grade.startsWith('S')) {
+            this.renderConfetti(ctx, width, height, elapsed);
         }
 
         // Glassmorphism Panel (Polish: More transparent + Multi-layer glow)
@@ -120,7 +124,7 @@ export class ResultRenderer {
         if (isPortrait) {
             this.renderPortraitLayout(ctx, panelX, panelY, panelW, panelH, maxCombo, accuracy, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel, score);
         } else {
-            this.renderLandscapeLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel);
+            this.renderLandscapeLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel, charImage);
         }
 
         // 5. XP & Level System Panel (EXP Phase Popup)
@@ -139,7 +143,7 @@ export class ResultRenderer {
         ctx.restore();
     }
 
-    private renderLandscapeLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, score: number, maxCombo: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string) {
+    private renderLandscapeLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, score: number, maxCombo: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string, charImage: HTMLImageElement | null) {
         const colW = pw / 3;
         const margin = 30 * sf; // [AIR-FLOW] Increased horizontal margin between columns
         
@@ -147,9 +151,9 @@ export class ResultRenderer {
         const footerH = 100 * sf;
         const contentH = ph - footerH - margin;
 
-        // --- Left Column: Song Info & Album Art ---
+        // --- Left Column: Song Info & Album Art (Now Character Sprite) ---
         const leftX = px + margin;
-        this.renderSongSection(ctx, leftX, py + margin, colW - margin * 2, contentH, song, sf, this.getGradeColor(grade), difficultyLabel);
+        this.renderSongSection(ctx, leftX, py + margin, colW - margin * 2, contentH, song, sf, this.getGradeColor(grade), difficultyLabel, charImage, grade);
 
         // --- Center Column: Rank & Score ---
         const centerX = px + colW;
@@ -159,31 +163,28 @@ export class ResultRenderer {
         const rightX = px + colW * 2;
         this.renderStatsSection(ctx, rightX + margin, py + margin, colW - margin * 2, contentH, stats, maxCombo, judgeColors, pal, sf);
 
-        // --- Bottom Row: Rewards & Buttons (Anchored to the absolute bottom area) ---
+        // --- Bottom Row: Rewards (Expanded, Buttons Removed as per user request) ---
         const bottomY = py + ph - (75 * sf);
         
-        // [POLISH] Sync Reward table width with the right border of the center (Score) column
-        const rewardW = (colW * 2) - margin * 1.5; 
+        const rewardW = pw - margin * 2; 
         this.renderRewardBar(ctx, px + margin, bottomY, rewardW, 60 * sf, sf, this.getGradeColor(grade));
-        
-        this.renderActionButtons(ctx, px + pw - (380 * sf), bottomY, 360 * sf, 60 * sf, sf, this.getGradeColor(grade));
     }
 
-    private renderSongSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, song: SongEntry | null, sf: number, accent: string, difficultyLabel: string) {
+    private renderSongSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, song: SongEntry | null, sf: number, accent: string, difficultyLabel: string, charImage: HTMLImageElement | null, grade: string) {
         ctx.save();
         this.drawTechBorder(ctx, x, y, w, h, accent, sf);
         
-        // 1. Fixed Header
+        // 1. Fixed Header (TRACK -> CHARACTER)
         ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = accent;
         ctx.textAlign = 'center';
         const headerY = y + (25 * sf);
-        ctx.fillText("TRACK INFO", x + w/2, headerY);
+        ctx.fillText("CHARACTER", x + w/2, headerY);
 
         // 2. Centered Content Block Calculation
         const innerMargin = 20 * sf;
         const artSize = Math.min(w - innerMargin * 2, h * 0.40);
-        const titleBaseSize = Math.floor(26 * sf); // [POLISH] Increased base size
+        const titleBaseSize = Math.floor(26 * sf); 
         const artistBaseSize = Math.floor(16 * sf);
         const levelBaseSize = Math.floor(20 * sf);
         const gap = 15 * sf;
@@ -194,22 +195,36 @@ export class ResultRenderer {
         const artX = x + (w - artSize) / 2;
         const artY = contentStartY;
 
-        // 3. Album Art
+        // 3. Character Sprite (Replacing Album Art)
         ctx.save();
-        ctx.shadowBlur = 20 * sf;
+        ctx.shadowBlur = 25 * sf;
         ctx.shadowColor = accent;
         this.drawTechBorder(ctx, artX, artY, artSize, artSize, accent, sf);
         
-        const backgroundUrl = song?.backgroundUrl || null;
-        if (backgroundUrl) {
-            const img = new Image();
-            img.src = backgroundUrl;
-            if (img.complete) {
-                ctx.drawImage(img, artX + 4 * sf, artY + 4 * sf, artSize - 8 * sf, artSize - 8 * sf);
+        if (charImage && charImage.complete && charImage.naturalWidth > 0) {
+            // Determine emotion based on grade
+            let emotionX = 0; // 0: IDLE, 1: HAPPY
+            let emotionY = 0; // 0: Top, 1: Bottom (SAD)
+            
+            const g = grade.toUpperCase();
+            if (g.startsWith('S')) {
+                emotionX = 1; emotionY = 0; // HAPPY
+            } else if (g === 'A') {
+                emotionX = 0; emotionY = 0; // IDLE
             } else {
-                this.drawProceduralCover(ctx, artX + 4 * sf, artY + 4 * sf, artSize - 8 * sf, song?.name || "??", sf);
+                emotionX = 0; emotionY = 1; // SAD
             }
+            
+            const sw = charImage.width / 2;
+            const sh = charImage.height / 2;
+            
+            ctx.drawImage(
+                charImage, 
+                emotionX * sw, emotionY * sh, sw, sh,
+                artX + 4 * sf, artY + 4 * sf, artSize - 8 * sf, artSize - 8 * sf
+            );
         } else {
+            // Fallback to procedural art if image fails
             this.drawProceduralCover(ctx, artX + 4 * sf, artY + 4 * sf, artSize - 8 * sf, song?.name || "??", sf);
         }
         ctx.restore();
@@ -217,7 +232,6 @@ export class ResultRenderer {
         // 4. Metadata Block (Centered below art)
         const fullName = song?.name || "Unknown Track";
         const parts = fullName.split(' - ');
-        const artist = parts.length > 1 ? parts[0] : "Various Artists";
         const title = (parts.length > 1 ? parts.slice(1).join(' - ') : fullName).replace('.mp3', '');
         const centerX = x + w / 2;
         const textY = artY + artSize + (35 * sf);
@@ -235,18 +249,8 @@ export class ResultRenderer {
         ctx.fillStyle = '#fff';
         ctx.fillText(title, centerX, textY);
         
-        // Artist (Strict Absolute Fit Loop)
-        let artistSize = artistBaseSize;
-        ctx.font = `400 ${artistSize}px "Orbitron"`;
-        while(ctx.measureText(artist).width > maxTitleW && artistSize > 10 * sf) {
-            artistSize -= 0.5;
-            ctx.font = `400 ${artistSize}px "Orbitron"`;
-        }
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText(artist, centerX, textY + titleSize * 0.8 + (10 * sf));
-
-        // Difficulty & Level
-        const levelY = textY + titleSize + artistSize + (25 * sf);
+        // Difficulty & Level (Moved up as Artist is removed)
+        const levelY = textY + titleSize + (20 * sf);
         ctx.font = `900 ${levelBaseSize}px "Orbitron"`;
         ctx.fillStyle = '#ff4757';
         ctx.fillText(`${difficultyLabel}  -  Lv.${song?.difficulty || 1}`, centerX, levelY);
@@ -386,30 +390,30 @@ export class ResultRenderer {
 
         rows.forEach((row, i) => {
             const rowY = startY + i * rowH;
-            const centerX = x + w / 2;
             const innerMargin = 30 * sf;
             
-            // Label (Grouped Center - Fixed Boundary Check)
+            // Label (Left Aligned)
             let currentLabelSize = labelSize;
             ctx.font = `700 ${currentLabelSize}px "Orbitron"`;
-            while(ctx.measureText(row.label).width > (w/2 - innerMargin) && currentLabelSize > 10 * sf) {
+            while(ctx.measureText(row.label).width > (w * 0.45) && currentLabelSize > 10 * sf) {
                 currentLabelSize -= 0.5;
                 ctx.font = `700 ${currentLabelSize}px "Orbitron"`;
             }
             ctx.fillStyle = row.color;
-            ctx.textAlign = 'right';
-            ctx.fillText(row.label, centerX - (10 * sf), rowY + (valSize/4));
+            ctx.textAlign = 'left';
+            ctx.fillText(row.label, x + innerMargin, rowY + (valSize/4));
             
-            // Value (Numerical Emphasis - Fixed Boundary Check)
+            // Value (Right Aligned)
             let currentValSize = valSize;
             ctx.font = `900 ${currentValSize}px "Orbitron"`;
-            while(ctx.measureText(row.val.toString()).width > (w/2 - innerMargin) && currentValSize > 12 * sf) {
+            const valStr = row.val.toString();
+            while(ctx.measureText(valStr).width > (w * 0.45) && currentValSize > 12 * sf) {
                 currentValSize -= 0.5;
                 ctx.font = `900 ${currentValSize}px "Orbitron"`;
             }
             ctx.fillStyle = '#fff';
-            ctx.textAlign = 'left';
-            ctx.fillText(row.val.toString(), centerX + (10 * sf), rowY + (valSize/4));
+            ctx.textAlign = 'right';
+            ctx.fillText(valStr, x + w - innerMargin, rowY + (valSize/4));
         });
         ctx.restore();
     }
@@ -422,41 +426,30 @@ export class ResultRenderer {
         ctx.textBaseline = 'middle';
         const centerX = x + w / 2;
 
-        // Header Title
+        // Professional Single Line Reward Display
+        ctx.font = `900 ${Math.floor(16 * sf)}px "Orbitron"`;
+        const label = "REWARD: ";
+        const labelW = ctx.measureText(label).width;
+        
+        ctx.font = `700 ${Math.floor(15 * sf)}px "Orbitron"`;
+        const content = "FULL COMBO +50 / PERFECT CLEAR +200";
+        const contentW = ctx.measureText(content).width;
+        
+        const totalW = labelW + contentW;
+        const startX = centerX - totalW / 2;
+        
+        ctx.textAlign = 'left';
         ctx.font = `900 ${Math.floor(16 * sf)}px "Orbitron"`;
         ctx.fillStyle = accent;
-        ctx.fillText("REWARD", centerX, y + h * 0.3);
+        ctx.fillText(label, startX, y + h / 2);
         
-        // Reward Content (Centered below header)
-        ctx.font = `700 ${Math.floor(14 * sf)}px "Orbitron"`;
+        ctx.font = `700 ${Math.floor(15 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#fff';
-        ctx.fillText("FULL COMBO +50 / PERFECT CLEAR +200", centerX, y + h * 0.7);
+        ctx.fillText(content, startX + labelW, y + h / 2);
+        
         ctx.restore();
     }
 
-    private renderActionButtons(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, sf: number, accent: string) {
-        const btnW = (w - (20 * sf)) / 3;
-        this.drawActionButtonVisual(ctx, x, y, btnW, h, "MULTI", accent, sf);
-        this.drawActionButtonVisual(ctx, x + btnW + (10 * sf), y, btnW, h, "RETRY", accent, sf);
-        this.drawActionButtonVisual(ctx, x + (btnW + (10 * sf)) * 2, y, btnW, h, "NEXT", accent, sf);
-    }
-
-    private drawActionButtonVisual(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, accent: string, sf: number) {
-        ctx.save();
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 2 * sf;
-        ctx.strokeRect(x, y, w, h);
-        
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillRect(x, y, w, h);
-        
-        ctx.font = `900 ${Math.floor(16 * sf)}px "Orbitron"`;
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, x + w / 2, y + h / 2);
-        ctx.restore();
-    }
 
     private drawTechBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, sf: number) {
         ctx.save();
@@ -642,6 +635,7 @@ export class ResultRenderer {
         const isFC = sm.isFullCombo();
         const isAP = sm.getAccuracy() === 100;
         const bd = ExperienceSystem.calculateXPBreakdown(sm.getMaxCombo(), sm.getGrade(), 'HARD', isFC, isAP);
+        const gainedCoin = ExperienceSystem.calculateGainedCoin(sm.getMaxCombo(), sm.getGrade());
 
         const rows = [
             { label: "BASE CLEAR XP", val: `+${bd.base}` },
@@ -770,6 +764,41 @@ export class ResultRenderer {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.fillText(`${currentThreshold} / ${nextThreshold} XP`, barX + barW - (10 * sf), barY - (12 * sf));
 
+        // 7. Coin Earned Display (Premium Animation)
+        if (totalProgress > 0) {
+            ctx.save();
+            ctx.globalAlpha = totalProgress;
+            
+            const coinX = width / 2;
+            const coinY = barY + barH + (45 * sf);
+            
+            // Count-up animation linked to the progress of the XP bar
+            const displayCoin = Math.floor(gainedCoin * progress);
+            
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 15 * sf;
+            ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+            
+            // Coin Symbol (Golden Circle)
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(coinX - (65 * sf), coinY - (8 * sf), 10 * sf, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.font = `900 ${Math.floor(12 * sf)}px "Orbitron"`;
+            ctx.fillText("N", coinX - (65 * sf), coinY - (4 * sf));
+
+            // Coin Amount
+            ctx.font = `900 ${Math.floor(28 * sf)}px "Orbitron"`;
+            ctx.fillStyle = '#FFD700';
+            ctx.fillText(`+ ${displayCoin} NC`, coinX, coinY);
+            
+            ctx.font = `400 ${Math.floor(12 * sf)}px "Orbitron"`;
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.7)';
+            ctx.fillText("NEXUS CREDITS AWARDED", coinX, coinY + (22 * sf));
+            ctx.restore();
+        }
+
         // Level Up Trigger: Strict sequencing (Wait until bar finish)
         const prevLevel = ExperienceSystem.getLevelFromXP(prevXP);
         if (level > prevLevel && elapsed > STAGE_LEVELUP_DELAY) {
@@ -821,6 +850,29 @@ export class ResultRenderer {
         ctx.strokeStyle = '#ffd700';
         ctx.lineWidth = 6 * sf;
         ctx.strokeText("LEVEL UP!", cx, cy - (50 * sf) - bounce);
+        ctx.restore();
+    }
+
+    private renderConfetti(ctx: CanvasRenderingContext2D, width: number, height: number, elapsed: number) {
+        ctx.save();
+        const time = elapsed * 0.001;
+        const colors = ['#FFD700', '#FF00A0', '#00F0FF', '#FFFFFF', '#FF4757'];
+        
+        for (let i = 0; i < 50; i++) {
+            const seed = i * 13.37;
+            const x = (Math.sin(seed + time * 0.5) * 0.5 + 0.5) * width;
+            const y = ((seed + time * 0.3) % 1.2 - 0.1) * height;
+            
+            const size = (Math.sin(seed * 2) * 4 + 8);
+            const rot = seed + time * 2;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rot);
+            ctx.fillStyle = colors[i % colors.length];
+            ctx.fillRect(-size / 2, -size / 2, size, size / 2);
+            ctx.restore();
+        }
         ctx.restore();
     }
 

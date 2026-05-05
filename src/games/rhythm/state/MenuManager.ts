@@ -414,19 +414,26 @@ export class MenuManager {
             this.cycleSortMode(); return;
         }
 
-        // 4. OPTIONS GRID (DIFFICULTY/SPEED/KEYMODE) with Left/Right awareness
+        // 4. OPTIONS GRID (CHAR/DIFFICULTY/SPEED/KEYMODE) with Left/Right awareness
         if (Math.abs(y - layout.row1CenterY) < layout.hitHeight) {
+            // Column 1: CHAR (Information only)
             if (Math.abs(x - layout.col1CenterX) < layout.hitWidth) {
-                if (x < layout.col1CenterX - 5 * sf) this.selectPreviousDifficulty();
-                else if (x > layout.col1CenterX + 5 * sf) this.selectNextDifficulty();
                 return;
             }
+            // Column 2: DIFFICULTY
             if (Math.abs(x - layout.col2CenterX) < layout.hitWidth) {
-                if (x < layout.col2CenterX - 5 * sf) this.selectPreviousSpeed();
-                else if (x > layout.col2CenterX + 5 * sf) this.selectNextSpeed();
+                if (x < layout.col2CenterX - 5 * sf) this.selectPreviousDifficulty();
+                else if (x > layout.col2CenterX + 5 * sf) this.selectNextDifficulty();
                 return;
             }
-            if (Math.abs(x - layout.col3CenterX) < layout.hitWidth) { this.toggleKeyMode(); return; }
+            // Column 3: SPEED
+            if (Math.abs(x - layout.col3CenterX) < layout.hitWidth) {
+                if (x < layout.col3CenterX - 5 * sf) this.selectPreviousSpeed();
+                else if (x > layout.col3CenterX + 5 * sf) this.selectNextSpeed();
+                return;
+            }
+            // Column 4: KEYMODE
+            if (Math.abs(x - layout.col4CenterX) < layout.hitWidth) { this.toggleKeyMode(); return; }
         }
 
         // 5. FOLDER UPLOAD

@@ -23,6 +23,7 @@ export interface MenuLayoutResult {
     col1CenterX: number;    // Center X of column 1
     col2CenterX: number;    // Center X of column 2
     col3CenterX: number;    // Center X of column 3
+    col4CenterX: number;    // Center X of column 4
     row1CenterY: number;    // Center Y of row 1 (Interactive area)
     row2CenterY: number;    // Center Y of row 2 (Legacy/Alias)
     row3CenterY: number;    // Center Y of row 3 (Legacy/Alias)
@@ -95,7 +96,7 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     // TARGET TOTAL HEIGHT (Symmetric with Right Panel)
     const targetTotalH = height - padding * 2;
 
-    // LEFT PANEL 2: OPTIONS (Fixed height, matches logic to fill bottom to same level as right panel)
+    // LEFT PANEL 2: OPTIONS (Restored to 22% ratio as per user request)
     const infoH = Math.max(160 * scaleFactor, targetTotalH * 0.22);
     const infoY = Math.floor(height - padding - infoH);
 
@@ -131,22 +132,24 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
     const backBtnY = btnY;
     const backBtnH = btnH;
 
-    // Options Grid (Optimized for 3 items: Difficulty, Speed, KeyMode)
+    // Options Grid (Optimized for 4 items: Char, Difficulty, Speed, KeyMode)
     const padUI = Math.floor(12 * scaleFactor);
-    const innerH = Math.floor(infoH - 34 * scaleFactor - padUI * 2);
+    const gap = Math.floor(8 * scaleFactor); // Symmetric gap with Song Info boxes
     const innerW = Math.floor(leftPanelWidth - padUI * 2);
-
-    const optH = innerH;
-    const itemW = Math.floor(innerW / 3);
+    
+    // Calculate item width accounting for 3 gaps
+    const itemW = Math.floor((innerW - gap * 3) / 4);
 
     const col1CenterX = Math.floor(leftPanelX + padUI + itemW * 0.5);
-    const col2CenterX = Math.floor(col1CenterX + itemW);
-    const col3CenterX = Math.floor(col2CenterX + itemW);
+    const col2CenterX = Math.floor(col1CenterX + itemW + gap);
+    const col3CenterX = Math.floor(col2CenterX + itemW + gap);
+    const col4CenterX = Math.floor(col3CenterX + itemW + gap);
 
     const row1CenterY = Math.floor(infoY + 34 * scaleFactor + (infoH - 34 * scaleFactor) * 0.5);
+    const optH = Math.floor(infoH - 34 * scaleFactor); // Actual height available for tiles
 
-    const hitWidth = Math.floor(itemW * 0.45);
-    const hitHeight = Math.floor((infoH - 34 * scaleFactor) * 0.45);
+    const hitWidth = Math.floor(itemW * 0.48);
+    const hitHeight = Math.floor((infoH - 34 * scaleFactor) * 0.48);
 
     // Precise coordinates for Song titles and Hits
     const scrollbarW = Math.floor(32 * scaleFactor); // Increased from 28
@@ -186,6 +189,7 @@ export function computeMenuLayout(width: number, height: number, isMobile: boole
         col1CenterX,
         col2CenterX,
         col3CenterX,
+        col4CenterX,
         row1CenterY,
         row2CenterY: row1CenterY,
         row3CenterY: row1CenterY,

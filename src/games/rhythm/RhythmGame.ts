@@ -57,6 +57,7 @@ import * as PerspectiveUtils from './renderer/PerspectiveUtils';
 import { ASSET_PATHS } from '../../core/asset/AssetRegistry';
 import { PauseRenderer } from './renderer/PauseRenderer';
 import { LoadingRenderer } from './renderer/LoadingRenderer';
+import * as PathUtils from '../../core/utils/PathUtils';
 import type { IGameState } from './state/IGameState';
 import { MenuState } from './state/MenuState';
 import { LoadingState } from './state/LoadingState';
@@ -125,6 +126,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
     private stateMap: Map<GameState, IGameState>;
     private currentStateObj: IGameState;
+    private charImageCache = new Map<string, HTMLImageElement>();
 
     constructor(canvas: HTMLCanvasElement, audioEngine: CoreAudioEngine) {
         super(canvas, audioEngine);
@@ -543,7 +545,29 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.toastTimer = this.menuManager.toastTimer;
 
         // -- Auth --
-        s.isSignedIn = AuthService.getInstance().isSignedIn();
+        const auth = AuthService.getInstance();
+        s.isSignedIn = auth.isSignedIn();
+        
+        if (s.isSignedIn) {
+            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            const charNames: Record<string, string> = {
+                'baby': 'BABY',
+                'melodia': 'MELODIA',
+                'flora': 'FLORA'
+            };
+            s.characterName = charNames[currentCharId] || currentCharId.toUpperCase();
+
+            // Load & Cache Character Image
+            if (!this.charImageCache.has(currentCharId)) {
+                const img = new Image();
+                img.src = PathUtils.getCharacterImagePath(currentCharId);
+                this.charImageCache.set(currentCharId, img);
+            }
+            s.characterImage = this.charImageCache.get(currentCharId);
+        } else {
+            s.characterName = 'GUEST';
+            s.characterImage = undefined;
+        }
     }
 
     public updateLoadingRenderState(): void {

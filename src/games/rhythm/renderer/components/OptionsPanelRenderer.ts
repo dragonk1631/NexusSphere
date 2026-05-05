@@ -11,7 +11,7 @@ import {
 
 export class OptionsPanelRenderer {
     public render(ctx: CanvasRenderingContext2D, layout: MenuLayoutResult, state: MenuRenderState, sf: number, c1: string, c2: string) {
-        const { padding, infoY, infoH, leftPanelWidth, col1CenterX, col2CenterX, col3CenterX, row1CenterY, hitWidth } = layout;
+        const { padding, infoY, infoH, leftPanelWidth, col1CenterX, col2CenterX, col3CenterX, col4CenterX, row1CenterY } = layout;
 
         // "OPTIONS" Panel - Use Premium Plate for CHAIN combo
         const comboValue = state.scoreManager?.getCombo() || 0;
@@ -76,18 +76,20 @@ export class OptionsPanelRenderer {
 
         const speedValue = state.scrollSpeed;
         const modeValue = state.keyMode;
+        const charValue = state.characterName || 'GUEST';
 
         const items = [
+            { label: "CHAR", value: charValue, color: '#00ffff' },
             { label: "LEVEL", value: state.difficultyOptions[state.selectedDifficultyIndex], color: getDifficultyColor(state.difficultyOptions[state.selectedDifficultyIndex]) },
             { label: "SPEED", value: speedValue.toFixed(1) + "X", color: getSpeedColor(speedValue) },
             { label: "MODE", value: modeValue + "KEYS", color: getModeColor(modeValue) }
         ];
 
-        const centers = [col1CenterX, col2CenterX, col3CenterX];
+        const centers = [col1CenterX, col2CenterX, col3CenterX, col4CenterX];
 
         items.forEach((item, i) => {
             const cx = centers[i];
-            const tw = hitWidth * 1.8;
+            const tw = layout.optW; // Exactly match the layout calculation
             const th = MENU_LAYOUT.OPTION_TILE_HEIGHT * sf;
             const tabH = MENU_LAYOUT.OPTION_TAB_HEIGHT * sf;
             const itemTotalH = th + tabH;
@@ -156,40 +158,61 @@ export class OptionsPanelRenderer {
             ctx.beginPath(); ctx.moveTo(cx - tw / 2 + 8 * sf, boxY + 1 * sf); ctx.lineTo(cx + tw / 2 - 8 * sf, boxY + 1 * sf); ctx.stroke();
 
             // Standardized Typography Size
-            const valSize = 24 * sf;
+            const valSize = 26 * sf;
 
             ctx.font = `900 ${Math.floor(valSize)}px "Orbitron"`;
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            // 4. Value Typography
-            ctx.shadowBlur = 10 * sf;
-            ctx.shadowColor = item.color;
-            const valueY = boxY + th * 0.38;
-            drawPremiumTypography(ctx, item.value, cx, valueY, 'center', valSize, '#fff', true, item.color, tw * 0.75);
+            // 4. Value Typography or Character Sprite
+            if (item.label === "CHAR" && state.characterImage && state.characterImage.complete && state.characterImage.naturalWidth > 0) {
+                // Draw Character Sprite (IDLE state from 2x2 sheet)
+                const img = state.characterImage;
+                const spriteSize = Math.floor(th * 0.9); // Optimized for larger box
+                const sw = img.width / 2;
+                const sh = img.height / 2;
+                
+                ctx.save();
+                ctx.shadowBlur = 15 * sf;
+                ctx.shadowColor = item.color;
+                // Center the sprite in the box
+                ctx.drawImage(
+                    img, 0, 0, sw, sh, 
+                    cx - spriteSize / 2, boxY + (th - spriteSize) / 2, 
+                    spriteSize, spriteSize
+                );
+                ctx.restore();
+            } else {
+                ctx.shadowBlur = 10 * sf;
+                ctx.shadowColor = item.color;
+                const valueY = boxY + th * 0.38;
+                drawPremiumTypography(ctx, item.value, cx, valueY, 'center', valSize, '#fff', true, item.color, tw * 0.75);
+            }
 
-            // 5. Tactical Arrows
-            const arrowY = boxY + th * 0.78;
-            const arrowSpacing = tw * 0.36;
-            const bounce = Math.sin(performance.now() * 0.008) * 2 * sf;
-            ctx.fillStyle = item.color;
-            ctx.font = `900 ${Math.floor(20 * sf)}px "Orbitron"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            ctx.save();
-            ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2.5 * sf;
-            ctx.strokeText("◀", cx - arrowSpacing + bounce, arrowY);
-            ctx.strokeText("▶", cx + arrowSpacing - bounce, arrowY);
-            
-            ctx.shadowBlur = 6 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
-            ctx.shadowOffsetX = 1.6 * sf; ctx.shadowOffsetY = 3.5 * sf;
-            ctx.fillText("◀", cx - arrowSpacing + bounce, arrowY);
-            ctx.fillText("▶", cx + arrowSpacing - bounce, arrowY);
-            ctx.restore();
+            // 5. Tactical Arrows (Skip for Character)
+            if (item.label !== "CHAR") {
+                const arrowY = boxY + th * 0.78;
+                const arrowSpacing = tw * 0.36;
+                const bounce = Math.sin(performance.now() * 0.008) * 2 * sf;
+                ctx.fillStyle = item.color;
+                ctx.font = `900 ${Math.floor(20 * sf)}px "Orbitron"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                ctx.save();
+                ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2.5 * sf;
+                ctx.strokeText("◀", cx - arrowSpacing + bounce, arrowY);
+                ctx.strokeText("▶", cx + arrowSpacing - bounce, arrowY);
+                
+                ctx.shadowBlur = 6 * sf; ctx.shadowColor = 'rgba(0,0,0,1)';
+                ctx.shadowOffsetX = 1.6 * sf; ctx.shadowOffsetY = 3.5 * sf;
+                ctx.fillText("◀", cx - arrowSpacing + bounce, arrowY);
+                ctx.fillText("▶", cx + arrowSpacing - bounce, arrowY);
+                ctx.restore();
+            }
 
             ctx.restore();
         });

@@ -114,6 +114,8 @@ export interface MenuRenderState {
 
     // -- Auth --
     isSignedIn?: boolean;
+    characterName?: string;
+    characterImage?: HTMLImageElement;
 }
 
 /**
