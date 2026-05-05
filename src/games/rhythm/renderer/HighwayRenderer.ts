@@ -13,6 +13,7 @@ import { NoteRenderer } from './highway/NoteRenderer';
 import { HoldNoteRenderer } from './highway/HoldNoteRenderer';
 import { ReceptorRenderer } from './highway/ReceptorRenderer';
 import type { IThemeStrategy } from '../themes/IThemeStrategy';
+import { Judgment } from '../types/GameTypes';
 
 export interface HighwayRenderState {
     width: number;
@@ -30,6 +31,9 @@ export interface HighwayRenderState {
     bpm: number;
     isMobile: boolean;
     keyLabels: string[];
+    characterImage?: HTMLImageElement;
+    comboAnim?: number;
+    lastJudgment?: Judgment | null;
 }
 
 /**
@@ -100,6 +104,9 @@ export class HighwayRenderer {
         this.laneRenderer.renderDividers(ctx, state, this.cache);
         this.laneRenderer.renderPulseRails(ctx, state, this.cache);
 
+        // 1b. [NEW] Character Overlay (Lane Center)
+        this.renderCharacterOverlay(ctx, state);
+
         // 2. Gameplay (Falling Notes)
         this.renderNotes(ctx, state, visualNotes, lastNoteIndex, alpha);
 
@@ -127,6 +134,45 @@ export class HighwayRenderer {
             }
         }
         ctx.restore();
+        
+        ctx.restore();
+    }
+
+    private renderCharacterOverlay(ctx: CanvasRenderingContext2D, state: HighwayRenderState): void {
+        const { characterImage, comboAnim, width, horizonY, hitLineY } = state;
+        if (!characterImage || !characterImage.complete || characterImage.naturalWidth === 0) return;
+
+        ctx.save();
+        
+        // Position: Centered between Horizon and Hitline
+        const centerX = width / 2;
+        const centerY = horizonY + (hitLineY - horizonY) * 0.65; // Slightly lower for better visibility
+        
+        const highwayHeight = hitLineY - horizonY;
+        const pulse = comboAnim || 0;
+        const baseSize = highwayHeight * 0.55;
+        const size = baseSize * (1 + pulse * 0.12);
+        
+        ctx.globalAlpha = 0.35; // Semi-transparent
+        
+        // Emotion logic
+        let emotionX = 0; // IDLE
+        let emotionY = 0;
+        
+        if (state.lastJudgment === Judgment.MISS) {
+            emotionX = 0; emotionY = 1; // SAD
+        } else if (pulse > 0.01) {
+            emotionX = 1; emotionY = 0; // HAPPY
+        }
+        
+        const sw = characterImage.naturalWidth / 2;
+        const sh = characterImage.naturalHeight / 2;
+        
+        ctx.drawImage(
+            characterImage,
+            emotionX * sw, emotionY * sh, sw, sh,
+            centerX - size / 2, centerY - size / 2, size, size
+        );
         
         ctx.restore();
     }

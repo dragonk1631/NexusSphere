@@ -60,6 +60,16 @@ Improved the visual feedback for experience and currency gains:
 - **Animated Coin Rewards**: Added a count-up animation for **Nexus Credits (NC)** in the EXP popup. Players can now watch their earnings rise in real-time alongside their experience bar.
 - **Skip Prevention**: Implemented strict sequencing for level-up and XP animations. Players must now view the full growth sequence before navigating back, ensuring the progression system feels impactful.
 
+### 8. Real-time In-game Character Feedback
+
+We've bridged the gap between performance and player identity during active gameplay:
+
+- **Highway Character Overlay**: Implemented a semi-transparent (35% alpha) character sprite directly in the center of the gameplay lanes.
+- **Dynamic Emotional Sync**: The character sprite now reacts instantly to player performance:
+    - **HAPPY**: Triggers during combo pulses (Perfect/Great hits).
+    - **SAD**: Triggers immediately upon a MISS judgment.
+- **Rhythmic Pulse Sync**: The character's visual scale is now perfectly synchronized with the combo pulse effect, creating a cohesive and rhythmic visual experience.
+
 ## Technical Details
 
 - **Canvas Rendering Logic**: Updated `ResultRenderer` to support multi-layer celebration effects and dynamic sprite source calculation based on gameplay results.

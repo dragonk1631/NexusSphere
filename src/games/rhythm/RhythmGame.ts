@@ -486,6 +486,24 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.bpm = this.midiData?.bpm || 120;
         s.isMobile = this.isMobile;
         s.keyLabels = this.inputManager.getKeyLabels();
+
+        // [NEW] Character & Animation Integration for Highway Overlay
+        s.comboAnim = this.gameplayManager.comboAnim;
+        const lastJ = this.judgmentSystem.getLastJudgment();
+        s.lastJudgment = lastJ ? lastJ.value : null;
+
+        const auth = AuthService.getInstance();
+        if (auth.isSignedIn()) {
+            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            if (!this.charImageCache.has(currentCharId)) {
+                const img = new Image();
+                img.src = PathUtils.getCharacterImagePath(currentCharId);
+                this.charImageCache.set(currentCharId, img);
+            }
+            s.characterImage = this.charImageCache.get(currentCharId);
+        } else {
+            s.characterImage = undefined;
+        }
     }
 
     public updateGameOverRenderState(): void {
