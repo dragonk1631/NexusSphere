@@ -6,6 +6,7 @@ import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { ApiUtils } from '../core/utils/ApiUtils';
 import { SystemInitializer } from '../core/SystemInitializer';
 import { getCharacterImagePath } from '../core/utils/PathUtils';
+import { applyCharacterSpriteStyle } from './utils/CharacterStyleUtils';
 
 export class CollectionUI {
     private ui: UIManager;
@@ -158,9 +159,6 @@ export class CollectionUI {
                 .col-avatar img { width: 100%; height: 100%; object-fit: cover; }
                 .col-avatar-sprite {
                     width: 100%; height: 100%;
-                    background-size: 200% 200%;
-                    background-position: 0% 0%;
-                    background-repeat: no-repeat;
                 }
                 .col-username { font-size: 1.6rem; font-weight: 950; color: #fff; text-shadow: 0 0 15px ${themeCyan}; text-transform: uppercase; letter-spacing: -0.5px; }
                 
@@ -1008,6 +1006,13 @@ export class CollectionUI {
         `;
 
         this.ui.createOverlay('collection-ui', html);
+        
+        // Apply intelligent styling
+        const sprite = document.querySelector('.col-avatar-sprite') as HTMLElement;
+        if (sprite) {
+            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            applyCharacterSpriteStyle(sprite, currentCharId);
+        }
     }
 
     private attachEventListeners() {

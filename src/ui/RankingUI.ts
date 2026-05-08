@@ -3,6 +3,7 @@ import { ApiUtils } from '../core/utils/ApiUtils';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
 import { AuthService } from '../services/auth/AuthService';
 import { getCharacterImagePath } from '../core/utils/PathUtils';
+import { applyCharacterSpriteStyle } from './utils/CharacterStyleUtils';
 
 export interface LeaderboardEntry {
     display_name: string;
@@ -130,9 +131,6 @@ export class RankingUI {
                 .rank-avatar { width: 100%; height: 100%; border-radius: 10px; border: 2px solid rgba(255,255,255,0.1); object-fit: cover; background: #000; }
                 .rank-avatar-sprite { 
                     width: 100%; height: 100%; 
-                    background-size: 200% 200%; 
-                    background-position: 0% 0%; 
-                    background-repeat: no-repeat;
                     border-radius: 10px;
                     border: 2px solid rgba(255,255,255,0.1);
                     background-color: #000;
@@ -221,7 +219,28 @@ export class RankingUI {
         `;
 
         this.ui.createOverlay('ranking-ui', html);
+        
+        // Apply intelligent styling to all avatars
+        this.applyAvatarStyles();
+        
         this.attachEventListeners();
+    }
+
+    private applyAvatarStyles(): void {
+        const list = document.querySelector('.ranking-list');
+        if (!list) return;
+
+        const avatars = list.querySelectorAll('.rank-avatar-sprite');
+        avatars.forEach(sprite => {
+            const bgImg = (sprite as HTMLElement).style.backgroundImage;
+            if (bgImg && bgImg.includes('characters/char_')) {
+                // Extract charId from URL (e.g. url(".../char_baby.png") -> baby)
+                const match = bgImg.match(/char_([^.]+)\.png/);
+                if (match) {
+                    applyCharacterSpriteStyle(sprite as HTMLElement, match[1]);
+                }
+            }
+        });
     }
 
     private renderEntry(entry: LeaderboardEntry, index: number): string {

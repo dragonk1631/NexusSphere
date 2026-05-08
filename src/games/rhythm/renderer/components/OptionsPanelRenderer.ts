@@ -170,8 +170,15 @@ export class OptionsPanelRenderer {
                 // Draw Character Sprite (IDLE state from 2x2 sheet)
                 const img = state.characterImage;
                 const spriteSize = Math.floor(th * 0.9); // Optimized for larger box
-                const sw = img.width / 2;
-                const sh = img.height / 2;
+                const sw = img.naturalWidth / 2;
+                const sh = img.naturalHeight / 2;
+                const ratio = sw / sh;
+                
+                // Letterbox 모드: 세로를 기준으로 채우고 가로 비율 맞춤
+                const drawHeight = spriteSize;
+                const drawWidth = spriteSize * ratio;
+                const drawX = cx - drawWidth / 2;
+                const drawY = boxY + (th - drawHeight) / 2;
                 
                 ctx.save();
                 ctx.shadowBlur = 15 * sf;
@@ -179,8 +186,8 @@ export class OptionsPanelRenderer {
                 // Center the sprite in the box
                 ctx.drawImage(
                     img, 0, 0, sw, sh, 
-                    cx - spriteSize / 2, boxY + (th - spriteSize) / 2, 
-                    spriteSize, spriteSize
+                    drawX, drawY, 
+                    drawWidth, drawHeight
                 );
                 ctx.restore();
             } else {

@@ -167,11 +167,18 @@ export class HighwayRenderer {
         
         const sw = characterImage.naturalWidth / 2;
         const sh = characterImage.naturalHeight / 2;
+        const ratio = sw / sh;
+        
+        // Letterbox 모드: 세로를 기준으로 꽉 채우고 가로 비율을 맞춤
+        const drawHeight = size;
+        const drawWidth = size * ratio;
+        const drawX = centerX - drawWidth / 2;
+        const drawY = centerY - drawHeight / 2;
         
         ctx.drawImage(
             characterImage,
             emotionX * sw, emotionY * sh, sw, sh,
-            centerX - size / 2, centerY - size / 2, size, size
+            drawX, drawY, drawWidth, drawHeight
         );
         
         ctx.restore();

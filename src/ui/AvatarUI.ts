@@ -1,4 +1,4 @@
-import { getCharacterImagePath } from '../core/utils/PathUtils';
+import { applyCharacterSpriteStyle, CharacterFrame } from './utils/CharacterStyleUtils';
 
 /**
  * AvatarReaction defines the possible states/expressions for the player character.
@@ -22,7 +22,6 @@ export class AvatarUI {
     private avatarElement: HTMLElement | null = null;
     private reactionTimeout: number | null = null;
     private currentReaction: AvatarReaction = AvatarReaction.IDLE;
-    private currentCharacterAsset: string = getCharacterImagePath('baby');
 
     private constructor() {}
 
@@ -60,11 +59,10 @@ export class AvatarUI {
         
         // Load active character from storage if available
         const savedChar = localStorage.getItem('nexus_active_character') || 'baby';
-        this.currentCharacterAsset = getCharacterImagePath(savedChar);
         
         const sprite = avatar.querySelector('#avatar-sprite') as HTMLElement;
         if (sprite) {
-            sprite.style.backgroundImage = `url('${this.currentCharacterAsset}')`;
+            applyCharacterSpriteStyle(sprite, savedChar);
             sprite.classList.add(`reaction-${this.currentReaction}`);
         }
 
@@ -78,10 +76,9 @@ export class AvatarUI {
      * Updates the character asset for the active avatar.
      */
     public updateCharacter(assetId: string): void {
-        this.currentCharacterAsset = getCharacterImagePath(assetId);
         const sprite = document.getElementById('avatar-sprite');
         if (sprite) {
-            sprite.style.backgroundImage = `url('${this.currentCharacterAsset}')`;
+            applyCharacterSpriteStyle(sprite, assetId);
         }
     }
 
@@ -110,6 +107,15 @@ export class AvatarUI {
         // Add new reaction class
         sprite.classList.add(`reaction-${reaction}`);
         this.currentReaction = reaction;
+
+        // Use intelligent style utility
+        let frame: CharacterFrame = CharacterFrame.IDLE;
+        if (reaction === AvatarReaction.HAPPY) frame = CharacterFrame.HAPPY;
+        if (reaction === AvatarReaction.MISS) frame = CharacterFrame.MISS;
+        if (reaction === AvatarReaction.CRY) frame = CharacterFrame.CRY;
+        
+        const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+        applyCharacterSpriteStyle(sprite, currentCharId, frame);
 
         // Auto-revert to IDLE if duration is set
         if (duration > 0 && reaction !== AvatarReaction.IDLE) {
@@ -141,16 +147,7 @@ export class AvatarUI {
             .avatar-sprite {
                 width: 100%;
                 height: 100%;
-                background-size: 200% 200%;
-                background-repeat: no-repeat;
-                transition: background-position 0.1s steps(1);
             }
-
-            /* 2x2 Sprite Sheet Mapping */
-            .reaction-idle  { background-position: 0% 0%; }    /* (0,0) */
-            .reaction-happy { background-position: 100% 0%; }  /* (1,0) */
-            .reaction-miss  { background-position: 0% 100%; }  /* (0,1) */
-            .reaction-cry   { background-position: 100% 100%; } /* (1,1) */
 
             .avatar-glow {
                 position: absolute;

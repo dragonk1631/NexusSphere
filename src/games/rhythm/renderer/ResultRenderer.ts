@@ -215,13 +215,20 @@ export class ResultRenderer {
                 emotionX = 0; emotionY = 1; // SAD
             }
             
-            const sw = charImage.width / 2;
-            const sh = charImage.height / 2;
+            const sw = charImage.naturalWidth / 2;
+            const sh = charImage.naturalHeight / 2;
+            const ratio = sw / sh;
+            
+            // Letterbox 모드: 세로를 기준으로 채우고 가로 비율 맞춤
+            const drawHeight = artSize - 8 * sf;
+            const drawWidth = drawHeight * ratio;
+            const drawX = artX + (artSize - drawWidth) / 2;
+            const drawY = artY + 4 * sf;
             
             ctx.drawImage(
                 charImage, 
                 emotionX * sw, emotionY * sh, sw, sh,
-                artX + 4 * sf, artY + 4 * sf, artSize - 8 * sf, artSize - 8 * sf
+                drawX, drawY, drawWidth, drawHeight
             );
         } else {
             // Fallback to procedural art if image fails

@@ -9,6 +9,7 @@ import { LoadingOverlay } from '../games/rhythm/renderer/LoadingOverlay';
 import { AuthService } from '../services/auth/AuthService';
 import { ModalUI } from './ModalUI';
 import { getCharacterImagePath } from '../core/utils/PathUtils';
+import { applyCharacterSpriteStyle, CharacterFrame } from './utils/CharacterStyleUtils';
 
 type ShopTab = 'theme' | 'note' | 'character';
 
@@ -631,19 +632,8 @@ export class ShopUI {
                 .char-preview-sprite {
                     width: 100%;
                     height: 100%;
-                    background-size: 200% 200%;
-                    background-repeat: no-repeat;
                     filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
-                    transition: all 0.3s ease;
                     transform: scale(0.9);
-                }
-                
-                .character-card.active .char-preview-sprite {
-                    background-position: 100% 0% !important; /* Happy */
-                }
-                
-                .character-card.owned:not(.active) .char-preview-sprite {
-                    background-position: 0% 0% !important; /* Idle */
                 }
 
                 .character-card.locked .char-preview-sprite {
@@ -946,6 +936,13 @@ export class ShopUI {
                 { id: 'baby', name: 'BABY CHARACTER', img: getCharacterImagePath('baby'), price: 0 },
                 { id: 'melodia', name: 'MELODIA', img: getCharacterImagePath('melodia'), price: 2500 },
                 { id: 'flora', name: 'FLORA', img: getCharacterImagePath('flora'), price: 3500 },
+                { id: 'cathy', name: 'CATHY', img: getCharacterImagePath('cathy'), price: 4000 },
+                { id: 'cherry', name: 'CHERRY', img: getCharacterImagePath('cherry'), price: 4500 },
+                { id: 'haru', name: 'HARU', img: getCharacterImagePath('haru'), price: 5000 },
+                { id: 'haruto', name: 'HARUTO', img: getCharacterImagePath('haruto'), price: 5500 },
+                { id: 'luna', name: 'LUNA', img: getCharacterImagePath('luna'), price: 6000 },
+                { id: 'sakura', name: 'SAKURA', img: getCharacterImagePath('sakura'), price: 6500 },
+                { id: 'thumb', name: 'THUMB', img: getCharacterImagePath('thumb'), price: 7000 },
             ];
 
             const displayList = [...characters];
@@ -978,6 +975,16 @@ export class ShopUI {
             }).join('');
 
             container.innerHTML = `<div class="character-grid">${charHtml}</div>`;
+            
+            // Apply intelligent styling to each character sprite
+            container.querySelectorAll('.char-preview-sprite').forEach((sprite, idx) => {
+                const charData = displayList[idx];
+                if (charData && !charData.id.startsWith('placeholder-')) {
+                    const frame: CharacterFrame = charData.id === currentCharId ? CharacterFrame.HAPPY : CharacterFrame.IDLE;
+                    applyCharacterSpriteStyle(sprite as HTMLElement, charData.id, frame);
+                }
+            });
+
             this.attachCharacterListeners(container);
         }
     }
@@ -1013,7 +1020,7 @@ export class ShopUI {
             const economy = EconomyManager.getInstance();
             ThemeManager.getInstance().getAllThemes().forEach(t => economy.adminSetOwnership('theme', t.id, true));
             NoteSkinManager.getInstance().getAllSkins().forEach(s => economy.adminSetOwnership('skin', s.id, true));
-            ['baby', 'melodia', 'flora'].forEach(cId => economy.adminSetOwnership('char', cId, true));
+            ['baby', 'melodia', 'flora', 'cathy', 'cherry', 'haru', 'haruto', 'luna', 'sakura', 'thumb'].forEach(cId => economy.adminSetOwnership('char', cId, true));
             this.renderActiveTabContent(this.tabContainers.get(this.activeTab)!);
         });
 

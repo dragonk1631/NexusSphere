@@ -41,7 +41,8 @@ export function resolveAssetPath(path: string): string {
     // [CORE-UI-BYPASS] 앱 실행 직후 보여야 하는 핵심 UI 리소스는 CDN을 거치지 않고 메인 호스트(GitHub Pages)에서 직접 로드합니다.
     const isCoreUI = normalizedPath.includes('assets/images/ui/') || 
                      normalizedPath.includes('assets/favicons/') ||
-                     normalizedPath.includes('assets/logos/');
+                     normalizedPath.includes('assets/logos/') ||
+                     normalizedPath.includes('assets/images/characters/');
 
     // 2. 경로의 시작부분 슬래시 제거 (기초 경로와 중복 방지)
     normalizedPath = normalizedPath.startsWith('/') ? normalizedPath.slice(1) : normalizedPath;
@@ -96,11 +97,21 @@ export function resolveAssetPath(path: string): string {
 export function getCharacterImagePath(charId: string): string {
     if (!charId || charId.startsWith('placeholder-')) return '';
     
-    // [TEMP] 캐릭터 이미지는 아직 클라우드플레어 R2에 업로드되지 않았으므로, 
-    // 깃허브 저장소의 Raw 주소에서 직접 가져옵니다. 
-    // 나중에 R2로 옮긴 후에는 resolveAssetPath(`assets/images/characters/char_${charId}.png`)로 변경하면 됩니다.
-    const repoPath = `public/assets/images/characters/char_${charId}.png`;
-    const githubRawUrl = `https://raw.githubusercontent.com/dragonk1631/NexusSphere/main/${repoPath}`;
+    // [CENTRALIZED PATH MANAGEMENT]
+    // 캐릭터 이미지의 기본 위치를 중앙에서 관리합니다.
+    // 기존 3개 캐릭터와 동일하게 기본적으로 GitHub Raw 저장소를 참조하도록 설정되어 있습니다.
+    const githubBase = 'https://raw.githubusercontent.com/dragonk1631/NexusSphere/main/public/assets/images/characters';
     
-    return githubRawUrl;
+    // 환경 변수(VITE_CHARACTER_ASSET_URL)가 있으면 이를 우선 사용하고, 없으면 GitHub 주소를 사용합니다.
+    // 나중에 R2 등으로 대량 이동 시 .env 파일에서 URL 하나만 바꾸면 모든 캐릭터 이미지가 즉시 반영됩니다.
+    let charBaseUrl = import.meta.env.VITE_CHARACTER_ASSET_URL || githubBase;
+
+    // [DEV FRIENDLY] 개발 환경에서는 로컬에 새로 추가한 이미지가 보이지 않는 문제를 방지하기 위해 
+    // 로컬 경로를 우선적으로 참조하도록 지능적으로 처리할 수 있습니다.
+    if (import.meta.env.DEV && !import.meta.env.VITE_CHARACTER_ASSET_URL) {
+        return resolveAssetPath(`assets/images/characters/char_${charId}.png`);
+    }
+    
+    const cleanBase = charBaseUrl.endsWith('/') ? charBaseUrl.slice(0, -1) : charBaseUrl;
+    return `${cleanBase}/char_${charId}.png`;
 }

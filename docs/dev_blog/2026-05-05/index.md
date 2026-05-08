@@ -38,7 +38,7 @@ We performed a surgical cleanup of the global `style.css`:
 - **Centralized Components**: Moved the `.col-btn-heavy` definition to the global scope, allowing for instant design updates across the entire application.
 
 ### 5. Song Selection UI Evolution
-    
+
 We expanded the functional and visual depth of the Song Selection menu:
 
 - **Quad-Slot Option Panel**: Expanded the bottom panel from 3 to 4 interactive slots, adding a dedicated **Character** slot on the far left.
@@ -66,8 +66,8 @@ We've bridged the gap between performance and player identity during active game
 
 - **Highway Character Overlay**: Implemented a semi-transparent (35% alpha) character sprite directly in the center of the gameplay lanes.
 - **Dynamic Emotional Sync**: The character sprite now reacts instantly to player performance:
-    - **HAPPY**: Triggers during combo pulses (Perfect/Great hits).
-    - **SAD**: Triggers immediately upon a MISS judgment.
+  - **HAPPY**: Triggers during combo pulses (Perfect/Great hits).
+  - **SAD**: Triggers immediately upon a MISS judgment.
 - **Rhythmic Pulse Sync**: The character's visual scale is now perfectly synchronized with the combo pulse effect, creating a cohesive and rhythmic visual experience.
 
 ## Technical Details
