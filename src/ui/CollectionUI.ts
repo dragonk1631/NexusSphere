@@ -1,3 +1,4 @@
+import { EconomyManager } from '../core/score/EconomyManager';
 import { UIManager } from '../core/ui/UIManager';
 import { AuthService } from '../services/auth/AuthService';
 import { ScoreManager } from '../core/score/ScoreManager';
@@ -830,7 +831,7 @@ export class CollectionUI {
                         <div class="col-profile">
                             <div class="col-avatar">
                                 ${(() => {
-                                    const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+                                    const currentCharId = EconomyManager.getInstance().getActiveCharacter();
                                     const charImg = getCharacterImagePath(currentCharId);
                                     return `<div class="col-avatar-sprite" style="background-image: url('${charImg}');"></div>`;
                                 })()}
@@ -1010,7 +1011,7 @@ export class CollectionUI {
         // Apply intelligent styling
         const sprite = document.querySelector('.col-avatar-sprite') as HTMLElement;
         if (sprite) {
-            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            const currentCharId = EconomyManager.getInstance().getActiveCharacter();
             applyCharacterSpriteStyle(sprite, currentCharId);
         }
     }

@@ -166,6 +166,17 @@ export class ShopUI {
                     transform: translateX(2px);
                 }
                 .god-user-id-small { color: rgba(0,229,255,0.6); font-size: 0.6rem; margin-top: 2px; font-family: monospace; }
+                
+                .god-btn-user-delete {
+                    background: rgba(255, 61, 0, 0.1); color: #ff3d00;
+                    border: 1px solid rgba(255, 61, 0, 0.3); border-radius: 4px;
+                    padding: 0 6px; cursor: pointer; font-size: 0.7rem; line-height: 1.4;
+                    transition: 0.2s;
+                }
+                .god-btn-user-delete:hover {
+                    background: #ff3d00; color: #fff;
+                    transform: scale(1.1);
+                }
 
                 .btn-god-mode {
                     height: var(--header-btn-height); padding: 0 25px;
@@ -577,7 +588,10 @@ export class ShopUI {
                                 </div>
                                 <div class="god-row" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; flex-direction: column; align-items: stretch; gap: 8px;">
                                     <div style="font-size: 0.7rem; color: #888; text-transform: uppercase;">Gift to Specific User</div>
-                                    <input type="text" id="god-target-user-id" class="god-input" placeholder="Target User ID...">
+                                    <div style="display: flex; gap: 4px;">
+                                        <input type="text" id="god-target-user-id" class="god-input" placeholder="User ID..." style="flex: 1;">
+                                        <button id="god-btn-fill-self" class="god-btn" style="font-size: 0.6rem; padding: 0 8px; background: rgba(255,255,255,0.1);">SELF</button>
+                                    </div>
                                     <div style="display: flex; gap: 8px;">
                                         <input type="number" id="god-gift-amount" class="god-input" placeholder="Amount..." value="5000">
                                         <button id="god-btn-gift-coins" class="god-btn" style="background: #FFD700; color: #000;">GIFT</button>
@@ -721,155 +735,195 @@ export class ShopUI {
     }
 
     private renderActiveTabContent(container: HTMLElement): void {
+        if (this.activeTab === 'theme') {
+            this.renderThemeTab(container);
+        } else if (this.activeTab === 'note') {
+            this.renderNoteTab(container);
+        } else if (this.activeTab === 'character') {
+            this.renderCharacterTab(container);
+        }
+    }
+
+    private renderThemeTab(container: HTMLElement): void {
         const themeManager = ThemeManager.getInstance();
         const currentThemeId = themeManager.getCurrentTheme().id;
+        const renderCache = RenderCache.getInstance();
+        const economy = EconomyManager.getInstance();
+        const themes = themeManager.getAllThemes();
+
+        const themesHtml = themes.map((t, idx) => {
+            const url = renderCache.getBackgroundPreviewUrlLocal(t.id);
+            const isOwned = economy.isThemeOwned(t.id);
+            const price = (idx === 0 || t.id === 'deep-space') ? 0 : (idx < 7 ? 1000 : 2000);
+            const accentColor = t.color1;
+            const bgStyle = url ? `background-image: url(${url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
+
+            return `
+            <div class="shop-card theme-btn theme-item ${t.id === currentThemeId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
+                    data-theme="${t.id}" data-price="${price}"
+                    style="--card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
+                <div class="shop-card-aura"></div>
+                <div class="shop-card-frame"></div>
+                <div class="shop-card-header">
+                    <span class="shop-card-title">${t.name}</span>
+                </div>
+                <div class="shop-preview-area">
+                    <div class="theme-preview-bg" style="${bgStyle}"></div>
+                    ${!isOwned ? `
+                        <div class="shop-price-overlay">
+                            <span>🔒</span>
+                            <span>${price.toLocaleString()}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        container.innerHTML = `<div class="theme-grid">${themesHtml}</div>`;
+        this.attachThemeListeners(container);
+    }
+
+    private renderNoteTab(container: HTMLElement): void {
         const skinManager = NoteSkinManager.getInstance();
         const currentSkinId = skinManager.getCurrentSkin().id;
         const renderCache = RenderCache.getInstance();
         const economy = EconomyManager.getInstance();
+        const skins = skinManager.getAllSkins();
+        const skinColors = ['#00E5FF', '#A2FF00', '#FF3D00', '#8B4513', '#FFD700', '#9C27B0', '#FFD700', '#2196F3', '#00FFCC', '#FF69B4'];
 
-        if (this.activeTab === 'theme') {
-            const themes = themeManager.getAllThemes();
-            const themesHtml = themes.map((t, idx) => {
-                const url = renderCache.getBackgroundPreviewUrlLocal(t.id);
-                const isOwned = economy.isThemeOwned(t.id);
-                const price = (idx === 0 || t.id === 'deep-space') ? 0 : (idx < 7 ? 1000 : 2000);
-                const accentColor = t.color1;
+        const skinsHtml = skins.map((s, idx) => {
+            const previewUrl = renderCache.getPreviewDataURL(s.id);
+            const isOwned = economy.isSkinOwned(s.id);
+            const price = (idx === 0) ? 0 : 1500;
+            const accentColor = skinColors[idx % skinColors.length];
 
-                const bgStyle = url ? `background-image: url(${url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
-
-                return `
-                <div class="shop-card theme-btn theme-item ${t.id === currentThemeId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
-                        data-theme="${t.id}" data-price="${price}"
-                        style="--card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
-                    <div class="shop-card-aura"></div>
-                    <div class="shop-card-frame"></div>
-                    <div class="shop-card-header">
-                        <span class="shop-card-title">${t.name}</span>
-                    </div>
-                    <div class="shop-preview-area">
-                        <div class="theme-preview-bg" style="${bgStyle}"></div>
-                        ${!isOwned ? `
-                            <div class="shop-price-overlay">
-                                <span>🔒</span>
-                                <span>${price.toLocaleString()}</span>
-                            </div>
-                        ` : ''}
-                    </div>
+            return `
+            <div class="shop-card skin-btn ${s.id === currentSkinId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
+                 data-skin="${s.id}" data-price="${price}"
+                 style="--card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
+                <div class="shop-card-aura"></div>
+                <div class="shop-card-frame"></div>
+                <div class="shop-card-header">
+                    <span class="shop-card-title">${s.name}</span>
                 </div>
-                `;
-            }).join('');
+                <div class="shop-preview-area" style="background: radial-gradient(circle at 50% 50%, ${accentColor}11 0%, #05050a 100%);">
+                    <img src="${previewUrl}" class="note-preview-img" alt="${s.name}">
+                    ${!isOwned ? `
+                        <div class="shop-price-overlay">
+                            <span>🔒</span>
+                            <span>${price.toLocaleString()}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            `;
+        }).join('');
 
-            container.innerHTML = `<div class="theme-grid">${themesHtml}</div>`;
-            this.attachThemeListeners(container);
+        container.innerHTML = `<div class="note-grid">${skinsHtml}</div>`;
+        this.attachSkinListeners(container);
+    }
 
-        } else if (this.activeTab === 'note') {
-            const skins = skinManager.getAllSkins();
-            const skinColors = [
-                '#00E5FF', '#A2FF00', '#FF3D00', '#8B4513', 
-                '#FFD700', '#9C27B0', '#FFD700', '#2196F3', 
-                '#00FFCC', '#FF69B4'
-            ];
+    private renderCharacterTab(container: HTMLElement): void {
+        const economy = EconomyManager.getInstance();
+        const currentCharId = economy.getActiveCharacter();
+        
+        const characters = [
+            { id: 'baby', name: 'BABY (Default)', price: 0, img: getCharacterImagePath('baby') },
+            { id: 'melodia', name: 'MELODIA', price: 5000, img: getCharacterImagePath('melodia') },
+            { id: 'flora', name: 'FLORA', price: 5000, img: getCharacterImagePath('flora') },
+            { id: 'cathy', name: 'CATHY', price: 8000, img: getCharacterImagePath('cathy') },
+            { id: 'cherry', name: 'CHERRY', price: 8000, img: getCharacterImagePath('cherry') },
+            { id: 'haru', name: 'HARU', price: 12000, img: getCharacterImagePath('haru') },
+            { id: 'haruto', name: 'HARUTO', price: 12000, img: getCharacterImagePath('haruto') },
+            { id: 'luna', name: 'LUNA', price: 15000, img: getCharacterImagePath('luna') },
+            { id: 'sakura', name: 'SAKURA', price: 15000, img: getCharacterImagePath('sakura') },
+            { id: 'thumb', name: 'THUMB', price: 20000, img: getCharacterImagePath('thumb') }
+        ];
 
-            const skinsHtml = skins.map((s, idx) => {
-                const previewUrl = renderCache.getPreviewDataURL(s.id);
-                const isOwned = economy.isSkinOwned(s.id);
-                const price = (idx === 0) ? 0 : 1500;
-                const accentColor = skinColors[idx % skinColors.length];
+        const charHtml = characters.map((c) => {
+            const isOwned = economy.isCharacterOwned(c.id);
+            const isActive = c.id === currentCharId;
+            const accentColor = '#00E5FF';
 
-                return `
-                <div class="shop-card skin-btn ${s.id === currentSkinId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
-                     data-skin="${s.id}" data-price="${price}"
+            return `
+                <div class="shop-card character-card ${isActive ? 'active' : ''} ${isOwned ? 'owned' : 'locked'}" 
+                     data-char="${c.id}" data-price="${c.price}"
                      style="--card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
                     <div class="shop-card-aura"></div>
                     <div class="shop-card-frame"></div>
                     <div class="shop-card-header">
-                        <span class="shop-card-title">${s.name}</span>
+                        <span class="shop-card-title">${c.name}</span>
                     </div>
-                    <div class="shop-preview-area" style="background: radial-gradient(circle at 50% 50%, ${accentColor}11 0%, #05050a 100%);">
-                        <img src="${previewUrl}" class="note-preview-img" alt="${s.name}">
+                    <div class="shop-preview-area">
+                        ${c.img ? `<div class="char-preview-sprite" style="background-image: url('${c.img}');"></div>` : `<div class="char-placeholder">?</div>`}
                         ${!isOwned ? `
                             <div class="shop-price-overlay">
                                 <span>🔒</span>
-                                <span>${price.toLocaleString()}</span>
+                                <span>${c.price.toLocaleString()}</span>
                             </div>
                         ` : ''}
                     </div>
                 </div>
-            `}).join('');
+            `;
+        }).join('');
 
-            container.innerHTML = `<div class="note-grid">${skinsHtml}</div>`;
-            this.attachSkinListeners(container);
-        } else if (this.activeTab === 'character') {
-            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
-            
-            const characters = [
-                { id: 'baby', name: 'Baby', img: getCharacterImagePath('baby'), price: 0 },
-                { id: 'melodia', name: 'Melodia', img: getCharacterImagePath('melodia'), price: 2500 },
-                { id: 'flora', name: 'Flora', img: getCharacterImagePath('flora'), price: 3500 },
-                { id: 'cathy', name: 'Cathy', img: getCharacterImagePath('cathy'), price: 4000 },
-                { id: 'cherry', name: 'Cherry', img: getCharacterImagePath('cherry'), price: 4500 },
-                { id: 'haru', name: 'Haru', img: getCharacterImagePath('haru'), price: 5000 },
-                { id: 'haruto', name: 'Haruto', img: getCharacterImagePath('haruto'), price: 5500 },
-                { id: 'luna', name: 'Luna', img: getCharacterImagePath('luna'), price: 6000 },
-                { id: 'sakura', name: 'Sakura', img: getCharacterImagePath('sakura'), price: 6500 },
-                { id: 'thumb', name: 'Thumb', img: getCharacterImagePath('thumb'), price: 7000 },
-            ];
-
-            const displayList = [...characters];
-            while (displayList.length < 10) {
-                displayList.push({ id: `placeholder-${displayList.length}`, name: '???', img: '', price: 0 });
+        container.innerHTML = `<div class="character-grid">${charHtml}</div>`;
+        
+        container.querySelectorAll('.char-preview-sprite').forEach((sprite, idx) => {
+            const charData = characters[idx];
+            if (charData) {
+                const isOwned = economy.isCharacterOwned(charData.id);
+                let frame: CharacterFrame = CharacterFrame.IDLE;
+                if (charData.id === currentCharId) frame = CharacterFrame.HAPPY;
+                else if (!isOwned) frame = CharacterFrame.MISS;
+                applyCharacterSpriteStyle(sprite as HTMLElement, charData.id, frame);
             }
+        });
 
-            const charHtml = displayList.map((c) => {
-                const isOwned = economy.isCharacterOwned(c.id);
-                const isActive = c.id === currentCharId;
-                const isPlaceholder = c.name === '???';
-                const accentColor = '#00E5FF';
+        this.attachCharacterListeners(container);
+    }
 
-                return `
-                    <div class="shop-card character-card ${isActive ? 'active' : ''} ${isPlaceholder ? 'placeholder' : ''} ${isOwned ? 'owned' : 'locked'}" 
-                         data-char="${c.id}" data-price="${c.price}"
-                         style="${isPlaceholder ? 'cursor: default; opacity: 0.3; filter: grayscale(1);' : ''} --card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
-                        <div class="shop-card-aura"></div>
-                        <div class="shop-card-frame"></div>
-                        <div class="shop-card-header">
-                            <span class="shop-card-title">${c.name}</span>
-                        </div>
-                        <div class="shop-preview-area">
-                            ${c.img ? `<div class="char-preview-sprite" style="background-image: url('${c.img}');"></div>` : `<div class="char-placeholder">?</div>`}
-                            ${!isOwned && !isPlaceholder ? `
-                                <div class="shop-price-overlay">
-                                    <span>🔒</span>
-                                    <span>${c.price.toLocaleString()}</span>
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+    private attachCharacterListeners(container: HTMLElement): void {
+        const economy = EconomyManager.getInstance();
+        
+        container.querySelectorAll('.character-card').forEach(card => {
+            if (card.classList.contains('placeholder')) return;
 
-            container.innerHTML = `<div class="character-grid">${charHtml}</div>`;
-            
-            // Apply intelligent styling to each character sprite
-            container.querySelectorAll('.char-preview-sprite').forEach((sprite, idx) => {
-                const charData = displayList[idx];
-                if (charData && !charData.id.startsWith('placeholder-')) {
-                    const isOwned = economy.isCharacterOwned(charData.id);
-                    let frame: CharacterFrame = CharacterFrame.IDLE;
-                    
-                    if (charData.id === currentCharId) {
-                        frame = CharacterFrame.HAPPY;
-                    } else if (!isOwned) {
-                        frame = CharacterFrame.MISS; // Disappointed face for locked characters
-                    }
-                    
-                    applyCharacterSpriteStyle(sprite as HTMLElement, charData.id, frame);
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                const charId = card.getAttribute('data-char');
+                const price = parseInt(card.getAttribute('data-price') || '0');
+                if (!charId) return;
+
+                const isOwned = economy.isCharacterOwned(charId);
+
+                if (!isOwned) {
+                    ModalUI.getInstance().show(
+                        '캐릭터 구매',
+                        `${price.toLocaleString()} 코인으로 이 캐릭터를 구매하시겠습니까?`,
+                        {
+                            confirmLabel: '구매하기',
+                            cancelLabel: '취소',
+                            onConfirm: () => {
+                                const res = economy.purchaseCharacter(charId, price);
+                                if (res.success) {
+                                    ModalUI.getInstance().showNotification('구매 성공', res.message, 3000, 'info');
+                                    this.updateCurrencyUI();
+                                    this.renderCharacterTab(container);
+                                } else {
+                                    ModalUI.getInstance().show('구매 실패', res.message, { type: 'error' });
+                                }
+                            }
+                        }
+                    );
+                } else {
+                    economy.setActiveCharacter(charId);
+                    this.renderCharacterTab(container);
+                    window.dispatchEvent(new CustomEvent('nexus-character-changed', { detail: { charId } }));
                 }
             });
-
-            this.attachCharacterListeners(container);
-        }
+        });
     }
 
     private attachShellListeners(): void {
@@ -908,9 +962,33 @@ export class ShopUI {
         });
 
         document.getElementById('god-btn-reset-all')?.addEventListener('click', () => {
-            EconomyManager.getInstance().adminResetAll();
+            const economy = EconomyManager.getInstance();
+            const themeManager = ThemeManager.getInstance();
+            const skinManager = NoteSkinManager.getInstance();
+
+            // 1. Reset ownership and coins in DB/Cache
+            economy.adminResetAll();
+
+            // 2. Reset active selections to actual factory defaults
+            themeManager.setTheme('deep-space');
+            skinManager.setSkin('classic-gel');
+            localStorage.setItem('nexus_active_character', 'baby');
+
+            // 3. Notify system of character change
+            window.dispatchEvent(new CustomEvent('nexus-character-changed', { detail: { charId: 'baby' } }));
+
+            // 4. Reset Shop UI state and move cursor to first tab
+            this.activeTab = 'theme';
             this.updateCurrencyUI();
-            this.renderActiveTabContent(this.tabContainers.get(this.activeTab)!);
+            this.updateTabContentUI();
+            
+            ModalUI.getInstance().showNotification('FACTORY RESET', 'All progress and selections have been reset to defaults.', 3000, 'info');
+        });
+
+        document.getElementById('god-btn-fill-self')?.addEventListener('click', () => {
+            const auth = AuthService.getInstance();
+            const input = document.getElementById('god-target-user-id') as HTMLInputElement;
+            if (input) input.value = auth.getUserId() || '';
         });
 
         document.getElementById('god-btn-gift-coins')?.addEventListener('click', async () => {
@@ -939,33 +1017,109 @@ export class ShopUI {
 
         document.getElementById('god-btn-fetch-users')?.addEventListener('click', async () => {
             const btn = document.getElementById('god-btn-fetch-users') as HTMLButtonElement;
+            const originalText = btn.innerText;
             btn.innerText = 'FETCHING...';
             btn.disabled = true;
 
-            const users = await AuthService.getInstance().fetchAdminUsers();
-            const container = document.getElementById('god-user-items');
-            if (container) {
-                container.innerHTML = users.map(u => `
-                    <div class="god-user-item" data-id="${u.user_id}">
-                        <div style="font-weight: 700;">${u.display_name || 'Unknown'}</div>
-                        <div class="god-user-id-small">${u.user_id}</div>
-                    </div>
-                `).join('');
+            try {
+                const result = await AuthService.getInstance().fetchAdminUsers();
+                console.log("[GodMode] Fetched users result:", result);
 
-                container.querySelectorAll('.god-user-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        const targetIdInput = document.getElementById('god-target-user-id') as HTMLInputElement;
-                        if (targetIdInput) {
-                            targetIdInput.value = item.getAttribute('data-id') || '';
-                            targetIdInput.style.borderColor = '#00E5FF';
-                            setTimeout(() => targetIdInput.style.borderColor = '', 1000);
-                        }
+                const container = document.getElementById('god-user-items');
+                if (container) {
+                    const auth = AuthService.getInstance();
+                    const currentUserId = auth.getUserId();
+
+                    // Handle both direct array or nested { users: [...] } response
+                    const rawUsers = Array.isArray(result) ? result : (result && (result as any).users ? (result as any).users : []);
+                    
+                    // Filter out the current admin user and ensure list is clean
+                    const users = rawUsers.filter((u: any) => {
+                        const uid = u.user_id || u.id;
+                        return uid && uid !== currentUserId;
                     });
-                });
+                    
+                    if (users.length === 0) {
+                        container.innerHTML = `<div style="padding: 10px; font-size: 0.7rem; color: #888; text-align: center;">NO OTHER USERS FOUND</div>`;
+                    } else {
+                        container.innerHTML = users.map((u: any) => {
+                            const userId = u.user_id || u.id || 'N/A';
+                            const name = u.display_name || u.username || u.first_name || 'Unknown';
+                            const email = u.email || '';
+                            
+                            return `
+                                <div class="god-user-item" data-id="${userId}">
+                                    <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
+                                        <span style="font-weight: 700; color: #fff;">${name}</span>
+                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                            ${email ? `<span style="font-size: 0.6rem; color: #888;">${email}</span>` : ''}
+                                            <button class="god-btn-user-delete" data-id="${userId}" title="Delete User Record">✕</button>
+                                        </div>
+                                    </div>
+                                    <div class="god-user-id-small">${userId}</div>
+                                </div>
+                            `;
+                        }).join('');
+
+                        // Attach select listeners
+                        container.querySelectorAll('.god-user-item').forEach(item => {
+                            item.addEventListener('click', (e) => {
+                                // If click was on delete button, don't trigger selection
+                                if ((e.target as HTMLElement).classList.contains('god-btn-user-delete')) return;
+
+                                const targetIdInput = document.getElementById('god-target-user-id') as HTMLInputElement;
+                                const selectedId = item.getAttribute('data-id');
+                                console.log("[GodMode] Selected User ID:", selectedId);
+
+                                if (targetIdInput && selectedId) {
+                                    targetIdInput.value = selectedId;
+                                    targetIdInput.focus();
+                                    targetIdInput.style.borderColor = '#00E5FF';
+                                    targetIdInput.style.boxShadow = '0 0 15px rgba(0, 229, 255, 0.5)';
+                                    setTimeout(() => {
+                                        targetIdInput.style.borderColor = '';
+                                        targetIdInput.style.boxShadow = '';
+                                    }, 800);
+                                }
+                            });
+                        });
+
+                        // Attach delete listeners
+                        container.querySelectorAll('.god-btn-user-delete').forEach(delBtn => {
+                            delBtn.addEventListener('click', async (e) => {
+                                e.stopPropagation();
+                                const targetId = delBtn.getAttribute('data-id');
+                                if (!targetId) return;
+
+                                ModalUI.getInstance().show(
+                                    'CONFIRM DELETION',
+                                    `Are you sure you want to permanently delete user [${targetId}] from the application database?`,
+                                    {
+                                        confirmLabel: 'DELETE',
+                                        cancelLabel: 'CANCEL',
+                                        onConfirm: async () => {
+                                            const res = await auth.adminDeleteUser(targetId);
+                                            if (res.success) {
+                                                ModalUI.getInstance().showNotification('DELETED', 'User record removed from DB.', 3000, 'info');
+                                                btn.click(); // Re-fetch list
+                                            } else {
+                                                ModalUI.getInstance().show('FAILED', res.message, { type: 'error' });
+                                            }
+                                        }
+                                    }
+                                );
+                            });
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("[GodMode] Failed to fetch users:", e);
+                const container = document.getElementById('god-user-items');
+                if (container) container.innerHTML = `<div style="padding: 10px; font-size: 0.7rem; color: #ff3d00; text-align: center;">FETCH ERROR</div>`;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
             }
-            
-            btn.innerText = '↻ LOAD USER LIST';
-            btn.disabled = false;
         });
     }
 
@@ -990,18 +1144,19 @@ export class ShopUI {
                             confirmLabel: '구매하기',
                             cancelLabel: '취소',
                             onConfirm: () => {
-                                if (economy.getCoins() >= price) {
-                                    economy.spendCoins(price);
-                                    economy.adminSetOwnership('char', charId, true);
+                                const res = economy.purchaseCharacter(charId, price);
+                                if (res.success) {
+                                    ModalUI.getInstance().showNotification('구매 성공', res.message, 3000, 'info');
+                                    this.updateCurrencyUI();
                                     this.renderActiveTabContent(container);
                                 } else {
-                                    ModalUI.getInstance().show('코인 부족', '코인이 부족하여 이 캐릭터를 구매할 수 없습니다.', { type: 'error' });
+                                    ModalUI.getInstance().show('구매 실패', res.message, { type: 'error' });
                                 }
                             }
                         }
                     );
                 } else {
-                    localStorage.setItem('nexus_active_character', charId);
+                    economy.setActiveCharacter(charId);
                     this.renderActiveTabContent(container);
                     // Notify any observers if needed
                     window.dispatchEvent(new CustomEvent('nexus-character-changed', { detail: { charId } }));
@@ -1047,6 +1202,7 @@ export class ShopUI {
                                     this.updateCurrencyUI();
                                     this.renderActiveTabContent(container);
                                     themeManager.setTheme(themeId);
+                                    economy.setActiveTheme(themeId);
                                 } else {
                                     ModalUI.getInstance().show('코인 부족', '코인이 부족하여 이 테마를 구매할 수 없습니다.', { type: 'error' });
                                 }
@@ -1056,6 +1212,7 @@ export class ShopUI {
                     return;
                 }
                 themeManager.setTheme(themeId);
+                economy.setActiveTheme(themeId);
                 this.renderActiveTabContent(container);
             });
         });
@@ -1098,6 +1255,7 @@ export class ShopUI {
                                     this.updateCurrencyUI();
                                     this.renderActiveTabContent(container);
                                     skinManager.setSkin(skinId);
+                                    economy.setActiveSkin(skinId);
                                 } else {
                                     ModalUI.getInstance().show('코인 부족', '코인이 부족하여 이 노트 스킨을 구매할 수 없습니다.', { type: 'error' });
                                 }
@@ -1107,6 +1265,7 @@ export class ShopUI {
                     return;
                 }
                 skinManager.setSkin(skinId);
+                economy.setActiveSkin(skinId);
                 this.renderActiveTabContent(container);
             });
         });

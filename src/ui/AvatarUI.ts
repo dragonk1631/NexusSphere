@@ -1,3 +1,4 @@
+import { EconomyManager } from '../core/score/EconomyManager';
 import { applyCharacterSpriteStyle, CharacterFrame } from './utils/CharacterStyleUtils';
 
 /**
@@ -57,8 +58,8 @@ export class AvatarUI {
         this.avatarElement = avatar;
         this.injectStyles();
         
-        // Load active character from storage if available
-        const savedChar = localStorage.getItem('nexus_active_character') || 'baby';
+        // Load active character from economy manager
+        const savedChar = EconomyManager.getInstance().getActiveCharacter();
         
         const sprite = avatar.querySelector('#avatar-sprite') as HTMLElement;
         if (sprite) {
@@ -114,7 +115,7 @@ export class AvatarUI {
         if (reaction === AvatarReaction.MISS) frame = CharacterFrame.MISS;
         if (reaction === AvatarReaction.CRY) frame = CharacterFrame.CRY;
         
-        const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+        const currentCharId = EconomyManager.getInstance().getActiveCharacter();
         applyCharacterSpriteStyle(sprite, currentCharId, frame);
 
         // Auto-revert to IDLE if duration is set

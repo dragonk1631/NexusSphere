@@ -1,3 +1,4 @@
+import { EconomyManager } from '../../../core/score/EconomyManager';
 import { GameState } from '../types/GameTypes';
 import { BaseGameState } from './BaseGameState';
 import { ASSET_PATHS } from '../../../core/asset/AssetRegistry';
@@ -26,7 +27,7 @@ export class ResultState extends BaseGameState {
             }
             
             // Load character image for result screen
-            const charId = localStorage.getItem('nexus_active_character') || 'baby';
+            const charId = EconomyManager.getInstance().getActiveCharacter();
             this.charImage = new Image();
             this.charImage.src = PathUtils.getCharacterImagePath(charId);
         } catch (e) {

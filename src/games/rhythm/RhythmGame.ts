@@ -4,6 +4,7 @@ import { CoreAudioEngine } from '../../core/audio/CoreAudioEngine';
 import { MenuMusicManager } from '../../core/audio/MenuMusicManager';
 import { ThemeManager } from '../../core/ThemeManager';
 import { ScoreManager } from '../../core/score/ScoreManager';
+import { EconomyManager } from '../../core/score/EconomyManager';
 import type { ParsedMidi } from '../../core/audio/MidiParser';
 import { BackgroundRenderer } from '../../core/graphics/BackgroundRenderer';
 import { AuthService } from '../../services/auth/AuthService';
@@ -494,7 +495,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
 
         const auth = AuthService.getInstance();
         if (auth.isSignedIn()) {
-            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            const currentCharId = EconomyManager.getInstance().getActiveCharacter();
             if (!this.charImageCache.has(currentCharId)) {
                 const img = new Image();
                 img.src = PathUtils.getCharacterImagePath(currentCharId);
@@ -567,11 +568,18 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.isSignedIn = auth.isSignedIn();
         
         if (s.isSignedIn) {
-            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            const currentCharId = EconomyManager.getInstance().getActiveCharacter();
             const charNames: Record<string, string> = {
-                'baby': 'BABY',
+                'baby': 'BABY (DEFAULT)',
                 'melodia': 'MELODIA',
-                'flora': 'FLORA'
+                'flora': 'FLORA',
+                'cathy': 'CATHY',
+                'cherry': 'CHERRY',
+                'haru': 'HARU',
+                'haruto': 'HARUTO',
+                'luna': 'LUNA',
+                'sakura': 'SAKURA',
+                'thumb': 'THUMB'
             };
             s.characterName = charNames[currentCharId] || currentCharId.toUpperCase();
 

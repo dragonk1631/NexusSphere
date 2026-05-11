@@ -524,6 +524,18 @@ export class MainMenu {
                     text-shadow: 0 2px 10px rgba(0,0,0,1); /* Sub Halo v56 */
                 }
 
+                .mm-card.locked {
+                    filter: grayscale(0.8) brightness(0.5);
+                    cursor: pointer; /* Keep pointer so they click and get the modal */
+                }
+                .mm-card.locked::after {
+                    content: '🔒';
+                    position: absolute;
+                    top: 15px; right: 15px;
+                    font-size: 1.2rem;
+                    filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
+                }
+
                 .mm-bottom-nav {
                     flex: 0 0 auto; height: clamp(90px, 12vh, 120px); /* Fluid height with strict floor v52 */
                     padding-bottom: clamp(15px, 3vh, 30px); display: flex; justify-content: center; align-items: center;
@@ -579,7 +591,7 @@ export class MainMenu {
                     </div>
                     <div class="mm-panel">
                         <div class="mm-center">
-                            <div class="mm-card mm-card-editor" id="btn-editor">
+                            <div class="mm-card mm-card-editor ${!AuthService.getInstance().isSignedIn() ? 'locked' : ''}" id="btn-editor">
                                 <div class="mm-card-icon">💿</div>
                                 <div class="mm-card-label">${t.editor}</div>
                                 <div class="mm-card-sub">${t.editorDesc}</div>
@@ -665,6 +677,18 @@ export class MainMenu {
             this.onStartGame('rhythm');
         });
         document.getElementById('btn-editor')?.addEventListener('click', () => {
+            if (!AuthService.getInstance().isSignedIn()) {
+                ModalUI.getInstance().show(
+                    'SIGN IN REQUIRED',
+                    'The Map Editor requires a Nexus account to save and manage your creations in the cloud.',
+                    {
+                        confirmLabel: 'SIGN IN',
+                        cancelLabel: 'LATER',
+                        onConfirm: () => AuthService.getInstance().openSignIn()
+                    }
+                );
+                return;
+            }
             this.hideAll();
             this.onStartGame('editor');
         });

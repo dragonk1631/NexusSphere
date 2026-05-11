@@ -1,3 +1,4 @@
+import { EconomyManager } from '../core/score/EconomyManager';
 import { UIManager } from '../core/ui/UIManager';
 import { ApiUtils } from '../core/utils/ApiUtils';
 import { DJClassSystem } from '../core/progression/DJClassSystem';
@@ -274,7 +275,7 @@ export class RankingUI {
         
         let avatarHtml = '';
         if (isMe) {
-            const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
+            const currentCharId = EconomyManager.getInstance().getActiveCharacter();
             const charImg = getCharacterImagePath(currentCharId);
             avatarHtml = `<div class="rank-avatar-sprite" style="background-image: url('${charImg}');"></div>`;
         } else if (entry.avatar_url && (entry.avatar_url.includes('characters/char_') || entry.avatar_url.includes('raw.githubusercontent.com'))) {

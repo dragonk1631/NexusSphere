@@ -74,18 +74,35 @@ export class AuthService {
                                 const { ScoreManager } = await import('../../core/score/ScoreManager');
                                 await ScoreManager.getInstance().syncWithServer();
                                 
+                                // [NEW] Refresh Economy for new user
+                                const { EconomyManager } = await import('../../core/score/EconomyManager');
+                                EconomyManager.getInstance().refresh();
+                                
                                 // Dispatch global event for UI updates
                                 window.dispatchEvent(new CustomEvent('nexus-auth-changed', { detail: { isSignedIn: true } }));
                             } catch (e) {
                                 console.error('[AuthService] Failed to sync scores after sign-in:', e);
                             }
                         } else {
-                            // [FIX] When no user is detected (sign out), refresh ScoreManager to guest mode
+                            // [FIX] When no user is detected (sign out), return everything to guest defaults
                             import('../../core/score/ScoreManager').then(({ ScoreManager }) => {
                                 ScoreManager.getInstance().load();
                             });
+
+                            import('../../core/ThemeManager').then(({ ThemeManager }) => {
+                                ThemeManager.getInstance().setTheme('deep-space');
+                            });
+
+                            import('../../core/NoteSkinManager').then(({ NoteSkinManager }) => {
+                                NoteSkinManager.getInstance().setSkin('classic-gel');
+                            });
+
+                            import('../../core/score/EconomyManager').then(({ EconomyManager }) => {
+                                EconomyManager.getInstance().refresh();
+                            });
+                            window.dispatchEvent(new CustomEvent('nexus-character-changed', { detail: { charId: 'baby' } }));
                             
-                            console.log('[AuthService] No user detected. Returning to guest state.');
+                            console.log('[AuthService] User signed out. All selections reset to factory defaults.');
                             window.dispatchEvent(new CustomEvent('nexus-auth-changed', { detail: { isSignedIn: false } }));
                         }
                     });
@@ -168,7 +185,9 @@ export class AuthService {
         if (!this.isAdmin()) return { success: false, message: 'Admin privileges required.' };
         
         try {
-            const token = await this.clerk.session.getToken();
+            const token = await this.clerk.session.getToken({ template: 'Default' });
+            console.log("[AuthService] Admin Token (Gift):", token);
+            
             const response = await ApiUtils.fetch('/api/admin/users', {
                 method: 'POST',
                 headers: {
@@ -189,11 +208,39 @@ export class AuthService {
             return { success: false, message: e.message };
         }
     }
+
+    public async adminDeleteUser(targetUserId: string): Promise<{ success: boolean, message: string }> {
+        if (!this.isAdmin()) return { success: false, message: 'Admin privileges required.' };
+        
+        try {
+            const token = await this.clerk.session.getToken({ template: 'Default' });
+            const response = await ApiUtils.fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    action: 'delete',
+                    targetUserId
+                })
+            });
+            
+            if (!response.ok) throw new Error(await response.text());
+            return await response.json();
+        } catch (e: any) {
+            console.error('[AuthService] adminDeleteUser failed:', e);
+            return { success: false, message: e.message };
+        }
+    }
+
     public async fetchAdminUsers(): Promise<any[]> {
         if (!this.isAdmin()) return [];
         
         try {
-            const token = await this.clerk.session.getToken();
+            const token = await this.clerk.session.getToken({ template: 'Default' });
+            console.log("[AuthService] Admin Token (Fetch):", token);
+
             const response = await ApiUtils.fetch('/api/admin/users', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
