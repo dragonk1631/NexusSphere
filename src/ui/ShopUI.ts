@@ -206,34 +206,64 @@ export class ShopUI {
                 .god-btn-reset { background: #555; color: #fff; flex: 1; }
                 .god-btn:hover { filter: brightness(1.2); transform: translateY(-2px); }
 
-                /* Guest Experience v2 */
+                /* Guest Experience v7 - Full Screen Width Fixed Bar */
                 .shop-guest-banner {
-                    background: linear-gradient(90deg, #ff00cc 0%, #3333ff 100%);
-                    padding: 6px 15px; display: flex; align-items: center; justify-content: center;
-                    gap: 15px; font-weight: 800; font-size: 0.85rem;
-                    border-bottom: 2px solid rgba(255,255,255,0.2);
-                    animation: bannerPulse 2s infinite ease-in-out;
-                    flex-shrink: 0;
+                    position: fixed;
+                    top: 50%; left: 0; 
+                    transform: translateY(-50%);
+                    background: linear-gradient(90deg, rgba(255, 0, 204, 0.4) 0%, rgba(51, 51, 255, 0.4) 100%);
+                    padding: 18px 0; 
+                    display: flex; flex-direction: row;
+                    align-items: center; justify-content: center;
+                    gap: 35px; 
+                    font-weight: 900; 
+                    font-size: 1.2rem;
+                    border-top: 2px solid rgba(255, 255, 255, 0.3);
+                    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+                    animation: bannerPulse 3s infinite ease-in-out;
+                    z-index: 2000;
+                    backdrop-filter: blur(20px);
+                    box-shadow: 0 0 50px rgba(0,0,0,0.7);
+                    pointer-events: auto;
+                    white-space: nowrap;
+                    width: 100vw;
+                    box-sizing: border-box;
                 }
-                @keyframes bannerPulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; filter: brightness(1.2); } }
+                @keyframes bannerPulse { 
+                    0%, 100% { opacity: 0.95; filter: brightness(1); } 
+                    50% { opacity: 1; filter: brightness(1.2); } 
+                }
                 .banner-login-btn {
                     background: linear-gradient(135deg, #ff00cc 0%, #3333ff 100%);
-                    color: #fff; border: 1px solid #fff; padding: 4px 16px;
-                    border-radius: 4px; font-family: 'Black Han Sans'; cursor: pointer;
-                    transition: 0.2s; font-weight: 900; font-size: 0.8rem;
-                    box-shadow: 0 0 10px rgba(255, 0, 204, 0.4);
+                    color: #fff; border: 1.5px solid #fff; padding: 8px 28px;
+                    border-radius: 8px; font-family: 'Black Han Sans'; cursor: pointer;
+                    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+                    font-weight: 900; font-size: 1rem;
+                    box-shadow: 0 0 20px rgba(255, 0, 204, 0.5);
+                    text-transform: uppercase;
                 }
-                .banner-login-btn:hover { transform: scale(1.05); filter: brightness(1.2); }
+                .banner-login-btn:hover { transform: scale(1.1) rotate(-1deg); filter: brightness(1.3); box-shadow: 0 0 30px rgba(255, 0, 204, 0.8); }
+
+                .shop-window.is-guest .shop-card {
+                    pointer-events: none !important;
+                    filter: grayscale(0.5) contrast(0.8) brightness(0.7) !important;
+                    cursor: default !important;
+                }
+                .shop-window.is-guest .shop-card:hover {
+                    transform: none !important;
+                    box-shadow: none !important;
+                }
                 
                 @media (max-width: 850px) {
                     .shop-guest-banner {
-                        padding: 4px 10px;
-                        font-size: 0.7rem;
-                        gap: 10px;
+                        padding: 8px 15px;
+                        font-size: 0.75rem;
+                        gap: 12px;
+                        max-width: 95%;
                     }
                     .banner-login-btn {
-                        padding: 2px 10px;
-                        font-size: 0.7rem;
+                        padding: 4px 12px;
+                        font-size: 0.75rem;
                     }
                 }
 
@@ -259,20 +289,15 @@ export class ShopUI {
                     overflow: hidden; padding: clamp(12px, 2vw, 24px); box-sizing: border-box;
                 }
 
-                .theme-grid {
-                    display: grid; grid-template-columns: repeat(5, 1fr);
-                    grid-template-rows: repeat(2, 1fr); gap: clamp(12px, 2vw, 24px);
-                    width: 100%; height: 100%; box-sizing: border-box; flex: 1;
-                }
-
-                .note-grid {
-                    display: grid;
+                .theme-grid, .note-grid, .character-grid {
+                    display: grid; 
                     grid-template-columns: repeat(5, 1fr);
                     gap: clamp(12px, 2vw, 24px);
                     width: 100%; height: 100%; box-sizing: border-box; flex: 1;
                 }
 
-                .note-card {
+                /* SHARED PREMIUM CARD DESIGN */
+                .shop-card {
                     position: relative;
                     background: linear-gradient(135deg, #2a2a40 0%, #111119 100%);
                     border-radius: 20px;
@@ -290,7 +315,7 @@ export class ShopUI {
                     backdrop-filter: blur(10px);
                 }
 
-                .note-card::before {
+                .shop-card::before {
                     content: '';
                     position: absolute;
                     inset: 0;
@@ -299,7 +324,7 @@ export class ShopUI {
                     z-index: 1;
                 }
 
-                .note-card-aura {
+                .shop-card-aura {
                     position: absolute;
                     bottom: -20%;
                     left: 50%;
@@ -314,17 +339,17 @@ export class ShopUI {
                     transition: opacity 0.3s;
                 }
 
-                .note-card:hover .note-card-aura {
+                .shop-card:hover .shop-card-aura {
                     opacity: 0.35;
                 }
 
-                .note-card:hover {
+                .shop-card:hover {
                     transform: translateY(-8px) scale(1.02);
                     border-color: rgba(255, 255, 255, 0.4);
                     box-shadow: 0 20px 40px rgba(0,0,0,0.8);
                 }
 
-                .note-card.active {
+                .shop-card.active {
                     border: 4px solid #fff !important;
                     background: linear-gradient(135deg, #4a4a80 0%, #252545 100%);
                     box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
@@ -332,7 +357,7 @@ export class ShopUI {
                     z-index: 5;
                 }
 
-                .note-card.active::after {
+                .shop-card.active::after {
                     content: '✓';
                     position: absolute;
                     top: 10px;
@@ -351,7 +376,7 @@ export class ShopUI {
                     z-index: 20;
                 }
 
-                .note-card-frame {
+                .shop-card-frame {
                     position: absolute;
                     inset: 5px;
                     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -359,32 +384,31 @@ export class ShopUI {
                     pointer-events: none;
                 }
 
-                .note-card-header {
+                .shop-card-header {
                     display: flex;
-                    justify-content: space-between;
+                    justify-content: center;
                     align-items: center;
-                    margin-bottom: 8px;
+                    margin-bottom: 12px;
                     z-index: 2;
+                    width: 100%;
                 }
 
-                .note-card-title {
+                .shop-card-title {
                     font-family: 'Black Han Sans', sans-serif;
-                    font-size: clamp(0.8rem, 1.2vw, 1rem);
+                    font-size: clamp(0.9rem, 1.3vw, 1.1rem);
                     color: #fff;
-                    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+                    text-align: center;
+                    width: 100%;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    -webkit-text-stroke: 0.8px rgba(0,0,0,0.5);
+                    paint-order: stroke fill;
+                    text-shadow: 0 4px 8px rgba(0,0,0,1);
+                    letter-spacing: 0.5px;
                 }
 
-                .note-card-rarity {
-                    display: flex;
-                    gap: 2px;
-                }
-
-                .rarity-star {
-                    color: #FFD700;
-                    font-size: 0.7rem;
-                }
-
-                .note-preview-area {
+                .shop-preview-area {
                     flex: 1;
                     background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #05050a 100%);
                     border-radius: 10px;
@@ -397,12 +421,12 @@ export class ShopUI {
                     box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
                 }
 
-                .note-preview-area::after {
+                .shop-preview-area::after {
                     content: '';
                     position: absolute;
                     width: 150%;
                     height: 150%;
-                    background: radial-gradient(circle, rgba(255,215,0,0.05) 0%, transparent 70%);
+                    background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
                     animation: noteGlow 4s infinite ease-in-out;
                 }
 
@@ -411,6 +435,7 @@ export class ShopUI {
                     50% { opacity: 0.6; transform: scale(1.2); }
                 }
 
+                /* Note Skin Specifics */
                 .note-preview-img {
                     width: 70%;
                     height: auto;
@@ -419,253 +444,99 @@ export class ShopUI {
                     z-index: 2;
                     transition: transform 0.3s ease;
                 }
+                .shop-card:hover .note-preview-img { transform: scale(1.1) rotate(5deg); }
 
-                .note-card:hover .note-preview-img {
-                    transform: scale(1.1) rotate(5deg);
+                /* Theme Specifics */
+                .theme-preview-bg {
+                    position: absolute; inset: 0;
+                    background-size: cover; background-position: center;
+                    transition: transform 0.6s cubic-bezier(0.165, 0.84, 0.44, 1);
                 }
+                .shop-card:hover .theme-preview-bg { transform: scale(1.15); }
 
-                .note-card-info {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                    z-index: 2;
+                /* Character Specifics */
+                .char-preview-sprite {
+                    width: 100%; height: 100%;
+                    filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
+                    transform: scale(0.9);
+                    transition: transform 0.3s ease;
                 }
+                .shop-card:hover .char-preview-sprite { transform: scale(1.05); }
 
-                .note-card-desc {
-                    display: none;
-                }
-
-                .note-card-price-overlay, .theme-price-overlay {
+                .shop-price-overlay {
                     position: absolute;
-                    bottom: 8px;
-                    right: 8px;
+                    bottom: 12px;
+                    left: 50%;
+                    transform: translateX(-50%);
                     background: rgba(0, 0, 0, 0.9);
-                    padding: 4px 12px;
-                    border-radius: 12px;
+                    padding: 4px 14px;
+                    border-radius: 20px;
                     border: 2px solid #FFD700;
                     color: #FFD700 !important;
                     font-family: 'Outfit', sans-serif;
-                    font-size: 1rem;
+                    font-size: 0.95rem;
                     font-weight: 900;
                     z-index: 50;
                     backdrop-filter: blur(5px);
                     display: flex;
                     align-items: center;
+                    justify-content: center;
                     gap: 6px;
                     pointer-events: none;
-                    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 215, 0, 0.3);
                     text-shadow: 0 0 5px rgba(0,0,0,1);
+                    white-space: nowrap;
+                    min-width: 80px;
                 }
 
-                .note-card.locked {
+                .shop-card.locked {
                     filter: saturate(0.8) brightness(0.85);
                 }
                 
-                .note-card.locked .note-preview-img {
+                .shop-card.locked .note-preview-img, 
+                .shop-card.locked .theme-preview-bg,
+                .shop-card.locked .char-preview-sprite {
                     filter: grayscale(0.4) brightness(0.6);
                 }
 
                 @media (max-width: 900px) {
-                    .note-card {
+                    .tab-container-fit {
                         padding: 8px !important;
                     }
-                    .note-card-title {
-                        font-size: 0.65rem !important;
-                        white-space: normal;
-                        line-height: 1.1;
+                    .theme-grid, .note-grid, .character-grid {
+                        gap: 8px !important;
                     }
-                    .note-card-rarity, .rarity-star {
-                        display: none !important;
-                    }
-                    .note-card-desc {
-                        display: none !important;
-                    }
-                    .note-preview-img {
-                        width: 90% !important;
-                    }
-                    .note-card-price-overlay, .theme-price-overlay {
-                        bottom: 5px !important;
-                        right: auto !important;
-                        left: 50% !important;
-                        transform: translateX(-50%) !important;
-                        font-size: 0.65rem !important;
-                        padding: 2px 8px !important;
-                        white-space: nowrap !important;
-                    }
-                    
-                    .character-card {
+                    .shop-card {
+                        padding: 5px !important;
                         border-radius: 12px !important;
                     }
-                    .char-card-title {
-                        font-size: 0.6rem !important;
-                        padding: 4px 2px !important;
-                        bottom: 0 !important;
+                    .shop-card-header {
+                        margin-bottom: 2px !important;
+                    }
+                    .shop-card-title {
+                        font-size: 0.5rem !important;
+                        -webkit-text-stroke: 0.2px rgba(0,0,0,0.5) !important;
+                    }
+                    .shop-preview-area {
+                        border-radius: 6px !important;
+                    }
+                    .note-preview-img {
+                        width: 98% !important;
                     }
                     .char-preview-sprite {
-                        transform: scale(1.0) !important;
+                        transform: scale(1.1) !important;
                     }
-                    .char-price-overlay {
-                        bottom: 25px !important;
-                        left: 50% !important;
-                        right: auto !important;
-                        transform: translateX(-50%) !important;
-                        font-size: 0.6rem !important;
-                        padding: 2px 6px !important;
+                    .shop-price-overlay {
+                        bottom: 3px !important;
+                        font-size: 0.55rem !important;
+                        padding: 1px 4px !important;
+                        min-width: 50px !important;
                     }
-                }
-
-                .note-card.locked .note-preview-area::after {
-                    background: radial-gradient(circle, rgba(255,0,0,0.05) 0%, transparent 70%);
-                }
-
-                .note-card-badge {
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    background: rgba(0, 0, 0, 0.8);
-                    color: #FFD700;
-                    padding: 2px 8px;
-                    border-radius: 10px;
-                    font-size: 0.6rem;
-                    font-family: 'Black Han Sans';
-                    border: 1px solid #FFD700;
-                    z-index: 10;
-                }
-
-                .theme-btn {
-                    position: relative; border-radius: 16px; border: 2px solid rgba(255,255,255,0.3);
-                    cursor: pointer; display: flex; align-items: flex-end; justify-content: center;
-                    padding: clamp(10px, 1.5vh, 20px); transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow: hidden; height: 100%;
-                    background: #111;
-                }
-
-                .theme-btn:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(0,0,0,0.7); }
-                
-                .theme-btn.active {
-                    transform: scale(1.04); border-color: #fff !important; border-width: 4px;
-                    box-shadow: 0 0 15px rgba(255,255,255,0.6);
-                    animation: themePulse 1.5s ease-in-out infinite;
                 }
 
                 @keyframes themePulse {
                     0%, 100% { border-color: #fff; transform: scale(1.04); }
                     50% { border-color: #00E5FF; transform: scale(1.06); }
-                }
-
-                .theme-btn.active::after {
-                    content: '✓'; position: absolute; top: 6px; right: 8px;
-                    background: #00E5FF; color: #000; width: 24px; height: 24px;
-                    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-                    font-size: 14px; font-weight: 900; z-index: 2;
-                }
-
-                .theme-name {
-                    position: absolute; 
-                    top: 50%;
-                    left: 0;
-                    right: 0;
-                    transform: translateY(-50%);
-                    z-index: 10; 
-                    font-family: 'Black Han Sans', sans-serif;
-                    font-size: clamp(14px, 1.8vw, 20px); 
-                    font-weight: 800; 
-                    color: #fff;
-                    text-align: center;
-                    text-shadow: 0 2px 10px rgba(0,0,0,1), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-                    pointer-events: none;
-                    padding: 0 10px;
-                }
-                
-                .theme-btn.active::after {
-                    content: '✓'; position: absolute; top: 10px; right: 10px;
-                    background: #00E5FF; color: #000; width: 30px; height: 30px;
-                    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-                    font-size: 18px; font-weight: 900; z-index: 20;
-                    box-shadow: 0 0 20px rgba(0, 229, 255, 0.6);
-                }
-
-                .theme-btn-bg {
-                    position: absolute;
-                    inset: 0;
-                    background-size: cover;
-                    background-position: center;
-                    transition: all 0.4s ease;
-                    z-index: 1;
-                }
-
-                .theme-btn.locked .theme-btn-bg {
-                    filter: grayscale(0.5) brightness(0.6) saturate(0.8);
-                }
-
-                .theme-btn.locked {
-                    border-color: rgba(255, 255, 255, 0.15) !important;
-                }
-
-                .lock-badge {
-                    display: none;
-                }
-
-                .character-grid {
-                    display: grid; grid-template-columns: repeat(5, 1fr);
-                    grid-template-rows: repeat(2, 1fr); gap: clamp(12px, 2vw, 24px);
-                    width: 100%; height: 100%; box-sizing: border-box; flex: 1;
-                }
-
-                .character-card {
-                    position: relative; background: rgba(20, 20, 40, 0.6);
-                    border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 20px;
-                    cursor: pointer; display: flex; flex-direction: column;
-                    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    overflow: hidden; backdrop-filter: blur(10px);
-                }
-
-                .character-card:hover:not(.placeholder) { transform: translateY(-5px); border-color: #00E5FF; box-shadow: 0 10px 25px rgba(0, 229, 255, 0.2); }
-                .character-card.active { border-color: #00E5FF; border-width: 4px; box-shadow: 0 0 25px rgba(0, 229, 255, 0.4); animation: themePulse 1.5s infinite; }
-                
-                .char-preview-area {
-                    flex: 1; display: flex; align-items: center; justify-content: center;
-                    position: relative; background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.05) 0%, transparent 100%);
-                    overflow: hidden;
-                }
-
-                .char-preview-sprite {
-                    width: 100%;
-                    height: 100%;
-                    filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
-                    transform: scale(0.9);
-                }
-
-                .character-card.locked .char-preview-sprite {
-                    background-position: 0% 100% !important; /* Miss/Disappointed */
-                    filter: grayscale(0.8) brightness(0.6) contrast(0.9);
-                }
-                .char-placeholder { font-size: 4rem; font-weight: 900; color: rgba(255,255,255,0.05); font-family: 'Outfit'; }
-                
-                .char-card-title {
-                    position: absolute; bottom: 0; left: 0; right: 0;
-                    padding: 8px 5px; text-align: center; font-family: 'Black Han Sans', sans-serif;
-                    font-size: 0.85rem; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%); 
-                    color: #fff; z-index: 10; pointer-events: none;
-                    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-                }
-                
-                .char-price-overlay {
-                    position: absolute; bottom: 35px; left: 50%;
-                    transform: translateX(-50%);
-                    background: rgba(0,0,0,0.85); padding: 4px 12px;
-                    border-radius: 12px; border: 2px solid #FFD700;
-                    color: #FFD700; font-size: 0.85rem; font-weight: 900;
-                    display: flex; align-items: center; gap: 6px;
-                    backdrop-filter: blur(4px); z-index: 15;
-                    white-space: nowrap;
-                }
-
-                .char-check {
-                    position: absolute; top: 10px; right: 10px;
-                    background: #00E5FF; color: #000; width: 24px; height: 24px;
-                    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-                    font-size: 14px; font-weight: 900; box-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
                 }
 
                 .shop-tab-btn.tab-character.active { --active-color: #00E5FF; --active-glow: rgba(0, 229, 255, 0.6); }
@@ -764,12 +635,14 @@ export class ShopUI {
         }
 
         // Handle Guest Banner
-        const panel = document.getElementById('shop-panel');
+        const windowEl = document.querySelector('.shop-window');
+        const overlay = document.querySelector('.shop-overlay');
         const bannerId = 'shop-guest-banner';
         const existingBanner = document.getElementById(bannerId);
-
+ 
         if (!isSignedIn) {
-            if (panel && !existingBanner) {
+            if (windowEl) windowEl.classList.add('is-guest');
+            if (overlay && !existingBanner) {
                 const banner = document.createElement('div');
                 banner.id = bannerId;
                 banner.className = 'shop-guest-banner';
@@ -777,10 +650,11 @@ export class ShopUI {
                     <span>SIGN IN TO SYNC PURCHASES</span>
                     <button class="banner-login-btn">SIGN IN NOW</button>
                 `;
-                panel.prepend(banner);
+                overlay.appendChild(banner);
                 banner.querySelector('.banner-login-btn')?.addEventListener('click', () => auth.openSignIn());
             }
         } else {
+            if (windowEl) windowEl.classList.remove('is-guest');
             existingBanner?.remove();
         }
     }
@@ -860,26 +734,30 @@ export class ShopUI {
                 const url = renderCache.getBackgroundPreviewUrlLocal(t.id);
                 const isOwned = economy.isThemeOwned(t.id);
                 const price = (idx === 0 || t.id === 'deep-space') ? 0 : (idx < 7 ? 1000 : 2000);
-
-                let innerHtml = `<span class="theme-name">${t.name}</span>`;
-                if (!isOwned) {
-                    innerHtml += `
-                        <div class="theme-price-overlay" style="border-color: ${t.color1}; color: ${t.color1};">
-                            <span>🔒</span>
-                            <span>${price.toLocaleString()}</span>
-                        </div>
-                    `;
-                }
+                const rarityStars = idx < 3 ? 3 : (idx < 7 ? 4 : 5);
+                const accentColor = t.color1;
 
                 const bgStyle = url ? `background-image: url(${url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
 
                 return `
-                <button class="theme-btn theme-item ${t.id === currentThemeId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
+                <div class="shop-card theme-btn theme-item ${t.id === currentThemeId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
                         data-theme="${t.id}" data-price="${price}"
-                        style="border-color: ${t.color1}55;">
-                    <div class="theme-btn-bg" style="${bgStyle}"></div>
-                    ${innerHtml}
-                </button>
+                        style="--card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
+                    <div class="shop-card-aura"></div>
+                    <div class="shop-card-frame"></div>
+                    <div class="shop-card-header">
+                        <span class="shop-card-title">${t.name}</span>
+                    </div>
+                    <div class="shop-preview-area">
+                        <div class="theme-preview-bg" style="${bgStyle}"></div>
+                        ${!isOwned ? `
+                            <div class="shop-price-overlay">
+                                <span>🔒</span>
+                                <span>${price.toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
                 `;
             }).join('');
 
@@ -901,24 +779,19 @@ export class ShopUI {
                 const rarityStars = 3;
                 const accentColor = skinColors[idx % skinColors.length];
 
-
-
                 return `
-                <div class="note-card skin-btn ${s.id === currentSkinId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
+                <div class="shop-card skin-btn ${s.id === currentSkinId ? 'active' : ''} ${!isOwned ? 'locked' : ''}" 
                      data-skin="${s.id}" data-price="${price}"
                      style="--card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
-                    <div class="note-card-aura"></div>
-                    <div class="note-card-frame"></div>
-                    <div class="note-card-header">
-                        <span class="note-card-title">${s.name}</span>
-                        <div class="note-card-rarity">
-                            ${Array(rarityStars).fill('<span class="rarity-star">★</span>').join('')}
-                        </div>
+                    <div class="shop-card-aura"></div>
+                    <div class="shop-card-frame"></div>
+                    <div class="shop-card-header">
+                        <span class="shop-card-title">${s.name}</span>
                     </div>
-                    <div class="note-preview-area" style="background: radial-gradient(circle at 50% 50%, ${accentColor}11 0%, #05050a 100%);">
+                    <div class="shop-preview-area" style="background: radial-gradient(circle at 50% 50%, ${accentColor}11 0%, #05050a 100%);">
                         <img src="${previewUrl}" class="note-preview-img" alt="${s.name}">
                         ${!isOwned ? `
-                            <div class="note-card-price-overlay">
+                            <div class="shop-price-overlay">
                                 <span>🔒</span>
                                 <span>${price.toLocaleString()}</span>
                             </div>
@@ -933,16 +806,16 @@ export class ShopUI {
             const currentCharId = localStorage.getItem('nexus_active_character') || 'baby';
             
             const characters = [
-                { id: 'baby', name: 'BABY CHARACTER', img: getCharacterImagePath('baby'), price: 0 },
-                { id: 'melodia', name: 'MELODIA', img: getCharacterImagePath('melodia'), price: 2500 },
-                { id: 'flora', name: 'FLORA', img: getCharacterImagePath('flora'), price: 3500 },
-                { id: 'cathy', name: 'CATHY', img: getCharacterImagePath('cathy'), price: 4000 },
-                { id: 'cherry', name: 'CHERRY', img: getCharacterImagePath('cherry'), price: 4500 },
-                { id: 'haru', name: 'HARU', img: getCharacterImagePath('haru'), price: 5000 },
-                { id: 'haruto', name: 'HARUTO', img: getCharacterImagePath('haruto'), price: 5500 },
-                { id: 'luna', name: 'LUNA', img: getCharacterImagePath('luna'), price: 6000 },
-                { id: 'sakura', name: 'SAKURA', img: getCharacterImagePath('sakura'), price: 6500 },
-                { id: 'thumb', name: 'THUMB', img: getCharacterImagePath('thumb'), price: 7000 },
+                { id: 'baby', name: 'Baby', img: getCharacterImagePath('baby'), price: 0 },
+                { id: 'melodia', name: 'Melodia', img: getCharacterImagePath('melodia'), price: 2500 },
+                { id: 'flora', name: 'Flora', img: getCharacterImagePath('flora'), price: 3500 },
+                { id: 'cathy', name: 'Cathy', img: getCharacterImagePath('cathy'), price: 4000 },
+                { id: 'cherry', name: 'Cherry', img: getCharacterImagePath('cherry'), price: 4500 },
+                { id: 'haru', name: 'Haru', img: getCharacterImagePath('haru'), price: 5000 },
+                { id: 'haruto', name: 'Haruto', img: getCharacterImagePath('haruto'), price: 5500 },
+                { id: 'luna', name: 'Luna', img: getCharacterImagePath('luna'), price: 6000 },
+                { id: 'sakura', name: 'Sakura', img: getCharacterImagePath('sakura'), price: 6500 },
+                { id: 'thumb', name: 'Thumb', img: getCharacterImagePath('thumb'), price: 7000 },
             ];
 
             const displayList = [...characters];
@@ -954,22 +827,27 @@ export class ShopUI {
                 const isOwned = economy.isCharacterOwned(c.id);
                 const isActive = c.id === currentCharId;
                 const isPlaceholder = c.name === '???';
+                const rarityStars = 4;
+                const accentColor = '#00E5FF';
 
                 return `
-                    <div class="character-card ${isActive ? 'active' : ''} ${isPlaceholder ? 'placeholder' : ''} ${isOwned ? 'owned' : 'locked'}" 
+                    <div class="shop-card character-card ${isActive ? 'active' : ''} ${isPlaceholder ? 'placeholder' : ''} ${isOwned ? 'owned' : 'locked'}" 
                          data-char="${c.id}" data-price="${c.price}"
-                         style="${isPlaceholder ? 'cursor: default; opacity: 0.3; filter: grayscale(1);' : ''}">
-                        <div class="char-preview-area">
+                         style="${isPlaceholder ? 'cursor: default; opacity: 0.3; filter: grayscale(1);' : ''} --card-glow: ${accentColor}; border-bottom: 3px solid ${accentColor}44;">
+                        <div class="shop-card-aura"></div>
+                        <div class="shop-card-frame"></div>
+                        <div class="shop-card-header">
+                            <span class="shop-card-title">${c.name}</span>
+                        </div>
+                        <div class="shop-preview-area">
                             ${c.img ? `<div class="char-preview-sprite" style="background-image: url('${c.img}');"></div>` : `<div class="char-placeholder">?</div>`}
                             ${!isOwned && !isPlaceholder ? `
-                                <div class="char-price-overlay">
+                                <div class="shop-price-overlay">
                                     <span>🔒</span>
                                     <span>${c.price.toLocaleString()}</span>
                                 </div>
                             ` : ''}
-                            ${isActive ? `<div class="char-check">✓</div>` : ''}
                         </div>
-                        <div class="char-card-title">${c.name}</div>
                     </div>
                 `;
             }).join('');
@@ -980,7 +858,15 @@ export class ShopUI {
             container.querySelectorAll('.char-preview-sprite').forEach((sprite, idx) => {
                 const charData = displayList[idx];
                 if (charData && !charData.id.startsWith('placeholder-')) {
-                    const frame: CharacterFrame = charData.id === currentCharId ? CharacterFrame.HAPPY : CharacterFrame.IDLE;
+                    const isOwned = economy.isCharacterOwned(charData.id);
+                    let frame: CharacterFrame = CharacterFrame.IDLE;
+                    
+                    if (charData.id === currentCharId) {
+                        frame = CharacterFrame.HAPPY;
+                    } else if (!isOwned) {
+                        frame = CharacterFrame.MISS; // Disappointed face for locked characters
+                    }
+                    
                     applyCharacterSpriteStyle(sprite as HTMLElement, charData.id, frame);
                 }
             });
