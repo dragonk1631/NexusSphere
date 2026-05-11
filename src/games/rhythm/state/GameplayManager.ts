@@ -25,7 +25,6 @@ export class GameplayManager {
     private _holdingLanes: (VisualNote | null)[] = [null, null, null, null, null, null];
     private _isAudioStarted = false;
     private _preGameTimer = 0;
-    private _targetStartTime = 0;
     private _lastNoteIndex = 0;
     private _effectiveStartTime = 0;
     private _comboAnim = 0;
@@ -88,7 +87,6 @@ export class GameplayManager {
         this._holdingLanes.fill(null);
         this._isAudioStarted = false;
         this._preGameTimer = 0;
-        this._targetStartTime = 0;
         this._lastNoteIndex = 0;
         this._effectiveStartTime = 0;
         this._comboAnim = 0;
@@ -111,7 +109,6 @@ export class GameplayManager {
         // Seek to 0 to trigger SpessaSynth's silence skipping, then capture REAL start time.
         this.audioEngine.seek(0);
         this._effectiveStartTime = this.audioEngine.currentTime;
-        this._targetStartTime = 0;
 
         const approachTime = 2000 / scrollSpeed;
         this._preGameTimer = approachTime + 500;
@@ -251,7 +248,9 @@ export class GameplayManager {
     }
 
     private startAudio(): void {
-        this.audioEngine.seek(this._targetStartTime);
+        // Use _effectiveStartTime (captured after silence-skip) so MP3 audio
+        // starts at the exact same point as the MIDI sequencer.
+        this.audioEngine.seek(this._effectiveStartTime);
         this.audioEngine.play();
         const actualStartTime = this.audioEngine.currentTime;
         this.audioEngine.startPreciseTime(actualStartTime);

@@ -439,10 +439,47 @@ export class HUDRenderer {
         const currentHp = scoreManager.getHealth();
         const hpPercent = Math.max(0, Math.min(1, currentHp / maxHp));
 
+        // [VISUAL SYSTEM: HP STATE ANALYSIS]
+        const isFull = hpPercent >= 0.999;
+        const isHalfOrLess = hpPercent <= 0.5;
+        const isCritical = hpPercent <= 0.334;
+        const now = state.cachedNow;
+
+        ctx.save();
+        
+        // 1. DYNAMIC HP BAR ALPHA (Blinking)
+        let barAlpha = 1.0;
+        if (isCritical) {
+            // High frequency blink (approx 6Hz)
+            barAlpha = 0.4 + Math.sin(now * 0.03) * 0.6;
+        } else if (isHalfOrLess) {
+            // Moderate frequency blink (approx 2Hz)
+            barAlpha = 0.6 + Math.sin(now * 0.01) * 0.4;
+        }
+        ctx.globalAlpha = barAlpha;
+
+        // 2. OUTER GLOW / AURA
+        if (isFull) {
+            // Full HP Aura (Pulsing Cyan/White)
+            ctx.shadowBlur = 15 + Math.sin(now * 0.005) * 10;
+            ctx.shadowColor = pal.hpBarEnd || '#00f0ff';
+        } else if (isCritical) {
+            // Emergency Red Glow
+            ctx.shadowBlur = 20 + Math.sin(now * 0.04) * 15;
+            ctx.shadowColor = '#ff1744';
+        }
+
         if (hpPercent > 0) {
             const fillRightTopX = hpBarLeftX + (hpBarRightTopX - hpBarLeftX) * hpPercent;
             const fillRightBotX = hpBarLeftX + (hpBarRightBotX - hpBarLeftX) * hpPercent;
-            ctx.fillStyle = this.hpGradient || pal.hpBarMid;
+            
+            // Apply emergency color override for critical HP
+            if (isCritical) {
+                ctx.fillStyle = '#ff1744';
+            } else {
+                ctx.fillStyle = this.hpGradient || pal.hpBarMid;
+            }
+
             ctx.beginPath();
             ctx.moveTo(hpBarLeftX + 2, hpBgTopY + 2);
             ctx.lineTo(fillRightTopX - 2, hpBgTopY + 2);
@@ -450,7 +487,13 @@ export class HUDRenderer {
             ctx.lineTo(hpBarLeftX + 2, hpBgBotY - 2);
             ctx.closePath();
             ctx.fill();
+
+            // Inner light sheen for glass effect
+            ctx.globalAlpha = barAlpha * 0.4;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(hpBarLeftX + 2, hpBgTopY + 2, (fillRightTopX - hpBarLeftX - 4), 3);
         }
+        ctx.restore();
 
         ctx.save();
         ctx.textAlign = 'left';

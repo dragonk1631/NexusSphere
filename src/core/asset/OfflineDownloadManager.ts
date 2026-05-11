@@ -311,7 +311,7 @@ export class OfflineDownloadManager {
 
     public async getCachedResponse(url: string): Promise<Response | undefined> {
         try {
-            // 사운드폰트인 경우 IDB에서 직접 조회하여 반환
+            // 1. SoundFont (IDB) Direct Lookup
             if (url.endsWith('.sf2')) {
                 const blob = await this.binaryVault.get(url);
                 if (blob) return new Response(blob);
@@ -319,9 +319,29 @@ export class OfflineDownloadManager {
 
             const cache = await this.getCache();
             if (!cache) return undefined;
+
+            // 2. PRIMARY: Exact URL Match
             const resolvedUrl = resolveAssetPath(url);
-            return await cache.match(resolvedUrl);
-        } catch {
+            let match = await cache.match(resolvedUrl);
+            if (match) return match;
+
+            // 3. SECONDARY: Fuzzy Path Matching (Resilience for theme/UI assets)
+            // If exact URL fails, search by relative path to handle potential host/casing discrepancies
+            const relativePath = url.includes('assets/') ? url.substring(url.indexOf('assets/')) : url;
+            const normalizedQuery = relativePath.toLowerCase().split('?')[0];
+
+            const keys = await cache.keys();
+            for (const request of keys) {
+                const reqUrl = request.url;
+                if (reqUrl.toLowerCase().includes(normalizedQuery)) {
+                    console.log(`%c[Vault:FUZZY-HIT] %c${normalizedQuery}`, 'color: #00ccff; font-weight: bold;', 'color: #888;');
+                    return await cache.match(request);
+                }
+            }
+
+            return undefined;
+        } catch (e) {
+            console.warn(`[Vault] Cache lookup failed for: ${url}`, e);
             return undefined;
         }
     }

@@ -34,6 +34,7 @@ export interface HighwayRenderState {
     characterImage?: HTMLImageElement;
     comboAnim?: number;
     lastJudgment?: Judgment | null;
+    hpPercent?: number;
 }
 
 /**
@@ -155,14 +156,33 @@ export class HighwayRenderer {
         
         ctx.globalAlpha = 0.35; // Semi-transparent
         
-        // Emotion logic
-        let emotionX = 0; // IDLE
-        let emotionY = 0;
+        // [DYNAMIC EMOTION SYSTEM - REFINED]
+        const hpPercent = state.hpPercent || 1.0;
+        const isSafe = hpPercent > 0.5;
+        const isMiss = state.lastJudgment === Judgment.MISS;
+        const isHit = pulse > 0.01 && !isMiss;
         
-        if (state.lastJudgment === Judgment.MISS) {
-            emotionX = 0; emotionY = 1; // SAD
-        } else if (pulse > 0.01) {
-            emotionX = 1; emotionY = 0; // HAPPY
+        let emotionX = 0; // Column
+        let emotionY = 0; // Row
+        
+        if (isSafe) {
+            // Case 1: HP > 50% (Normal Baseline)
+            if (isMiss) {
+                emotionX = 0; emotionY = 1; // Failure = Disappointed
+            } else if (isHit) {
+                emotionX = 1; emotionY = 0; // Success = Happy
+            } else {
+                emotionX = 0; emotionY = 0; // Idle = Normal
+            }
+        } else {
+            // Case 2: HP <= 50% (Crisis Baseline)
+            if (isMiss) {
+                emotionX = 1; emotionY = 1; // Failure = Crying
+            } else if (isHit) {
+                emotionX = 0; emotionY = 0; // Success = Idle (Relief)
+            } else {
+                emotionX = 0; emotionY = 1; // Idle = Disappointed
+            }
         }
         
         const sw = characterImage.naturalWidth / 2;

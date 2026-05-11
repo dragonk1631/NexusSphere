@@ -7,120 +7,160 @@ export interface GameOverRenderState {
     cachedNow: number;
     transitionStyle: string;
     transitionAlpha: number;
+    characterImage?: HTMLImageElement;
 }
 
+/**
+ * Cinematic Frame-less Game Over Screen v6
+ * Features: Massive Hero Portrait, Clean Side-by-Side layout, High-impact Typography
+ */
 export class GameOverRenderer {
     public render(ctx: CanvasRenderingContext2D, state: GameOverRenderState, _alpha: number = 0): void {
         const { width, height } = state;
+        const now = state.cachedNow;
 
+        // ═══════════════════════════════════════════
+        // LAYER 1: ATMOSPHERE & BACKGROUND
+        // ═══════════════════════════════════════════
         drawAtmosphere(ctx, width, height);
 
-        // 1. Full-screen Vignette for drama
-        const vignette = ctx.createRadialGradient(width / 2, height / 2, width * 0.1, width / 2, height / 2, width * 0.8);
-        vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        vignette.addColorStop(1, 'rgba(20, 0, 10, 0.85)');
+        // Deeper, more atmospheric vignette
+        const vignette = ctx.createRadialGradient(width / 2, height / 2, width * 0.05, width / 2, height / 2, width * 0.9);
+        vignette.addColorStop(0, 'rgba(50, 5, 20, 0.4)');
+        vignette.addColorStop(0.5, 'rgba(15, 2, 8, 0.85)');
+        vignette.addColorStop(1, 'rgba(0, 0, 0, 0.98)');
         ctx.fillStyle = vignette;
         ctx.fillRect(0, 0, width, height);
+
+        this.renderBackgroundEffects(ctx, width, height, now);
 
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // High-Quality Glitchy "GAME OVER"
-        const glitchVal = state.transitionStyle === 'glitch' ? state.transitionAlpha : Math.sin(Date.now() * 0.01) * 0.2;
-        const xOffset = (Math.random() - 0.5) * 15 * glitchVal;
-
-        const textY = height * (state.isMobile ? 0.30 : 0.35);
-        const fontSize = state.isMobile ? 62 : 108;
-        ctx.font = `900 italic ${fontSize}px "Orbitron", sans-serif`;
-
-        // Sophisticated Gradient for "GAME OVER"
-        const textGrad = ctx.createLinearGradient(0, textY - fontSize / 2, 0, textY + fontSize / 2);
-        textGrad.addColorStop(0, '#ffffff'); // Gleaming top
-        textGrad.addColorStop(0.3, '#ff0055'); // Hot neon
-        textGrad.addColorStop(0.7, '#ff0055');
-        textGrad.addColorStop(1, '#6a00ff');   // Purple depth
-
-        ctx.shadowBlur = 45;
-        ctx.shadowColor = 'rgba(255, 0, 85, 0.6)';
-        ctx.lineWidth = state.isMobile ? 12 : 18;
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
-        ctx.strokeText("GAME OVER", width / 2 + xOffset, textY);
-
+        // ═══════════════════════════════════════════
+        // LAYER 2: TITLE (TOP)
+        // ═══════════════════════════════════════════
+        const titleY = height * 0.16;
+        const titleSize = state.isMobile ? 54 : 96;
+        ctx.font = `900 italic ${titleSize}px "Orbitron", sans-serif`;
+        const tGrad = ctx.createLinearGradient(0, titleY - titleSize/2, 0, titleY + titleSize/2);
+        tGrad.addColorStop(0, '#ffffff'); tGrad.addColorStop(0.4, '#ff1744'); tGrad.addColorStop(1, '#2f3542');
+        ctx.shadowBlur = 30; ctx.shadowColor = 'rgba(255, 71, 87, 0.6)';
+        ctx.fillStyle = tGrad; ctx.fillText("GAME OVER", width / 2, titleY);
         ctx.shadowBlur = 0;
-        ctx.fillStyle = textGrad;
-        ctx.fillText("GAME OVER", width / 2 + xOffset, textY);
 
-        // Scanline interference (Sophisticated thin lines)
-        ctx.globalAlpha = 0.05;
-        ctx.fillStyle = '#ff0055';
-        const seed = Math.floor(state.cachedNow / 40);
-        for (let i = 0; i < height; i += 4) {
-            const lineRand = Math.sin(i * 0.8 + seed) * 10000;
-            if (lineRand - Math.floor(lineRand) > 0.6) ctx.fillRect(0, i, width, 1);
+        // ═══════════════════════════════════════════
+        // LAYER 3: CLEAN SIDE-BY-SIDE LAYOUT (NO FRAMES)
+        // ═══════════════════════════════════════════
+        const sf = state.isMobile ? 0.85 : 1.0;
+        
+        // Portrait Configuration (Balanced: Larger for Mobile, Moderate for PC)
+        const portraitH = height * (state.isMobile ? 0.675 : 0.45); 
+        const btnW = state.isMobile ? 240 : 340;
+        const btnH = state.isMobile ? 56 : 68;
+        const btnGap = state.isMobile ? 16 : 24;
+        
+        const spacing = state.isMobile ? 30 : 60;
+        
+        // Calculate dynamic width based on image ratio
+        let portraitW = portraitH * 0.75; 
+        if (state.characterImage && state.characterImage.complete && state.characterImage.naturalWidth > 0) {
+            const sw = state.characterImage.naturalWidth / 2;
+            const sh = state.characterImage.naturalHeight / 2;
+            portraitW = portraitH * (sw / sh);
         }
-        ctx.globalAlpha = 1.0;
+        
+        const totalContentW = portraitW + spacing + btnW;
+        const startX = (width - totalContentW) / 2;
+        const centerY = height * 0.52;
 
-        // --- Interactive Buttons ---
-        const btnW = state.isMobile ? Math.min(width * 0.85, 300) : 420;
-        const btnH = state.isMobile ? 55 : 64;
-        const centerX = width / 2;
+        // 3a. Hero Character Portrait (LEFT)
+        if (state.characterImage && state.characterImage.complete && state.characterImage.naturalWidth > 0) {
+            const sw = state.characterImage.naturalWidth / 2;
+            const sh = state.characterImage.naturalHeight / 2;
+            const drawX = startX;
+            const drawY = centerY - portraitH / 2;
 
-        const minGap = state.isMobile ? 15 : 20;
-        const spacing = btnH + minGap;
-        const baseY = height * (state.isMobile ? 0.65 : 0.68);
-        const retryY = baseY;
-        const selectY = baseY + spacing;
+            ctx.save();
+            ctx.filter = 'drop-shadow(0px 0px 40px rgba(255, 0, 0, 0.35)) brightness(1.05)';
+            ctx.drawImage(state.characterImage, sw, sh, sw, sh, drawX, drawY, portraitW, portraitH);
+            ctx.restore();
+        }
 
-        // Button Styles
-        const retryGrad = ctx.createLinearGradient(centerX - btnW / 2, 0, centerX + btnW / 2, 0);
-        retryGrad.addColorStop(0, '#ff0055');
-        retryGrad.addColorStop(1, '#ff4d4d');
+        // 3b. Action Buttons (RIGHT)
+        const btnX = startX + portraitW + spacing;
+        const retryY = centerY - (btnH + btnGap) / 2;
+        const selectY = centerY + (btnH + btnGap) / 2;
 
-        const selectGrad = ctx.createLinearGradient(centerX - btnW / 2, 0, centerX + btnW / 2, 0);
-        selectGrad.addColorStop(0, '#1a1a2e');
-        selectGrad.addColorStop(1, '#16213e');
-
-        // Draw Retry
-        ctx.save();
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = 'rgba(255, 0, 85, 0.4)';
-        drawCuteTile(ctx, centerX - btnW / 2, retryY - btnH / 2, btnW, btnH, retryGrad, true, '#ffffff');
-        drawCuteLabel(ctx, "RETRY (Enter)", centerX, retryY, 'center', state.isMobile ? 22 : 26, '#fff', true);
+        // RETRY
+        const rGrad = ctx.createLinearGradient(btnX, 0, btnX + btnW, 0);
+        rGrad.addColorStop(0, '#ff1744'); rGrad.addColorStop(1, '#b71c1c');
+        ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = 'rgba(255, 0, 0, 0.5)';
+        drawCuteTile(ctx, btnX, retryY - btnH / 2, btnW, btnH, rGrad, true, '#ffffff');
+        drawCuteLabel(ctx, "RETRY", btnX + btnW / 2, retryY, 'center', state.isMobile ? 24 : 28, '#fff', true);
         ctx.restore();
 
-        // Draw Select
+        // SONG SELECT
+        const sGrad = ctx.createLinearGradient(btnX, 0, btnX + btnW, 0);
+        sGrad.addColorStop(0, '#37474f'); sGrad.addColorStop(1, '#102027');
         ctx.save();
-        drawCuteTile(ctx, centerX - btnW / 2, selectY - btnH / 2, btnW, btnH, selectGrad, true, 'rgba(255, 255, 255, 0.3)');
-        drawCuteLabel(ctx, "SONG SELECTION (Esc)", centerX, selectY, 'center', state.isMobile ? 20 : 24, 'rgba(255, 255, 255, 0.8)', true);
+        drawCuteTile(ctx, btnX, selectY - btnH / 2, btnW, btnH, sGrad, true, 'rgba(255, 255, 255, 0.4)');
+        drawCuteLabel(ctx, "SONG SELECT", btnX + btnW / 2, selectY, 'center', state.isMobile ? 20 : 24, 'rgba(255, 255, 255, 0.95)', true);
+        ctx.restore();
+
+        // ═══════════════════════════════════════════
+        // LAYER 4: HIGH-IMPACT SUBTITLE (BOTTOM)
+        // ═══════════════════════════════════════════
+        const subY = height * 0.88;
+        const subSize = state.isMobile ? 26 : 38;
+        ctx.font = `900 italic ${subSize}px "Orbitron"`;
+        const msgs = ["NEVER GIVE UP", "STAY DETERMINED", "SYSTEM FAILURE", "LIMIT BREAK...", "TRY AGAIN"];
+        const activeMsg = msgs[Math.floor((now / 5000) % msgs.length)];
+
+        ctx.save();
+        ctx.lineWidth = 10 * sf; ctx.strokeStyle = '#000000'; ctx.lineJoin = 'round';
+        ctx.strokeText(activeMsg, width / 2, subY);
+        ctx.shadowBlur = 30; ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+        const subGrad = ctx.createLinearGradient(0, subY - subSize/2, 0, subY + subSize/2);
+        subGrad.addColorStop(0, '#ffffff'); subGrad.addColorStop(1, '#999999');
+        ctx.fillStyle = subGrad; ctx.fillText(activeMsg, width / 2, subY);
         ctx.restore();
 
         ctx.restore();
     }
 
     public getButtonAt(x: number, y: number, width: number, height: number, isMobile: boolean): number {
-        const btnW = isMobile ? Math.min(width * 0.85, 300) : 420;
-        const btnH = isMobile ? 55 : 64;
-        const centerX = width / 2;
-        const minGap = isMobile ? 15 : 20;
-        const spacing = btnH + minGap;
-        const baseY = height * (isMobile ? 0.65 : 0.68);
-
-        const retryLeft = centerX - btnW / 2;
-        const retryRight = centerX + btnW / 2;
-        const retryTop = baseY - btnH / 2;
-        const retryBottom = baseY + btnH / 2;
-
-        if (x >= retryLeft && x <= retryRight && y >= retryTop && y <= retryBottom) {
-            return 0; // RETRY
-        }
-
-        const selectTop = (baseY + spacing) - btnH / 2;
-        const selectBottom = (baseY + spacing) + btnH / 2;
-        if (x >= retryLeft && x <= retryRight && y >= selectTop && y <= selectBottom) {
-            return 1; // SONG SELECTION
-        }
-
+        const portraitH = height * (isMobile ? 0.675 : 0.45); 
+        const btnW = isMobile ? 240 : 340;
+        const btnH = isMobile ? 56 : 68;
+        const btnGap = isMobile ? 16 : 24;
+        
+        const spacing = isMobile ? 30 : 60;
+        const portraitW = portraitH * 0.75; // Approximation for hit detection
+        const totalContentW = portraitW + spacing + btnW;
+        const startX = (width - totalContentW) / 2;
+        const centerY = height * 0.52;
+        
+        const btnX = startX + portraitW + spacing;
+        const retryY = centerY - (btnH + btnGap) / 2;
+        const selectY = centerY + (btnH + btnGap) / 2;
+        
+        if (x >= btnX && x <= btnX + btnW && y >= retryY - btnH / 2 && y <= retryY + btnH / 2) return 0;
+        if (x >= btnX && x <= btnX + btnW && y >= selectY - btnH / 2 && y <= selectY + btnH / 2) return 1;
+        
         return -1;
+    }
+
+    private renderBackgroundEffects(ctx: CanvasRenderingContext2D, w: number, h: number, now: number) {
+        ctx.save();
+        for (let i = 0; i < 22; i++) {
+            const s = i * 789.12;
+            const x = (s % 1) * w + Math.sin(now * 0.0006 + s) * 60;
+            const y = h - ((now * 0.14 + s * h) % (h + 100));
+            ctx.fillStyle = '#ff1744'; ctx.globalAlpha = 0.3 * (y / h);
+            ctx.beginPath(); ctx.arc(x, y, (s % 1) * 4 + 1, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
     }
 }

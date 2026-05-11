@@ -35,6 +35,7 @@ export class ScoreManager {
     private isTestMode: boolean = false;
     private isServerDown: boolean = false;
     private liveStreak: number = 0; // Persistent streak across songs
+    private currentDifficulty: string = 'NORMAL';
 
     // --- Progression State (from server for logged-in, from localStorage for guest) ---
     private totalXP: number = 0;
@@ -84,7 +85,16 @@ export class ScoreManager {
             this.missCount++;
             this.resetCombo();
             this.liveStreak = 0;
-            if (!this.isTestMode) this.damage(5);
+            if (!this.isTestMode) {
+                // [HARDCORE DAMAGE BALANCE]
+                // Easy: 5 | Normal: 6.5 | Hard: 8 | Extreme: 10
+                let damageAmount = 5.0;
+                if (this.currentDifficulty === 'NORMAL') damageAmount = 6.5;
+                else if (this.currentDifficulty === 'HARD') damageAmount = 8.0;
+                else if (this.currentDifficulty === 'EXTREME') damageAmount = 10.0;
+                
+                this.damage(damageAmount);
+            }
             return;
         }
 
@@ -100,7 +110,16 @@ export class ScoreManager {
 
         if (!this.isTestMode) {
             this.score += baseScore * (1 + Math.min(this.currentCombo, 50) * 0.1);
-            this.heal(2);
+            
+            // [HARDCORE RECOVERY BALANCE] 
+            // 1. Base recovery halved (2 -> 1)
+            // 2. Difficulty Scaling (Higher difficulty = less recovery)
+            let recoveryScale = 1.0;
+            if (this.currentDifficulty === 'NORMAL') recoveryScale = 0.6;
+            else if (this.currentDifficulty === 'HARD') recoveryScale = 0.3;
+            else if (this.currentDifficulty === 'EXTREME') recoveryScale = 0.1;
+            
+            this.heal(1.0 * recoveryScale);
         }
     }
 
@@ -146,6 +165,7 @@ export class ScoreManager {
 
     public damage(amount: number): void { this.health = Math.max(0, this.health - amount); }
     public heal(amount: number): void { this.health = Math.min(this.maxHealth, this.health + amount); }
+    public setDifficulty(difficulty: string): void { this.currentDifficulty = difficulty || 'NORMAL'; }
     public isDead(): boolean { return this.health <= 0; }
 
     public getTotalXP(): number { return this.totalXP; }

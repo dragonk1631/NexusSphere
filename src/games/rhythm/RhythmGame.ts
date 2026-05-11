@@ -421,6 +421,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         this.inputManager.resetStates();
         this.inputManager.updateKeyMode(this.keyMode);
         this.scoreManager?.reset();
+        this.scoreManager?.setDifficulty(this.currentDifficulty);
         this.scoreManager?.setTestMode(this.isTestMode);
         this.gameplayManager.reset();
         this.gameplayManager.start(this.visualNotes, this.scrollSpeed);
@@ -487,6 +488,7 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.bpm = this.midiData?.bpm || 120;
         s.isMobile = this.isMobile;
         s.keyLabels = this.inputManager.getKeyLabels();
+        s.hpPercent = this.scoreManager.getHealth() / this.scoreManager.getMaxHealth();
 
         // [NEW] Character & Animation Integration for Highway Overlay
         s.comboAnim = this.gameplayManager.comboAnim;
@@ -515,6 +517,20 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
         s.cachedNow = performance.now();
         s.transitionStyle = this.transitionSystem.getStyle();
         s.transitionAlpha = this.transitionSystem.getAlpha();
+
+        // Character Portrait for Game Over Screen
+        const auth = AuthService.getInstance();
+        if (auth.isSignedIn()) {
+            const currentCharId = EconomyManager.getInstance().getActiveCharacter();
+            if (!this.charImageCache.has(currentCharId)) {
+                const img = new Image();
+                img.src = PathUtils.getCharacterImagePath(currentCharId);
+                this.charImageCache.set(currentCharId, img);
+            }
+            s.characterImage = this.charImageCache.get(currentCharId);
+        } else {
+            s.characterImage = undefined;
+        }
     }
 
     public getPerspectiveX(lane: number, y: number): number {
@@ -719,17 +735,39 @@ export class RhythmGame extends BaseGame implements IGameInputHandler, IJudgment
     }
 
     public handleRetry() {
+        if (this.isNavigating) return;
+        this.isNavigating = true;
         const loading = LoadingOverlay.getInstance();
         this.transitionSystem.start(async () => {
-            // CRITICAL: Perform a FULL sequencer destruction/recreation to clear SpessaSynth residue
-            this.audioEngine.stop(true); 
-            this.audioEngine.resetTimeState();
-            loading.show("RETRYING...");
-            await BackgroundRenderer.getInstance().waitForReady((p) => loading.updateProgress(p));
-            await this.load();
-            await this.create(); // Ensure creation is awaited if it becomes async
-            this.start();
-            loading.hide();
+            try {
+                // Stop audio cleanly
+                this.audioEngine.stop(true);
+                loading.show("RETRYING...");
+
+                // Step 1: Ensure AudioContext is active (identical to handlePlayRequest)
+                await this.audioEngine.resume();
+                loading.updateProgress(0.2);
+
+                // Step 2: Reload MIDI & recreate notes
+                await this.load();
+                loading.updateProgress(0.5);
+                await this.create();
+                loading.updateProgress(0.7);
+
+                // Step 3: Pre-warm audio engine (silent pulse to stabilize clocks)
+                await this.audioEngine.warmup();
+                loading.updateProgress(1.0);
+
+                // Step 4: Start — identical to first play
+                this.isNavigating = false;
+                this.start();
+                loading.hide();
+            } catch (e) {
+                console.error("[RhythmGame] Retry Failed:", e);
+                this.isNavigating = false;
+                loading.hide();
+                this.backToSongSelection();
+            }
         }, 'fade');
     }
     public onGameOverPointer = (x: number, y: number) => {

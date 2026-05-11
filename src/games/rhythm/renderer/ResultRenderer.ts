@@ -52,11 +52,12 @@ export class ResultRenderer {
         // [POLISH] Do NOT clearRect here. Let the engine's background (Blurred cover art) show through the 0.7 alpha panels.
         // this.drawBackground(ctx, width, height, song?.backgroundUrl || null, sf);
 
-        // 2. Main Frame Geometry (Landscape Optimized 3-Column)
+        // 2. Main Frame Geometry (Safe Height & Balanced Shift)
         const panelW = isPortrait ? width * 0.94 : width * 0.92;
-        const panelH = isPortrait ? height * 0.82 : height * 0.72;
+        const panelH = isPortrait ? height * 0.82 : height * 0.80; // Slightly reduced to ensure margins
         const panelX = (width - panelW) / 2;
-        const panelY = (height - panelH) / 2 + (isPortrait ? 40 * scaleFactor : 15 * scaleFactor);
+        // [POLISH] Balanced shift: Enough to clear header, but not too much to clip bottom
+        const panelY = (height - panelH) / 2 + (isPortrait ? 20 * scaleFactor : 25 * scaleFactor);
 
         // 3. TECH HEADER (Top-Right "RESULT" - Snapped to Panel Right Edge)
         ctx.save();
@@ -87,14 +88,7 @@ export class ResultRenderer {
         ctx.fillText("OVER RAPID SYSTEM / CORE ENGINE v4.5C", headerX, headerY + (12 * sf)); 
         ctx.restore();
 
-        // [NEW] ALL COMBO & S-Rank Celebration Layer
-        if (scoreManager.isFullCombo()) {
-            this.renderCelebration(ctx, width, height);
-        }
-
-        if (grade.startsWith('S')) {
-            this.renderConfetti(ctx, width, height, elapsed);
-        }
+        // Celebration layer is rendered at the very end of this method for front-layer visibility.
 
         // Glassmorphism Panel (Polish: More transparent + Multi-layer glow)
         ctx.save();
@@ -124,7 +118,7 @@ export class ResultRenderer {
         if (isPortrait) {
             this.renderPortraitLayout(ctx, panelX, panelY, panelW, panelH, maxCombo, accuracy, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel, score);
         } else {
-            this.renderLandscapeLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, difficultyLabel, charImage);
+            this.renderLandscapeLayout(ctx, panelX, panelY, panelW, panelH, score, maxCombo, stats, grade, pal, scaleFactor, JUDGE_COLORS, song, charImage);
         }
 
         // 5. XP & Level System Panel (EXP Phase Popup)
@@ -132,136 +126,108 @@ export class ResultRenderer {
             this.renderXPPopup(ctx, width, height, scoreManager, sf, elapsed, audioEngine);
         }
 
-        // 6. Action Hint
-        ctx.save();
-        const hintSize = Math.max(14, 18 * sf);
-        ctx.font = `400 ${hintSize}px "Orbitron"`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.textAlign = 'center';
-        const hintText = phase === 'SCORE' ? "CLICK TO VIEW EXPERIENCE" : "CLICK ANYWHERE TO CONTINUE";
-        ctx.fillText(hintText, width / 2, height - (35 * sf));
-        ctx.restore();
+        // 6. Action Hint Removed as per user request to gain height
+        
+        // 7. Celebration Layer (Always on TOP)
+        const isFC = scoreManager.isFullCombo();
+        this.renderConfetti(ctx, width, height, elapsed, sf, isFC);
+        
+        if (isFC) {
+            this.renderCelebration(ctx, width, height);
+        }
     }
 
-    private renderLandscapeLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, score: number, maxCombo: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, difficultyLabel: string, charImage: HTMLImageElement | null) {
+    private renderLandscapeLayout(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, score: number, maxCombo: number, stats: any, grade: string, pal: any, sf: number, judgeColors: any, song: SongEntry | null, charImage: HTMLImageElement | null) {
         const colW = pw / 3;
-        const margin = 30 * sf; // [AIR-FLOW] Increased horizontal margin between columns
-        
-        // Content area excludes the bottom action area to prevent overlaps
+        const margin = 30 * sf;
         const footerH = 100 * sf;
         const contentH = ph - footerH - margin;
 
-        // --- Left Column: Song Info & Album Art (Now Character Sprite) ---
-        const leftX = px + margin;
-        this.renderSongSection(ctx, leftX, py + margin, colW - margin * 2, contentH, song, sf, this.getGradeColor(grade), difficultyLabel, charImage, grade);
+        // 1. Song & Char (Left)
+        this.renderSongSection(ctx, px + margin, py + margin, colW - margin * 1.5, contentH, song, sf, this.getGradeColor(grade), charImage);
 
-        // --- Center Column: Rank & Score ---
+        // 2. Score & Rank (Center)
         const centerX = px + colW;
-        this.renderRankSection(ctx, centerX + margin, py + margin, colW - margin * 2, contentH, grade, score, pal, sf, stats);
+        this.renderRankSection(ctx, centerX + margin/2, py + margin, colW - margin, contentH, grade, score, sf, stats);
 
-        // --- Right Column: Stats ---
+        // 3. Judge & Max Combo (Right)
         const rightX = px + colW * 2;
-        this.renderStatsSection(ctx, rightX + margin, py + margin, colW - margin * 2, contentH, stats, maxCombo, judgeColors, pal, sf);
+        this.renderStatsSection(ctx, rightX + margin/2, py + margin, colW - margin * 1.5, contentH, stats, maxCombo, judgeColors, pal, sf);
 
-        // --- Bottom Row: Rewards (Expanded, Buttons Removed as per user request) ---
+        // --- Bottom Row: Rewards ---
         const bottomY = py + ph - (75 * sf);
-        
-        const rewardW = pw - margin * 2; 
-        this.renderRewardBar(ctx, px + margin, bottomY, rewardW, 60 * sf, sf, this.getGradeColor(grade));
+        this.renderRewardBar(ctx, px + margin, bottomY, pw - margin * 2, 60 * sf, sf, this.getGradeColor(grade));
     }
 
-    private renderSongSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, song: SongEntry | null, sf: number, accent: string, difficultyLabel: string, charImage: HTMLImageElement | null, grade: string) {
+    private renderSongSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, song: SongEntry | null, sf: number, accent: string, charImage: HTMLImageElement | null) {
         ctx.save();
-        this.drawTechBorder(ctx, x, y, w, h, accent, sf);
+        this.drawTechBorder(ctx, x, y, w, h, accent, sf, "CHARACTER");
         
-        // 1. Fixed Header (TRACK -> CHARACTER)
-        ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
-        ctx.fillStyle = accent;
-        ctx.textAlign = 'center';
-        const headerY = y + (25 * sf);
-        ctx.fillText("CHARACTER", x + w/2, headerY);
-
-        // 2. Centered Content Block Calculation
-        const innerMargin = 20 * sf;
-        const artSize = Math.min(w - innerMargin * 2, h * 0.40);
-        const titleBaseSize = Math.floor(26 * sf); 
-        const artistBaseSize = Math.floor(16 * sf);
-        const levelBaseSize = Math.floor(20 * sf);
+        // 1. Grouped Content Height Calculation for Vertical Centering
+        const innerMargin = 15 * sf;
+        const artSize = Math.min(w - innerMargin * 3, h * 0.50); 
+        const titleBoxH = 65 * sf;
         const gap = 15 * sf;
+        const totalContentH = artSize + gap + titleBoxH;
         
-        const totalContentH = artSize + gap + titleBaseSize + (gap/2) + artistBaseSize + gap + levelBaseSize;
-        const contentStartY = headerY + (25 * sf) + (h - (headerY - y) - (25 * sf) - totalContentH) / 2;
-
+        const contentStartY = y + (h - totalContentH) / 2;
+        
         const artX = x + (w - artSize) / 2;
         const artY = contentStartY;
 
-        // 3. Character Sprite (Replacing Album Art)
+        // 3. Character Sprite
         ctx.save();
-        ctx.shadowBlur = 25 * sf;
+        ctx.shadowBlur = 20 * sf;
         ctx.shadowColor = accent;
         this.drawTechBorder(ctx, artX, artY, artSize, artSize, accent, sf);
         
         if (charImage && charImage.complete && charImage.naturalWidth > 0) {
-            // Determine emotion based on grade
-            let emotionX = 0; // 0: IDLE, 1: HAPPY
-            let emotionY = 0; // 0: Top, 1: Bottom (SAD)
-            
-            const g = grade.toUpperCase();
-            if (g.startsWith('S')) {
-                emotionX = 1; emotionY = 0; // HAPPY
-            } else if (g === 'A') {
-                emotionX = 0; emotionY = 0; // IDLE
-            } else {
-                emotionX = 0; emotionY = 1; // SAD
-            }
-            
             const sw = charImage.naturalWidth / 2;
             const sh = charImage.naturalHeight / 2;
             const ratio = sw / sh;
-            
-            // Letterbox 모드: 세로를 기준으로 채우고 가로 비율 맞춤
             const drawHeight = artSize - 8 * sf;
             const drawWidth = drawHeight * ratio;
             const drawX = artX + (artSize - drawWidth) / 2;
             const drawY = artY + 4 * sf;
             
-            ctx.drawImage(
-                charImage, 
-                emotionX * sw, emotionY * sh, sw, sh,
-                drawX, drawY, drawWidth, drawHeight
-            );
+            ctx.drawImage(charImage, 0, 0, sw, sh, drawX, drawY, drawWidth, drawHeight);
         } else {
-            // Fallback to procedural art if image fails
             this.drawProceduralCover(ctx, artX + 4 * sf, artY + 4 * sf, artSize - 8 * sf, song?.name || "??", sf);
         }
         ctx.restore();
 
-        // 4. Metadata Block (Centered below art)
-        const fullName = song?.name || "Unknown Track";
-        const parts = fullName.split(' - ');
-        const title = (parts.length > 1 ? parts.slice(1).join(' - ') : fullName).replace('.mp3', '');
+        // 4. Metadata Block: Framed Song Title (Auto-shrink to fit)
+        const fullName = (song?.name || "Unknown Track").replace('.mp3', '');
         const centerX = x + w / 2;
-        const textY = artY + artSize + (35 * sf);
+        const titleY = artY + artSize + gap;
+        const titleBoxW = w - (innerMargin * 2);
+
+        ctx.save();
+        // Title Frame Box
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1 * sf;
+        this.drawRoundedRect(ctx, x + innerMargin, titleY, titleBoxW, titleBoxH, 10 * sf);
+        ctx.fill();
+        ctx.stroke();
 
         ctx.textAlign = 'center';
-        
-        // Title (Strict Absolute Fit Loop)
-        const maxTitleW = w - innerMargin * 1.5;
-        let titleSize = titleBaseSize;
-        ctx.font = `900 ${titleSize}px "Orbitron"`;
-        while(ctx.measureText(title).width > maxTitleW && titleSize > 12 * sf) {
-            titleSize -= 0.5;
-            ctx.font = `900 ${titleSize}px "Orbitron"`;
-        }
+        ctx.textBaseline = 'middle';
         ctx.fillStyle = '#fff';
-        ctx.fillText(title, centerX, textY);
         
-        // Difficulty & Level (Moved up as Artist is removed)
-        const levelY = textY + titleSize + (20 * sf);
-        ctx.font = `900 ${levelBaseSize}px "Orbitron"`;
-        ctx.fillStyle = '#ff4757';
-        ctx.fillText(`${difficultyLabel}  -  Lv.${song?.difficulty || 1}`, centerX, levelY);
+        // Auto-shrink Logic
+        let currentFontSize = Math.floor(22 * sf);
+        const maxWidth = titleBoxW - (20 * sf); // Padding
+        ctx.font = `900 ${currentFontSize}px "Orbitron"`;
         
+        while (ctx.measureText(fullName).width > maxWidth && currentFontSize > 10 * sf) {
+            currentFontSize -= 1;
+            ctx.font = `900 ${currentFontSize}px "Orbitron"`;
+        }
+        
+        ctx.fillText(fullName, centerX, titleY + titleBoxH * 0.5);
+        
+        ctx.restore();
         ctx.restore();
     }
 
@@ -315,54 +281,63 @@ export class ResultRenderer {
         ctx.restore();
     }
 
-    private renderRankSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, grade: string, score: number, pal: any, sf: number, stats: any) {
+    private renderRankSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, grade: string, score: number, sf: number, stats: any) {
         ctx.save();
         const accent = this.getGradeColor(grade);
-        this.drawTechBorder(ctx, x, y, w, h, accent, sf);
+        this.drawTechBorder(ctx, x, y, w, h, accent, sf, "SCORE & RANK");
         
+        // Premium Spacing (Increased Gaps for airy feel)
+        const gradeFontSize = Math.floor(135 * sf);
+        const scoreFontSize = Math.floor(40 * sf);
+        const gap = 50 * sf; 
+        const badgeGap = 35 * sf;
+        
+        // Safety Top Margin: Ensure it never touches the "SCORE & RANK" tab header
+        const safetyTopMargin = 45 * sf;
+        
+        const totalContentH = (gradeFontSize * 0.8) + gap + scoreFontSize + (stats.perfect > 0 ? badgeGap + 24 * sf : 0); 
+        // Centering within the REMAINING space after the safety margin
+        const startY = y + safetyTopMargin + (h - safetyTopMargin - totalContentH) / 2;
+
         const centerX = x + w / 2;
 
-        // Label (Centered for Unification)
-        ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
-        ctx.fillStyle = pal.scorePanel;
-        ctx.textAlign = 'center';
-        ctx.fillText("SCORE & RANK", centerX, y + (25 * sf));
-
-        // Grade
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        // [POLISH] Grouped and Centered: Increased gap from header and refined size
-        ctx.font = `900 ${Math.floor(135 * sf)}px "Orbitron"`;
+        ctx.font = `900 ${gradeFontSize}px "Orbitron"`;
         ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
         ctx.shadowBlur = 60 * sf;
         ctx.shadowColor = accent;
-        ctx.fillText(grade, centerX, y + h * 0.45);
+        ctx.fillText(grade, centerX, startY);
         
         // Score
-        ctx.font = `900 ${Math.floor(40 * sf)}px "Orbitron"`; // Reduced size for better grouping balance
+        ctx.font = `900 ${scoreFontSize}px "Orbitron"`; 
         ctx.shadowBlur = 20 * sf;
         const scoreStr = Math.floor(score).toString().padStart(7, '0');
-        ctx.fillText(scoreStr, centerX, y + h * 0.70);
+        const scoreY = startY + (gradeFontSize * 0.8) + gap;
+        ctx.fillText(scoreStr, centerX, scoreY);
         
-        // NEW RECORD - Improved Position (Adjusted for grouped centering)
+        // NEW RECORD - Button Style Badge
         if (stats.perfect > (stats.totalNotes || 0) * 0.9 || score > 0) {
             ctx.save();
+            const label = "NEW RECORD!";
             ctx.font = `900 ${Math.floor(14 * sf)}px "Orbitron"`;
-            const badgeW = ctx.measureText("NEW RECORD!").width + 20 * sf;
+            const badgeW = ctx.measureText(label).width + 30 * sf;
+            const badgeH = 26 * sf;
             const badgeX = centerX - badgeW / 2;
-            const badgeY = y + h * 0.88;
+            const badgeY = scoreY + scoreFontSize + badgeGap;
             
             ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
             ctx.beginPath();
-            this.drawRoundedRect(ctx, badgeX, badgeY - 14 * sf, badgeW, 20 * sf, 4 * sf);
+            this.drawRoundedRect(ctx, badgeX, badgeY - badgeH / 2, badgeW, badgeH, 6 * sf);
             ctx.fill();
             ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 1.5 * sf;
             ctx.stroke();
             
             ctx.fillStyle = '#ffd700';
             ctx.textAlign = 'center';
-            ctx.fillText("NEW RECORD!", centerX, badgeY);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, centerX, badgeY);
             ctx.restore();
         }
         ctx.restore();
@@ -370,60 +345,74 @@ export class ResultRenderer {
 
     private renderStatsSection(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, stats: any, maxCombo: number, colors: any, pal: any, sf: number) {
         ctx.save();
-        this.drawTechBorder(ctx, x, y, w, h, pal.scorePanel, sf);
+        this.drawTechBorder(ctx, x, y, w, h, pal.scorePanel, sf, "JUDGE");
 
-        // 1. Fixed Header
-        ctx.font = `700 ${Math.floor(18 * sf)}px "Orbitron"`;
-        ctx.fillStyle = pal.scorePanel;
-        ctx.textAlign = 'center';
-        const headerY = y + (28 * sf);
-        ctx.fillText("JUDGE", x + w/2, headerY);
-
-        // 2. Centered Body Calculation
         const rows = [
             { label: "PERFECT", val: stats.perfect, color: colors.PERFECT },
             { label: "GREAT", val: stats.great, color: colors.GREAT },
             { label: "GOOD", val: stats.good, color: colors.GOOD },
-            { label: "MISS", val: stats.miss, color: colors.MISS },
-            { label: "MAX COMBO", val: maxCombo, color: '#fff' }
+            { label: "MISS", val: stats.miss, color: colors.MISS }
         ];
         
-        const labelSize = Math.floor(18 * sf); // [POLISH] Enlarged base labels
-        const valSize = Math.floor(32 * sf);   // [POLISH] Enlarged base numericals
-        const rowH = Math.min(65 * sf, (h - (headerY - y) - (40 * sf)) / rows.length);
-        const totalRowsH = rows.length * rowH;
+        const labelSize = Math.floor(26 * sf); 
+        const valSize = Math.floor(26 * sf);   
         
-        const startY = headerY + (30 * sf) + (h - (headerY - y) - (30 * sf) - totalRowsH) / 2;
+        // Split box: Top 65% for Judge list, Bottom 35% for Max Combo
+        const judgeH = h * 0.65;
+        const comboH = h * 0.35;
+        
+        const rowH = Math.min(65 * sf, (judgeH - (20 * sf)) / rows.length);
+        const totalRowsH = rows.length * rowH;
+        const startY = y + (judgeH - totalRowsH) / 2 + (10 * sf);
 
         rows.forEach((row, i) => {
             const rowY = startY + i * rowH;
             const innerMargin = 30 * sf;
             
-            // Label (Left Aligned)
-            let currentLabelSize = labelSize;
-            ctx.font = `700 ${currentLabelSize}px "Orbitron"`;
-            while(ctx.measureText(row.label).width > (w * 0.45) && currentLabelSize > 10 * sf) {
-                currentLabelSize -= 0.5;
-                ctx.font = `700 ${currentLabelSize}px "Orbitron"`;
-            }
+            ctx.font = `900 ${labelSize}px "Orbitron"`;
             ctx.fillStyle = row.color;
             ctx.textAlign = 'left';
-            ctx.fillText(row.label, x + innerMargin, rowY + (valSize/4));
+            ctx.textBaseline = 'middle';
+            ctx.fillText(row.label, x + innerMargin, rowY + rowH / 2);
             
-            // Value (Right Aligned)
-            let currentValSize = valSize;
-            ctx.font = `900 ${currentValSize}px "Orbitron"`;
-            const valStr = row.val.toString();
-            while(ctx.measureText(valStr).width > (w * 0.45) && currentValSize > 12 * sf) {
-                currentValSize -= 0.5;
-                ctx.font = `900 ${currentValSize}px "Orbitron"`;
-            }
+            ctx.font = `900 ${valSize}px "Orbitron"`;
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'right';
-            ctx.fillText(valStr, x + w - innerMargin, rowY + (valSize/4));
+            ctx.textBaseline = 'middle';
+            ctx.fillText(row.val.toString(), x + w - innerMargin, rowY + rowH / 2);
         });
+
+        // --- Independent MAX COMBO (Inside the same box, but separated) ---
+        const comboY = y + judgeH;
+        const centerX = x + w / 2;
+        
+        // Separator line (Subtle)
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 20 * sf, comboY);
+        ctx.lineTo(x + w - 20 * sf, comboY);
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Label on top
+        ctx.font = `900 ${Math.floor(16 * sf)}px "Orbitron"`;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText("MAX COMBO", centerX, comboY + comboH * 0.35);
+
+        // Value on bottom
+        ctx.font = `900 ${Math.floor(40 * sf)}px "Orbitron"`;
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 20 * sf;
+        ctx.shadowColor = pal.scorePanel;
+        ctx.fillText(maxCombo.toString(), centerX, comboY + comboH * 0.7);
+
         ctx.restore();
     }
+
+    // Removed standalone renderMaxComboSection as it's now integrated
 
     private renderRewardBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, sf: number, accent: string) {
         ctx.save();
@@ -458,7 +447,7 @@ export class ResultRenderer {
     }
 
 
-    private drawTechBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, sf: number) {
+    private drawTechBorder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, sf: number, title?: string) {
         ctx.save();
         ctx.strokeStyle = color;
         ctx.lineWidth = 2 * sf;
@@ -467,6 +456,34 @@ export class ResultRenderer {
         // Main outline
         ctx.strokeRect(x, y, w, h);
         
+        // 1. Tab-style Header (Trading Card style)
+        if (title) {
+            ctx.save();
+            const tabH = 28 * sf;
+            const tabW = w * 0.65;
+            const tabX = x + (w - tabW) / 2;
+            const tabY = y - tabH / 2;
+            
+            // Tab Background
+            ctx.fillStyle = 'rgba(10, 15, 30, 0.95)';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2 * sf;
+            ctx.globalAlpha = 1;
+            this.drawRoundedRect(ctx, tabX, tabY, tabW, tabH, 6 * sf);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Tab Title
+            ctx.font = `900 ${Math.floor(13 * sf)}px "Orbitron"`;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 10 * sf;
+            ctx.shadowColor = color;
+            ctx.fillText(title, x + w/2, tabY + tabH / 2);
+            ctx.restore();
+        }
+
         // Corner accents
         const s = 15 * sf;
         ctx.lineWidth = 4 * sf;
@@ -496,17 +513,17 @@ export class ResultRenderer {
         const centerX = px + pw / 2;
         const rankColor = this.getGradeColor(grade);
 
-        // [POLISH] Reduced Rank size and shifted slightly to prevent clashing with metadata
-        this.drawGrade(ctx, grade, centerX, py + ph * 0.18, sf * 1.0, rankColor);
+        // [POLISH] Shifted Rank down to 0.38 for a much more balanced, centered look on mobile
+        this.drawGrade(ctx, grade, centerX, py + ph * 0.38, sf * 1.0, rankColor);
         
         // NEW RECORD - Added Portrait Support (Centered above Accuracy)
         if (accuracy > 90 || score > 0) {
             ctx.save();
-            ctx.font = `900 ${Math.floor(12 * sf)}px "Orbitron"`;
-            const badgeW = ctx.measureText("NEW RECORD!").width + 16 * sf;
+            ctx.font = `900 ${Math.floor(14 * sf)}px "Orbitron"`;
+            const label = "NEW RECORD!";
+            const badgeW = ctx.measureText(label).width + 20 * sf;
             const badgeX = centerX - badgeW / 2;
-            const badgeY = py + ph * 0.31; // Positioned between Grade and Accuracy
-            
+            const badgeY = py + ph * 0.46; // Shifted relative to Rank
             ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
             ctx.beginPath();
             this.drawRoundedRect(ctx, badgeX, badgeY - 12 * sf, badgeW, 18 * sf, 3 * sf);
@@ -521,7 +538,7 @@ export class ResultRenderer {
             ctx.restore();
         }
 
-        this.drawAccuracy(ctx, accuracy, centerX, py + ph * 0.38, sf * 1.05, rankColor);
+        this.drawAccuracy(ctx, accuracy, centerX, py + ph * 0.54, sf * 1.1, rankColor);
 
         // Portrait specific difficulty info
         const totalNotes = (song as any)?.noteCount || 500;
@@ -532,10 +549,10 @@ export class ResultRenderer {
         ctx.font = `900 ${Math.floor(18 * sf)}px "Orbitron"`;
         ctx.fillStyle = '#ff4757';
         ctx.textAlign = 'center';
-        ctx.fillText(`${difficultyLabel} Lv.${level}`, centerX, py + ph * 0.46);
+        ctx.fillText(`${difficultyLabel} Lv.${level}`, centerX, py + ph * 0.62);
 
-        const tableY = py + ph * 0.52;
-        this.renderStatsSection(ctx, centerX - pw * 0.45, tableY, pw * 0.9, ph * 0.45, stats, maxCombo, judgeColors, pal, sf);
+        const tableY = py + ph * 0.68;
+        this.renderStatsSection(ctx, centerX - pw * 0.45, tableY, pw * 0.9, ph * 0.32, stats, maxCombo, judgeColors, pal, sf);
     }
 
     private drawGrade(ctx: CanvasRenderingContext2D, grade: string, x: number, y: number, sf: number, color: string) {
@@ -860,24 +877,59 @@ export class ResultRenderer {
         ctx.restore();
     }
 
-    private renderConfetti(ctx: CanvasRenderingContext2D, width: number, height: number, elapsed: number) {
+    private renderConfetti(ctx: CanvasRenderingContext2D, width: number, height: number, elapsed: number, sf: number, isFC: boolean = false) {
         ctx.save();
         const time = elapsed * 0.001;
-        const colors = ['#FFD700', '#FF00A0', '#00F0FF', '#FFFFFF', '#FF4757'];
+        const colors = ['#FFD700', '#FF00A0', '#00F0FF', '#FFFFFF', '#FF4757', '#FFEA00', '#00FF9D'];
         
-        for (let i = 0; i < 50; i++) {
-            const seed = i * 13.37;
-            const x = (Math.sin(seed + time * 0.5) * 0.5 + 0.5) * width;
-            const y = ((seed + time * 0.3) % 1.2 - 0.1) * height;
+        // Increased particle density for FC
+        const count = isFC ? 150 : 75;
+        
+        for (let i = 0; i < count; i++) {
+            // High-entropy seeds for chaotic natural movement
+            const seed = (i * 137.456 + Math.sin(i)) % 100;
+            const sizeSeed = (i * 789.12 + Math.cos(i)) % 1;
+            const speedSeed = (i * 245.67 + Math.tan(i)) % 1;
+            const windSeed = (i * 456.78) % 1;
             
-            const size = (Math.sin(seed * 2) * 4 + 8);
-            const rot = seed + time * 2;
+            // 1. Graceful Gravity Fall (Much slower for paper-like feel)
+            const fallSpeed = (70 + speedSeed * 100) * (isFC ? 1.2 : 1.0);
+            const startY = -120; 
+            const y = (startY + time * fallSpeed + seed * height) % (height + 240) - 120;
+            
+            // 2. Wide Horizontal Sway (Flutter effect)
+            const swayAmplitude = (60 + windSeed * 100);
+            const swayFrequency = 1.0 + windSeed * 1.5;
+            const initialX = (seed / 100) * width; 
+            const x = initialX + Math.sin(time * swayFrequency + seed) * swayAmplitude;
+            
+            // 3. Random Size & Slower Rotation
+            const size = (8 + sizeSeed * 12) * (isFC ? 1.2 : 1.0) * sf;
+            const rotationSpeed = (seed - 50) * 0.05; // Halved rotation speed
+            const rotation = time * rotationSpeed + seed;
+            
+            // 4. Elegant 3D Flip (Slower flip speed)
+            const flipPhase = seed * 5;
+            const flipSpeed = 2 + speedSeed * 3;
+            const flipWidth = size * Math.cos(time * flipSpeed + flipPhase);
             
             ctx.save();
             ctx.translate(x, y);
-            ctx.rotate(rot);
+            ctx.rotate(rotation);
+            
+            ctx.globalAlpha = 0.85;
             ctx.fillStyle = colors[i % colors.length];
-            ctx.fillRect(-size / 2, -size / 2, size, size / 2);
+            
+            // Paper fragment with flip width
+            ctx.fillRect(-flipWidth / 2, -size / 2, flipWidth, size / 2);
+            
+            // Enhanced Highlight for FC
+            if (isFC && i % 3 === 0) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 0.5 * sf;
+                ctx.strokeRect(-flipWidth / 2, -size / 2, flipWidth, size / 2);
+            }
+            
             ctx.restore();
         }
         ctx.restore();
