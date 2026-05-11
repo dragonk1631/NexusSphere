@@ -734,7 +734,6 @@ export class ShopUI {
                 const url = renderCache.getBackgroundPreviewUrlLocal(t.id);
                 const isOwned = economy.isThemeOwned(t.id);
                 const price = (idx === 0 || t.id === 'deep-space') ? 0 : (idx < 7 ? 1000 : 2000);
-                const rarityStars = idx < 3 ? 3 : (idx < 7 ? 4 : 5);
                 const accentColor = t.color1;
 
                 const bgStyle = url ? `background-image: url(${url});` : `background: linear-gradient(135deg, ${t.color1}, ${t.color2});`;
@@ -776,7 +775,6 @@ export class ShopUI {
                 const previewUrl = renderCache.getPreviewDataURL(s.id);
                 const isOwned = economy.isSkinOwned(s.id);
                 const price = (idx === 0) ? 0 : 1500;
-                const rarityStars = 3;
                 const accentColor = skinColors[idx % skinColors.length];
 
                 return `
@@ -827,7 +825,6 @@ export class ShopUI {
                 const isOwned = economy.isCharacterOwned(c.id);
                 const isActive = c.id === currentCharId;
                 const isPlaceholder = c.name === '???';
-                const rarityStars = 4;
                 const accentColor = '#00E5FF';
 
                 return `
