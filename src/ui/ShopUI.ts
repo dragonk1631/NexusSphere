@@ -972,7 +972,7 @@ export class ShopUI {
             // 2. Reset active selections to actual factory defaults
             themeManager.setTheme('deep-space');
             skinManager.setSkin('classic-gel');
-            localStorage.setItem('nexus_active_character', 'baby');
+            economy.setActiveCharacter('baby');
 
             // 3. Notify system of character change
             window.dispatchEvent(new CustomEvent('nexus-character-changed', { detail: { charId: 'baby' } }));
@@ -1120,48 +1120,6 @@ export class ShopUI {
                 btn.innerText = originalText;
                 btn.disabled = false;
             }
-        });
-    }
-
-    private attachCharacterListeners(container: HTMLElement): void {
-        const economy = EconomyManager.getInstance();
-        
-        container.querySelectorAll('.character-card').forEach(card => {
-            if (card.classList.contains('placeholder')) return;
-
-            card.addEventListener('click', () => {
-                const charId = card.getAttribute('data-char');
-                const price = parseInt(card.getAttribute('data-price') || '0');
-                if (!charId) return;
-
-                const isOwned = economy.isCharacterOwned(charId);
-
-                if (!isOwned) {
-                    ModalUI.getInstance().show(
-                        '캐릭터 구매',
-                        `${price.toLocaleString()} 코인으로 이 캐릭터를 구매하시겠습니까?`,
-                        {
-                            confirmLabel: '구매하기',
-                            cancelLabel: '취소',
-                            onConfirm: () => {
-                                const res = economy.purchaseCharacter(charId, price);
-                                if (res.success) {
-                                    ModalUI.getInstance().showNotification('구매 성공', res.message, 3000, 'info');
-                                    this.updateCurrencyUI();
-                                    this.renderActiveTabContent(container);
-                                } else {
-                                    ModalUI.getInstance().show('구매 실패', res.message, { type: 'error' });
-                                }
-                            }
-                        }
-                    );
-                } else {
-                    economy.setActiveCharacter(charId);
-                    this.renderActiveTabContent(container);
-                    // Notify any observers if needed
-                    window.dispatchEvent(new CustomEvent('nexus-character-changed', { detail: { charId } }));
-                }
-            });
         });
     }
 
