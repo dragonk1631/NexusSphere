@@ -248,7 +248,9 @@ export class GameplayManager {
     }
 
     private startAudio(): void {
-        this.audioEngine.seek(0);
+        // Use _effectiveStartTime (captured after silence-skip) so MP3 audio
+        // starts at the exact same point as the MIDI sequencer.
+        this.audioEngine.seek(this._effectiveStartTime);
         this.audioEngine.play();
         const actualStartTime = this.audioEngine.currentTime;
         this.audioEngine.startPreciseTime(actualStartTime);

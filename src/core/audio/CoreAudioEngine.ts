@@ -41,6 +41,7 @@ export class CoreAudioEngine {
     private syncMonitorId: number | null = null;
     private lastHardCorrectionTime: number = 0;
     private basePlaybackRate: number = 1.0;
+    private midiSilenceOffset: number = 0;
 
     // Internal State
     private isReady: boolean = false;
@@ -306,12 +307,16 @@ export class CoreAudioEngine {
         this.stopBGM(true); // PROFESSIONAL: Fade out menu music when MIDI starts
         
         if (this.isHybridMode) {
+            // MP3 timeline starts at 0, but MIDI timeline starts at midiSilenceOffset.
+            // Subtract the offset so MP3 plays at the correct corresponding position.
+            const mp3Time = Math.max(0, seqTime - this.midiSilenceOffset);
+            AudioEngineLogger.info(`[DIAG] play(): seqTime=${seqTime.toFixed(3)}, midiSilenceOffset=${this.midiSilenceOffset.toFixed(3)}, mp3Time=${mp3Time.toFixed(3)}, streaming=${this.isStreamingMode}`);
             if (this.isStreamingMode && this.streamingPlayer) {
-                this.streamingPlayer.currentTime = Math.max(0, seqTime);
+                this.streamingPlayer.currentTime = mp3Time;
                 this.streamingPlayer.play();
                 this.startSyncMonitor();
             } else if (this.mp3Buffer) {
-                this.startMp3At(seqTime, hardwareTime);
+                this.startMp3At(mp3Time, hardwareTime);
             }
 
             // Mute all midi synth channels to favor MP3 audio
@@ -689,6 +694,13 @@ export class CoreAudioEngine {
             this.sequencer.currentTime = time;
         }
         const seqTime = this.sequencer ? this.sequencer.currentTime : 0;
+
+        // Capture silence offset when SpessaSynth has fully processed the MIDI.
+        // At loadMidi() time, SpessaSynth returns 0. Only later seek(0) returns the real skip.
+        if (time === 0 && seqTime > 0) {
+            this.midiSilenceOffset = seqTime;
+        }
+
         this.timer.seek(time, seqTime);
 
         if (this.isHybridMode && this.isPlaying()) {
